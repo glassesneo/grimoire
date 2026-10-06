@@ -1,4 +1,5 @@
-import { For, Index, type JSX } from "solid-js";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import { createEffect, For, Index, type JSX } from "solid-js";
 import {
   type NoticeLevel,
   splitFencedBlocks,
@@ -16,7 +17,12 @@ const noticeColor: Record<NoticeLevel, string> = {
 };
 
 const CURSOR_MARKER = "#89b4fa";
-const IDLE_MARKER = "#313244";
+const CURSOR_BACKGROUND = "#3a3a3a";
+
+/** Drop blank lines that only separate a text run from a neighbouring fence. */
+function trimBlankLines(text: string): string {
+  return text.replace(/^\s*\n/, "").replace(/\n\s*$/, "");
+}
 
 export interface UserValue {
   text: string;
@@ -78,6 +84,11 @@ export function projectSession<Render>(
         let part = 0;
         for (const block of splitFencedBlocks(entry.text)) {
           const id = `${entry.id}:part:${part++}`;
+          // A blank run between fences has nothing to show or select; the part
+          // index still advances so the ids after it stay stable.
+          if (block.type === "text" && block.text.trim() === "") {
+            continue;
+          }
           if (block.type === "text") {
             projected.push(materializeItem({
               id,
@@ -141,7 +152,7 @@ export function createSessionItemTypes(): SessionItemTypes<JSX.Element> {
     },
     assistant: {
       kind: "assistant",
-      render: ({ value }) => <text>{value.text}</text>,
+      render: ({ value }) => <text>{trimBlankLines(value.text)}</text>,
       sourceText: (value) => value.text,
       actions: {},
     },
@@ -179,6 +190,8 @@ export interface TimelineViewProps {
   timeline: ItemTypeRegistry<JSX.Element>;
   /** Rows the screen's overlays cover over the scrollbox's bottom edge. */
   overlayHeight: number;
+  /** Whether the timeline region holds focus; the cursor row is marked only then. */
+  focused?: boolean;
   /** Queued prompts shown after the history; not selectable timeline items. */
   queued?: readonly string[];
   scrollRef?: (scrollbox: TimelineScrollBox | undefined) => void;
@@ -187,7 +200,9 @@ export interface TimelineViewProps {
 /**
  * The agent's history as selectable timeline items. The scrollbox keeps the
  * full screen; a spacer as tall as the overlay lets the last item scroll above
- * the editor, and `scrollRef` exposes the scrollbox to item actions.
+ * the editor, and `scrollRef` exposes the scrollbox to item actions. The
+ * vertical scrollbar stops at the overlay's top edge and its thumb is sized to
+ * the rows left visible, so it is never painted under the editor.
  */
 export function TimelineView(props: TimelineViewProps): JSX.Element {
   const version = useVersion(props.timeline);
@@ -195,23 +210,45 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
     ...(version(), props.timeline.items()),
   ];
   const cursor = (): string | undefined => (version(), props.timeline.cursor());
+  const selected = (id: string): boolean => Boolean(props.focused) && cursor() === id;
+  let scrollbox: ScrollBoxRenderable | undefined;
+
+  createEffect(() => {
+    if (scrollbox) {
+      scrollbox.verticalScrollBar.marginBottom = props.overlayHeight;
+    }
+  });
 
   return (
     <scrollbox
-      ref={(element) => props.scrollRef?.(element)}
+      ref={(element) => {
+        scrollbox = element;
+        props.scrollRef?.(element);
+      }}
       flexGrow={1}
       stickyScroll
       stickyStart="bottom"
       paddingX={1}
+      renderBefore={function (this: ScrollBoxRenderable) {
+        // The native bar resets its thumb to the full viewport on resize, so
+        // re-apply the visible height after layout and before the bar paints.
+        this.verticalScrollBar.slider.viewPortSize = Math.max(1, this.viewport.height - props.overlayHeight);
+      }}
     >
       {/* Rows are kept by position; a streamed item updates its row in place. */}
       <Index each={items()}>
         {(item) => (
-          <box id={item().id} flexDirection="row" marginBottom={item().kind === "tool" ? 0 : 1}>
-            <text fg={cursor() === item().id ? CURSOR_MARKER : IDLE_MARKER}>
-              {cursor() === item().id ? "▌ " : "  "}
+          <box
+            id={item().id}
+            flexDirection="row"
+            marginBottom={item().kind === "tool" ? 0 : 1}
+            backgroundColor={selected(item().id) ? CURSOR_BACKGROUND : "transparent"}
+          >
+            <text fg={CURSOR_MARKER} flexShrink={0}>
+              {selected(item().id) ? "▌ " : "  "}
             </text>
-            <box flexGrow={1} flexDirection="column">
+            {/* Shrinkable so wrapped text stays left of the scrollbar column. */}
+            <box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
               {item().render()}
             </box>
           </box>

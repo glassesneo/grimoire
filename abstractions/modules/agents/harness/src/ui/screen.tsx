@@ -1,6 +1,6 @@
 import { engine } from "@opentui/core";
 import { type JSX, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount } from "solid-js";
 import { setupDefaultUI } from "../contributions/default";
 import type { SessionHost } from "../core/session";
 import {
@@ -245,6 +245,11 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     ui.controllers.timeline.replace(items);
   });
 
+  const regionVersion = useVersion(ui.controllers.regions);
+  const timelineFocused = () => (regionVersion(), ui.controllers.regions.current() === "timeline");
+  // Entering the timeline puts an off-screen cursor on the latest item.
+  createEffect(on(timelineFocused, (focused) => { if (focused) itemActions.reveal(); }, { defer: true }));
+
   const runStage = (action: string) => {
     const active = ui.controllers.stage.active();
     if (active) { void Promise.resolve().then(() => active.runAction(action)).catch((error) => addNotice("error", String(error))); return; }
@@ -329,7 +334,7 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
       stage={() => <StageView ui={ui} />}
       timeline={
         <>
-          <TimelineView timeline={ui.controllers.timeline} queued={queued()} overlayHeight={overlayHeight()} scrollRef={(element) => (scrollbox = element)} />
+          <TimelineView timeline={ui.controllers.timeline} focused={timelineFocused()} queued={queued()} overlayHeight={overlayHeight()} scrollRef={(element) => (scrollbox = element)} />
         </>
       }
     />

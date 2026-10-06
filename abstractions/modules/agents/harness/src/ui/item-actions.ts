@@ -41,8 +41,13 @@ export interface ClipboardWriter {
 }
 
 export interface ItemActions<Render = unknown> {
-  /** Move the cursor one item and bring it clear of the overlay. */
+  /**
+   * Move the cursor one item and bring it clear of the overlay. The last item
+   * scrolls to the very bottom, so its end shows and sticky scroll re-engages.
+   */
   move(delta: number): void;
+  /** Put an off-screen cursor on the last item, as when the timeline gains focus. */
+  reveal(): void;
   /** Page or half-page scroll, interpolated over the configured duration. */
   scroll(kind: ItemScrollKind): void;
   /** Copy the cursor item's `sourceText()` to the clipboard. */
@@ -175,12 +180,19 @@ export function createItemActions<Render>(
   const visibleRows = (box: TimelineScrollBox): number =>
     Math.max(1, box.height - Math.max(0, overlayHeight()));
 
+  const isLast = (id: string): boolean => timeline.items().at(-1)?.id === id;
+
   return {
     move(delta: number): void {
       timeline.moveCursor(delta);
       const box = scrollbox();
       const id = timeline.cursor();
       if (!box || id === undefined) {
+        return;
+      }
+      if (isLast(id)) {
+        // scrollTo clamps to the end, which also shows queued prompts below.
+        scroll.scrollTo(Number.POSITIVE_INFINITY);
         return;
       }
       const row = box.getRenderable(id);
@@ -194,6 +206,24 @@ export function createItemActions<Render>(
       if (top < box.scrollTop) target = top;
       else if (top + row.height > box.scrollTop + visible) target = top + row.height - visible;
       scroll.scrollTo(target);
+    },
+
+    reveal(): void {
+      const box = scrollbox();
+      const id = timeline.cursor();
+      const last = timeline.items().at(-1)?.id;
+      if (!box || last === undefined) {
+        return;
+      }
+      const row = id === undefined ? undefined : box.getRenderable(id);
+      if (row) {
+        const top = row.y - box.y;
+        if (top + row.height > 0 && top < visibleRows(box)) {
+          return;
+        }
+      }
+      timeline.setCursor(last);
+      scroll.scrollTo(Number.POSITIVE_INFINITY);
     },
 
     scroll(kind: ItemScrollKind): void {

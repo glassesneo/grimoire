@@ -12,7 +12,8 @@
  * faked here and intentionally left to the tmux check.
  */
 import { describe, expect, test } from "bun:test";
-import { engine } from "@opentui/core";
+import { engine, type ScrollBoxRenderable } from "@opentui/core";
+import { createSignal } from "solid-js";
 import { ManualClock } from "@opentui/core/testing";
 import { testRender, type JSX } from "@opentui/solid";
 import {
@@ -166,6 +167,14 @@ describe("projectSession", () => {
     expect(final[0]?.id).toBe(before[0]?.id);
   });
 
+  test("skips a blank run between fences without shifting the later part ids", () => {
+    const projected = projectSession(
+      [{ kind: "assistant", id: "msg-3", version: 0, text: "```\na\n```\n\n\n```\nb\n```\nend", streaming: false }],
+      types,
+    );
+    expect(projected.map((entry) => entry.id)).toEqual(["msg-3:part:0", "msg-3:part:2", "msg-3:part:3"]);
+  });
+
   test("keeps entry ids for user, tool, and notice, with the raw tool result", () => {
     const entries: SessionEntry[] = [
       { kind: "user", id: "user-1", version: 0, text: "ask" },
@@ -196,15 +205,16 @@ describe("projectSession", () => {
 
 describe("timeline actions", () => {
   test("moves the cursor and scrolls it above the editor overlay", () => {
-    const timeline = timelineWithNotes("a", "b", "c");
+    const timeline = timelineWithNotes("a", "b", "c", "d");
     const box = fakeBox({
       rows: {
         "timeline-0": { y: 0, height: 3 },
         "timeline-1": { y: 3, height: 3 },
         "timeline-2": { y: 6, height: 3 },
+        "timeline-3": { y: 9, height: 3 },
       },
       height: 6,
-      scrollHeight: 12,
+      scrollHeight: 15,
     });
     const actions = createItemActions({
       timeline,
@@ -226,6 +236,50 @@ describe("timeline actions", () => {
       actions.move(0);
       frame(120);
       expect(box.scrollTop).toBe(5);
+
+      // The last item scrolls to the very end, not just clear of the overlay.
+      actions.move(1);
+      frame(120);
+      expect(box.scrollTop).toBe(9);
+
+      // Re-selecting it after scrolling away returns to the end, not its top.
+      box.scrollTop = 0;
+      actions.move(1);
+      frame(120);
+      expect(box.scrollTop).toBe(9);
+    } finally {
+      void actions.dispose();
+    }
+  });
+
+  test("reveal moves an off-screen cursor to the last item and keeps a visible one", () => {
+    const timeline = timelineWithNotes("a", "b", "c", "d");
+    const box = fakeBox({
+      rows: {
+        "timeline-0": { y: 0, height: 3 },
+        "timeline-1": { y: 3, height: 3 },
+        "timeline-2": { y: 6, height: 3 },
+        "timeline-3": { y: 9, height: 3 },
+      },
+      height: 6,
+      scrollHeight: 15,
+      scrollTop: 4,
+    });
+    const actions = createItemActions({ timeline, scrollbox: () => box, overlayHeight: () => 2 });
+    const frame = frameDriver();
+    try {
+      // Rows 4..7 are visible; timeline-1 (3..6) is partly on screen.
+      timeline.setCursor("timeline-1");
+      actions.reveal();
+      frame(120);
+      expect(timeline.cursor()).toBe("timeline-1");
+      expect(box.scrollTop).toBe(4);
+
+      timeline.setCursor("timeline-0");
+      actions.reveal();
+      frame(120);
+      expect(timeline.cursor()).toBe("timeline-3");
+      expect(box.scrollTop).toBe(9);
     } finally {
       void actions.dispose();
     }
@@ -384,6 +438,44 @@ describe("TimelineView", () => {
     expect(typeof box?.getRenderable).toBe("function");
     expect(setup.captureCharFrame()).toContain("queued: next");
 
+    setup.renderer.destroy();
+  });
+
+  test("wraps rows left of the scrollbar, marks the cursor only when focused, and keeps the bar above the overlay", async () => {
+    const timeline = new ItemTypeRegistry<JSX.Element>();
+    const types = createSessionItemTypes();
+    timeline.registerType(types.assistant);
+    timeline.registerType(types.code);
+    const entries: SessionEntry[] = Array.from({ length: 6 }, (_, index) => ({
+      kind: "assistant", id: `msg-${index}`, version: 0, streaming: false,
+      text: `${"x".repeat(60)}\n\n\`\`\`\n${"y".repeat(60)}\n\`\`\``,
+    }));
+    timeline.replace(projectSession(entries, types));
+    timeline.setCursor(timeline.items().at(-1)!.id);
+
+    const [focused, setFocused] = createSignal(false);
+    let box: ScrollBoxRenderable | undefined;
+    const setup = await testRender(
+      () => <TimelineView timeline={timeline} focused={focused()} overlayHeight={4} scrollRef={(element) => { box = element as ScrollBoxRenderable; }} />,
+      { width: 40, height: 16 },
+    );
+    await setup.flush();
+
+    const frame = setup.captureCharFrame();
+    // No glyph reaches the scrollbar column or crosses a code block's right border.
+    for (const line of frame.split("\n")) {
+      expect(/[xy]/.test(line.slice(39))).toBe(false);
+      if (line.includes("y")) expect(line).toMatch(/y *│/);
+    }
+    // The blank line before each fence is not drawn: the text row meets the border.
+    expect(frame).toMatch(/x *\n *\n *┌/);
+    expect(frame).not.toContain("▌");
+
+    setFocused(true);
+    await setup.flush();
+    expect(setup.captureCharFrame()).toContain("▌");
+
+    expect(box!.verticalScrollBar.height).toBe(12);
     setup.renderer.destroy();
   });
 });
