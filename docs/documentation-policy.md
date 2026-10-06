@@ -26,7 +26,8 @@ Only written contracts are contracts. What no document states is not a gap: the 
 - `docs/commands.md` owns operator commands and their effects on state.
 - `docs/generated/` holds committed, machine-generated reference material, separate from handwritten contracts. `modules.md` lists every Denix module's name, `meta.description`, and declaration paths; regenerate it with `just docs`, never edit it by hand.
 - `README.org` orients humans and lists first commands; it points to owners instead of restating them.
-- `AGENTS.md` holds agent-facing decision rules that no other owner covers; apart from the summary allowed under Ownership, it does not restate other documents.
+- The root `AGENTS.md` holds agent-facing decision rules that no other owner covers; apart from the summary allowed under Ownership, it does not restate other documents.
+- An `AGENTS.md` below the root holds agent-facing rules that apply only inside its directory.
 
 Option descriptions are documentation and meet the same criteria.
 
@@ -50,6 +51,6 @@ A comment changes only when the code it explains changes.
 
 Every documented statement has one owner. Other documents point to the owner instead of repeating the statement. When a contract changes, update its owner first and remove any text that now disagrees with it.
 
-The one exception is `AGENTS.md`, which agents load by default. It may summarize the concepts of `docs/architecture.md` that a conversation assumes, and points there for the rules. The summary changes in the same change as the statements it summarizes.
+The one exception is the root `AGENTS.md`, which agents load by default. It may summarize the concepts of `docs/architecture.md` that a conversation assumes, and points there for the rules. The summary changes in the same change as the statements it summarizes.
 
 Each document and each specifying source file states at its top what it owns. A statement outside every declared scope has no owner; propose an owner to the user instead of adding the statement.
