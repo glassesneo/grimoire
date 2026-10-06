@@ -1,5 +1,5 @@
-# Owns commit automation and its installation. Run without pre-commit's stash
-# so the repository hook can reject unstaged changes before modifying anything.
+# Owns commit automation and its installation. Run without pre-commit's stash:
+# the repository hook isolates the index itself and writes fixes to the worktree.
 {
   pkgs,
   git-hooks,

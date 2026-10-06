@@ -1,6 +1,7 @@
 # Git/pre-commit do not guarantee our auto-staging policy. Exercise real commits
-# with a fake Nix executable: guards preserve user work, fixes enter the commit,
-# and failed validation prevents the commit without discarding staged fixes.
+# with a fake Nix executable: pending work stays out of the snapshot and the
+# commit, conflicting fixes are refused, fixes enter the commit and worktree, and
+# failed validation prevents the commit without discarding staged fixes.
 {
   pkgs,
   inputs,
