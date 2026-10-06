@@ -178,7 +178,11 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
 /** Session events and contributions meet at the screen, not in its views. */
 export function Screen(props: { host: SessionHost; startupNotices: readonly SessionEntry[] }) {
   const renderer = useRenderer();
-  const [entries, setEntries] = createSignal<readonly SessionEntry[]>(props.startupNotices);
+  // A resumed session starts with its history.
+  const [entries, setEntries] = createSignal<readonly SessionEntry[]>([
+    ...sessionEntriesFromMessages(props.host.runtime.session.messages),
+    ...props.startupNotices,
+  ]);
   // Messages waiting for the current run; each enters the timeline when it starts.
   const [queued, setQueued] = createSignal<readonly string[]>([]);
   let scrollbox: TimelineScrollBox | undefined;

@@ -8,6 +8,7 @@ const { values } = parseArgs({
   options: {
     version: { type: "boolean" },
     config: { type: "string" },
+    session: { type: "string" },
   },
 });
 
@@ -22,5 +23,11 @@ const { run } = await import("./app");
 if (values.version) {
   console.log(`harness ${HARNESS_VERSION} (pi ${PI_VERSION})`);
 } else {
-  await run({ configPath: values.config });
+  let sessionManager;
+  if (values.session) {
+    const { openSession } = await import("./core/resume");
+    sessionManager = await openSession(values.session, process.cwd());
+    if (!sessionManager) process.exit(1);
+  }
+  await run({ configPath: values.config, sessionManager });
 }
