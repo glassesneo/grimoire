@@ -6,6 +6,7 @@ import {
   createAgentSessionFromServices,
   createAgentSessionRuntime,
   createAgentSessionServices,
+  createCodemodeExtension,
   type ExtensionError,
   type ExtensionUIContext,
   SessionManager,
@@ -45,7 +46,12 @@ export async function createSessionHost(options: {
     sessionManager,
     sessionStartEvent,
   }) => {
-    const services = await createAgentSessionServices({ cwd, agentDir, settingsManager });
+    const services = await createAgentSessionServices({
+      cwd,
+      agentDir,
+      settingsManager,
+      resourceLoaderOptions: { extensionFactories: [createCodemodeExtension()] },
+    });
     return {
       ...(await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent })),
       services,

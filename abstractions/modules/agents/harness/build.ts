@@ -7,7 +7,10 @@ import pi from "./node_modules/@earendil-works/pi-coding-agent/package.json" wit
 import harness from "./package.json" with { type: "json" };
 
 const result = await Bun.build({
-  entrypoints: ["./src/main.ts"],
+  entrypoints: ["./src/main.ts", "./src/extensions/codemode/worker.ts"],
+  // Pi looks up the worker by its source path, not Bun's default output path.
+  root: ".",
+  naming: { entry: "[dir]/[name].ts" },
   target: "bun",
   plugins: [solidPlugin],
   minify: true,

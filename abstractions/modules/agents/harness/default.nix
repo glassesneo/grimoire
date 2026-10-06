@@ -15,6 +15,8 @@ delib.module ({cfg, ...}: {
         packages = ["npm:@commandcode/pi-commandcode-provider@0.3.0"];
         defaultProvider = "command-code";
         defaultModel = "meta/muse-spark-1.3-contributor";
+        defaultTools = ["+codemode"];
+        codemode.mode = "only";
       };
       package = packageOption (pkgs.callPackage ./package.nix {
         bun2nix = inputs.bun2nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
