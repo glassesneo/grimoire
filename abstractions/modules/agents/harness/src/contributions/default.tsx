@@ -43,11 +43,17 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
   bind("timeline", [
     { actionId: "timeline.cursor-down", name: "j", action: () => actions.moveTimelineCursor(1) },
     { actionId: "timeline.cursor-up", name: "k", action: () => actions.moveTimelineCursor(-1) },
+    { actionId: "timeline.cursor-down", name: "down", action: () => actions.moveTimelineCursor(1) },
+    { actionId: "timeline.cursor-up", name: "up", action: () => actions.moveTimelineCursor(-1) },
     { actionId: "timeline.scroll-page-down", name: "f", ctrl: true, action: () => actions.scrollTimeline("page-down") },
     { actionId: "timeline.scroll-page-up", name: "b", ctrl: true, action: () => actions.scrollTimeline("page-up") },
     { actionId: "timeline.scroll-half-down", name: "d", ctrl: true, action: () => actions.scrollTimeline("half-down") },
     { actionId: "timeline.scroll-half-up", name: "u", ctrl: true, action: () => actions.scrollTimeline("half-up") },
     { actionId: "timeline.copy-item", name: "y", action: actions.copyTimelineItem },
+    { actionId: "timeline.toggle-item", name: "return", action: actions.toggleTimelineItem },
+    { actionId: "timeline.toggle-item", name: "kpenter", action: actions.toggleTimelineItem },
+    { actionId: "timeline.expand-item", name: "l", action: actions.expandTimelineItem },
+    { actionId: "timeline.collapse-item", name: "h", action: actions.collapseTimelineItem },
     { actionId: "timeline.focus-editor", name: "e", ctrl: true, action: () => ui.regions.requestFocus("editor") },
     { actionId: "timeline.focus-stage", name: "k", ctrl: true, action: () => ui.regions.requestFocus("stage") },
   ]);

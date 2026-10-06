@@ -5,18 +5,25 @@ import { setupDefaultUI } from "../contributions/default";
 import type { SessionHost } from "../core/session";
 import {
   type NoticeLevel,
+  modelName,
   notice,
-  reduceSessionEntries,
+  reduceTimeline,
   type SessionEntry,
-  sessionEntriesFromMessages,
+  type TimelineEvent,
+  type TimelineState,
+  timelineState,
 } from "../core/session-entries";
+import { branchUsage, formatContext, formatUsage } from "../core/usage";
 import { StageView, setupStageUI } from "./stage";
-import type { TimelineItem } from "./controllers";
+import type { ItemType } from "./controllers";
+import { createClientHost } from "./harness-client";
 import { createItemActions, type TimelineScrollBox } from "./item-actions";
 import { createExtensionUI } from "./extension-ui";
-import { allocateHeights, createHarnessUI, type HarnessUIActions, type HarnessUIInstance } from "./harness-ui";
+import { allocateHeights, createHarnessUI, type HarnessUIActions, type HarnessUIInstance, type TimelineItemSink } from "./harness-ui";
 import { EditorView } from "./editor";
-import { createSessionItemTypes, projectSession, TimelineView } from "./timeline";
+import { RunStateIndicator, StatuslineView, statuslineSegments } from "./statusline";
+import { type QueuedPrompts, TimelineProjector, TimelineView } from "./timeline";
+import { createTimelineTypes } from "./timeline-types";
 
 import { useVersion } from "./state";
 
@@ -24,18 +31,25 @@ export interface ScreenLayoutProps<Render = unknown> {
   ui: HarnessUIInstance<Render>;
   timeline: JSX.Element;
   stage?: () => JSX.Element;
+  /** Show the one-row status lines above the timeline and below the editor. */
+  statuslines?: boolean;
+  /** Rows the overlays cover over the timeline's bottom and top edges. */
   onOverlayHeight?(rows: number): void;
+  onTopInset?(rows: number): void;
 }
 
 /**
  * Timeline fills the screen; the editor is drawn over its bottom edge and stage
- * sits directly on top of the editor. Only the focused region's renderable takes
- * focus, and both overlays are recomputed from terminal size and content.
+ * sits directly on top of the editor. The bottom status line sits under the
+ * editor, the top one over the timeline's first row, and the run state
+ * indicator over the timeline row just above the stage or editor. Only the
+ * focused region's renderable takes focus, and the overlays are recomputed
+ * from terminal size and content.
  */
 export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Element {
-  const { regions, editor, stage } = props.ui.controllers;
+  const { regions, editor, stage, statusline, runState } = props.ui.controllers;
   const dimensions = useTerminalDimensions();
-  const version = useVersion(regions, editor, stage);
+  const version = useVersion(regions, editor, stage, statusline, runState);
 
   const focusedRegion = () => (version(), regions.current());
   const snapshot = () => (version(), editor.snapshot());
@@ -70,15 +84,28 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
           ? (stage.active()?.preferredHeight ?? 0)
           : (editor.snapshot().assist?.items.length ?? 0),
       },
+      { top: props.statuslines, bottom: props.statuslines },
     ),
   );
 
   // The editor has no side border, so its body spans the whole terminal width
   // at every height and the textarea wrap measurement uses the same width.
   const bodyWidth = () => Math.max(1, dimensions().width);
+  const below = () => allocation().editor + allocation().stage + allocation().bottom;
+  const room = () => dimensions().height - allocation().top - below();
+  // The indicator covers a timeline row only while the timeline keeps two others.
+  const indicator = () => (version(), runState.snapshot() !== undefined) && room() >= 3;
+  // A blank row separates the history from the bars and the indicator from
+  // its neighbours, while the terminal is tall enough to spare them.
+  const margin = () => (props.statuslines && room() >= 8 ? 1 : 0);
+  const topInset = () => allocation().top + margin();
+  const overlay = () => below() + margin() + (indicator() ? 1 + margin() : 0);
 
   createEffect(() => {
-    props.onOverlayHeight?.(allocation().editor + allocation().stage);
+    props.onOverlayHeight?.(overlay());
+  });
+  createEffect(() => {
+    props.onTopInset?.(topInset());
   });
 
   // A stage with no room left cannot hold focus; read
@@ -108,15 +135,15 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         <box
           id="harness-timeline-clip"
           position="absolute"
-          top={0}
+          top={topInset()}
           left={0}
           width="100%"
-          height={Math.max(0, dimensions().height - allocation().editor - allocation().stage)}
+          height={Math.max(0, dimensions().height - topInset() - overlay())}
           overflow="hidden"
         >
           <box
             position="absolute"
-            top={0}
+            top={-topInset()}
             left={0}
             width={dimensions().width}
             height={dimensions().height}
@@ -126,12 +153,22 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
           </box>
         </box>
       </box>
+      {allocation().top > 0 ? (
+        <box id="harness-statusline-top" position="absolute" top={0} left={0} width="100%" height={1} zIndex={2}>
+          <StatuslineView segments={(version(), statuslineSegments(statusline, "top"))} width={dimensions().width} />
+        </box>
+      ) : null}
+      {indicator() ? (
+        <box id="harness-run-state" position="absolute" left={2} right={0} bottom={below() + margin()} height={1} zIndex={2}>
+          <RunStateIndicator controller={runState} />
+        </box>
+      ) : null}
       {hasStage() && allocation().stage > 0 ? (
         <box
           id="harness-stage"
           position="absolute"
           left={0}
-          bottom={allocation().editor}
+          bottom={allocation().editor + allocation().bottom}
           width="100%"
           height={allocation().stage}
           zIndex={3}
@@ -146,7 +183,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         id="harness-editor"
         position="absolute"
         left={0}
-        bottom={0}
+        bottom={allocation().bottom}
         width="100%"
         height={allocation().editor}
         zIndex={2}
@@ -171,39 +208,66 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
           onHeightChange={(lines) => editor.reportHeight(lines)}
         />
       </box>
+      {allocation().bottom > 0 ? (
+        <box id="harness-statusline-bottom" position="absolute" bottom={0} left={0} width="100%" height={1} zIndex={2}>
+          <StatuslineView segments={(version(), statuslineSegments(statusline, "bottom"))} width={dimensions().width} />
+        </box>
+      ) : null}
     </box>
   );
 }
 
+/** Events that change what the status lines report; streaming deltas do not. */
+const STATUS_EVENTS = new Set<TimelineEvent["type"]>([
+  "agent_settled", "message_end", "compaction_end", "thinking_level_changed", "model_changed", "session_info_changed", "entry_appended",
+]);
+
 /** Session events and contributions meet at the screen, not in its views. */
 export function Screen(props: { host: SessionHost; startupNotices: readonly SessionEntry[] }) {
   const renderer = useRenderer();
+  const session = () => props.host.runtime.session;
+  const settings = () => ({
+    model: session().model ? modelName(session().model!) : undefined,
+    thinking: session().thinkingLevel,
+  });
   // A resumed session starts with its history.
-  const [entries, setEntries] = createSignal<readonly SessionEntry[]>([
-    ...sessionEntriesFromMessages(props.host.runtime.session.messages),
-    ...props.startupNotices,
-  ]);
+  const [state, setState] = createSignal<TimelineState>(
+    timelineState([...props.host.history(), ...props.startupNotices], settings()),
+  );
   // Messages waiting for the current run; each enters the timeline when it starts.
-  const [queued, setQueued] = createSignal<readonly string[]>([]);
+  const [queued, setQueued] = createSignal<QueuedPrompts>({ steering: [], followUp: [] });
   let scrollbox: TimelineScrollBox | undefined;
   const [overlayHeight, setOverlayHeight] = createSignal(0);
+  const [topInset, setTopInset] = createSignal(0);
+  const [slack, setSlack] = createSignal(0);
+  const [hiddenThinkingLabel, setHiddenThinkingLabel] = createSignal<string | undefined>();
+  const [storageUncertain, setStorageUncertain] = createSignal(false);
 
   const addNotice = (level: NoticeLevel, text: string) =>
-    setEntries((current) => [...current, notice(level, text)]);
+    setState((current) => ({ ...current, entries: [...current.entries, notice(level, text)] }));
 
   /** Resolves once pi accepts or rejects the text, not when the run finishes. */
   const submit = (text: string) =>
     new Promise<boolean>((resolve) => {
-      props.host.runtime.session
+      if (storageUncertain()) {
+        addNotice("error", "The session could not be saved, so nothing more is sent. Quit, fix the storage, and reopen the session with --session.");
+        resolve(false);
+        return;
+      }
+      const accept = () => {
+        itemActions.follow();
+        resolve(true);
+      };
+      session()
         .prompt(text, {
           // pi applies streamingBehavior only when a run is in progress.
           streamingBehavior: "followUp",
           // Called once the prompt is accepted (started, queued, or handled),
           // never for a rejected one; pi's RPC mode answers its client from it.
-          preflightResult: () => resolve(true),
+          preflightResult: accept,
         })
         .then(
-          () => resolve(true),
+          accept,
           (error) => {
             addNotice("error", error instanceof Error ? error.message : String(error));
             resolve(false);
@@ -211,43 +275,65 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
         );
     });
 
-  const ui = createHarnessUI<JSX.Element>({ sendPrompt: submit });
+  // Contributed items live with the session's entries, so one projection orders both.
+  const items: TimelineItemSink = {
+    put: (id, kind, value) => setState((current) => {
+      const index = current.entries.findIndex((entry) => entry.id === id);
+      const version = index === -1 ? 0 : current.entries[index]!.version + 1;
+      const entry: SessionEntry = { kind: "contribution", id, version, type: kind, value };
+      const entries = [...current.entries];
+      if (index === -1) entries.push(entry);
+      else entries[index] = entry;
+      return { ...current, entries };
+    }),
+    remove: (id) => setState((current) => ({ ...current, entries: current.entries.filter((entry) => entry.id !== id) })),
+  };
+  const ui = createHarnessUI<JSX.Element>({ sendPrompt: submit, items });
+  const { timeline, bindings, statusline, runState } = ui.controllers;
   const editor = ui.controllers.editor;
   const stageUI = setupStageUI(ui);
-  const extensionUI = createExtensionUI({ ui, ...stageUI, notify: addNotice });
-  const types = createSessionItemTypes();
-  const itemTypeRegistrations = [ui.timeline.registerType(types.user), ui.timeline.registerType(types.assistant), ui.timeline.registerType(types.code), ui.timeline.registerType(types.tool), ui.timeline.registerType(types.notice)];
-  const itemActions = createItemActions({ timeline: ui.controllers.timeline, scrollbox: () => scrollbox, overlayHeight, renderer, notify: addNotice });
-  let sessionItemIds = new Set<string>();
-  const projectionCache = new Map<string, { version: number; items: readonly TimelineItem<JSX.Element>[] }>();
-  let resetTimeline = false;
-  createEffect(() => {
-    if (resetTimeline) projectionCache.clear();
-    const projected = entries().flatMap((entry) => {
-      let cached = projectionCache.get(entry.id);
-      if (!cached || cached.version !== entry.version) {
-        cached = { version: entry.version, items: projectSession([entry], types) };
-        projectionCache.set(entry.id, cached);
-      }
-      return cached.items;
-    });
-    const byId = new Map(projected.map((entry) => [entry.id, entry]));
-    const items: TimelineItem<JSX.Element>[] = resetTimeline ? [] : ui.controllers.timeline.items().flatMap((entry) => {
-      const replacement = byId.get(entry.id);
-      return sessionItemIds.has(entry.id) ? (replacement ? [replacement] : []) : [entry];
-    });
-    const present = new Set(items.map((entry) => entry.id));
-    for (const entry of projected) {
-      if (present.has(entry.id)) continue;
-      present.add(entry.id);
-      const prefix = entry.id.includes(":part:") ? entry.id.split(":part:")[0] + ":part:" : undefined;
-      const previous = prefix ? items.findLastIndex((old) => old.id.startsWith(prefix)) : -1;
-      items.splice(previous < 0 ? items.length : previous + 1, 0, entry);
-    }
-    sessionItemIds = new Set(byId.keys());
-    resetTimeline = false;
-    ui.controllers.timeline.replace(items);
+  const clientHost = createClientHost({ timeline, items, bindings, stage: ui.controllers.stage, statusline });
+  const extensionUI = createExtensionUI({
+    ui, ...stageUI, notify: addNotice,
+    client: () => clientHost.current(),
+    setTitle: (title) => renderer.setTerminalTitle(title),
+    setHiddenThinkingLabel,
   });
+  const types = createTimelineTypes({ hiddenThinkingLabel });
+  const itemTypeRegistrations = Object.values(types).map((type) => timeline.registerType(type as ItemType<unknown, JSX.Element>));
+  const reported = new Set<string>();
+  const projector = new TimelineProjector({
+    types, registry: timeline, bindings,
+    // Each problem once, so a streaming item does not repeat it.
+    diagnose: (message) => {
+      if (reported.has(message)) return;
+      reported.add(message);
+      queueMicrotask(() => addNotice("warning", message));
+    },
+  });
+  const itemActions = createItemActions({
+    timeline, scrollbox: () => scrollbox, overlayHeight, topInset, renderer, notify: addNotice, onSlackChange: setSlack,
+  });
+
+  const bindingsVersion = useVersion(bindings);
+  createEffect(() => {
+    bindingsVersion();
+    timeline.replace(projector.project(state().entries));
+  });
+
+  const refreshStatus = () => {
+    const current = session();
+    const manager = current.sessionManager;
+    statusline.setFields({
+      session: manager.getSessionName() ?? manager.getSessionId().slice(0, 8),
+      cwd: manager.getCwd(),
+      model: settings().model ?? "no model",
+      thinking: current.supportsThinking() ? `thinking ${current.thinkingLevel}` : "",
+      context: formatContext(current.getContextUsage()),
+      totals: formatUsage(branchUsage(manager.getBranch())),
+    });
+  };
+  refreshStatus();
 
   const regionVersion = useVersion(ui.controllers.regions);
   const timelineFocused = () => (regionVersion(), ui.controllers.regions.current() === "timeline");
@@ -281,9 +367,8 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
         editor.cancelDraft();
         return;
       }
-      const session = props.host.runtime.session;
-      if (session.isStreaming) {
-        void session.abort();
+      if (!session().isIdle) {
+        void session().abort();
       }
     },
     quit: () => {
@@ -292,6 +377,9 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     focusFromEditor: (target) => editor.requestFocus(target),
     moveTimelineCursor: itemActions.move,
     scrollTimeline: itemActions.scroll,
+    toggleTimelineItem: itemActions.toggle,
+    expandTimelineItem: itemActions.expand,
+    collapseTimelineItem: itemActions.collapse,
     copyTimelineItem: () => { void itemActions.copy(); },
     moveStageCursor: (delta) => runStage(delta > 0 ? "next" : "previous"),
     confirmStage: () => runStage("confirm"),
@@ -301,11 +389,24 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
   const registrations = [...itemTypeRegistrations, ...setupDefaultUI(ui, actions)];
   let disposing: Promise<void> | undefined;
   const disposeUI = () => disposing ??= (async () => {
+    clientHost.retire();
     extensionUI.dispose(); stageUI.dispose();
     for (const registration of registrations) registration.dispose();
     await itemActions.dispose();
   })();
   onCleanup(() => { void disposeUI(); });
+
+  const onEvent = (event: TimelineEvent) => {
+    if (event.type === "queue_update") {
+      setQueued({ steering: event.steering, followUp: event.followUp });
+    }
+    // Accepted work, including automatic continuation, until the session settles.
+    if (event.type === "agent_start" || event.type === "compaction_start") runState.setActive(true);
+    if (event.type === "agent_settled" || (event.type === "compaction_end" && session().isIdle)) runState.setActive(false);
+    setState((current) => reduceTimeline(current, event));
+    // pi saves a message after its listeners return, so totals that include it are read a moment later.
+    if (STATUS_EVENTS.has(event.type)) queueMicrotask(refreshStatus);
+  };
 
   onCleanup(() => engine.detach());
   onMount(() => {
@@ -313,33 +414,59 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     props.host
       .bind({
         uiContext: extensionUI.context,
-        onEvent: (event) => {
-          if (event.type === "queue_update") {
-            setQueued([...event.steering, ...event.followUp]);
-          }
-          setEntries((current) => reduceSessionEntries(current, event));
-        },
+        onEvent,
         onExtensionError: (error) =>
           addNotice("error", `${error.extensionPath} (${error.event}): ${error.error}`),
         onShutdownRequest: actions.quit,
-        onHistoryReplaced: (session) => {
-          resetTimeline = true;
-          setEntries(sessionEntriesFromMessages(session.messages));
-          setQueued([...session.getSteeringMessages(), ...session.getFollowUpMessages()]);
+        onHistoryReplaced: (replacement) => {
+          projector.reset();
+          timeline.resetDisclosure();
+          // Contributed items are not part of a history, so they stay.
+          setState((current) => timelineState([
+            ...props.host.history(),
+            ...current.entries.filter((entry) => entry.kind === "contribution"),
+          ], settings()));
+          setQueued({ steering: replacement.getSteeringMessages(), followUp: replacement.getFollowUpMessages() });
+          runState.setActive(!replacement.isIdle);
+          itemActions.follow();
+          refreshStatus();
         },
+        prepareClient: () => clientHost.prepare(),
+        onShutdown: (reason) => {
+          clientHost.retire();
+          extensionUI.resetGeneration();
+          // pi copies the UI context again while it reloads, before any later hook.
+          if (reason === "reload" && !storageUncertain()) clientHost.prepare();
+        },
+        onStorageFailure: (error) => {
+          setStorageUncertain(true);
+          clientHost.retire();
+          runState.setActive(false);
+          addNotice("error", `The session could not be saved (${error.message}). Its file may be incomplete; the run was stopped and nothing more is written. Quit, fix the storage, and reopen the session with --session.`);
+        },
+        notify: addNotice,
       })
-      .catch((error) => addNotice("error", String(error)));
+      .catch((error) => addNotice("error", error instanceof Error ? error.message : String(error)));
   });
 
   return (
     <ScreenLayout
       ui={ui}
+      statuslines
       onOverlayHeight={setOverlayHeight}
+      onTopInset={setTopInset}
       stage={() => <StageView ui={ui} />}
       timeline={
-        <>
-          <TimelineView timeline={ui.controllers.timeline} focused={timelineFocused()} queued={queued()} overlayHeight={overlayHeight()} scrollRef={(element) => (scrollbox = element)} />
-        </>
+        <TimelineView
+          timeline={timeline}
+          focused={timelineFocused()}
+          queued={queued()}
+          overlayHeight={overlayHeight()}
+          topInset={topInset()}
+          slack={slack()}
+          scrollRef={(element) => (scrollbox = element)}
+          onFrame={itemActions.frame}
+        />
       }
     />
   );

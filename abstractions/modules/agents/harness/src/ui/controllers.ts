@@ -12,7 +12,7 @@ export interface Registration {
   dispose(): void;
 }
 
-export type RegistrationCategory = "item" | "stage";
+export type RegistrationCategory = "item" | "stage" | "statusline";
 
 export class DuplicateRegistrationError extends Error {
   constructor(
@@ -302,6 +302,11 @@ export interface StageContentType<T, Render = unknown> {
   /** Resolved value when the request is cancelled or its signal aborts. */
   defaultValue: T;
   actions?: Record<string, StageAction<T>>;
+  /**
+   * Checks a value that arrives from outside the harness. A type without it is
+   * not reachable through the extension client.
+   */
+  validate?(value: unknown): value is T;
 }
 
 export interface StageRenderProps<T, Render = unknown> {
@@ -391,7 +396,7 @@ export class StageController<Render = unknown> extends Emitter {
   readonly #regions: RegionController;
   readonly #region: RegionId;
   readonly #canFocus: () => boolean;
-  readonly #kinds = new Map<string, object>();
+  readonly #kinds = new Map<string, { token: object; type: StageContentType<unknown, Render> }>();
   readonly #queue: PendingStage<Render>[] = [];
   #active: PendingStage<Render> | undefined;
   #assistAvailable = false;
@@ -410,17 +415,22 @@ export class StageController<Render = unknown> extends Emitter {
       throw new DuplicateRegistrationError("stage", type.kind);
     }
     const token = {};
-    this.#kinds.set(type.kind, token);
+    this.#kinds.set(type.kind, { token, type: type as unknown as StageContentType<unknown, Render> });
     this.changed();
     return {
       dispose: () => {
-        if (this.#kinds.get(type.kind) !== token) {
+        if (this.#kinds.get(type.kind)?.token !== token) {
           return;
         }
         this.#kinds.delete(type.kind);
         this.changed();
       },
     };
+  }
+
+  /** The registered definition of a kind; its values are unchecked until validated. */
+  lookup(kind: string): StageContentType<unknown, Render> | undefined {
+    return this.#kinds.get(kind)?.type;
   }
 
   show<T>(request: StageRequest<T, Render>): StageHandle<T> {
@@ -627,19 +637,48 @@ export interface TimelineItemInput<T, Render = unknown> {
   version: number;
   type: ItemType<T, Render>;
   value: T;
+  /**
+   * The item this one is a selectable part of. A child is shown, and can be
+   * selected, only while every ancestor is expanded; it must come after its
+   * parent in the timeline's order.
+   */
+  parentId?: string;
+  /** Disclosure until the user changes it. */
+  initiallyExpanded?: boolean;
 }
 
 export interface ItemType<T, Render = unknown> {
   kind: string;
+  /** The item's own rows: what it shows collapsed, or its header when expanded. */
   render(props: ItemRenderProps<T, Render>): Render;
-  sourceText(value: T): string;
+  /** Expanded content drawn after the item's selectable children. */
+  renderDetails?(props: ItemRenderProps<T, Render>): Render;
+  /**
+   * Whether the value has more to show expanded. Selectable children make an
+   * item expandable regardless, so this answers only for the value's content.
+   */
+  expandable?(value: T): boolean;
+  /** What the copy action writes; undefined when the item holds no original text. */
+  sourceText(value: T): string | undefined;
+  /**
+   * The render functions read `props` lazily, inside JSX, so a view can keep
+   * an item's renderables while its value changes, as a streamed reply does.
+   * Without it the item is drawn again for each new value.
+   */
+  live?: boolean;
   actions: Record<string, ItemAction<T>>;
+  /**
+   * Checks a value that arrives from outside the harness. A type without it is
+   * not reachable through the extension client.
+   */
+  validate?(value: unknown): value is T;
 }
 
 export interface ItemRenderProps<T, Render = unknown> {
   value: T;
   id: string;
   version: number;
+  expanded: boolean;
 }
 
 export interface ItemAction<T> {
@@ -653,7 +692,7 @@ export interface ItemActionEvent<T> {
 
 export interface ItemFactory<T, Render = unknown> extends Registration {
   readonly kind: string;
-  create(value: T): TimelineItemInput<T, Render>;
+  create(value: T, options?: { parentId?: string; initiallyExpanded?: boolean }): TimelineItemInput<T, Render>;
 }
 
 /**
@@ -664,19 +703,39 @@ export interface TimelineItem<Render = unknown> {
   readonly id: string;
   readonly version: number;
   readonly kind: string;
-  render(): Render;
-  sourceText(): string;
+  readonly parentId: string | undefined;
+  readonly initiallyExpanded: boolean;
+  /** The definition and value, for a view that renders a live type reactively. */
+  readonly type: ItemType<unknown, Render>;
+  readonly value: unknown;
+  /** Whether the value itself has more to show; see `ItemType.expandable`. */
+  readonly expandable: boolean;
+  render(expanded?: boolean): Render;
+  /** Present only when the type draws expanded content after the children. */
+  readonly renderDetails: (() => Render) | undefined;
+  sourceText(): string | undefined;
   readonly actions: readonly string[];
   runAction(name: string): void | Promise<void>;
 }
 
 export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>): TimelineItem<Render> {
   const { id, version, type, value } = input;
+  const renderDetails = type.renderDetails;
+  let expandable: boolean | undefined;
   return {
     id,
     version,
     kind: type.kind,
-    render: () => type.render({ value, id, version }),
+    type: type as unknown as ItemType<unknown, Render>,
+    value,
+    parentId: input.parentId,
+    initiallyExpanded: input.initiallyExpanded ?? false,
+    // Asked only of visible items, once per value.
+    get expandable() {
+      return (expandable ??= type.expandable?.(value) ?? false);
+    },
+    render: (expanded = false) => type.render({ value, id, version, expanded }),
+    renderDetails: renderDetails ? () => renderDetails({ value, id, version, expanded: true }) : undefined,
     sourceText: () => type.sourceText(value),
     actions: Object.keys(type.actions),
     runAction: async (name) => {
@@ -689,14 +748,21 @@ export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>):
 }
 
 /**
- * Selectable timeline items in append order. `append` replaces by id so a
+ * Timeline items as a tree in reading order. `append` replaces by id so a
  * streamed item keeps its identity; `replace` reconciles a whole history and
- * moves the cursor to the nearest surviving item.
+ * moves the cursor to the nearest surviving ancestor or neighbour.
+ *
+ * Disclosure is held here, by item id, for as long as the registry lives; it is
+ * never persisted, and `resetDisclosure` drops it when another history replaces
+ * this one. Only items whose ancestors are all expanded are visible, and the
+ * cursor only ever rests on a visible item.
  */
 export class ItemTypeRegistry<Render = unknown> extends Emitter {
-  readonly #kinds = new Map<string, object>();
+  readonly #kinds = new Map<string, { token: object; type: ItemType<unknown, Render> }>();
   readonly #items: TimelineItem<Render>[] = [];
   readonly #indexById = new Map<string, number>();
+  readonly #expanded = new Map<string, boolean>();
+  #children: Map<string, string[]> | undefined;
   #cursor: string | undefined;
   #nextId = 0;
 
@@ -705,18 +771,19 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
       throw new DuplicateRegistrationError("item", type.kind);
     }
     const token = {};
-    this.#kinds.set(type.kind, token);
+    this.#kinds.set(type.kind, { token, type: type as unknown as ItemType<unknown, Render> });
     this.changed();
     return {
       kind: type.kind,
-      create: (value: T) => ({
+      create: (value: T, options = {}) => ({
         id: `timeline-${this.#nextId++}`,
         version: 0,
         type,
         value,
+        ...options,
       }),
       dispose: () => {
-        if (this.#kinds.get(type.kind) !== token) {
+        if (this.#kinds.get(type.kind)?.token !== token) {
           return;
         }
         this.#kinds.delete(type.kind);
@@ -725,42 +792,73 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     };
   }
 
+  /** The registered definition of a kind; its values are unchecked until validated. */
+  lookup(kind: string): ItemType<unknown, Render> | undefined {
+    return this.#kinds.get(kind)?.type;
+  }
+
   append<T>(input: TimelineItemInput<T, Render>): TimelineItem<Render> {
     const item = materializeItem(input);
     const index = this.#indexById.get(item.id);
     if (index === undefined) {
       this.#indexById.set(item.id, this.#items.length);
       this.#items.push(item);
-      if (this.#cursor === undefined) {
-        this.#cursor = item.id;
-      }
     } else {
       this.#items[index] = item;
     }
+    this.#children = undefined;
+    this.#normalizeCursor(undefined);
     this.changed();
     return item;
   }
 
-  /** Replace all items, keeping a surviving cursor or moving it to a nearby item. */
+  /** Remove an item and its descendants. */
+  remove(id: string): boolean {
+    if (!this.#indexById.has(id)) {
+      return false;
+    }
+    const removed = new Set([id, ...this.#descendants(id)]);
+    this.replace(this.#items.filter((item) => !removed.has(item.id)));
+    return true;
+  }
+
+  /**
+   * Replace all items. A cursor that no longer exists moves to its nearest
+   * surviving ancestor, then to the item before or after its old index.
+   */
   replace(items: readonly TimelineItem<Render>[]): void {
     const previousIndex =
       this.#cursor === undefined ? undefined : this.#indexById.get(this.#cursor);
+    const previousAncestors = this.#cursor === undefined ? [] : this.#ancestors(this.#cursor);
     this.#items.length = 0;
     this.#indexById.clear();
     for (const item of items) {
       this.#indexById.set(item.id, this.#items.length);
       this.#items.push(item);
     }
-    if (this.#cursor === undefined || !this.#indexById.has(this.#cursor)) {
-      if (previousIndex !== undefined) {
+    this.#children = undefined;
+    if (this.#cursor !== undefined && !this.#indexById.has(this.#cursor)) {
+      const ancestor = previousAncestors.find((id) => this.#indexById.has(id));
+      if (ancestor !== undefined) {
+        this.#cursor = ancestor;
+      } else if (previousIndex !== undefined) {
         // Fall back to the exact prior index: previous item, then next, then no cursor.
         const previous = previousIndex > 0 ? items[previousIndex - 1] : undefined;
         const next = items[previousIndex];
         this.#cursor = previous?.id ?? next?.id;
-      } else {
-        this.#cursor = items[0]?.id;
       }
     }
+    this.#normalizeCursor(previousIndex);
+    this.changed();
+  }
+
+  /** Forget every disclosure choice, for a history that replaces this one. */
+  resetDisclosure(): void {
+    if (this.#expanded.size === 0) {
+      return;
+    }
+    this.#expanded.clear();
+    this.#normalizeCursor(undefined);
     this.changed();
   }
 
@@ -768,9 +866,57 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return this.#items;
   }
 
+  /** Items whose ancestors are all expanded, in reading order. */
+  visibleItems(): readonly TimelineItem<Render>[] {
+    const visible = new Set<string>();
+    const result: TimelineItem<Render>[] = [];
+    for (const item of this.#items) {
+      const parent = item.parentId;
+      if (parent !== undefined && !(visible.has(parent) && this.isExpanded(parent))) {
+        continue;
+      }
+      visible.add(item.id);
+      result.push(item);
+    }
+    return result;
+  }
+
   find(id: string): TimelineItem<Render> | undefined {
     const index = this.#indexById.get(id);
     return index === undefined ? undefined : this.#items[index];
+  }
+
+  children(id: string): readonly string[] {
+    return this.#childMap().get(id) ?? [];
+  }
+
+  /** Ancestor ids, nearest first. */
+  ancestors(id: string): readonly string[] {
+    return this.#ancestors(id);
+  }
+
+  depth(id: string): number {
+    return this.#ancestors(id).length;
+  }
+
+  isExpandable(id: string): boolean {
+    const item = this.find(id);
+    return item !== undefined && (item.expandable || this.children(id).length > 0);
+  }
+
+  isExpanded(id: string): boolean {
+    const choice = this.#expanded.get(id);
+    if (choice !== undefined) {
+      return choice;
+    }
+    return this.find(id)?.initiallyExpanded ?? false;
+  }
+
+  isVisible(id: string): boolean {
+    if (!this.#indexById.has(id)) {
+      return false;
+    }
+    return this.#ancestors(id).every((ancestor) => this.isExpanded(ancestor));
   }
 
   cursor(): string | undefined {
@@ -781,8 +927,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return this.#cursor === undefined ? undefined : this.find(this.#cursor);
   }
 
+  /** Select a visible item; a hidden or unknown one leaves the cursor alone. */
   setCursor(id: string): boolean {
-    if (!this.#indexById.has(id)) {
+    if (!this.isVisible(id)) {
       return false;
     }
     if (this.#cursor !== id) {
@@ -792,18 +939,132 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return true;
   }
 
-  /** Move the cursor by `delta`, clamped to the list; choose an end if unset. */
+  /** Move the cursor by `delta` visible items, clamped; choose an end if unset. */
   moveCursor(delta: number): void {
-    if (this.#items.length === 0) {
+    const visible = this.visibleItems();
+    if (visible.length === 0) {
       return;
     }
-    const current = this.#cursor === undefined ? undefined : this.#indexById.get(this.#cursor);
-    const base = current ?? (delta < 0 ? this.#items.length : -1);
-    const next = Math.max(0, Math.min(this.#items.length - 1, base + delta));
-    const id = this.#items[next]?.id;
+    const current =
+      this.#cursor === undefined ? -1 : visible.findIndex((item) => item.id === this.#cursor);
+    const base = current === -1 ? (delta < 0 ? visible.length : -1) : current;
+    const next = Math.max(0, Math.min(visible.length - 1, base + delta));
+    const id = visible[next]?.id;
     if (id !== undefined && id !== this.#cursor) {
       this.#cursor = id;
       this.changed();
+    }
+  }
+
+  /**
+   * Expand or collapse the cursor item. Returns the item whose disclosure
+   * changed, or undefined when the item has nothing to disclose.
+   */
+  toggle(): string | undefined {
+    const id = this.#cursor;
+    if (id === undefined || !this.isExpandable(id)) {
+      return undefined;
+    }
+    this.#setExpanded(id, !this.isExpanded(id));
+    return id;
+  }
+
+  /** Expand the cursor item; expanding an expanded item changes nothing. */
+  expand(): string | undefined {
+    const id = this.#cursor;
+    if (id === undefined || !this.isExpandable(id) || this.isExpanded(id)) {
+      return undefined;
+    }
+    this.#setExpanded(id, true);
+    return id;
+  }
+
+  /**
+   * Collapse the cursor item when it is expanded; otherwise collapse its
+   * nearest expanded ancestor and select it, in the same step. Returns the
+   * collapsed item, or undefined when there was none.
+   */
+  collapse(): string | undefined {
+    const target = this.collapseTarget();
+    if (target === undefined) {
+      return undefined;
+    }
+    this.#cursor = target;
+    this.#setExpanded(target, false);
+    return target;
+  }
+
+  /** The item `collapse` would collapse, without collapsing it. */
+  collapseTarget(): string | undefined {
+    const id = this.#cursor;
+    if (id === undefined) {
+      return undefined;
+    }
+    if (this.isExpandable(id) && this.isExpanded(id)) {
+      return id;
+    }
+    return this.#ancestors(id).find((candidate) => this.isExpanded(candidate));
+  }
+
+  #setExpanded(id: string, expanded: boolean): void {
+    this.#expanded.set(id, expanded);
+    this.#normalizeCursor(undefined);
+    this.changed();
+  }
+
+  #childMap(): Map<string, string[]> {
+    if (!this.#children) {
+      const children = new Map<string, string[]>();
+      for (const item of this.#items) {
+        if (item.parentId === undefined) continue;
+        const list = children.get(item.parentId);
+        if (list) list.push(item.id);
+        else children.set(item.parentId, [item.id]);
+      }
+      this.#children = children;
+    }
+    return this.#children;
+  }
+
+  #ancestors(id: string): string[] {
+    const ancestors: string[] = [];
+    const seen = new Set([id]);
+    let parent = this.find(id)?.parentId;
+    while (parent !== undefined && !seen.has(parent)) {
+      ancestors.push(parent);
+      seen.add(parent);
+      parent = this.find(parent)?.parentId;
+    }
+    return ancestors;
+  }
+
+  #descendants(id: string): string[] {
+    const result: string[] = [];
+    const pending = [...this.children(id)];
+    while (pending.length > 0) {
+      const next = pending.shift() as string;
+      result.push(next);
+      pending.push(...this.children(next));
+    }
+    return result;
+  }
+
+  /**
+   * Keep the cursor on a visible item: a hidden cursor moves to its nearest
+   * visible ancestor; with no cursor, the first item takes it.
+   */
+  #normalizeCursor(previousIndex: number | undefined): void {
+    if (this.#cursor !== undefined && this.#indexById.has(this.#cursor)) {
+      if (!this.isVisible(this.#cursor)) {
+        const ancestors = this.#ancestors(this.#cursor);
+        this.#cursor = ancestors.find((ancestor) => this.isVisible(ancestor)) ?? ancestors.findLast((ancestor) => this.#indexById.has(ancestor));
+      }
+      return;
+    }
+    if (this.#cursor === undefined && previousIndex === undefined) {
+      this.#cursor = this.visibleItems()[0]?.id;
+    } else if (this.#cursor !== undefined) {
+      this.#cursor = undefined;
     }
   }
 }

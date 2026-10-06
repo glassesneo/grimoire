@@ -41,6 +41,9 @@ function createHarness() {
     moveTimelineCursor: () => (calls.timelineMoveCursor += 1),
     scrollTimeline: () => (calls.timelineScroll += 1),
     copyTimelineItem: () => (calls.timelineCopy += 1),
+    toggleTimelineItem: () => {},
+    expandTimelineItem: () => {},
+    collapseTimelineItem: () => {},
     moveStageCursor: () => (calls.stageMoveCursor += 1),
     confirmStage: () => (calls.stageConfirm += 1),
     cancelStage: () => (calls.stageCancel += 1),
@@ -238,6 +241,46 @@ describe("ScreenLayout layout", () => {
 });
 
 describe("ScreenLayout overlays", () => {
+  test("status lines and the run indicator give way to the editor and stage, and return on resize", async () => {
+    const harness = createHarness();
+    const { statusline, runState, stage } = harness.ui.controllers;
+    statusline.setFields({ session: "session", cwd: "/work", model: "provider/model" });
+    runState.setActive(true);
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} statuslines timeline={<text>timeline</text>} stage={() => <text>stage</text>} />,
+      { width: 120, height: 40 },
+    );
+    stage.show({ requester: "test", type: stubStage, value: "x", preferredHeight: 4 });
+    await setup.flush();
+    const find = (id: string) => setup.renderer.root.findDescendantById(id);
+    for (const [width, height] of [...RESIZE_SEQUENCE, ...[...RESIZE_SEQUENCE].reverse()]) {
+      setup.resize(width, height);
+      await setup.renderOnce();
+      await setup.flush();
+      const editorBox = find("harness-editor")!;
+      const bottom = find("harness-statusline-bottom");
+      expect(editorBox.y + editorBox.height).toBe(height - (bottom ? 1 : 0));
+      expect(editorBox.height).toBeGreaterThanOrEqual(Math.min(2, height));
+      const top = find("harness-statusline-top");
+      const indicator = find("harness-run-state");
+      const stageBox = find("harness-stage");
+      // Auxiliary rows appear only while the timeline keeps rows of its own.
+      const timelineRows = height - (top ? 1 : 0) - (height - editorBox.y) - (stageBox?.height ?? 0) - (indicator ? 1 : 0);
+      if (top || bottom || indicator) expect(timelineRows).toBeGreaterThanOrEqual(1);
+      // Directly above the stage or editor, or one blank row above it.
+      if (indicator) expect((stageBox ? stageBox.y : editorBox.y) - indicator.y).toBeOneOf([1, 2]);
+      expect(count(setup.renderer.root, (renderable) => renderable.focused)).toBe(1);
+    }
+    expect(find("harness-statusline-top")).toBeDefined();
+    expect(find("harness-statusline-bottom")).toBeDefined();
+    expect(find("harness-run-state")).toBeDefined();
+    expect(setup.captureCharFrame()).toContain("provider/model");
+    runState.setActive(false);
+    await setup.flush();
+    expect(find("harness-run-state")).toBeUndefined();
+    setup.renderer.destroy();
+  });
+
   test("draws editor assist only while no blocking stage request is active", async () => {
     const harness = createHarness();
     const setup = await testRender(

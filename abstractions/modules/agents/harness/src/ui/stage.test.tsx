@@ -3,7 +3,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { testRender } from "@opentui/solid";
 import type { SessionBindings, SessionHost } from "../core/session";
-import { notice } from "../core/session-entries";
+import { notice, type SessionEntry } from "../core/session-entries";
 import { StageView } from "./stage";
 import { Screen, ScreenLayout } from "./screen";
 import { count, fixture, tick } from "./test-support";
@@ -62,8 +62,11 @@ test("Screen preserves acceptance, streaming follow-up, abort, queue, history re
   let bindings: SessionBindings | undefined;
   let accepted = false; let streaming = true; let aborts = 0; let disposals = 0;
   const sends: Array<{ text: string; behavior: string }> = [];
+  let history: SessionEntry[] = [];
   const session = {
-    get isStreaming() { return streaming; }, extensionRunner: undefined,
+    get isIdle() { return !streaming; }, extensionRunner: undefined,
+    model: undefined, thinkingLevel: "off", supportsThinking: () => false, getContextUsage: () => undefined,
+    sessionManager: { getSessionName: () => undefined, getSessionId: () => "fake-session", getCwd: () => "/fake", getBranch: () => [] },
     prompt: (text: string, options: { streamingBehavior: string; preflightResult(): void }) => {
       sends.push({ text, behavior: options.streamingBehavior });
       if (!accepted) return Promise.reject(new Error("rejected"));
@@ -71,7 +74,7 @@ test("Screen preserves acceptance, streaming follow-up, abort, queue, history re
     },
     abort: async () => { aborts++; }, messages: [], getSteeringMessages: () => [], getFollowUpMessages: () => [],
   };
-  const host = { runtime: { session }, bind: async (value: SessionBindings) => { bindings = value; }, dispose: async () => { disposals++; } } as unknown as SessionHost;
+  const host = { runtime: { session }, history: () => history, bind: async (value: SessionBindings) => { bindings = value; }, dispose: async () => { disposals++; } } as unknown as SessionHost;
   const setup = await testRender(() => <Screen host={host} startupNotices={[notice("info", "startup-marker")]} />, { width: 80, height: 24 });
   await setup.flush(); expect(setup.captureCharFrame()).toContain("startup-marker");
   await setup.mockInput.typeText("request"); setup.mockInput.pressEnter(); await setup.flush();
@@ -81,7 +84,8 @@ test("Screen preserves acceptance, streaming follow-up, abort, queue, history re
   setup.mockInput.pressEscape(); await Bun.sleep(100); await setup.flush(); expect(aborts).toBe(1); streaming = false;
   bindings!.onEvent({ type: "queue_update", steering: ["queued-marker"], followUp: [] } as Parameters<SessionBindings["onEvent"]>[0]); await setup.flush();
   expect(setup.captureCharFrame()).toContain("queued-marker");
-  bindings!.onHistoryReplaced({ ...session, messages: [{ role: "user", content: "replacement-marker" }] } as unknown as AgentSession); await setup.flush();
+  history = [{ kind: "user", id: "replaced", version: 0, text: "replacement-marker", images: [] }];
+  bindings!.onHistoryReplaced(session as unknown as AgentSession); await setup.flush();
   expect(setup.captureCharFrame()).toContain("replacement-marker"); expect(setup.captureCharFrame()).not.toContain("startup-marker");
   for (const text of ["cached-before", "cached-after\n```ts\nlet v = 1\n```\n"]) {
     bindings!.onEvent({ type: "message_update", message: { role: "assistant", content: [{ type: "text", text }] } } as Parameters<SessionBindings["onEvent"]>[0]);
@@ -89,6 +93,8 @@ test("Screen preserves acceptance, streaming follow-up, abort, queue, history re
     expect(setup.captureCharFrame()).toContain(text.split("\n")[0]);
   }
   expect(setup.captureCharFrame()).not.toContain("cached-before");
+  // Code inside Markdown is drawn once its highlighting settles.
+  for (let frame = 0; frame < 5; frame++) { await Bun.sleep(20); await setup.flush(); await setup.renderOnce(); }
   expect(setup.captureCharFrame()).toContain("let v = 1");
   setup.mockInput.pressCtrlC(); await Bun.sleep(100); expect(disposals).toBe(1);
 });

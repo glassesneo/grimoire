@@ -25,7 +25,9 @@ import {
   type DraftRequestOptions,
   type DraftResult,
 } from "./editor-engine";
+import { TimelineBindings } from "./harness-client";
 import type { ItemScrollKind } from "./item-actions";
+import { RunStateController, StatuslineController, type StatuslineItemType } from "./statusline";
 
 export interface HarnessUI<Render = unknown> {
   editor: {
@@ -45,6 +47,9 @@ export interface HarnessUI<Render = unknown> {
   regions: {
     requestFocus(region: RegionId): boolean;
   };
+  statusline: {
+    registerType<T>(type: StatuslineItemType<T>): Registration;
+  };
 }
 
 export type ScrollKind = ItemScrollKind;
@@ -61,6 +66,9 @@ export interface HarnessUIActions {
   focusFromEditor(target: "timeline" | "stage"): void;
   moveTimelineCursor(delta: number): void;
   scrollTimeline(kind: ScrollKind): void;
+  toggleTimelineItem(): void;
+  expandTimelineItem(): void;
+  collapseTimelineItem(): void;
   copyTimelineItem(): void;
   moveStageCursor(delta: number): void;
   confirmStage(): void;
@@ -73,14 +81,49 @@ export interface HarnessControllers<Render = unknown> {
   stage: StageController<Render>;
   timeline: ItemTypeRegistry<Render>;
   editor: EditorController;
+  bindings: TimelineBindings;
+  statusline: StatuslineController;
+  runState: RunStateController;
+  /** Where contributed timeline items go; see `TimelineItemSink`. */
+  items: TimelineItemSink;
 }
 
 export interface HarnessUIInstance<Render = unknown> extends HarnessUI<Render> {
   readonly controllers: HarnessControllers<Render>;
 }
 
+/**
+ * Items contributed apart from the session, by native contributions or
+ * extensions, named by a registered kind. A screen keeps them with the
+ * session's history so one projection orders both; without one they go
+ * straight to the registry.
+ */
+export interface TimelineItemSink {
+  /** Add an item, or replace the value of the item with this id. */
+  put(id: string, kind: string, value: unknown): void;
+  remove(id: string): void;
+}
+
+export function registrySink<Render>(timeline: ItemTypeRegistry<Render>): TimelineItemSink {
+  const versions = new Map<string, number>();
+  return {
+    put(id, kind, value) {
+      const type = timeline.lookup(kind);
+      if (!type) throw new Error(`No timeline type is registered as ${JSON.stringify(kind)}`);
+      const version = (versions.get(id) ?? -1) + 1;
+      versions.set(id, version);
+      timeline.append({ id, version, type, value });
+    },
+    remove(id) {
+      versions.delete(id);
+      timeline.remove(id);
+    },
+  };
+}
+
 export interface HarnessUIOptions {
   sendPrompt?: (text: string) => Promise<boolean>;
+  items?: TimelineItemSink;
 }
 
 export function createHarnessUI<Render = unknown>(
@@ -98,13 +141,16 @@ export function createHarnessUI<Render = unknown>(
     },
     timeline: {
       registerType: (type) => controllers.timeline.registerType(type),
-      append: (item) => controllers.timeline.append(item),
+      append: (item) => controllers.items.put(item.id, item.type.kind, item.value),
     },
     keys: {
       register: (contribution, region, bindings) => controllers.keys.register(contribution, region, bindings),
     },
     regions: {
       requestFocus: (region) => controllers.regions.requestFocus(region),
+    },
+    statusline: {
+      registerType: (type) => controllers.statusline.registerType(type),
     },
   };
 }
@@ -115,7 +161,7 @@ export function createHarnessUI<Render = unknown>(
  * to the active stage requester.
  */
 export function createHarnessControllers<Render = unknown>(
-  options: { sendPrompt?: (text: string) => Promise<boolean> } = {},
+  options: HarnessUIOptions = {},
 ): HarnessControllers<Render> {
   const keys = new KeyRegistry();
   const regions = new RegionController({ keys });
@@ -133,7 +179,13 @@ export function createHarnessControllers<Render = unknown>(
     // A shown assist keeps the stage region focusable without a request.
     onAssistChange: (hasAssist) => stage.setAssistAvailable(hasAssist),
   });
-  return { regions, keys, stage, timeline, editor };
+  return {
+    regions, keys, stage, timeline, editor,
+    bindings: new TimelineBindings(),
+    statusline: new StatuslineController(),
+    runState: new RunStateController(),
+    items: options.items ?? registrySink(timeline),
+  };
 }
 
 const maxStageHeight = 10;
@@ -148,6 +200,9 @@ export interface HeightAllocation {
   chrome: number;
   /** Rows available to the stage. */
   stage: number;
+  /** Rows of the status line above the timeline, and of the one below the editor. */
+  top: number;
+  bottom: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -155,13 +210,16 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * The editor keeps a two-row body. Stage shrinks first, then the editor border,
- * and only a terminal shorter than two rows loses the body itself.
+ * The editor keeps a two-row body. The status lines go first, the top one
+ * before the bottom one, and only while they would leave the timeline a row;
+ * then the stage shrinks, then the editor border, and only a terminal shorter
+ * than two rows loses the body itself.
  */
 export function allocateHeights(
   terminalRows: number,
   editor: { preferredHeight: number },
   stageRequest: { preferredHeight: number },
+  statuslines: { top?: boolean; bottom?: boolean } = {},
 ): HeightAllocation {
   const height = Math.max(0, Math.floor(terminalRows));
   let body = clamp(Math.floor(editor.preferredHeight), minHeight, maxHeight);
@@ -181,5 +239,8 @@ export function allocateHeights(
     stage = 0;
     body = Math.max(0, Math.min(body, height));
   }
-  return { editor: body + chrome, body, chrome, stage };
+  const free = height - body - chrome - stage;
+  const bottom = statuslines.bottom && free >= 2 ? 1 : 0;
+  const top = statuslines.top && free - bottom >= 2 ? 1 : 0;
+  return { editor: body + chrome, body, chrome, stage, top, bottom };
 }

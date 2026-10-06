@@ -22,6 +22,7 @@ export function fixture() {
     cancel: () => { editor.cancelDraft(); },
     focusFromEditor: (target) => editor.requestFocus(target),
     moveTimelineCursor: () => {}, scrollTimeline: () => {}, copyTimelineItem: () => {},
+    toggleTimelineItem: () => {}, expandTimelineItem: () => {}, collapseTimelineItem: () => {},
     moveStageCursor: (delta) => run(delta > 0 ? "next" : "previous"), confirmStage: () => run("confirm"), cancelStage: () => run("cancel"),
   });
   const extension = createExtensionUI({ ui, ...stage, notify: (_, text) => notices.push(text) });

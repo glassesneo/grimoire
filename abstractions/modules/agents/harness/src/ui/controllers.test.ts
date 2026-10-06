@@ -374,6 +374,111 @@ describe("ItemTypeRegistry", () => {
   });
 });
 
+describe("item tree", () => {
+  const leaf: ItemType<string> = { kind: "leaf", render: ({ value }) => value, sourceText: (value) => value, actions: {} };
+  const rich: ItemType<string> = { ...leaf, kind: "rich", expandable: () => true };
+
+  /** a ─ a1 ─ a1x, a2; b (expandable on its own); c (plain) */
+  function tree() {
+    const timeline = new ItemTypeRegistry();
+    timeline.registerType(leaf);
+    timeline.registerType(rich);
+    const item = (id: string, type: ItemType<string>, parentId?: string) => materializeItem({ id, version: 0, type, value: id, parentId });
+    timeline.replace([item("a", leaf), item("a1", leaf, "a"), item("a1x", leaf, "a1"), item("a2", leaf, "a"), item("b", rich), item("c", leaf)]);
+    return timeline;
+  }
+  const visible = (timeline: ItemTypeRegistry) => timeline.visibleItems().map((item) => item.id);
+
+  test("j/k move over visible items only", () => {
+    const timeline = tree();
+    expect(visible(timeline)).toEqual(["a", "b", "c"]);
+    timeline.moveCursor(1);
+    expect(timeline.cursor()).toBe("b");
+    timeline.setCursor("a");
+    expect(timeline.toggle()).toBe("a");
+    expect(visible(timeline)).toEqual(["a", "a1", "a2", "b", "c"]);
+    timeline.moveCursor(1);
+    expect(timeline.cursor()).toBe("a1");
+    expect(timeline.setCursor("a1x")).toBe(false);
+  });
+
+  test("Enter toggles, l expands idempotently, both are inert without content", () => {
+    const timeline = tree();
+    timeline.setCursor("c");
+    expect(timeline.toggle()).toBeUndefined();
+    expect(timeline.expand()).toBeUndefined();
+    timeline.setCursor("b");
+    expect(timeline.expand()).toBe("b");
+    expect(timeline.expand()).toBeUndefined();
+    expect(timeline.isExpanded("b")).toBe(true);
+    expect(timeline.toggle()).toBe("b");
+    expect(timeline.isExpanded("b")).toBe(false);
+  });
+
+  test("h collapses the item, else its nearest expanded ancestor in one step, else nothing", () => {
+    const timeline = tree();
+    timeline.setCursor("a");
+    timeline.expand();
+    timeline.setCursor("a1");
+    timeline.expand();
+    timeline.setCursor("a1x");
+    expect(timeline.collapse()).toBe("a1");
+    expect(timeline.cursor()).toBe("a1");
+    expect(timeline.isExpanded("a1")).toBe(false);
+    timeline.setCursor("a2");
+    expect(timeline.collapse()).toBe("a");
+    expect(timeline.cursor()).toBe("a");
+    expect(timeline.collapse()).toBeUndefined();
+    timeline.setCursor("c");
+    expect(timeline.collapse()).toBeUndefined();
+  });
+
+  test("children keep their state while the parent closes and reopens; a reset forgets it", () => {
+    const timeline = tree();
+    timeline.setCursor("a");
+    timeline.expand();
+    timeline.setCursor("a1");
+    timeline.expand();
+    timeline.setCursor("a");
+    timeline.toggle();
+    timeline.toggle();
+    expect(timeline.isExpanded("a1")).toBe(true);
+    expect(visible(timeline)).toContain("a1x");
+    timeline.resetDisclosure();
+    expect(visible(timeline)).toEqual(["a", "b", "c"]);
+  });
+
+  test("an item that starts expanded shows on the parent's first expansion", () => {
+    const timeline = new ItemTypeRegistry();
+    timeline.registerType(leaf);
+    timeline.replace([
+      materializeItem({ id: "p", version: 0, type: leaf, value: "p" }),
+      materializeItem({ id: "img", version: 0, type: rich, value: "img", parentId: "p", initiallyExpanded: true }),
+    ]);
+    timeline.setCursor("p");
+    timeline.expand();
+    expect(timeline.isExpanded("img")).toBe(true);
+  });
+
+  test("a removed selection falls back to its nearest surviving ancestor, and a hidden one to a visible one", () => {
+    const timeline = tree();
+    timeline.setCursor("a");
+    timeline.expand();
+    timeline.setCursor("a1");
+    timeline.replace(timeline.items().filter((item) => item.id !== "a1" && item.id !== "a1x"));
+    expect(timeline.cursor()).toBe("a");
+    timeline.setCursor("a2");
+    timeline.setCursor("a");
+    timeline.setCursor("a2");
+    // Collapsing from elsewhere hides the cursor; it moves to the visible ancestor.
+    const parent = timeline.find("a")!;
+    timeline.replace(timeline.items().map((item) => (item.id === "a" ? materializeItem({ id: "a", version: 1, type: leaf, value: "a" }) : item)));
+    expect(parent.id).toBe("a");
+    timeline.resetDisclosure();
+    expect(timeline.cursor()).toBe("a");
+  });
+});
+
 describe("EditorController", () => {
   function fakeRegions() {
     const focus: string[] = [];

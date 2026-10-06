@@ -3,17 +3,25 @@ import type { JSX } from "@opentui/solid";
 import type { NoticeLevel } from "../core/session-entries";
 import type { ChoiceValue } from "./stage";
 import type { StageContentType } from "./controllers";
+import type { HarnessUIClient } from "./harness-client";
 import type { HarnessUIInstance } from "./harness-ui";
+import type { StatuslineContribution } from "./statusline";
+import { singleLine } from "./timeline-types";
 
 export function createExtensionUI(options: {
   ui: HarnessUIInstance<JSX.Element>;
   choiceType: StageContentType<ChoiceValue, JSX.Element>;
   confirmType: StageContentType<ChoiceValue, JSX.Element>;
   notify(level: NoticeLevel, text: string): void;
+  /** The extension client of the current generation, exposed as `ctx.ui.harness`. */
+  client?(): HarnessUIClient | undefined;
+  setTitle?(title: string): void;
+  setHiddenThinkingLabel?(label: string | undefined): void;
 }) {
   const editor = options.ui.controllers.editor;
   let queue = Promise.resolve();
   const pending = new Set<AbortController>();
+  const statuses = new Map<string, StatuslineContribution>();
 
   // Pi requests share a queue even when they use different screen boundaries.
   function open<T>(opts: ExtensionUIDialogOptions | undefined, fallback: T, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -64,10 +72,25 @@ export function createExtensionUI(options: {
     input: (title, placeholder, opts) => open(opts, undefined, (signal) => requestDraft("input", placeholder ? `${title} (${placeholder})` : title, undefined, signal)),
     editor: (title, prefill) => open(undefined, undefined, (signal) => requestDraft("editor", title, prefill, signal)),
     notify: (message, type) => options.notify(type ?? "info", message),
-    setStatus: () => {}, setWidget: () => {}, setTitle: () => {},
+    // Status text becomes a bottom status line segment; multi-line widgets
+    // have no place in a one-row line and stay unsupported.
+    setStatus: (key, text) => {
+      const existing = statuses.get(key);
+      if (text === undefined) {
+        existing?.dispose();
+        statuses.delete(key);
+      } else if (existing) {
+        existing.update({ text: singleLine(text) });
+      } else {
+        statuses.set(key, options.ui.controllers.statusline.contribute("bottom", { text: singleLine(text) }));
+      }
+    },
+    setWidget: () => {}, setTitle: (title) => options.setTitle?.(title),
     onTerminalInput: () => () => {},
-    setWorkingMessage: () => {}, setWorkingVisible: () => {}, setWorkingIndicator: () => {},
-    setHiddenThinkingLabel: () => {}, setFooter: () => {}, setHeader: () => {},
+    setWorkingMessage: (message) => options.ui.controllers.runState.setMessage(message),
+    setWorkingVisible: (visible) => options.ui.controllers.runState.setVisible(visible),
+    setWorkingIndicator: (indicator) => options.ui.controllers.runState.setIndicator(indicator),
+    setHiddenThinkingLabel: (label) => options.setHiddenThinkingLabel?.(label), setFooter: () => {}, setHeader: () => {},
     custom: async () => undefined as never,
     pasteToEditor: (text) => {
       const snapshot = editor.snapshot();
@@ -85,5 +108,26 @@ export function createExtensionUI(options: {
     setTheme: () => ({ success: false, error: "Themes are not supported by harness" }),
     getToolsExpanded: () => false, setToolsExpanded: () => {},
   };
-  return { context, dispose: () => { for (const abort of pending) abort.abort(); } };
+  // pi copies this context into each extension runner with object spread, which
+  // evaluates the getter once (see `verifyClientCopy`): the client of a
+  // generation must be prepared before pi binds or reloads its extensions.
+  Object.defineProperty(context, "harness", { enumerable: true, configurable: true, get: () => options.client?.() });
+  /** What the ending generation of extensions set: the next one starts from the defaults. */
+  const resetGeneration = () => {
+    for (const status of statuses.values()) status.dispose();
+    statuses.clear();
+    const runState = options.ui.controllers.runState;
+    runState.setMessage();
+    runState.setVisible(true);
+    runState.setIndicator();
+    options.setHiddenThinkingLabel?.(undefined);
+  };
+  return {
+    context,
+    resetGeneration,
+    dispose: () => {
+      for (const abort of pending) abort.abort();
+      resetGeneration();
+    },
+  };
 }

@@ -88,7 +88,7 @@ export function TextareaEngine(props: EditorViewProps): JSX.Element {
       ref={textarea}
       focused={props.focused}
       height={props.bodyHeight}
-      placeholder="prompt"
+      placeholder="Enter to send"
       keyBindings={[{ name: "return", shift: true, action: "newline" }]}
       onContentChange={() => {
         if (textarea && !applyingSnapshot) {
