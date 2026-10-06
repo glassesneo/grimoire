@@ -1,7 +1,9 @@
+import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   type AgentSessionEvent,
   type AgentSessionRuntime,
+  type AgentSessionServices,
   type CreateAgentSessionRuntimeFactory,
   createAgentSessionFromServices,
   createAgentSessionRuntime,
@@ -33,12 +35,43 @@ export interface SessionBindings {
   onHistoryReplaced: (session: AgentSession) => void;
 }
 
+/**
+ * Lets a caller substitute parts of every session the runtime creates, the
+ * first and each replacement alike.
+ */
+export interface SessionCustomization {
+  /** Runs before a session is created; a returned model replaces the settings' default. */
+  prepare?(services: AgentSessionServices): Model<Api> | undefined;
+  /** Runs once the session exists, before the UI binds to it. */
+  onSession?(session: AgentSession): void;
+}
+
+/** Applies each customization in order; the first model returned wins. */
+export function combineCustomizations(...customizations: SessionCustomization[]): SessionCustomization {
+  return {
+    prepare: (services) => {
+      let model: Model<Api> | undefined;
+      for (const customization of customizations) {
+        const prepared = customization.prepare?.(services);
+        model ??= prepared;
+      }
+      return model;
+    },
+    onSession: (session) => {
+      for (const customization of customizations) customization.onSession?.(session);
+    },
+  };
+}
+
 export async function createSessionHost(options: {
   cwd: string;
   agentDir: string;
   settingsManager: SettingsManager;
+  /** Defaults to a session persisted under the agent directory. */
+  sessionManager?: SessionManager;
+  customization?: SessionCustomization;
 }): Promise<SessionHost> {
-  const { cwd, agentDir, settingsManager } = options;
+  const { cwd, agentDir, settingsManager, customization } = options;
 
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
@@ -52,8 +85,11 @@ export async function createSessionHost(options: {
       settingsManager,
       resourceLoaderOptions: { extensionFactories: [createCodemodeExtension()] },
     });
+    const model = customization?.prepare?.(services);
+    const created = await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent, model });
+    customization?.onSession?.(created.session);
     return {
-      ...(await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent })),
+      ...created,
       services,
       diagnostics: services.diagnostics,
     };
@@ -62,7 +98,7 @@ export async function createSessionHost(options: {
   const runtime = await createAgentSessionRuntime(createRuntime, {
     cwd,
     agentDir,
-    sessionManager: SessionManager.create(cwd),
+    sessionManager: options.sessionManager ?? SessionManager.create(cwd),
   });
 
   let unsubscribe: (() => void) | undefined;
