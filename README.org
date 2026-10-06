@@ -1,4 +1,4 @@
-#+TITLE: Neo's Nix Dotfiles
+#+TITLE: ark
 #+AUTHOR: Neo Kitani
 
 * About
