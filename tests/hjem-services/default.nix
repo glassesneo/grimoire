@@ -63,16 +63,7 @@
         }
       ];
     };
-in
-  assert !(builtins.tryEval (linuxResult base).config.serviceApply.drvPath).success;
-  assert (builtins.tryEval
-    (linuxResult {
-      platform.darwin.launchAgents.native = {
-        domain = "gui";
-        config.Program = "/bin/true";
-      };
-    }).config.serviceApply.drvPath).success;
-  assert rejected {
+  darwinChecks = assert rejected {
     platform.darwin.launchAgents = {
       a = {
         domain = "user";
@@ -130,20 +121,34 @@ in
         };
       };
     };
-  };
-    pkgs.runCommand "hjem-services-test" {
-      nativeBuildInputs = [pkgs.python3];
-      services = good.serviceApply;
-    } ''
+  }; true;
+in
+  assert !(builtins.tryEval (linuxResult base).config.serviceApply.drvPath).success;
+  assert (builtins.tryEval
+    (linuxResult {
+      platform.darwin.launchAgents.native = {
+        domain = "gui";
+        config.Program = "/bin/true";
+      };
+    }).config.serviceApply.drvPath).success;
+  assert !pkgs.stdenv.hostPlatform.isDarwin || darwinChecks;
+    pkgs.runCommand "hjem-services-test" ({
+        nativeBuildInputs = [pkgs.python3];
+      }
+      // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+        services = good.serviceApply;
+      }) ''
       python3 ${./reconcile.py} ${../../adapters/hjem/services.py}
-      python3 - "$services" <<'PY'
-      import pathlib, plistlib, sys
-      plists = [plistlib.loads(p.read_bytes()) for p in (pathlib.Path(sys.argv[1]) / 'plists').glob('*.plist')]
-      portable = next(p for p in plists if 'ProgramArguments' in p)
-      assert portable['ProgramArguments'][1] == 'literal $arg'
-      assert portable['EnvironmentVariables'] == {'A': 'a', 'B': 'b'}
-      assert portable['RunAtLoad'] is True
-      assert portable['LimitLoadToSessionType'] == 'Background'
-      PY
+      ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+        python3 - "$services" <<'PY'
+        import pathlib, plistlib, sys
+        plists = [plistlib.loads(p.read_bytes()) for p in (pathlib.Path(sys.argv[1]) / 'plists').glob('*.plist')]
+        portable = next(p for p in plists if 'ProgramArguments' in p)
+        assert portable['ProgramArguments'][1] == 'literal $arg'
+        assert portable['EnvironmentVariables'] == {'A': 'a', 'B': 'b'}
+        assert portable['RunAtLoad'] is True
+        assert portable['LimitLoadToSessionType'] == 'Background'
+        PY
+      ''}
       touch "$out"
     ''

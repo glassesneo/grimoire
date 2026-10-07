@@ -14,7 +14,8 @@
       type
       == "directory"
       && builtins.pathExists
-      (root + "/${name}/default.nix"))
+      (root + "/${name}/default.nix")
+      && (pkgs.stdenv.hostPlatform.isDarwin || !(builtins.elem name ["nix-secrets" "zsh"])))
     entries;
 in
   builtins.mapAttrs

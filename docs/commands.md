@@ -12,7 +12,7 @@ Nix owns evaluation and realization. Build recipes call Nix directly and do not 
 - `just docs` regenerates `docs/generated/modules.md` without staging it. The catalogue includes all modules, regardless of host enablement, sorted by Denix name. Descriptions are taken from `meta.description` without translation or summarization; source links use declaration paths. It contains no generation timestamp.
 - `just eval` evaluates the flake checks without building or updating the lock file.
 - `just check <name>` builds one check for the current system.
-- `nix flake check` runs all checks, including formatting and catalogue freshness. Checks do not rewrite repository files.
+- `nix flake check` runs checks applicable to the current system, including formatting and catalogue freshness. Checks do not rewrite repository files. The nix-secrets compatibility and host-generated zsh checks are Darwin-only; Hjem service checks run shared lifecycle and Linux rejection checks everywhere, with Darwin output validation on Darwin. A successful Linux check does not establish Darwin build or activation behavior.
 
 ## nix-secrets checks
 
