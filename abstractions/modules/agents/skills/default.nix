@@ -1,10 +1,15 @@
-# Owns harness-independent skill declarations and their Hjem file outputs.
+# Owns harness-independent skill declarations and their Hjem file outputs,
+# including the skills this repository ships as sibling directories.
 # Directory sources are linked as <targetDir>/<name>; deployment stays with Hjem.
 {
   delib,
   lib,
   ...
 }: let
+  # Each directory is a complete skill package named by its directory.
+  ownSkills = ["context-projection-design"];
+  harnessDirs = [".agents/skills" ".claude/skills"];
+
   parts = dir: lib.splitString "/" dir;
   validName = name: name != "" && name != "." && name != ".." && !(lib.hasInfix "/" name);
   validDir = dir: dir != "" && !(lib.hasPrefix "/" dir) && !(lib.elem ".." (parts dir));
@@ -16,7 +21,7 @@
 in
   delib.module {
     name = "skills";
-    meta.description = "Declare harness-independent skills and deploy their directories through Hjem.";
+    meta.description = "Declare harness-independent skills, including this repository's own, and deploy their directories through Hjem.";
 
     options.enable = delib.boolOption true;
 
@@ -38,6 +43,11 @@ in
     };
 
     hjem.ifEnabled = {config, ...}: {
+      skills = lib.genAttrs ownSkills (name: {
+        source = ./. + "/${name}";
+        targetDirs = harnessDirs;
+      });
+
       # An element type cannot check attribute names.
       assertions =
         lib.mapAttrsToList (name: _: {
@@ -57,6 +67,14 @@ in
           };
         }) (lib.unique (map normalize skill.targetDirs)))
       config.skills));
+    };
+
+    bundles.ifEnabled = {pkgs, ...}: {
+      skills.package = pkgs.linkFarm "skills" (map (name: {
+          inherit name;
+          path = ./. + "/${name}";
+        })
+        ownSkills);
     };
 
     # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to
@@ -86,9 +104,18 @@ in
       declare = name: targetDirs: {
         declaration.hjem.always.skills.${name} = {inherit source targetDirs;};
       };
-      files = result: result.manifest.files;
+      ownTargets = lib.concatMap (name: map (dir: "${home}/${dir}/${name}") harnessDirs) ownSkills;
+      # Cases below compare fixture declarations; the shipped skills are
+      # always declared and would otherwise appear in every result.
+      files = result: lib.filter (file: !(lib.elem file.target ownTargets)) result.manifest.files;
     in
       {
+        # A harness selects a skill by its frontmatter name; a mismatch with
+        # the deployed directory name deploys a skill no harness selects.
+        frontmatter-names-match-directories = {
+          expr = _: lib.filter (name: !(lib.hasInfix "\nname: ${name}\n" (builtins.readFile (./. + "/${name}/SKILL.md")))) ownSkills;
+          expected = [];
+        };
         aggregates-and-normalizes = {
           host.hjem.ifEnabled.skills.alpha = {
             inherit source;

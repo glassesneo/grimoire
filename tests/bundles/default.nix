@@ -99,9 +99,10 @@ in
   # harness implementation. Comparing drvPaths does not build the harness.
   assert lib.assertMsg (
     builtins.attrNames published
-    == ["harness"]
+    == ["harness" "skills"]
     && published.harness.drvPath == inputs.self.packages.${system}.harness.drvPath
-  ) "Hostless publication must expose harness through the flake package output";
+    && published.skills.drvPath == inputs.self.packages.${system}.skills.drvPath
+  ) "Hostless publication must expose harness and skills through the flake package output";
     pkgs.runCommand "bundles-test" {} ''
       mkdir "$out"
     ''
