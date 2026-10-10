@@ -44,4 +44,21 @@ in
         shell = myconfig.${cfg.loginShell}.package;
       };
     };
+
+    tests = {pkgs, ...}: {
+      login-shell = {
+        uses = ["zsh" "zsh.login" "host" "nixpkgs"];
+        host.myconfig.ifEnabled.shell.loginShell = "zsh";
+        moduleSystem = "darwin";
+        expr = result: {
+          shell = toString result.config.users.users.fixture.shell;
+          # nix-darwin lists shells by their path in the system profile.
+          listed = lib.elem "/run/current-system/sw/bin/zsh" result.config.environment.shells;
+        };
+        expected = {
+          shell = toString pkgs.zsh;
+          listed = true;
+        };
+      };
+    };
   })

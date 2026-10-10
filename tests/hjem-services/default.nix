@@ -38,6 +38,8 @@
   # Evaluation is the lowest boundary for duplicate/identity rejection. Plistlib
   # validates serialization separately; runtime checks own lifecycle transitions.
   rejected = module: !(builtins.tryEval (builtins.deepSeq (result [module]).serviceApply true)).success;
+  # Declaration errors are assertions, so a rejection also names its reason.
+  rejects = reason: module: lib.any (lib.hasInfix reason) (result [module]).failedAssertions && rejected module;
   base = {userServices.x.command = ["/bin/true"];};
   bad = extra:
     lib.recursiveUpdate base {
@@ -53,6 +55,7 @@
         pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
       };
       modules = [
+        "${inputs.nixpkgs}/nixos/modules/misc/assertions.nix"
         ../../adapters/hjem/services.nix
         {
           options.directory = lib.mkOption {
@@ -63,7 +66,7 @@
         }
       ];
     };
-  darwinChecks = assert rejected {
+  darwinChecks = assert rejects "duplicate Label" {
     platform.darwin.launchAgents = {
       a = {
         domain = "user";
@@ -81,7 +84,7 @@
       };
     };
   };
-  assert rejected {
+  assert rejects "fixture" {
     assertions = [
       {
         assertion = false;
@@ -89,22 +92,23 @@
       }
     ];
   };
-  assert rejected (lib.recursiveUpdate (bad {EnvironmentVariables.A = "same";}) {userServices.x.environment.A = "same";});
-  assert rejected (lib.recursiveUpdate (bad {WorkingDirectory = "/tmp";}) {userServices.x.workingDirectory = "/tmp";});
-  assert rejected (bad {ProgramArguments = ["relative"];});
-  assert rejected (bad {ProgramArguments = ["/bin/true"];});
-  assert rejected (bad {Program = "/bin/true";});
-  assert rejected (bad {RunAtLoad = true;});
-  assert rejected (bad {Label = "../unsafe";});
-  assert rejected (bad {LimitLoadToSessionType = "Aqua";});
+  assert rejects "duplicate x.EnvironmentVariables.A" (lib.recursiveUpdate (bad {EnvironmentVariables.A = "same";}) {userServices.x.environment.A = "same";});
+  assert rejects "duplicate x.WorkingDirectory" (lib.recursiveUpdate (bad {WorkingDirectory = "/tmp";}) {userServices.x.workingDirectory = "/tmp";});
+  assert rejects "duplicate x.ProgramArguments" (bad {ProgramArguments = ["relative"];});
+  assert rejects "duplicate x.ProgramArguments" (bad {ProgramArguments = ["/bin/true"];});
+  assert rejects "portable command conflicts with Program" (bad {Program = "/bin/true";});
+  assert rejects "duplicate x.RunAtLoad" (bad {RunAtLoad = true;});
+  assert rejects "invalid plist identity" (bad {Label = "../unsafe";});
+  assert rejects "invalid plist identity" (bad {LimitLoadToSessionType = "Aqua";});
+  # The option type rejects an empty argv before any assertion.
   assert rejected {userServices.x.command = [];};
-  assert rejected (lib.recursiveUpdate base {
+  assert rejects "duplicate restartOnSwitch policy" (lib.recursiveUpdate base {
     platform.darwin.launchAgents.x = {
       domain = "user";
       restartOnSwitch = false;
     };
   });
-  assert rejected {
+  assert rejects "duplicate Label" {
     platform.darwin.launchAgents = {
       a = {
         domain = "user";
@@ -123,7 +127,7 @@
     };
   }; true;
 in
-  assert !(builtins.tryEval (linuxResult base).config.serviceApply.drvPath).success;
+  assert lib.any (assertion: !assertion.assertion && lib.hasInfix "Linux user-service backend" assertion.message) (linuxResult base).config.assertions;
   assert (builtins.tryEval
     (linuxResult {
       platform.darwin.launchAgents.native = {

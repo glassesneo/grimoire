@@ -9,6 +9,10 @@
   validName = name: name != "" && name != "." && name != ".." && !(lib.hasInfix "/" name);
   validDir = dir: dir != "" && !(lib.hasPrefix "/" dir) && !(lib.elem ".." (parts dir));
   normalize = dir: lib.concatStringsSep "/" (lib.filter (part: part != "" && part != ".") (parts dir));
+
+  targetDir =
+    lib.types.addCheck lib.types.str validDir
+    // {description = "home-relative directory without a '..' component";};
 in
   delib.module {
     name = "skills";
@@ -26,7 +30,7 @@ in
             description = "Source directory of the complete skill package.";
           };
           targetDirs = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
+            type = lib.types.listOf targetDir;
             description = "Home-relative destination directories; an empty list deploys nothing.";
           };
         };
@@ -34,19 +38,13 @@ in
     };
 
     hjem.ifEnabled = {config, ...}: {
-      assertions = lib.concatLists (lib.mapAttrsToList (name: skill:
-        [
-          {
-            assertion = validName name;
-            message = "skills: name '${name}' must be a single directory name other than '.' or '..'.";
-          }
-        ]
-        ++ map (dir: {
-          assertion = validDir dir;
-          message = "skills.${name}: targetDir '${dir}' must be non-empty, home-relative, and contain no '..' component.";
+      # An element type cannot check attribute names.
+      assertions =
+        lib.mapAttrsToList (name: _: {
+          assertion = validName name;
+          message = "skills: name '${name}' must be a single directory name other than '.' or '..'.";
         })
-        skill.targetDirs)
-      config.skills);
+        config.skills;
 
       files = lib.listToAttrs (lib.concatLists (lib.mapAttrsToList (name: skill:
         map (dir: {
@@ -60,4 +58,90 @@ in
         }) (lib.unique (map normalize skill.targetDirs)))
       config.skills));
     };
+
+    # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to
+    # the wrong place; Hjem's symlink execution remains trusted.
+    tests = {
+      pkgs,
+      home,
+      ...
+    }: let
+      source = pkgs.runCommand "skills-fixture" {} ''
+        mkdir -p "$out/references"
+        printf '%s\n' '# Synthetic skill' > "$out/SKILL.md"
+        printf '%s\n' 'Synthetic reference' > "$out/references/note.md"
+      '';
+      otherSource = pkgs.writeTextDir "SKILL.md" "# Other synthetic skill";
+
+      declarations = {
+        first.hjem.always.skills.alpha = {
+          inherit source;
+          targetDirs = [".agents/skills" ".agents//./skills/" ".claude/skills"];
+        };
+        second.hjem.always.skills.beta = {
+          source = otherSource;
+          targetDirs = [".cursor/skills"];
+        };
+      };
+      declare = name: targetDirs: {
+        declaration.hjem.always.skills.${name} = {inherit source targetDirs;};
+      };
+      files = result: result.manifest.files;
+    in
+      {
+        aggregates-and-normalizes = {
+          host.hjem.ifEnabled.skills.alpha = {
+            inherit source;
+            targetDirs = ["."];
+          };
+          modules = declarations;
+          expr = result: lib.sort lib.lessThan (map (file: "${file.target} -> ${toString file.source}") (files result));
+          expected = [
+            "${home}/.agents/skills/alpha -> ${source}"
+            "${home}/.claude/skills/alpha -> ${source}"
+            "${home}/.cursor/skills/beta -> ${otherSource}"
+            "${home}/alpha -> ${source}"
+          ];
+        };
+        links-without-clobbering = {
+          modules = declarations;
+          expr = result: lib.unique (map (file: {inherit (file) type clobber;}) (files result));
+          expected = [
+            {
+              type = "symlink";
+              clobber = false;
+            }
+          ];
+        };
+        empty-registry = {
+          expr = files;
+          expected = [];
+        };
+        empty-target-dirs = {
+          modules = declare "unused" [];
+          expr = files;
+          expected = [];
+        };
+        disabled-keeps-declarations = {
+          host.myconfig.ifEnabled.skills.enable = false;
+          modules = declarations;
+          expr = files;
+          expected = [];
+        };
+        rejects-second-owner = {
+          modules =
+            declare "alpha" [".agents/skills"]
+            // {intruder.hjem.always.files.".agents/skills/alpha".source = source;};
+          fails = "is exclusive but defined by";
+        };
+      }
+      // lib.mapAttrs' (name: lib.nameValuePair "rejects-name-${builtins.toJSON name}") (lib.genAttrs ["" "." ".." "nested/name"] (name: {
+        modules = declare name [".agents/skills"];
+        fails = "must be a single directory name";
+      }))
+      // lib.mapAttrs' (dir: lib.nameValuePair "rejects-dir-${builtins.toJSON dir}") (lib.genAttrs ["" "/absolute" ".." "safe/../escape"] (dir: {
+        modules = declare "alpha" [dir];
+        expr = files;
+        fails = true;
+      }));
   }

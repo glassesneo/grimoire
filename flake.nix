@@ -11,26 +11,31 @@
     systems = ["aarch64-darwin" "aarch64-linux" "x86_64-linux"];
     forAllSystems = lib.genAttrs systems;
 
-    configuration = denix.lib.denixConfiguration {
-      extraInputs = inputs;
-      specialArgs.mylib = import ./lib {inherit lib;};
+    # Module test fixtures are composed on the same adapters and extensions.
+    compose = abstractions:
+      denix.lib.denixConfiguration {
+        extraInputs = inputs;
+        specialArgs.mylib = import ./lib {inherit lib;};
 
-      modules =
-        [
-          denix.denixModules.nixDarwin
-          ./adapters/hjem
-          ./adapters/bundles.nix
-          ./extensions/hosts.nix
-          ./extensions/module-dependencies.nix
-          ./extensions/module-metadata.nix
-          ./extensions/provenance.nix
-        ]
-        ++ lib.fileset.toList (
-          lib.fileset.fileFilter
-          (file: file.name == "default.nix")
-          ./abstractions
-        );
-    };
+        modules =
+          [
+            denix.denixModules.nixDarwin
+            ./adapters/hjem
+            ./adapters/bundles.nix
+            ./extensions/hosts.nix
+            ./extensions/module-dependencies.nix
+            ./extensions/module-metadata.nix
+            ./extensions/module-tests.nix
+            ./extensions/provenance.nix
+          ]
+          ++ abstractions;
+      };
+
+    configuration = compose (lib.fileset.toList (
+      lib.fileset.fileFilter
+      (file: file.name == "default.nix")
+      ./abstractions
+    ));
 
     hosts = configuration.config.hosts;
     perSystem = forAllSystems (system: let
@@ -87,7 +92,7 @@
       formatter = treefmt.config.build.wrapper;
       checks =
         import ./tests {
-          inherit inputs denix pkgs system configuration;
+          inherit inputs denix pkgs system configuration compose;
         }
         // {
           formatting = treefmt.config.build.check self;

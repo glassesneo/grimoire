@@ -2,7 +2,9 @@
 #
 # `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
 # the packages, `serviceApply` (bin/apply), and a `preflight` derivation that
-# realizes all file, package and service closures. Assertions block every output.
+# realizes all file, package and service closures. Assertions block every output
+# except `failedAssertions`, the messages of the failed ones, which module tests
+# read without forcing an output.
 #
 # A file declared with `exclusive = true` in any file set (`files` or
 # `xdg.<kind>.files`) must be defined from one location; a second module or host
@@ -145,7 +147,7 @@
         then throw "\nFailed assertions:\n${lib.concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
         else res;
     in
-      throwAssertions {
+      lib.mapAttrs (_: throwAssertions) {
         manifest = {
           version = 3;
           files = map hjemLib.fileToJson enabledFiles;
@@ -155,6 +157,7 @@
 
         inherit preflight;
         serviceApply = cfg.serviceApply;
-      };
+      }
+      // {inherit failedAssertions;};
   };
 }

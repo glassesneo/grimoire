@@ -1,6 +1,7 @@
 # Owns Hjem user-service declarations and Darwin lowering. Portable argv is never
 # interpreted by a shell. Native additions may add leaves, never replace them.
 # Lifecycle and ownership are implemented by services.py, not nix-darwin.
+# Invalid declarations fail through the assertions, which guard `serviceApply`.
 {
   config,
   lib,
@@ -64,19 +65,24 @@
       };
     };
   });
-  fail = message: throw "Hjem user services: ${message}";
+  # Adds b's leaves to a, keeping a's leaf and recording the path of each one b
+  # would replace.
   merge = path: a: b:
     lib.foldlAttrs (acc: key: value:
-      acc
-      // {
-        ${key} =
-          if !(builtins.hasAttr key acc)
-          then value
-          else if builtins.isAttrs acc.${key} && builtins.isAttrs value
-          then merge "${path}.${key}" acc.${key} value
-          else fail "duplicate ${path}.${key}";
-      })
-    a
+      if !(builtins.hasAttr key acc.value)
+      then acc // {value = acc.value // {${key} = value;};}
+      else if builtins.isAttrs acc.value.${key} && builtins.isAttrs value
+      then let
+        nested = merge "${path}.${key}" acc.value.${key} value;
+      in {
+        value = acc.value // {${key} = nested.value;};
+        duplicates = acc.duplicates ++ nested.duplicates;
+      }
+      else acc // {duplicates = acc.duplicates ++ ["${path}.${key}"];})
+    {
+      value = a;
+      duplicates = [];
+    }
     b;
   validValue = v:
     builtins.isString v
@@ -107,7 +113,8 @@
         }
         // lib.optionalAttrs (p.environment != {}) {EnvironmentVariables = p.environment;}
         // lib.optionalAttrs (p.workingDirectory != null) {WorkingDirectory = p.workingDirectory;};
-    merged = merge name base extra;
+    combined = merge name base extra;
+    merged = combined.value;
     label = merged.Label or "org.hjem.${builtins.hashString "sha256" name}";
     session =
       if domain == "user"
@@ -127,14 +134,18 @@
       && (!(merged ? EnvironmentVariables) || (builtins.isAttrs merged.EnvironmentVariables && lib.all builtins.isString (builtins.attrValues merged.EnvironmentVariables)))
       && (!(merged ? RunAtLoad) || builtins.isBool merged.RunAtLoad)
       && (!(merged ? LimitLoadToSessionType) || merged.LimitLoadToSessionType == session || merged.LimitLoadToSessionType == [session]);
-  in
-    if p != null && extra ? Program
-    then fail "${name}: portable command conflicts with Program"
-    else if p != null && n != null && n.policyDefined
-    then fail "${name}: duplicate restartOnSwitch policy"
-    else if !checks
-    then fail "${name}: invalid plist identity, executable or session"
-    else {
+  in {
+    problem =
+      if p != null && extra ? Program
+      then "${name}: portable command conflicts with Program"
+      else if p != null && n != null && n.policyDefined
+      then "${name}: duplicate restartOnSwitch policy"
+      else if combined.duplicates != []
+      then "duplicate ${lib.concatStringsSep ", " combined.duplicates}"
+      else if !checks
+      then "${name}: invalid plist identity, executable or session"
+      else null;
+    job = {
       inherit name label domain;
       restart =
         if p != null
@@ -147,21 +158,19 @@
           Label = label;
           LimitLoadToSessionType = session;
         };
-    }) (config.userServices // config.platform.darwin.launchAgents);
+    };
+  }) (config.userServices // config.platform.darwin.launchAgents);
   # Darwin homes commonly use case-insensitive APFS; identities must also be
   # unique as owned filenames, not merely as launchd label strings.
-  labels = map (job: lib.toLower job.label) (builtins.attrValues jobs);
-  data =
-    if builtins.length labels != builtins.length (lib.unique labels)
-    then fail "duplicate Label"
-    else builtins.toJSON (builtins.attrValues jobs);
-  manifest = pkgs.writeText "hjem-services.json" data;
+  labels = map (entry: lib.toLower entry.job.label) (builtins.attrValues jobs);
+  problems =
+    lib.filter (problem: problem != null) (lib.mapAttrsToList (_: entry: entry.problem) jobs)
+    ++ lib.optional (builtins.length labels != builtins.length (lib.unique labels)) "duplicate Label"
+    ++ lib.optional (!pkgs.stdenv.hostPlatform.isDarwin && config.userServices != {}) "Linux user-service backend is not implemented";
+  manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON (map (entry: entry.job) (builtins.attrValues jobs)));
   services =
     if !pkgs.stdenv.hostPlatform.isDarwin
-    then
-      if config.userServices != {}
-      then fail "Linux user-service backend is not implemented"
-      else pkgs.writeShellScriptBin "apply" "exit 0"
+    then pkgs.writeShellScriptBin "apply" "exit 0"
     else
       pkgs.runCommand "hjem-services" {nativeBuildInputs = [pkgs.python3];} ''
         mkdir -p "$out/bin" "$out/plists"
@@ -197,5 +206,13 @@ in {
       description = "Service closure with bin/apply, invoked after standalone file/package activation.";
     };
   };
-  config.serviceApply = services;
+  config = {
+    serviceApply = services;
+    assertions =
+      map (problem: {
+        assertion = false;
+        message = "Hjem user services: ${problem}";
+      })
+      problems;
+  };
 }

@@ -53,4 +53,16 @@ delib.module {
     # Without secondary_theme.zsh, fsh downloads the upstream free theme at startup.
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
+
+  # FAST_WORK_DIR is built from the same data directory; reading it back from
+  # .zshrc would need a build.
+  tests = {home, ...}: {
+    deploys-fsh-theme = {
+      uses = ["zsh"];
+      expr = result:
+        map (file: file.target)
+        (lib.filter (file: lib.hasSuffix "/secondary_theme.zsh" file.target) result.manifest.files);
+      expected = ["${home}/.local/share/fsh/secondary_theme.zsh"];
+    };
+  };
 }

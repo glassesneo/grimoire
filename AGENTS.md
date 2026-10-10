@@ -9,6 +9,7 @@ This file owns the agent rules no other document covers and summarizes the conce
 - Modules and hosts write configuration in sections per module system: `always`, `ifEnabled`, and `ifDisabled`. The module systems are `darwin` (nix-darwin), `hjem` (user files, through `adapters/hjem/default.nix`), `bundles` (published packages, through `adapters/bundles.nix`), and `myconfig`.
 - `myconfig` is merged into every module system's evaluation, so it carries choices that mean the same everywhere. Values one system computes stay in that system's sections.
 - A feature keeps all of its module-system outputs together, and every shared output has one owner. Files several features contribute to are owned by one module and receive the others' contributions as ordered fragments.
+- Option types reject an invalid single value; assertions reject invalid combinations of a configuration's choices; a module's `tests` cases, beside its definition, show that its implementation is correct; `tests/` holds checks of repository mechanisms and of the published configurations as a whole.
 
 ## Reading Path
 
@@ -19,7 +20,7 @@ This file owns the agent rules no other document covers and summarizes the conce
 ## Validation
 
 1. Stage new files before evaluation; flakes read only Git-tracked files.
-2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `tests/<name>`.
+2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `tests/<name>`, or `.#checks.<system>.module-<name>` for the tests of module `<name>`.
 3. Before completion, run `nix flake check`.
 
 Report any check or live behavior that was not run as not run, with the reason.

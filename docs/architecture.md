@@ -35,7 +35,7 @@ A module's name is its `myconfig` interface path, so choose it for the modules a
 - `adapters/` owns integrations for module systems that Denix does not provide. An adapter translates Denix modules into the external system's configuration result; it does not own user configuration policy.
 - `extensions/` owns extensions of Denix itself: host attributes and behavior applied to every module or host. Features that consume them live in `abstractions/modules/`.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
-- `tests/` owns sandboxed checks exported through `checks.<system>`. Each immediate `tests/<name>/default.nix` is discovered automatically.
+- `tests/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `tests/<name>/default.nix` is discovered automatically. The contract of a single module is tested inside that module instead; see Validation boundary.
 - `scripts/` and `justfile` own operator commands; see `docs/commands.md`.
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
@@ -47,6 +47,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions for modules.
+- `extensions/module-tests.nix`: inline test cases declared by a module for its own contract, evaluated by `lib/module-tests.nix` into `checks.<system>.module-<name>`.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
 - `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
 - `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services.py`.
@@ -60,6 +61,15 @@ Each mechanism is specified at the top of its file and by its option description
 ## Validation boundary
 
 A test belongs under `tests/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. Upstream Denix and Hjem APIs are trusted; checks cover repository-owned adapters and contracts.
+
+Each kind of validation answers a different question:
+
+- An option type rejects a single invalid value where it is defined.
+- An assertion rejects a configuration whose choices are invalid together. It runs on every evaluation of a real configuration and addresses whoever wrote those choices.
+- An inline test shows that a module's implementation is correct on chosen inputs. It runs only as a check and addresses the module's author. A condition that no configuration choice can break, only a defect in the module, belongs here rather than in an assertion.
+- A check under `tests/` covers a repository mechanism, the composition, or a property that needs a build or spans the published configurations.
+
+A module's own contract — what its options produce and reject — is tested by the module's `tests`, beside its definition. Each case is evaluated on the adapters and extensions of `flake.nix` with only that module, the modules it names, and its fixture contributors. Inline tests cover evaluated values; a check that builds derivations or spans several modules' outputs stays under `tests/`.
 
 Mechanism checks use the smallest input boundary they own, without importing unrelated feature modules or extensions. Checks of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
 
