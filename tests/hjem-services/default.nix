@@ -84,14 +84,6 @@
       };
     };
   };
-  assert rejects "fixture" {
-    assertions = [
-      {
-        assertion = false;
-        message = "fixture";
-      }
-    ];
-  };
   assert rejects "duplicate x.EnvironmentVariables.A" (lib.recursiveUpdate (bad {EnvironmentVariables.A = "same";}) {userServices.x.environment.A = "same";});
   assert rejects "duplicate x.WorkingDirectory" (lib.recursiveUpdate (bad {WorkingDirectory = "/tmp";}) {userServices.x.workingDirectory = "/tmp";});
   assert rejects "duplicate x.ProgramArguments" (bad {ProgramArguments = ["relative"];});

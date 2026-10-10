@@ -75,17 +75,14 @@ in
     command = shlex.split(environment['NIX_SECRETS_NIX_EVAL_COMMAND'])
     assert json.loads(subprocess.check_output(command)) == manifest
     assert environment['NIX_SECRETS_GENERATOR_BUILD_COMMAND'].startswith('${pkgs.nix}/bin/nix-store ')
-    assert manifest['moduleSystem'] == 'hjem'
-    assert manifest['identityPaths'] == ['/tmp/nix-secrets-fixture/key.txt']
     secret, = manifest['secrets']
-    assert secret['owner'] == 'fixture' and secret['group'] == 20 and secret['mode'] == '0400'
     job, = json.loads((Path(os.environ['automatic']) / 'services.json').read_text())
     assert job['domain'] == 'gui' and job['restart']
     assert job['label'] == job['config']['Label'] == 'org.hjem.nix-secrets-probe'
     production_job, = json.loads((Path(os.environ['production']) / 'services.json').read_text())
     assert production_job['label'] == 'org.hjem.nix-secrets-activate'
     assert production_job['label'] != job['label']
-    assert job['config']['RunAtLoad'] and job['runAtLoad'] and not job['config'].get('KeepAlive', False)
+    assert job['runAtLoad']
     script = Path(job['config']['ProgramArguments'][0]).read_text()
     assert ' activate ' in script and '--needed-for-users false' in script
     assert re.search(r'^exec /usr/bin/lockf -k \S+/nix-secrets/activate.lock ', script, re.M)

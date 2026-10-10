@@ -56,7 +56,8 @@
   blockedOutputs =
     !(builtins.tryEval failing.manifest).success
     && !(builtins.tryEval failing.packages).success
-    && !(builtins.tryEval failing.preflight).success;
+    && !(builtins.tryEval failing.preflight).success
+    && !(builtins.tryEval failing.serviceApply).success;
 
   manifest = result.manifest;
 
@@ -83,7 +84,7 @@ in
     && lib.all (file: !lib.hasSuffix "/disabled.txt" file.target) manifest.files
     && builtins.length result.packages == 1
   ) "Hjem adapter contract failed";
-  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, and preflight";
+  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and serviceApply";
     pkgs.runCommand "hjem-adapter-test" {
       inherit manifestFile package;
       inherit (result) preflight;
@@ -103,9 +104,6 @@ in
         test -e "$dependency"
       done
 
-      grep -Fxq "Generated from text" "$textPath"
-      grep -Eq '"mode"[[:space:]]*:[[:space:]]*"string"' "$stringPath"
-      grep -Eq '"mode"[[:space:]]*:[[:space:]]*"derivation"' "$drvPath"
       test "$("$package/bin/fixture-tool")" = "fixture"
 
       mkdir "$out"

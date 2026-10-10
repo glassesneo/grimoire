@@ -60,7 +60,7 @@ Each mechanism is specified at the top of its file and by its option description
 
 ## Validation boundary
 
-A test belongs under `tests/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. Upstream Denix and Hjem APIs are trusted; checks cover repository-owned adapters and contracts.
+A test belongs under `tests/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
 
 Each kind of validation answers a different question:
 
