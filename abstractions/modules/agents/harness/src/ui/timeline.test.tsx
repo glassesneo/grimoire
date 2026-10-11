@@ -12,7 +12,7 @@
  * host/OSC52 delivery is faked here and left to the manual terminal check.
  */
 import { describe, expect, test } from "bun:test";
-import { engine, type ScrollBoxRenderable } from "@opentui/core";
+import { engine, RGBA, type ScrollBoxRenderable } from "@opentui/core";
 import { ManualClock } from "@opentui/core/testing";
 import { testRender, type JSX } from "@opentui/solid";
 import { createSignal } from "solid-js";
@@ -28,7 +28,7 @@ import { ItemTypeRegistry, type ItemType, type TimelineItem } from "./controller
 import { TimelineBindings } from "./harness-client";
 import { createItemActions, type TimelineScrollBox } from "./item-actions";
 import { TimelineProjector, TimelineView } from "./timeline";
-import { createTimelineTypes, type ToolSnapshot } from "./timeline-types";
+import { createTimelineTypes, palette, type ToolSnapshot } from "./timeline-types";
 
 const noteType: ItemType<{ text: string }, string> = {
   kind: "note",
@@ -183,14 +183,27 @@ describe("splitFencedBlocks", () => {
   });
 });
 
+/** A finished tool entry with nothing recorded but what `overrides` gives. */
+const tool = (overrides: Partial<Extract<SessionEntry, { kind: "tool" }>>): SessionEntry => ({
+  kind: "tool", id: "s/t", version: 0, callId: "t", scope: "s", parentId: undefined, name: "generic", ordinal: 0,
+  args: { available: true, value: {} }, state: "done", result: undefined, errorSummary: undefined, nestedIncomplete: false,
+  ...overrides,
+});
+const textResult = (...texts: string[]) => ({ content: texts.map((text) => ({ type: "text" as const, text })), details: undefined, partial: false });
+
+/** The foreground color of the cell at `line` and `column` of the rendered frame. */
+function colorAt(setup: { captureSpans(): { lines: { spans: { text: string; fg: RGBA }[] }[] } }, line: number, column: number) {
+  let at = 0;
+  for (const span of setup.captureSpans().lines[line]!.spans) {
+    if (column < at + span.text.length) return span.fg.toInts();
+    at += span.text.length;
+  }
+  return undefined;
+}
+
 describe("projection", () => {
   const response = (id: string, version: number, parts: unknown[], streaming = false): SessionEntry =>
     ({ kind: "assistant", id, version, parts, streaming, stopReason: streaming ? undefined : "stop", errorMessage: undefined }) as SessionEntry;
-  const tool = (overrides: Partial<Extract<SessionEntry, { kind: "tool" }>>): SessionEntry => ({
-    kind: "tool", id: "s/t", version: 0, callId: "t", scope: "s", parentId: undefined, name: "generic", ordinal: 0,
-    args: { available: true, value: {} }, state: "done", result: undefined, errorSummary: undefined, nestedIncomplete: false,
-    ...overrides,
-  });
 
   test("a response is one parent of its thinking, prose, and code, in source order", () => {
     const { project } = projectionFixture();
@@ -314,6 +327,24 @@ describe("viewport", () => {
       expect(box.getRenderable("timeline-2")!.y).toBe(3);
       // Not aligned to the end: the last item's first line is centered too.
       actions.move(1);
+      frame(120);
+      expect(box.getRenderable("timeline-3")!.y).toBe(3);
+    } finally {
+      void actions.dispose();
+    }
+  });
+
+  test("a move finishes the scroll still in flight, so held keys keep the view at most one step behind", () => {
+    const timeline = timelineWithNotes("a", "b", "c", "d");
+    const box = fakeBox({ rows, height: 9, scrollHeight: 20 });
+    const actions = createItemActions({ timeline, scrollbox: () => box, overlayHeight: () => 2, topInset: () => 1 });
+    const frame = frameDriver();
+    try {
+      // A held key: moves arrive faster than any frame.
+      actions.move(1);
+      actions.move(1);
+      actions.move(1);
+      expect(box.getRenderable("timeline-2")!.y).toBe(3);
       frame(120);
       expect(box.getRenderable("timeline-3")!.y).toBe(3);
     } finally {
@@ -467,12 +498,140 @@ async function rendered(entries: readonly SessionEntry[], options: { width?: num
 }
 
 const lines = (count: number, prefix: string) => Array.from({ length: count }, (_, index) => `${prefix} ${index}`).join("\n");
-const bash = (id: string, output: string): SessionEntry => ({
-  kind: "tool", id, version: 0, callId: id, scope: "s", parentId: undefined, name: "bash", ordinal: 0,
-  args: { available: true, value: { command: `run ${id}` } }, state: "done",
-  result: { content: [{ type: "text", text: output }], details: undefined, partial: false }, errorSummary: undefined, nestedIncomplete: false,
-});
+const bash = (id: string, output: string): SessionEntry =>
+  tool({ id, callId: id, name: "bash", args: { available: true, value: { command: `run ${id}` } }, result: textResult(output) });
 const note = (id: string, text: string): SessionEntry => ({ kind: "notice", id, version: 0, level: "info", text });
+
+const codemode = (code: string, header: string, text: string, state: "done" | "error"): SessionEntry =>
+  tool({ id: "s/c", callId: "c", name: "codemode", args: { available: true, value: { code } }, state, result: textResult(header, text) });
+/** A bash call the codemode item `s/c` made. */
+const call = (state: "done" | "error"): SessionEntry =>
+  tool({ id: "s/c/1", callId: "c/1", parentId: "s/c", name: "bash", ordinal: 1, args: { available: true, value: { command: "ls src" } }, state });
+const completed = "Script completed\nWall time 0.4 seconds\nOutput:\n";
+
+describe("codemode presentation", () => {
+  test("collapsed, it leads with its calls and shows the strings the script returned, not their JSON", async () => {
+    const view = await rendered([codemode("x", completed, JSON.stringify({ output: "app.tsx\ncore\n", exit_code: 0 }), "done"), call("done")], { width: 60 });
+    try {
+      const frame = view.setup.captureCharFrame();
+      expect(frame).toContain("codemode 1 call · 0.4s · done");
+      expect(frame).toContain("$ ls src · done");
+      expect(frame).toMatch(/→ app\.tsx *\n[^\n]* core *\n/);
+      expect(frame).toContain("exit_code 0");
+      expect(frame).not.toContain("{\"output\"");
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("expanding leaves each call's label in the column it had in the summary", async () => {
+    const view = await rendered([codemode("x", completed, "done", "done"), call("done")], { width: 60 });
+    try {
+      const column = () => view.setup.captureCharFrame().split("\n").find((line) => line.includes("$ ls src"))?.indexOf("$ ls src");
+      const collapsed = column();
+      view.timeline.setCursor("s/c");
+      view.actions.toggle();
+      await view.settle();
+      expect(collapsed).toBeDefined();
+      expect(column()).toBe(collapsed);
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("failed, it names the failing line and shows the error's first line, not its stack", async () => {
+    const view = await rendered([
+      codemode("const a = 1;\nnull.x;", "Script failed\nWall time 0.1 seconds\nOutput:\n",
+        "Script error:\nTypeError: cannot read property 'x' of null\n    at <anonymous> (codemode.js:2:5)\n\nNo tool calls were made.", "error"),
+    ], { width: 60 });
+    try {
+      const frame = view.setup.captureCharFrame();
+      expect(frame).toContain("codemode · 0.1s · failed at line 2");
+      expect(frame).toContain("→ TypeError: cannot read property 'x' of null");
+      expect(frame).not.toContain("codemode.js:2:5");
+    } finally {
+      await view.dispose();
+    }
+  });
+});
+
+describe("gutter", () => {
+  type View = Awaited<ReturnType<typeof rendered>>;
+  /** The cell in each screen line where the bar of an item `level` levels deep is drawn. */
+  const barColumn = (view: View, level: number) => view.setup.captureCharFrame().split("\n").map((line) => line[1 + 2 * level] ?? " ");
+  /** The screen lines an item covers, from its own row through `last`, its last row. */
+  const range = (view: View, id: string, last = id) => {
+    const end = view.box().getRenderable(last)!;
+    return { start: view.top(id)!, end: view.top(last)! + end.height };
+  };
+  /** A bar over `length` lines, cut short at both ends. */
+  const bar = (length: number) => length === 1 ? ["╏"] : ["╻", ...Array<string>(length - 2).fill("┃"), "╹"];
+  const isBar = (cell: string) => /[╻┃╹╏]/.test(cell);
+  // A level's column also holds the marks of items one level up, outside any bar.
+  const expectBar = (column: string[], { start, end }: { start: number; end: number }) => {
+    expect(column.slice(start, end)).toEqual(bar(end - start));
+    expect([...column.slice(0, start), ...column.slice(end)].some(isBar)).toBe(false);
+  };
+  const expanded = async (cursor: string) => {
+    const view = await rendered([codemode("x", completed, "done", "done"), call("error"), bash("b", lines(9, "out"))], { width: 60, height: 40 });
+    view.timeline.setCursor("s/c");
+    view.actions.toggle();
+    view.timeline.setCursor(cursor);
+    await view.settle();
+    return view;
+  };
+
+  test("the cursor item's bar covers its own row, its calls, and its details, and nothing else", async () => {
+    const view = await expanded("s/c");
+    try {
+      expectBar(barColumn(view, 0), range(view, "s/c", "s/c::details"));
+      expect(barColumn(view, 1).some(isBar)).toBe(false);
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("selecting a call keeps its parent's bar, dimmed, and adds the call's own one level in", async () => {
+    const view = await expanded("s/c/1");
+    try {
+      const parent = range(view, "s/c", "s/c::details");
+      const child = range(view, "s/c/1");
+      expectBar(barColumn(view, 0), parent);
+      expectBar(barColumn(view, 1), child);
+      expect(colorAt(view.setup, child.start, 1)).toEqual(RGBA.fromHex(palette.dim).toInts());
+      expect(colorAt(view.setup, child.start, 3)).toEqual(RGBA.fromHex(palette.accent).toInts());
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("an item's mark shows by its shape whether it opens", async () => {
+    const view = await expanded("s/c");
+    try {
+      // The mark sits right of the bars for every level the item is nested in.
+      const markOf = (id: string, depth: number) => view.setup.captureCharFrame().split("\n")[view.top(id)!]![3 + 2 * depth];
+      expect(markOf("s/c", 0)).toBe("⏷");
+      expect(markOf("b", 0)).toBe("⏵");
+      expect(markOf("s/c/1", 1)).toBe("⏺");
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test.each([
+    ["done", palette.success],
+    ["error", palette.error],
+    ["running", palette.accent],
+    ["unfinished", palette.warning],
+  ] as const)("a tool that is %s is marked in its outcome's color", (state, color) => {
+    const { tool } = createTimelineTypes();
+    const snapshot: ToolSnapshot = {
+      id: "t", callId: "t", name: "bash", parentCallId: undefined, args: { available: true, value: {} }, state,
+      result: undefined, errorSummary: undefined, calls: [], callsIncomplete: false,
+    };
+    expect(tool.marker!(snapshot)).toBe(color);
+  });
+});
 
 describe("rendered viewport", () => {
   test("opening and closing keep the item's first line and everything above it in place", async () => {
@@ -589,11 +748,11 @@ describe("TimelineView", () => {
     );
     await setup.flush();
     for (const line of setup.captureCharFrame().split("\n")) expect(/x/.test(line.slice(39))).toBe(false);
-    // The selection is a leading marker, not a background.
-    expect(setup.captureCharFrame()).not.toContain("❯");
+    // The selection is a leading bar, not a background.
+    expect(setup.captureCharFrame()).not.toMatch(/[╻┃╹╏]/);
     setFocused(true);
     await setup.flush();
-    expect(setup.captureCharFrame()).toContain("❯");
+    expect(setup.captureCharFrame()).toMatch(/[╻┃╹╏]/);
     const box = setup.renderer.root.findDescendantById("timeline-scrollbox") as ScrollBoxRenderable;
     expect(box.verticalScrollBar.height).toBe(12);
     setup.renderer.destroy();
@@ -686,6 +845,48 @@ describe("frame stability", () => {
           expect(frame.tops[0]).toBe(top);
         }
       }
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("streamed Markdown, once its markers are concealed, never shows them raw again", async () => {
+    const full = "# Heading\n\nSome **bold** words in a paragraph.\n\n## Next\n\nMore text.";
+    const view = await rendered([response("r", 0, full.slice(0, 1), true)], { height: 20, overlay: 0 });
+    try {
+      let concealed = false;
+      for (let end = 2; end <= full.length; end++) {
+        view.timeline.replace(view.project([response("r", end, full.slice(0, end), true)]));
+        for (let frame = 0; frame < 3; frame++) {
+          // Highlighting runs in a worker; give it time to land between frames.
+          await Bun.sleep(2);
+          engine.update(16);
+          await view.setup.renderOnce();
+          const text = view.setup.captureCharFrame();
+          if (concealed) expect(text).not.toContain("# Head");
+          concealed ||= text.includes("Heading") && !text.includes("# Head");
+        }
+      }
+      expect(concealed).toBe(true);
+    } finally {
+      await view.dispose();
+    }
+  });
+
+  test("thinking is drawn in the thinking color, not the body's", async () => {
+    const view = await rendered([response("r", 0, "the answer", false, "a quiet thought")], { height: 20, overlay: 0 });
+    try {
+      for (let wait = 0; wait < 20 && !view.setup.captureCharFrame().includes("a quiet thought"); wait++) {
+        await Bun.sleep(20);
+        await view.setup.renderOnce();
+      }
+      const colorOf = (text: string) => {
+        const lines = view.setup.captureCharFrame().split("\n");
+        const line = lines.findIndex((candidate) => candidate.includes(text));
+        return colorAt(view.setup, line, lines[line]!.indexOf(text));
+      };
+      expect(colorOf("a quiet thought")).toEqual(RGBA.fromHex(palette.thinking).toInts());
+      expect(colorOf("the answer")).toEqual(RGBA.fromHex(palette.text).toInts());
     } finally {
       await view.dispose();
     }

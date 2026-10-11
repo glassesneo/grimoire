@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CodemodeSandbox, loadQuickJSWasm, parseCodemodeSource } from "@earendil-works/pi-codemode";
 import { SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
-import { codemodeErrorLocation, codemodeOutput } from "./codemode-result";
+import { codemodeErrorLocation, codemodeOutput, codemodeWallTime, readableOutput } from "./codemode-result";
 import { createSessionHost } from "./session";
 
 const header = { type: "text", text: "Script failed\nWall time 0.1 seconds\nOutput:\n" } as const;
@@ -61,6 +61,11 @@ test("separates script output from the error the tool appends", () => {
   expect(output.error).toBe("Error: bad\n\nNo tool calls were made.");
 });
 
+test("reads the wall time from the header, and nothing from output that only resembles one", () => {
+  expect(codemodeWallTime(failure("Error: bad").content)).toBe("0.1s");
+  expect(codemodeWallTime([{ type: "text", text: "Wall time 3 seconds" }])).toBeUndefined();
+});
+
 test("keeps images and the unshown-images note in the output", () => {
   const image = { type: "image", data: "AAAA", mimeType: "image/png" } as const;
   const note = "Note: models.generateImages() returned 1 image that the script did not show. Show each image block of result.output with image(block).";
@@ -106,4 +111,17 @@ test("a completed script's own text is output, even when it looks like an error 
   ]);
   expect(output.error).toBeUndefined();
   expect(output.output).toBe("Script error:\nprinted by the script");
+});
+
+test.each([
+  // A returned `tools.bash()` result, as pi-codemode serializes it.
+  ["an object", JSON.stringify({ output: "app.tsx\ncore\n", exit_code: 0 }), "app.tsx\ncore\nexit_code 0"],
+  ["nested values, in order", JSON.stringify([{ status: "ok", n: 1 }, "two"]), "ok\ntwo\nn 1"],
+  ["one line among others", `before\n${JSON.stringify({ a: "x" })}\nafter`, "before\nx\nafter"],
+])("a JSON line of %s reads as its strings, with other scalars after them", (_, output, readable) => {
+  expect(readableOutput(output)).toBe(readable);
+});
+
+test.each(["{ not json", "[]", "{}", "42", "<console_output>"])("%p has nothing to unpack and stays as it was", (line) => {
+  expect(readableOutput(line)).toBe(line);
 });

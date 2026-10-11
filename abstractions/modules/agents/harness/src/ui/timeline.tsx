@@ -1,5 +1,5 @@
-import type { ScrollBoxRenderable } from "@opentui/core";
-import { type Accessor, createEffect, createMemo, For, type JSX, untrack } from "solid-js";
+import type { Renderable, ScrollBoxRenderable } from "@opentui/core";
+import { type Accessor, createEffect, createMemo, createSelector, createSignal, For, type JSX, onCleanup, Show, untrack } from "solid-js";
 import {
   type AssistantEntry,
   type BashEntry,
@@ -21,7 +21,8 @@ import {
   type ToolSnapshot,
 } from "./timeline-types";
 
-const CURSOR_MARKER = "#89b4fa";
+/** The mark of an item whose type gives no color. */
+const MARK_DEFAULT = palette.thinking;
 /** Behind an expanded item and everything it shows, to mark where the expansion ends. */
 const EXPANDED_BACKGROUND = "#24273a";
 
@@ -299,6 +300,8 @@ interface Row {
   type: "item" | "details";
   id: string;
   depth: number;
+  /** The item and its ancestors, nearest first: the items whose range the row is in. */
+  owners: readonly string[];
   /** A blank row before it separates top-level items. */
   gap: boolean;
   /** Inside an expanded item, which is shaded to show where its expansion ends. */
@@ -311,27 +314,28 @@ interface Row {
  */
 function rowsOf<Render>(timeline: ItemTypeRegistry<Render>): Row[] {
   const rows: Row[] = [];
-  const open: { id: string; depth: number }[] = [];
+  const open: { id: string; depth: number; owners: readonly string[] }[] = [];
   // In reading order, reaching an item no deeper than an open one means its
   // subtree has ended, so its details come here.
   const close = (depth: number) => {
     while (open.length > 0 && open.at(-1)!.depth >= depth) {
       const top = open.pop()!;
-      rows.push({ type: "details", id: top.id, depth: top.depth, gap: false, shaded: true });
+      rows.push({ type: "details", id: top.id, depth: top.depth, owners: top.owners, gap: false, shaded: true });
     }
   };
-  // A parent comes before its children, so depths fill in as the walk goes.
-  const depths = new Map<string, number>();
+  // A parent comes before its children, so ancestries fill in as the walk goes.
+  const owners = new Map<string, readonly string[]>();
   let first = true;
   for (const current of timeline.visibleItems()) {
-    const depth = current.parentId === undefined ? 0 : (depths.get(current.parentId) ?? -1) + 1;
-    depths.set(current.id, depth);
+    const own = [current.id, ...(current.parentId === undefined ? [] : owners.get(current.parentId) ?? [])];
+    owners.set(current.id, own);
+    const depth = own.length - 1;
     close(depth);
     const isOpen = timeline.isExpanded(current.id) && timeline.isExpandable(current.id);
     // A visible child means its ancestors are expanded.
-    rows.push({ type: "item", id: current.id, depth, gap: depth === 0 && !first, shaded: depth > 0 || isOpen });
+    rows.push({ type: "item", id: current.id, depth, owners: own, gap: depth === 0 && !first, shaded: depth > 0 || isOpen });
     if (depth === 0) first = false;
-    if (isOpen && current.renderDetails) open.push({ id: current.id, depth });
+    if (isOpen && current.renderDetails) open.push({ id: current.id, depth, owners: own });
   }
   close(0);
   return rows;
@@ -343,7 +347,7 @@ function rowsOf<Render>(timeline: ItemTypeRegistry<Render>): Row[] {
  * before positions are applied, so a correction is painted in the same frame
  * as the change it corrects; renderable positions would still be last frame's.
  */
-function layoutScrollBox(box: ScrollBoxRenderable): TimelineScrollBox {
+function layoutScrollBox(box: ScrollBoxRenderable, rowBoxes: ReadonlyMap<string, Renderable>): TimelineScrollBox {
   return {
     get scrollTop() {
       return box.scrollTop;
@@ -359,7 +363,8 @@ function layoutScrollBox(box: ScrollBoxRenderable): TimelineScrollBox {
     },
     y: 0,
     getRenderable(id) {
-      const row = box.getRenderable(id);
+      // OpenTUI looks a child up by scanning every row; the view keeps its rows by id.
+      const row = rowBoxes.get(id);
       if (!row) return undefined;
       const layout = row.getLayout();
       return { y: layout.top - box.scrollTop, height: layout.height };
@@ -367,22 +372,83 @@ function layoutScrollBox(box: ScrollBoxRenderable): TimelineScrollBox {
   };
 }
 
+/** Which items the selection bars mark, and where each item's range ends. */
+interface Selection {
+  /** The cursor item: its bar is drawn in the cursor's color. */
+  selected(id: string): boolean;
+  /** The cursor item or one of its ancestors: each has a bar at its own indentation. */
+  marked(id: string): boolean;
+  /** Whether `row` is the last row of `id`'s range, its expanded content included. */
+  ends(id: string, row: Row): boolean;
+}
+
+/**
+ * One item's bar down a row: a heavy rule at the item's indentation, cut to a
+ * half cell where its range starts and ends so it does not run into the rows
+ * around it. A one-row range gets a short dashed rule.
+ */
+function RangeBar(props: { left: number; bright: boolean; top: boolean; bottom: boolean }): JSX.Element {
+  const [height, setHeight] = createSignal(1);
+  const glyphs = () => {
+    const rows = Math.max(1, height());
+    if (rows === 1 && props.top && props.bottom) return "╏";
+    const lines = Array.from({ length: rows }, () => "┃");
+    if (props.top) lines[0] = "╻";
+    if (props.bottom) lines[rows - 1] = "╹";
+    return lines.join("\n");
+  };
+  // Absolute, so the bar follows the row's height without adding to it.
+  return (
+    <box position="absolute" left={props.left} top={0} bottom={0} width={1} onSizeChange={function (this: { height: number }) { setHeight(this.height); }}>
+      <text fg={props.bright ? palette.accent : palette.dim}>{glyphs()}</text>
+    </box>
+  );
+}
+
+/**
+ * The columns left of a row's content: a bar column for each level the row is
+ * nested in, two cells apart, then the item's mark. Rows of every depth keep
+ * their content right of the mark, so details align with their item.
+ */
+function Gutter(props: { row: Row; selection: Selection; mark?: { glyph: string; color: string } }): JSX.Element {
+  const { row } = props;
+  return (
+    <box flexShrink={0} width={2 * row.depth + 4}>
+      <text fg={props.mark?.color ?? palette.dim} flexShrink={0}>{`${" ".repeat(2 * row.depth + 2)}${props.mark?.glyph ?? " "} `}</text>
+      {/* Level 0 is the top-level ancestor; the row's own item is at its depth. A row's levels never change. */}
+      {row.owners.toReversed().map((owner, level) => (
+        <Show when={props.selection.marked(owner)}>
+          <RangeBar left={2 * level} bright={props.selection.selected(owner)}
+            top={row.type === "item" && row.id === owner} bottom={props.selection.ends(owner, row)} />
+        </Show>
+      ))}
+    </box>
+  );
+}
+
 interface RowProps {
   row: Row;
   timeline: ItemTypeRegistry<JSX.Element>;
+  /** Changes with anything a row shows apart from the cursor. */
   version: Accessor<number>;
+  /** Registers the row's box under its id, for as long as it is mounted. */
+  register: (id: string, box: Renderable) => void;
 }
 
 /**
  * One item's row. It renders again only when its own item or disclosure
  * changes; a live type is rendered once and follows its value through props.
  */
-function ItemRow(props: RowProps & { focused: () => boolean }): JSX.Element {
-  const { id, depth } = props.row;
+function ItemRow(props: RowProps & { selection: Selection }): JSX.Element {
+  const { id } = props.row;
   const item = createMemo(() => (props.version(), props.timeline.find(id)));
   const expandable = createMemo(() => (props.version(), props.timeline.isExpandable(id)));
   const open = createMemo(() => expandable() && (props.version(), props.timeline.isExpanded(id)));
-  const selected = createMemo(() => props.focused() && (props.version(), props.timeline.cursor() === id));
+  // Every item carries a mark in its type's color, shaped by whether it opens.
+  const mark = createMemo(() => ({
+    glyph: expandable() ? (open() ? "⏷" : "⏵") : "⏺",
+    color: item()?.marker ?? MARK_DEFAULT,
+  }));
   const liveType = createMemo(() => {
     const type = item()?.type;
     return type?.live ? type : undefined;
@@ -409,14 +475,13 @@ function ItemRow(props: RowProps & { focused: () => boolean }): JSX.Element {
   return (
     <box
       id={id}
+      ref={(box: Renderable) => props.register(id, box)}
       flexDirection="row"
       flexShrink={0}
       marginTop={props.row.gap ? 1 : 0}
       backgroundColor={props.row.shaded ? EXPANDED_BACKGROUND : "transparent"}
     >
-      <text fg={CURSOR_MARKER} flexShrink={0}>
-        {`${selected() ? "❯" : " "}${"  ".repeat(depth)}${expandable() ? (open() ? "▾" : "▸") : " "} `}
-      </text>
+      <Gutter row={props.row} selection={props.selection} mark={mark()} />
       {/* Shrinkable so wrapped text stays left of the scrollbar column. */}
       <box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
         {content()}
@@ -425,17 +490,16 @@ function ItemRow(props: RowProps & { focused: () => boolean }): JSX.Element {
   );
 }
 
-function DetailsRow(props: RowProps): JSX.Element {
-  const { id, depth } = props.row;
+function DetailsRow(props: RowProps & { selection: Selection }): JSX.Element {
+  const { id } = props.row;
   const item = createMemo(() => (props.version(), props.timeline.find(id)));
   const content = createMemo(() => {
     const current = item();
     return current?.renderDetails ? untrack(() => current.renderDetails!()) : null;
   });
   return (
-    <box id={`${id}::details`} flexDirection="row" flexShrink={0} backgroundColor={EXPANDED_BACKGROUND}>
-      {/* As wide as an item row's gutter, so details align with the item's content. */}
-      <text flexShrink={0}>{` ${"  ".repeat(depth)}  `}</text>
+    <box id={`${id}::details`} ref={(box: Renderable) => props.register(`${id}::details`, box)} flexDirection="row" flexShrink={0} backgroundColor={EXPANDED_BACKGROUND}>
+      <Gutter row={props.row} selection={props.selection} />
       <box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
         {content()}
       </box>
@@ -452,23 +516,45 @@ function DetailsRow(props: RowProps): JSX.Element {
  * the rows left visible, so it is never painted under the editor.
  */
 export function TimelineView(props: TimelineViewProps): JSX.Element {
-  const version = useVersion(props.timeline);
+  const changes = useVersion(props.timeline);
+  // A cursor move changes only the two rows it leaves and enters, through the
+  // selector; everything else follows the registry's revision.
+  const version = createMemo(() => (changes(), props.timeline.revision()));
+  const cursor = createMemo(() => (changes(), props.focused ? props.timeline.cursor() : undefined));
+  const selected = createSelector(cursor);
+  // Equal chains keep the selector from asking every row again.
+  const chain = createMemo(() => {
+    const id = cursor();
+    return id === undefined ? [] : [id, ...props.timeline.ancestors(id)];
+  }, [], { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const marked = createSelector(chain, (id: string, ids: readonly string[]) => ids.includes(id));
+  const rowBoxes = new Map<string, Renderable>();
+  const register = (id: string, box: Renderable) => {
+    rowBoxes.set(id, box);
+    onCleanup(() => {
+      if (rowBoxes.get(id) === box) rowBoxes.delete(id);
+    });
+  };
   // Rows keep their identity while their place in the tree is unchanged, so
   // <For> keeps their renderables.
   let rowCache = new Map<string, Row>();
-  const rows = createMemo(() => {
+  const layout = createMemo(() => {
     version();
     const next = new Map<string, Row>();
-    const result = rowsOf(props.timeline).map((row) => {
-      const key = `${row.type}:${row.id}:${row.depth}:${row.gap}:${row.shaded}`;
+    // The last row of each item's range: in reading order, the last one it owns.
+    const ends = new Map<string, Row>();
+    const rows = rowsOf(props.timeline).map((row) => {
+      const key = `${row.type}:${row.owners.join(">")}:${row.gap}:${row.shaded}`;
       const kept = rowCache.get(key) ?? row;
       next.set(key, kept);
+      for (const owner of kept.owners) ends.set(owner, kept);
       return kept;
     });
     rowCache = next;
-    return result;
+    return { rows, ends };
   });
-  const focused = () => Boolean(props.focused);
+  const rows = () => layout().rows;
+  const selection: Selection = { selected, marked, ends: (id, row) => layout().ends.get(id) === row };
   let scrollbox: ScrollBoxRenderable | undefined;
 
   createEffect(() => {
@@ -491,7 +577,7 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
         const hooked = element as unknown as { onUpdate?: (deltaTime: number) => void };
         if (typeof hooked.onUpdate !== "function") throw new Error("OpenTUI's ScrollBoxRenderable no longer has onUpdate; the timeline cannot anchor its scrolling");
         const update = hooked.onUpdate.bind(element);
-        const layout = layoutScrollBox(element);
+        const layout = layoutScrollBox(element, rowBoxes);
         hooked.onUpdate = (deltaTime) => {
           update(deltaTime);
           element.verticalScrollBar.scrollSize = layout.scrollHeight;
@@ -511,8 +597,8 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
       {(props.topInset ?? 0) > 0 ? <box id="timeline-top-spacer" height={props.topInset} flexShrink={0} /> : null}
       <For each={rows()}>
         {(row) => row.type === "item"
-          ? <ItemRow row={row} timeline={props.timeline} version={version} focused={focused} />
-          : <DetailsRow row={row} timeline={props.timeline} version={version} />}
+          ? <ItemRow row={row} timeline={props.timeline} version={version} register={register} selection={selection} />
+          : <DetailsRow row={row} timeline={props.timeline} version={version} register={register} selection={selection} />}
       </For>
       <For each={props.queued?.steering ?? []}>
         {(text) => <text fg={palette.warning} paddingX={2} flexShrink={0}>{`steering: ${text}`}</text>}

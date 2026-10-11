@@ -375,6 +375,24 @@ describe("ItemTypeRegistry", () => {
     expect(timeline.currentItem()?.id).toBe(a.id);
   });
 
+  test("a cursor move notifies without changing the revision; other changes advance it", () => {
+    const timeline = new ItemTypeRegistry();
+    const factory = timeline.registerType(messageType);
+    const a = factory.create({ text: "a" });
+    const b = factory.create({ text: "b" });
+    timeline.append(a);
+    timeline.append(b);
+    let notified = 0;
+    timeline.subscribe(() => notified++);
+    const before = timeline.revision();
+    timeline.moveCursor(1);
+    timeline.setCursor(a.id);
+    expect(notified).toBe(2);
+    expect(timeline.revision()).toBe(before);
+    timeline.append(factory.create({ text: "c" }));
+    expect(timeline.revision()).toBeGreaterThan(before);
+  });
+
   test("reconciles replaced items against the previous cursor index", () => {
     const timeline = new ItemTypeRegistry();
     const factory = timeline.registerType(messageType);

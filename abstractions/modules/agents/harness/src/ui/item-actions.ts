@@ -6,11 +6,13 @@
  *
  * The viewport is in one of three states. Following keeps the end of the
  * history in view. Explicit navigation animates the selected item's first
- * line to the middle of the usable rows. Otherwise one item is anchored: its
- * first line stays on its screen row while content above or inside it changes
- * height, which is what keeps disclosure, late image and Markdown layout, and
- * streaming from moving what the reader is looking at. Manual scrolling never
- * recenters the selection; scrolling to the real end resumes following.
+ * line to the middle of the usable rows; a new move first finishes the
+ * scroll still in flight, so held keys keep the view at most one step behind.
+ * Otherwise one item is anchored: its first line stays on its screen row
+ * while content above or inside it changes height, which is what keeps
+ * disclosure, late image and Markdown layout, and streaming from moving what
+ * the reader is looking at. Manual scrolling never recenters the selection;
+ * scrolling to the real end resumes following.
  */
 import {
   type HostClipboardService,
@@ -143,15 +145,22 @@ class SmoothScroll {
     return this.#timeline !== undefined;
   }
 
-  /** Animate to `value`, clamped; `onSettle` runs once the position is reached. */
+  /**
+   * Animate to `value`, clamped; `onSettle` runs once the position is reached.
+   * A scroll still in flight is finished at its destination first: restarting
+   * from wherever it had got to would, with input faster than frames such as
+   * a held key, leave no frame to move in, and the view would stand still
+   * until the input stopped.
+   */
   scrollTo(value: number, onSettle?: () => void): void {
     const box = this.#scrollbox();
     if (!box) {
       return;
     }
+    if (this.#timeline && this.#target !== undefined) box.scrollTop = this.#target;
+    this.stop();
     const max = Math.max(0, box.scrollHeight - box.height);
     this.#target = Math.max(0, Math.min(max, value));
-    this.#stop();
     const from = box.scrollTop;
     if (from === this.#target) {
       this.#onStep();
@@ -188,10 +197,6 @@ class SmoothScroll {
   }
 
   stop(): void {
-    this.#stop();
-  }
-
-  #stop(): void {
     if (this.#timeline) {
       engine.unregister(this.#timeline);
       this.#timeline = undefined;
@@ -321,7 +326,8 @@ export function createItemActions<Render>(
 
   return {
     move(delta: number): void {
-      pause();
+      // The next centering takes over the scroll in flight; see `scrollTo`.
+      follow = false;
       timeline.moveCursor(delta);
       centerCursor();
     },

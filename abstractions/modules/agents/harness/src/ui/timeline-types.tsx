@@ -8,7 +8,7 @@ import { contentText, type ImageContent, type StopReason } from "@earendil-works
 import { type CliRenderer, fg, type ImageRenderable, RGBA, StyledText, SyntaxStyle, type TextRenderable } from "@opentui/core";
 import { useRenderer } from "@opentui/solid";
 import { createEffect, createMemo, createSignal, For, type JSX } from "solid-js";
-import { codemodeErrorLocation, codemodeOutput } from "../core/codemode-result";
+import { codemodeErrorLocation, codemodeOutput, codemodeWallTime, readableOutput } from "../core/codemode-result";
 import {
   type CompactionState,
   imagesOf,
@@ -44,14 +44,20 @@ const noticeColor: Record<NoticeLevel, string> = {
   error: palette.error,
 };
 
-const syntaxStyles = new WeakMap<CliRenderer["nativeScene"], SyntaxStyle>();
-/** One style for Markdown and code per renderer, owned by its native resource context. */
-export function syntaxStyle(): SyntaxStyle {
+const syntaxStyles = new WeakMap<CliRenderer["nativeScene"], Map<string, SyntaxStyle>>();
+/**
+ * One style for Markdown and code per renderer and plain-text color, owned by
+ * its native resource context. Highlighted chunks take the plain-text color
+ * from the style, not from a renderable's `fg`, so a muted text needs its own.
+ */
+export function syntaxStyle(text: string = palette.text): SyntaxStyle {
   const scene = useRenderer().nativeScene;
-  const existing = syntaxStyles.get(scene);
+  let styles = syntaxStyles.get(scene);
+  if (!styles) syntaxStyles.set(scene, styles = new Map());
+  const existing = styles.get(text);
   if (existing) return existing;
   const syntax = SyntaxStyle.fromStyles({
-    default: { fg: RGBA.fromHex(palette.text) },
+    default: { fg: RGBA.fromHex(text) },
     keyword: { fg: RGBA.fromHex("#cba6f7") },
     string: { fg: RGBA.fromHex("#a6e3a1") },
     comment: { fg: RGBA.fromHex(palette.dim), italic: true },
@@ -60,7 +66,7 @@ export function syntaxStyle(): SyntaxStyle {
     function: { fg: RGBA.fromHex("#89b4fa") },
     type: { fg: RGBA.fromHex("#f9e2af") },
     operator: { fg: RGBA.fromHex("#89dceb") },
-    variable: { fg: RGBA.fromHex(palette.text) },
+    variable: { fg: RGBA.fromHex(text) },
     property: { fg: RGBA.fromHex("#b4befe") },
     punctuation: { fg: RGBA.fromHex("#9399b2") },
     "markup.heading": { fg: RGBA.fromHex("#89b4fa"), bold: true },
@@ -72,7 +78,7 @@ export function syntaxStyle(): SyntaxStyle {
     "markup.quote": { fg: RGBA.fromHex("#9399b2"), italic: true },
     conceal: { fg: RGBA.fromHex(palette.dim) },
   }, scene);
-  syntaxStyles.set(scene, syntax);
+  styles.set(text, syntax);
   return syntax;
 }
 
@@ -114,8 +120,20 @@ export function Line(props: { parts: Parameters<typeof styled>; wrap?: "none" | 
   return <text wrapMode={props.wrap ?? "word"} ref={(element: TextRenderable) => createEffect(() => { element.content = styled(...props.parts); })} />;
 }
 
+/**
+ * Markdown with its syntax concealed. While streaming, OpenTUI previews the
+ * trailing block from an inline parse of its tokens until highlighting lands.
+ * In the default coalesced mode that token is the raw text of several blocks,
+ * so the preview keeps markers such as `#` that the highlight conceals and each
+ * update flickers between the two; top-level blocks preview what the highlight
+ * shows. `internalBlockMode` is marked internal in OpenTUI 0.6, and its table
+ * default differs, so the grid style is set to match the coalesced output.
+ */
 export function Markdown(props: { text: string; streaming?: boolean; fg?: string }): JSX.Element {
-  return <markdown content={props.text} syntaxStyle={syntaxStyle()} streaming={props.streaming ?? false} conceal fg={props.fg} />;
+  return (
+    <markdown content={props.text} syntaxStyle={syntaxStyle(props.fg)} streaming={props.streaming ?? false}
+      internalBlockMode="top-level" tableOptions={{ style: "grid" }} conceal fg={props.fg} />
+  );
 }
 
 export function CodeBlock(props: { body: string; language: string }): JSX.Element {
@@ -173,6 +191,9 @@ const stateColor: Record<ToolState, string> = {
   unfinished: palette.warning,
   missing: palette.warning,
 };
+
+/** A tool's gutter mark: its state's color, except that success is green rather than muted. */
+const markerColor: Record<ToolState, string> = { ...stateColor, done: palette.success };
 
 const textOf = (content: ResultContent | undefined): string => contentText(content ?? []);
 
@@ -415,8 +436,8 @@ function toolSource(snapshot: ToolSnapshot): string | undefined {
 // The pieces below are mounted once per row and read `props.snapshot` inside
 // JSX, so a running tool's updates change them in place.
 
-function ToolHeader(props: { label: string; detail: string; snapshot: ToolSnapshot }): JSX.Element {
-  const state = () => props.snapshot.result?.partial && props.snapshot.state === "running" ? "running…" : stateText[props.snapshot.state];
+function ToolHeader(props: { label: string; detail: string; status?: string; snapshot: ToolSnapshot }): JSX.Element {
+  const state = () => props.status ?? (props.snapshot.result?.partial && props.snapshot.state === "running" ? "running…" : stateText[props.snapshot.state]);
   return (
     <Line parts={[[props.label, palette.accent],
       props.detail ? [` ${props.detail}`] : undefined,
@@ -457,6 +478,8 @@ interface ToolSpec {
   label?: string;
   /** The call in a few words, for its header and for a codemode overview line. */
   summary(call: { args: ToolArguments; calls?: readonly NestedCallSummary[] }): string;
+  /** The header's closing status; the state's name when omitted. */
+  status?(snapshot: ToolSnapshot): string;
   /** Rows under the header while collapsed; the error preview when omitted. */
   Preview?: (props: { snapshot: ToolSnapshot }) => JSX.Element;
   details(snapshot: ToolSnapshot): JSX.Element;
@@ -470,7 +493,7 @@ function toolType(kind: string, spec: ToolSpec): ItemType<ToolSnapshot, JSX.Elem
     live: true,
     render: (props) => (
       <box flexDirection="column">
-        <ToolHeader label={spec.label ?? props.value.name} detail={spec.summary(props.value)} snapshot={props.value} />
+        <ToolHeader label={spec.label ?? props.value.name} detail={spec.summary(props.value)} status={spec.status?.(props.value)} snapshot={props.value} />
         {props.expanded ? null : <Collapsed snapshot={props.value} />}
         <ResultUnavailable snapshot={props.value} />
       </box>
@@ -479,6 +502,7 @@ function toolType(kind: string, spec: ToolSpec): ItemType<ToolSnapshot, JSX.Elem
     expandable: spec.expandable,
     // The original result text, not the header or compact arguments.
     sourceText: toolSource,
+    marker: (value) => markerColor[value.state],
     actions: {},
     validate: isToolSnapshot,
   };
@@ -614,12 +638,17 @@ const writeSpec: ToolSpec = {
   expandable: (snapshot) => argField(snapshot, "content") !== undefined || longError(snapshot),
 };
 
-/** A call line inside a collapsed codemode item, numbered in the order the calls started; not an item itself. */
-function CallOverview(props: { call: NestedCallSummary; index: number }): JSX.Element {
+/**
+ * A call line inside a collapsed codemode item, in the order the calls
+ * started; not an item itself. It reads like the call's own row: the same
+ * label, and a two-cell marker so the label sits where expanding puts it.
+ */
+function CallOverview(props: { call: NestedCallSummary }): JSX.Element {
+  const spec = () => builtInTools[props.call.name]?.spec ?? genericSpec;
   return (
-    <Line wrap="none" parts={[[`${props.index + 1}. `, palette.dim],
-      [props.call.name, palette.accent],
-      [` ${(builtInTools[props.call.name]?.spec ?? genericSpec).summary(props.call)}`],
+    <Line wrap="none" parts={[["· ", palette.dim],
+      [spec().label ?? props.call.name, palette.accent],
+      [` ${spec().summary(props.call)}`],
       [` · ${stateText[props.call.state]}`, stateColor[props.call.state]]]} />
   );
 }
@@ -649,27 +678,49 @@ function ScriptSource(props: { code: string; errorLine: number | undefined }): J
   );
 }
 
+function codemodeLocation(snapshot: ToolSnapshot) {
+  const code = codemodeSource(snapshot);
+  return code === undefined ? undefined : codemodeErrorLocation(code, { content: snapshot.result?.content ?? [], isError: snapshot.state === "error" });
+}
+
+/** What a collapsed codemode item ended with, under its calls. */
+function Outcome(props: { children: JSX.Element }): JSX.Element {
+  return (
+    <box flexDirection="row" flexShrink={0}>
+      <text fg={palette.dim} flexShrink={0}>{"→ "}</text>
+      <box flexDirection="column" flexGrow={1} flexShrink={1}>{props.children}</box>
+    </box>
+  );
+}
+
 const codemodeSpec: ToolSpec = {
   label: "codemode",
   summary: ({ calls = [] }) => (calls.length > 0 ? `${calls.length} call${calls.length === 1 ? "" : "s"}` : ""),
+  status: (snapshot) => {
+    const location = codemodeLocation(snapshot);
+    const state = location?.kind === "located" ? `failed at line ${location.line}` : stateText[snapshot.state];
+    return [codemodeWallTime(snapshot.result?.content ?? []), state].filter(Boolean).join(" · ");
+  },
+  // The calls lead; the output and the error's first line follow them.
   Preview: (props) => {
     const output = createMemo(() => codemodeOutput(props.snapshot.result?.content ?? []));
+    // Unpacked again only when the text changes, not with every update to the call.
+    const text = createMemo(() => output().output);
+    const readable = createMemo(() => readableOutput(text()));
     return (
       <>
         {props.snapshot.callsIncomplete ? <text fg={palette.warning}>the saved call list is incomplete</text> : null}
-        <For each={props.snapshot.calls}>{(call, index) => <CallOverview call={call} index={index()} />}</For>
-        {output().output ? <text fg={palette.dim}>output</text> : null}
-        {output().output ? <Preview text={output().output} /> : null}
-        {output().error ? <Preview text={output().error ?? ""} fg={palette.error} /> : null}
+        <For each={props.snapshot.calls}>{(call) => <CallOverview call={call} />}</For>
+        {text() ? <Outcome><Preview text={readable()} /></Outcome> : null}
+        {output().error ? <Outcome><text fg={palette.error} wrapMode="word">{output().error?.split("\n")[0] ?? ""}</text></Outcome> : null}
         {!props.snapshot.result ? <ErrorPreview snapshot={props.snapshot} /> : null}
       </>
     );
   },
   details: (snapshot) => {
     const code = codemodeSource(snapshot);
-    const content = snapshot.result?.content ?? [];
-    const output = codemodeOutput(content);
-    const location = code === undefined ? undefined : codemodeErrorLocation(code, { content, isError: snapshot.state === "error" });
+    const output = codemodeOutput(snapshot.result?.content ?? []);
+    const location = codemodeLocation(snapshot);
     return (
       <box flexDirection="column">
         {snapshot.callsIncomplete ? <text fg={palette.warning}>the saved call list is incomplete</text> : null}
@@ -677,7 +728,7 @@ const codemodeSpec: ToolSpec = {
         {location?.kind === "located" ? <text fg={palette.error}>{`error at line ${location.line}`}</text> : null}
         {location?.kind === "unrecognized" ? <text fg={palette.warning}>the error's format is not recognized, so no line is marked</text> : null}
         {output.header ? <text fg={palette.dim}>{output.header}</text> : null}
-        {output.output ? <text>{output.output}</text> : null}
+        {output.output ? <text>{readableOutput(output.output)}</text> : null}
         <ImagesDetail images={output.images} label="output image" />
         {output.error ? <text fg={palette.error}>{output.error}</text> : null}
       </box>
@@ -699,11 +750,15 @@ const builtInTools: Readonly<Record<string, { kind: string; spec: ToolSpec }>> =
 // The built-in types
 // ---------------------------------------------------------------------------
 
+/** Stop reasons a response reports, with their color; any other stop is unremarkable. */
+const stopColor: Partial<Record<StopReason, string>> = { error: palette.error, aborted: palette.warning, length: palette.warning };
+
 function stopLine(value: ResponseValue): JSX.Element {
   if (value.streaming) return null;
-  if (value.stopReason === "error") return <text fg={palette.error}>{`error: ${value.errorMessage ?? "the response failed"}`}</text>;
-  if (value.stopReason === "aborted") return <text fg={palette.warning}>{value.errorMessage ? `aborted: ${value.errorMessage}` : "aborted"}</text>;
-  if (value.stopReason === "length") return <text fg={palette.warning}>stopped at the output limit</text>;
+  const color = value.stopReason && stopColor[value.stopReason];
+  if (value.stopReason === "error") return <text fg={color}>{`error: ${value.errorMessage ?? "the response failed"}`}</text>;
+  if (value.stopReason === "aborted") return <text fg={color}>{value.errorMessage ? `aborted: ${value.errorMessage}` : "aborted"}</text>;
+  if (value.stopReason === "length") return <text fg={color}>stopped at the output limit</text>;
   return null;
 }
 
@@ -722,6 +777,13 @@ const compactionText: Record<CompactionState, string> = {
   aborted: "compaction aborted",
 };
 
+const compactionColor: Record<CompactionState, string> = {
+  running: palette.dim,
+  completed: palette.dim,
+  failed: palette.error,
+  aborted: palette.warning,
+};
+
 
 export function createTimelineTypes(options: { hiddenThinkingLabel?: () => string | undefined } = {}) {
   const withheld = () => options.hiddenThinkingLabel?.() ?? "thinking withheld";
@@ -734,6 +796,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
       </box>
     ),
     sourceText: (value) => value.text || undefined,
+    marker: () => palette.user,
     actions: {},
   };
   const image: ItemType<ImageValue, JSX.Element> = {
@@ -767,6 +830,8 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     ),
     // The prose and code as written, without thinking.
     sourceText: (value) => value.body || undefined,
+    marker: (value) => value.streaming ? palette.accent
+      : (value.stopReason && stopColor[value.stopReason]) ?? palette.text,
     actions: {},
   };
   const thinking: ItemType<ThinkingValue, JSX.Element> = {
@@ -803,7 +868,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     kind: "compaction",
     render: ({ value }) => (
       <box flexDirection="column">
-        <text fg={value.state === "failed" ? palette.error : value.state === "aborted" ? palette.warning : palette.dim}>
+        <text fg={compactionColor[value.state]}>
           {`${compactionText[value.state]}${value.reason ? ` (${value.reason})` : ""}${value.tokensBefore !== undefined ? ` · ${value.tokensBefore} tokens before` : ""}`}
         </text>
         {value.errorMessage ? <Preview text={value.errorMessage} fg={palette.error} /> : null}
@@ -812,6 +877,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     renderDetails: ({ value }) => <Markdown text={value.summary ?? ""} />,
     expandable: (value) => Boolean(value.summary),
     sourceText: (value) => value.summary ?? value.errorMessage,
+    marker: (value) => compactionColor[value.state],
     actions: {},
   };
   const retry: ItemType<RetryValue, JSX.Element> = {
@@ -834,6 +900,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     ),
     expandable: (value) => value.attempts.length > 0,
     sourceText: (value) => value.attempts.map((attempt) => attempt.error).join("\n") || undefined,
+    marker: (value) => value.state === "failed" ? palette.error : value.state === "succeeded" ? palette.success : palette.warning,
     actions: {},
   };
   const branchSummary: ItemType<SummaryValue, JSX.Element> = {
@@ -867,6 +934,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     expandable: (value) => exceedsPreview(contentText(value.content)) || value.details !== undefined ||
       (typeof value.content !== "string" && imagesOf(value.content).length > 0),
     sourceText: (value) => contentText(value.content),
+    marker: () => palette.accent,
     actions: {},
     validate: isCustomValue,
   };
@@ -880,6 +948,7 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     kind: "notice",
     render: ({ value }) => <text fg={noticeColor[value.level]}>{value.text}</text>,
     sourceText: (value) => value.text,
+    marker: (value) => noticeColor[value.level],
     actions: {},
   };
   return {

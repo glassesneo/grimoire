@@ -96,6 +96,14 @@ export interface CodemodeOutput {
   error: string | undefined;
 }
 
+/** The wall time a codemode result's header reports, as "0.4s"; read from the header alone. */
+export function codemodeWallTime(content: readonly Content[]): string | undefined {
+  const first = content[0];
+  return first?.type === "text" && /^Script (completed|failed)\n/.test(first.text)
+    ? /^Wall time ([\d.]+) seconds$/m.exec(first.text)?.[1]?.concat("s")
+    : undefined;
+}
+
 /** Split a codemode result into the script's own output and the error the tool appended. */
 export function codemodeOutput(content: readonly Content[]): CodemodeOutput {
   const first = content[0];
@@ -110,4 +118,42 @@ export function codemodeOutput(content: readonly Content[]): CodemodeOutput {
     images: imagesOf(body),
     error: failure?.section,
   };
+}
+
+/**
+ * The script's output with each line that is a JSON object or array replaced
+ * by the strings inside it. pi-codemode's `text()` and a returned value
+ * serialize anything but a string with `JSON.stringify`, one value per line, so
+ * a returned `tools.bash()` result reads `{"output":"…","exit_code":0}`. Each
+ * string becomes its own lines, in order, and the other scalars follow on one
+ * line as `key value`. A line with nothing to show stays as it was.
+ */
+export function readableOutput(output: string): string {
+  return output.split("\n").map((line) => {
+    if (!/^\s*[[{]/.test(line)) return line;
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return line;
+    }
+    const strings: string[] = [];
+    const scalars: string[] = [];
+    const visit = (field: unknown, key: string | undefined) => {
+      if (typeof field === "string") {
+        if (field !== "") strings.push(field.replace(/\n$/, ""));
+      } else if (Array.isArray(field)) {
+        for (const item of field) visit(item, undefined);
+      } else if (field !== null && typeof field === "object") {
+        for (const [name, item] of Object.entries(field)) visit(item, name);
+      } else if (key !== undefined) {
+        scalars.push(`${key} ${String(field)}`);
+      } else {
+        strings.push(String(field));
+      }
+    };
+    visit(value, undefined);
+    if (scalars.length > 0) strings.push(scalars.join(", "));
+    return strings.length > 0 ? strings.join("\n") : line;
+  }).join("\n");
 }

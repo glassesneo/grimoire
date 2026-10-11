@@ -687,6 +687,12 @@ export interface ItemType<T, Render = unknown> {
   /** What the copy action writes; undefined when the item holds no original text. */
   sourceText(value: T): string | undefined;
   /**
+   * The color of the item's mark in the timeline's gutter, for its kind or,
+   * for work with an outcome, that outcome. The view chooses one when it is
+   * omitted.
+   */
+  marker?(value: T): string | undefined;
+  /**
    * The render functions read `props` lazily, inside JSX, so a view can keep
    * an item's renderables while its value changes, as a streamed reply does.
    * Without it the item is drawn again for each new value.
@@ -740,6 +746,8 @@ export interface TimelineItem<Render = unknown> {
   /** Present only when the type draws expanded content after the children. */
   readonly renderDetails: (() => Render) | undefined;
   sourceText(): string | undefined;
+  /** See `ItemType.marker`. */
+  readonly marker: string | undefined;
   readonly actions: readonly string[];
   runAction(name: string): void | Promise<void>;
 }
@@ -763,6 +771,9 @@ export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>):
     render: (expanded = false) => type.render({ value, id, version, expanded }),
     renderDetails: renderDetails ? () => renderDetails({ value, id, version, expanded: true }) : undefined,
     sourceText: () => type.sourceText(value),
+    get marker() {
+      return type.marker?.(value);
+    },
     actions: Object.keys(type.actions),
     runAction: async (name) => {
       const action = type.actions[name];
@@ -791,6 +802,21 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
   #children: Map<string, string[]> | undefined;
   #cursor: string | undefined;
   #nextId = 0;
+  #revision = 0;
+
+  /**
+   * Counts every change except a cursor move, so a view can tell when its
+   * rows may differ and skip that work while the cursor alone moves. A move
+   * notifies through `super.changed()`, past the count.
+   */
+  revision(): number {
+    return this.#revision;
+  }
+
+  protected override changed(): void {
+    this.#revision++;
+    super.changed();
+  }
 
   registerType<T>(type: ItemType<T, Render>): ItemFactory<T, Render> {
     if (this.#kinds.has(type.kind)) {
@@ -960,7 +986,7 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     }
     if (this.#cursor !== id) {
       this.#cursor = id;
-      this.changed();
+      super.changed();
     }
     return true;
   }
@@ -978,7 +1004,7 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     const id = visible[next]?.id;
     if (id !== undefined && id !== this.#cursor) {
       this.#cursor = id;
-      this.changed();
+      super.changed();
     }
   }
 
