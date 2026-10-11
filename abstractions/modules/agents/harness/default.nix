@@ -13,8 +13,8 @@ delib.module ({cfg, ...}: {
       enable = boolOption true;
       settings = attrsOfOption anything {
         packages = ["npm:@commandcode/pi-commandcode-provider@0.3.0"];
-        defaultProvider = "command-code";
-        defaultModel = "meta/muse-spark-1.3-contributor";
+        defaultProvider = "openai";
+        defaultModel = "gpt-6.1-sol";
         defaultTools = ["+codemode"];
         codemode.mode = "only";
       };
