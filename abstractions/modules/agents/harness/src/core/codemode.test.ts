@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AgentSession, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { type AgentSession, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createSessionHost } from "./session";
 
 // The host owns extension wiring across runtime replacement. Builds cannot catch
@@ -22,6 +22,7 @@ function expectCodemodeLoadout(session: AgentSession) {
     registered: session.agent.state.tools,
     getExposure: (name) => definitions.find((tool) => tool.name === name)?.exposure ?? "direct",
     getNamespace: (name) => definitions.find((tool) => tool.name === name)?.namespace,
+    getPromptGuidelines: () => [],
   });
   for (const name of ordinary) expect(loadout?.hiddenDeclarations).toContain(name);
   expect(loadout?.hiddenDeclarations).not.toContain("codemode");
@@ -36,6 +37,7 @@ test("the host retains ordinary callable tools behind codemode when replacing a 
       defaultTools: ["+codemode"],
       codemode: { mode: "only" },
     }),
+    sessionManager: SessionManager.create(directory, join(directory, "sessions")),
   });
   try {
     const initial = host.runtime.session;

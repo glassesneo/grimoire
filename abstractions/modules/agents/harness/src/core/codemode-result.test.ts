@@ -1,22 +1,23 @@
 /**
  * Admission: a marked line tells the reader where a script failed, so a wrong
  * mark misleads. The parser reads pi's formatted result text, which pi does
- * not specify, so the cases come from the pinned runtime: one real failing run
- * keeps the format honest, and constructed results cover the rest.
+ * not specify, so the cases come from the pinned runtime: real failing runs
+ * keep the format honest, and constructed results cover the rest.
  */
 import { expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CodemodeSandbox, loadQuickJSWasm, parseCodemodeSource } from "@earendil-works/pi-codemode";
-import type { TextContent } from "@earendil-works/pi-ai";
+import { SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { codemodeErrorLocation, codemodeOutput } from "./codemode-result";
+import { createSessionHost } from "./session";
 
 const header = { type: "text", text: "Script failed\nWall time 0.1 seconds\nOutput:\n" } as const;
+// pi joins the script's text output and the error into one item.
 const failure = (error: string, ...output: string[]) => ({
   isError: true,
-  content: [
-    header,
-    ...output.map((text): TextContent => ({ type: "text", text })),
-    { type: "text", text: `Script error:\n${error}\n\nNo tool calls were made.` } as const,
-  ],
+  content: [header, { type: "text", text: [...output, `Script error:\n${error}\n\nNo tool calls were made.`].join("\n") } as const],
 });
 
 test("the pinned runtime reports user-source lines that the parser marks, options line included", async () => {
@@ -58,6 +59,44 @@ test("separates script output from the error the tool appends", () => {
   expect(output.header).toBe("Script failed\nWall time 0.1 seconds");
   expect(output.output).toBe("first\nsecond");
   expect(output.error).toBe("Error: bad\n\nNo tool calls were made.");
+});
+
+test("keeps images and the unshown-images note in the output", () => {
+  const image = { type: "image", data: "AAAA", mimeType: "image/png" } as const;
+  const note = "Note: models.generateImages() returned 1 image that the script did not show. Show each image block of result.output with image(block).";
+  const output = codemodeOutput([
+    header,
+    { type: "text", text: "[Image saved to /tmp/a.png (image/png, 3B)]" },
+    image,
+    { type: "text", text: `Script error:\nError: bad\n\nNo tool calls were made.\n${note}` },
+  ]);
+  expect(output.images).toEqual([image]);
+  expect(output.output).toBe(`[Image saved to /tmp/a.png (image/png, 3B)]\n${note}`);
+  expect(output.error).toBe("Error: bad\n\nNo tool calls were made.");
+});
+
+test("pi's codemode tool joins output and the error, and the parser separates them", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "harness-codemode-result-"));
+  const host = await createSessionHost({
+    cwd: directory,
+    agentDir: join(directory, "agent"),
+    settingsManager: SettingsManager.inMemory({ defaultTools: ["+codemode"] }),
+    sessionManager: SessionManager.inMemory(directory),
+  });
+  try {
+    const tool = host.runtime.session.agent.state.tools.find((candidate) => candidate.name === "codemode");
+    expect(tool).toBeDefined();
+    const code = 'text("hello");\nconsole.log("hi");\nnull.x;';
+    const result = await tool!.execute("probe", { code });
+    expect(codemodeErrorLocation(code, { content: result.content, isError: true })).toMatchObject({ kind: "located", line: 3 });
+    const output = codemodeOutput(result.content);
+    expect(output.header).toStartWith("Script failed\n");
+    expect(output.output).toBe("hello\n<console_output>\nhi\n</console_output>");
+    expect(output.error).toEndWith("\n\nNo tool calls were made.");
+  } finally {
+    await host.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("a completed script's own text is output, even when it looks like an error item", () => {

@@ -5,8 +5,9 @@
  * tools, or derives text the session did not supply.
  */
 import { contentText, type ImageContent, type StopReason } from "@earendil-works/pi-ai";
-import { fg, type ImageRenderable, RGBA, StyledText, SyntaxStyle, type TextRenderable } from "@opentui/core";
-import { createEffect, createSignal, For, type JSX } from "solid-js";
+import { type CliRenderer, fg, type ImageRenderable, RGBA, StyledText, SyntaxStyle, type TextRenderable } from "@opentui/core";
+import { useRenderer } from "@opentui/solid";
+import { createEffect, createMemo, createSignal, For, type JSX } from "solid-js";
 import { codemodeErrorLocation, codemodeOutput } from "../core/codemode-result";
 import {
   type CompactionState,
@@ -43,10 +44,13 @@ const noticeColor: Record<NoticeLevel, string> = {
   error: palette.error,
 };
 
-let syntax: SyntaxStyle | undefined;
-/** One style for Markdown and code, created on first use because it needs the native library. */
+const syntaxStyles = new WeakMap<CliRenderer["nativeScene"], SyntaxStyle>();
+/** One style for Markdown and code per renderer, owned by its native resource context. */
 export function syntaxStyle(): SyntaxStyle {
-  syntax ??= SyntaxStyle.fromStyles({
+  const scene = useRenderer().nativeScene;
+  const existing = syntaxStyles.get(scene);
+  if (existing) return existing;
+  const syntax = SyntaxStyle.fromStyles({
     default: { fg: RGBA.fromHex(palette.text) },
     keyword: { fg: RGBA.fromHex("#cba6f7") },
     string: { fg: RGBA.fromHex("#a6e3a1") },
@@ -67,7 +71,8 @@ export function syntaxStyle(): SyntaxStyle {
     "markup.list": { fg: RGBA.fromHex("#fab387") },
     "markup.quote": { fg: RGBA.fromHex("#9399b2"), italic: true },
     conceal: { fg: RGBA.fromHex(palette.dim) },
-  });
+  }, scene);
+  syntaxStyles.set(scene, syntax);
   return syntax;
 }
 
@@ -648,7 +653,7 @@ const codemodeSpec: ToolSpec = {
   label: "codemode",
   summary: ({ calls = [] }) => (calls.length > 0 ? `${calls.length} call${calls.length === 1 ? "" : "s"}` : ""),
   Preview: (props) => {
-    const output = () => codemodeOutput(props.snapshot.result?.content ?? []);
+    const output = createMemo(() => codemodeOutput(props.snapshot.result?.content ?? []));
     return (
       <>
         {props.snapshot.callsIncomplete ? <text fg={palette.warning}>the saved call list is incomplete</text> : null}

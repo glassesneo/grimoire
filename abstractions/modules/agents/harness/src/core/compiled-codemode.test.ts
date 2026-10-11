@@ -1,21 +1,19 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { compile, entrypoints } from "../../build";
 
 // Builds and source tests do not resolve embedded worker entrypoints. Exercise
 // the shipped entry with a loadout hook, without a model request or credentials.
 test("the compiled harness executes codemode from an unrelated cwd", async () => {
-  const root = resolve(import.meta.dir, "../..");
-  const build = Bun.spawnSync([process.execPath, "run", "build.ts"], {
-    cwd: root,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  expect(build.exitCode, build.stderr.toString()).toBe(0);
-
   const directory = await mkdtemp(join(tmpdir(), "harness-compiled-codemode-"));
   try {
+    // Built outside the package so a test run leaves no executable in the tree,
+    // and apart from XDG_CONFIG_HOME/harness, where the run keeps its files.
+    const executable = join(directory, "bin", "harness");
+    const build = await compile(entrypoints, executable);
+    expect(build.success, build.logs.join("\n")).toBe(true);
     const resultPath = join(directory, "result.json");
     const extensionPath = join(directory, "probe.js");
     await writeFile(extensionPath, `
@@ -47,7 +45,7 @@ test("the compiled harness executes codemode from an unrelated cwd", async () =>
       defaultTools: ["codemode", "compiled_probe", "read", "bash", "edit", "write"],
       codemode: { mode: "only" },
     }));
-    const run = Bun.spawnSync([join(root, "harness"), "--config", configPath], {
+    const run = Bun.spawnSync([executable, "--config", configPath], {
       cwd: directory,
       env: { ...process.env, XDG_CONFIG_HOME: directory },
       stdin: "ignore",

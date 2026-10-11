@@ -6,6 +6,9 @@ import pi from "./node_modules/@earendil-works/pi-coding-agent/package.json" wit
 };
 import harness from "./package.json" with { type: "json" };
 
+/** The shipped executable's entrypoints: the CLI and the codemode worker pi starts from it. */
+export const entrypoints = ["src/main.ts", "src/extensions/codemode/worker.ts"].map((path) => `${import.meta.dir}/${path}`);
+
 /**
  * Compile entrypoints into one executable with the harness's options; tests
  * compile probes the same way so they exercise what ships.
@@ -36,7 +39,7 @@ export async function compile(entrypoints: string[], outfile: string): Promise<A
 }
 
 if (import.meta.main) {
-  const result = await compile(["./src/main.ts", "./src/extensions/codemode/worker.ts"], `./${harness.name}`);
+  const result = await compile(entrypoints, `./${harness.name}`);
   if (!result.success) {
     for (const log of result.logs) {
       console.error(log);

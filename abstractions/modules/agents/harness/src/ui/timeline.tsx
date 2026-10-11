@@ -352,17 +352,17 @@ function layoutScrollBox(box: ScrollBoxRenderable): TimelineScrollBox {
       box.scrollTop = value;
     },
     get scrollHeight() {
-      return box.content.getLayoutNode().getComputedHeight();
+      return box.content.getLayout().height;
     },
     get height() {
-      return box.viewport.getLayoutNode().getComputedHeight();
+      return box.viewport.getLayout().height;
     },
     y: 0,
     getRenderable(id) {
       const row = box.getRenderable(id);
       if (!row) return undefined;
-      const node = row.getLayoutNode();
-      return { y: node.getComputedTop() - box.scrollTop, height: node.getComputedHeight() };
+      const layout = row.getLayout();
+      return { y: layout.top - box.scrollTop, height: layout.height };
     },
   };
 }
@@ -486,18 +486,19 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
         // The scrollbox updates first in its subtree each frame, after layout:
         // sync the bar to the computed sizes so its clamp uses this frame's
         // range, then let the actions place the content.
-        // OpenTUI 0.5.14 calls the protected `onUpdate` from `updateLayout`
-        // before `updateFromLayout` applies positions; fail here if that hook goes.
+        // OpenTUI 0.6.0 calls the protected `onUpdate` through its native scene
+        // update hook with current layout; fail here if that hook goes.
         const hooked = element as unknown as { onUpdate?: (deltaTime: number) => void };
         if (typeof hooked.onUpdate !== "function") throw new Error("OpenTUI's ScrollBoxRenderable no longer has onUpdate; the timeline cannot anchor its scrolling");
         const update = hooked.onUpdate.bind(element);
+        const layout = layoutScrollBox(element);
         hooked.onUpdate = (deltaTime) => {
           update(deltaTime);
-          element.verticalScrollBar.scrollSize = element.content.getLayoutNode().getComputedHeight();
-          element.verticalScrollBar.viewportSize = element.viewport.getLayoutNode().getComputedHeight();
+          element.verticalScrollBar.scrollSize = layout.scrollHeight;
+          element.verticalScrollBar.viewportSize = layout.height;
           props.onFrame?.();
         };
-        props.scrollRef?.(layoutScrollBox(element));
+        props.scrollRef?.(layout);
       }}
       flexGrow={1}
       paddingX={1}

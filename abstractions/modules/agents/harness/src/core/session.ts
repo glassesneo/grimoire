@@ -130,7 +130,7 @@ export async function createSessionHost(options: {
   cwd: string;
   agentDir: string;
   settingsManager: SettingsManager;
-  /** Defaults to a session persisted under the agent directory. */
+  /** Defaults to a session persisted in pi's default session directory for `cwd`, which does not follow `agentDir`. */
   sessionManager?: SessionManager;
   customization?: SessionCustomization;
 }): Promise<SessionHost> {
