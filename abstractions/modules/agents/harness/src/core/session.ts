@@ -30,6 +30,8 @@ export interface SessionHost {
   history(): SessionEntry[];
   /** True once a session write failed; the session must be reopened from disk to be trusted again. */
   readonly storageFailed: boolean;
+  newSession(options?: Parameters<AgentSessionRuntime["newSession"]>[0]): Promise<{ cancelled: boolean }>;
+  reload(): Promise<void>;
   /** Finish or abort active work, write what is pending, and release the runtime. */
   dispose(): Promise<void>;
 }
@@ -182,8 +184,21 @@ export async function createSessionHost(options: {
   });
 
   let unsubscribe: (() => void) | undefined;
+  const writable = () => {
+    recorder?.flush();
+    return !storageFailed;
+  };
+  const newSession: SessionHost["newSession"] = async (options) => writable() ? runtime.newSession(options) : { cancelled: true };
+  const reload = async () => {
+    const session = runtime.session;
+    if (session.isStreaming || session.isCompacting) throw new Error("Cannot reload while streaming or compacting");
+    if (!writable()) throw new Error("The session could not be saved; reopen it before reloading extensions");
+    await session.reload({ beforeSessionStart: () => verifyClientCopy(session, bound?.prepareClient?.()) });
+  };
 
   return {
+    newSession,
+    reload,
     runtime,
     get storageFailed() {
       return storageFailed;
@@ -240,7 +255,7 @@ export async function createSessionHost(options: {
             waitForIdle: () => session.waitForIdle(),
             // Pending records are written before a replacement begins, and a
             // session whose storage failed is never replaced or moved.
-            newSession: async (options) => (writable() ? runtime.newSession(options) : { cancelled: true }),
+            newSession,
             fork: async (entryId, forkOptions) => ({
               cancelled: !writable() || (await runtime.fork(entryId, forkOptions)).cancelled,
             }),
@@ -258,9 +273,7 @@ export async function createSessionHost(options: {
             switchSession: async (sessionPath, options) => (writable() ? runtime.switchSession(sessionPath, options) : { cancelled: true }),
             // The client of the reloaded generation is prepared while the old
             // one shuts down, before pi copies the context again.
-            reload: () => writable()
-              ? session.reload({ beforeSessionStart: () => verifyClientCopy(session, bindings.prepareClient?.()) })
-              : Promise.reject(new Error("The session could not be saved; reopen it before reloading extensions")),
+            reload,
           },
           shutdownHandler: bindings.onShutdownRequest,
           onError: bindings.onExtensionError,

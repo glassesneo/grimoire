@@ -29,6 +29,56 @@ const messageType: ItemType<{ text: string }> = {
   actions: {},
 };
 
+// Ordering, stale-action routing and command focus are owned here; types cannot
+// detect a lost request or an action delivered to a hidden request.
+test("stage switches retained requests, guards stale actions and restores command focus", async () => {
+  const { stage, regions } = createHarnessControllers<string>();
+  regions.requestFocus("timeline");
+  const notified: string[] = [];
+  const first = stage.show({ requester: "first", type: textType, value: "one", preferredHeight: 2, onPromptSubmitted: () => { notified.push("first"); } });
+  const stale = stage.active()!;
+  const second = stage.show({ requester: "second", type: textType, value: "two", preferredHeight: 2, onPromptSubmitted: () => { notified.push("second"); } });
+  expect(stage.active()?.id).toBe(first.id);
+  stage.moveRequest(1); second.update("updated");
+  expect(stage.position()).toEqual({ index: 2, total: 2 });
+  stage.moveRequest(1); expect(stage.active()?.id).toBe(second.id);
+  await stale.runAction("pick");
+  await stage.notifyPromptSubmitted("prompt"); expect(notified).toEqual(["second"]);
+  stage.moveRequest(-1); expect(stage.active()?.render()).toBe("text:one");
+  stage.moveRequest(1); expect(stage.active()?.render()).toBe("text:updated");
+  regions.requestFocus("editor");
+  const command = stage.show({ requester: "native", type: { ...textType, kind: "command" }, value: "command", preferredHeight: 2 });
+  expect(stage.active()?.id).toBe(command.id); expect(regions.current()).toBe("stage");
+  stage.activate(second.id);
+  command.close(); await command.closed;
+  expect(regions.current()).toBe("editor"); expect(stage.active()?.id).toBe(second.id);
+  stage.activate(first.id); first.close(); await first.closed; await Promise.resolve();
+  expect(stage.active()?.id).toBe(second.id);
+  second.cancel(); expect((await second.closed).status).toBe("cancelled");
+  expect(stage.hasActive()).toBe(false);
+});
+
+test("command exit preserves a usable stage return region and suppresses arrivals in its completion gap", async () => {
+  for (const returnRegion of ["stage", "timeline"]) {
+    const { stage, regions } = createHarnessControllers<string>();
+    const normal = stage.show({ requester: "normal", type: textType, value: "normal", preferredHeight: 2 });
+    regions.requestFocus(returnRegion);
+    const command = stage.show({ requester: "command", type: { ...textType, kind: "command" }, value: "command", preferredHeight: 2 });
+    void command.closed.then(() => stage.show({ requester: "arrival", type: textType, value: "new", preferredHeight: 2 }));
+    command.close(); await command.closed; await Promise.resolve();
+    expect(stage.active()?.id).toBe(normal.id); expect(regions.current()).toBe(returnRegion);
+  }
+});
+
+test("queued fresh cancellation cannot release another request's retained text", async () => {
+  const { editor } = createHarnessControllers();
+  const active = editor.openDraft({ destination: "same", label: "active", requester: "editor", initialText: "keep me" });
+  const abort = new AbortController();
+  const queued = editor.openDraft({ destination: "same", label: "queued", requester: "editor", fresh: true, signal: abort.signal });
+  abort.abort(); expect((await queued).status).toBe("cancelled"); expect(editor.text()).toBe("keep me");
+  editor.submitDraft(); expect(await active).toEqual({ status: "submitted", text: "keep me" });
+});
+
 describe("RegionController and KeyRegistry", () => {
   test("focuses available regions and rejects unavailable ones", () => {
     const regions = new RegionController();

@@ -1,6 +1,8 @@
 import { engine } from "@opentui/core";
 import { type JSX, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid";
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount } from "solid-js";
+import { setupCommands } from "../contributions/commands";
+import { setupCommandUI } from "./commands";
 import { setupDefaultUI } from "../contributions/default";
 import type { SessionHost } from "../core/session";
 import {
@@ -81,7 +83,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
       { preferredHeight: snapshot().preferredHeight },
       {
         preferredHeight: stageActive()
-          ? (stage.active()?.preferredHeight ?? 0)
+          ? (stage.active()?.preferredHeight ?? 0) + 1
           : (editor.snapshot().assist?.items.length ?? 0),
       },
       { top: props.statuslines, bottom: props.statuslines },
@@ -166,6 +168,8 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
       {hasStage() && allocation().stage > 0 ? (
         <box
           id="harness-stage"
+          borderColor="#45475a"
+          border={stageActive() && allocation().stage >= 3 ? ["top"] : false}
           position="absolute"
           left={0}
           bottom={allocation().editor + allocation().bottom}
@@ -288,10 +292,12 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     }),
     remove: (id) => setState((current) => ({ ...current, entries: current.entries.filter((entry) => entry.id !== id) })),
   };
-  const ui = createHarnessUI<JSX.Element>({ sendPrompt: submit, items });
+  const ui = createHarnessUI<JSX.Element>({ sendPrompt: submit, items, notify: (text) => addNotice("error", text) });
   const { timeline, bindings, statusline, runState } = ui.controllers;
   const editor = ui.controllers.editor;
   const stageUI = setupStageUI(ui);
+  const commandUI = setupCommandUI(ui);
+  const commands = ui.controllers.commands;
   const clientHost = createClientHost({ timeline, items, bindings, stage: ui.controllers.stage, statusline });
   const extensionUI = createExtensionUI({
     ui, ...stageUI, notify: addNotice,
@@ -384,13 +390,19 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     moveStageCursor: (delta) => runStage(delta > 0 ? "next" : "previous"),
     confirmStage: () => runStage("confirm"),
     cancelStage: () => runStage("cancel"),
+    openCommand: () => commands.open(),
+    moveStageRequest: (delta) => ui.controllers.stage.moveRequest(delta),
+    stageAcceptsText: () => commands.acceptsText(),
+    commandArguments: () => { void commands.arguments(); },
+    commandOwnsDraft: () => commands.ownsDraft(),
+    moveCommandDraftCursor: (delta) => commands.move(delta, true),
   };
 
-  const registrations = [...itemTypeRegistrations, ...setupDefaultUI(ui, actions)];
+  const registrations = [...itemTypeRegistrations, ...setupCommands(ui, props.host, (text) => addNotice("info", text)), ...setupDefaultUI(ui, actions)];
   let disposing: Promise<void> | undefined;
   const disposeUI = () => disposing ??= (async () => {
     clientHost.retire();
-    extensionUI.dispose(); stageUI.dispose();
+    commandUI.dispose(); extensionUI.dispose(); stageUI.dispose();
     for (const registration of registrations) registration.dispose();
     await itemActions.dispose();
   })();
@@ -435,6 +447,7 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
         onShutdown: (reason) => {
           clientHost.retire();
           extensionUI.resetGeneration();
+          commands.resetGeneration();
           // pi copies the UI context again while it reloads, before any later hook.
           if (reason === "reload" && !storageUncertain()) clientHost.prepare();
         },

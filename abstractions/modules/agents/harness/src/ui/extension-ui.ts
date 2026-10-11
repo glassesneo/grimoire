@@ -23,8 +23,9 @@ export function createExtensionUI(options: {
   const pending = new Set<AbortController>();
   const statuses = new Map<string, StatuslineContribution>();
 
-  // Pi requests share a queue even when they use different screen boundaries.
-  function open<T>(opts: ExtensionUIDialogOptions | undefined, fallback: T, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  let generation = 0;
+  function open<T>(opts: ExtensionUIDialogOptions | undefined, fallback: T, work: (signal: AbortSignal) => Promise<T>, draft = false): Promise<T> {
+    const owner = generation;
     const abort = new AbortController();
     pending.add(abort);
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -44,12 +45,14 @@ export function createExtensionUI(options: {
     abort.signal.addEventListener("abort", onAbort, { once: true });
     if (opts?.signal?.aborted) onAbort();
     else opts?.signal?.addEventListener("abort", onAbort, { once: true });
-    queue = queue.then(async () => {
-      if (settled) return;
+    const run = async () => {
+      if (settled || owner !== generation) return;
       if (opts?.timeout) timer = setTimeout(onAbort, opts.timeout);
       try { finish(await work(abort.signal)); }
-      catch (error) { options.notify("error", String(error)); finish(fallback); }
-    });
+      catch (error) { if (!settled) options.notify("error", String(error)); finish(fallback); }
+    };
+    if (draft) queue = queue.then(run);
+    else void run();
     return result;
   }
 
@@ -69,8 +72,8 @@ export function createExtensionUI(options: {
   const context: ExtensionUIContext = {
     select: (title, choices, opts) => open(opts, undefined, (signal) => choose(options.choiceType, title, choices, undefined, signal)),
     confirm: (title, message, opts) => open(opts, false, async (signal) => (await choose(options.confirmType, title, ["Yes", "No"], message, signal)) === "Yes"),
-    input: (title, placeholder, opts) => open(opts, undefined, (signal) => requestDraft("input", placeholder ? `${title} (${placeholder})` : title, undefined, signal)),
-    editor: (title, prefill) => open(undefined, undefined, (signal) => requestDraft("editor", title, prefill, signal)),
+    input: (title, placeholder, opts) => open(opts, undefined, (signal) => requestDraft("input", placeholder ? `${title} (${placeholder})` : title, undefined, signal), true),
+    editor: (title, prefill) => open(undefined, undefined, (signal) => requestDraft("editor", title, prefill, signal), true),
     notify: (message, type) => options.notify(type ?? "info", message),
     // Status text becomes a bottom status line segment; multi-line widgets
     // have no place in a one-row line and stay unsupported.
@@ -114,6 +117,9 @@ export function createExtensionUI(options: {
   Object.defineProperty(context, "harness", { enumerable: true, configurable: true, get: () => options.client?.() });
   /** What the ending generation of extensions set: the next one starts from the defaults. */
   const resetGeneration = () => {
+    generation++;
+    for (const abort of pending) abort.abort();
+    queue = Promise.resolve();
     for (const status of statuses.values()) status.dispose();
     statuses.clear();
     const runState = options.ui.controllers.runState;

@@ -21,6 +21,9 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
   }
 
   bind("editor", [
+    { actionId: "editor.open-command", name: "g", ctrl: true, action: () => actions.openCommand?.() },
+    { actionId: "editor.command-next", name: "n", ctrl: true, action: () => actions.moveCommandDraftCursor?.(1), when: () => actions.commandOwnsDraft?.() ?? false },
+    { actionId: "editor.command-previous", name: "p", ctrl: true, action: () => actions.moveCommandDraftCursor?.(-1), when: () => actions.commandOwnsDraft?.() ?? false },
     { actionId: "editor.submit-prompt", name: "return", action: actions.submit },
     { actionId: "editor.submit-prompt", name: "kpenter", action: actions.submit },
     { actionId: "editor.cancel", name: "escape", action: actions.cancel },
@@ -28,10 +31,17 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
     { actionId: "editor.focus-stage", name: "k", ctrl: true, action: () => actions.focusFromEditor("stage") },
   ]);
 
+  const noText = () => !(actions.stageAcceptsText?.() ?? false);
   bind("stage", [
-    { actionId: "stage.cursor-down", name: "j", action: () => actions.moveStageCursor(1) },
+    { actionId: "stage.open-command", name: ":", action: () => actions.openCommand?.(), when: noText },
+    { actionId: "stage.next-request", name: "f", ctrl: true, action: () => actions.moveStageRequest?.(1) },
+    { actionId: "stage.previous-request", name: "b", ctrl: true, action: () => actions.moveStageRequest?.(-1) },
+    { actionId: "stage.command-arguments", name: "space", action: () => actions.commandArguments?.() },
+    { actionId: "stage.cursor-down", name: "n", ctrl: true, action: () => actions.moveStageCursor(1) },
+    { actionId: "stage.cursor-up", name: "p", ctrl: true, action: () => actions.moveStageCursor(-1) },
+    { actionId: "stage.cursor-down", name: "j", action: () => actions.moveStageCursor(1), when: noText },
     { actionId: "stage.cursor-down", name: "down", action: () => actions.moveStageCursor(1) },
-    { actionId: "stage.cursor-up", name: "k", action: () => actions.moveStageCursor(-1) },
+    { actionId: "stage.cursor-up", name: "k", action: () => actions.moveStageCursor(-1), when: noText },
     { actionId: "stage.cursor-up", name: "up", action: () => actions.moveStageCursor(-1) },
     { actionId: "stage.confirm", name: "return", action: actions.confirmStage },
     { actionId: "stage.confirm", name: "kpenter", action: actions.confirmStage },
@@ -41,6 +51,7 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
   ]);
 
   bind("timeline", [
+    { actionId: "timeline.open-command", name: ":", action: () => actions.openCommand?.() },
     { actionId: "timeline.cursor-down", name: "j", action: () => actions.moveTimelineCursor(1) },
     { actionId: "timeline.cursor-up", name: "k", action: () => actions.moveTimelineCursor(-1) },
     { actionId: "timeline.cursor-down", name: "down", action: () => actions.moveTimelineCursor(1) },

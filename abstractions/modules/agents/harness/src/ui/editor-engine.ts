@@ -37,6 +37,8 @@ export interface DraftRequestOptions {
   label: string;
   requester: RegionId;
   initialText?: string;
+  fresh?: boolean;
+  validateSubmit?(text: string): boolean;
   /** Aborting while queued or shown settles the draft as `cancelled`. */
   signal?: AbortSignal;
 }
@@ -247,7 +249,8 @@ export class EditorController extends Emitter implements EditorEngine {
   /** Complete the active draft as submitted; the draft is retained. */
   submitDraft(): boolean {
     const active = this.#active;
-    return active ? this.#settle(active, { status: "submitted", text: this.text() }) : false;
+    if (!active || active.request.validateSubmit?.(this.text()) === false) return false;
+    return this.#settle(active, { status: "submitted", text: this.text() });
   }
 
   /** Complete the active draft as cancelled; the draft is retained. */
@@ -266,7 +269,7 @@ export class EditorController extends Emitter implements EditorEngine {
         continue;
       }
       const { destination, initialText } = pending.request;
-      if (!this.#drafts.has(destination)) {
+      if (pending.request.fresh || !this.#drafts.has(destination)) {
         this.#drafts.set(destination, initialText ?? "");
       }
       this.#active = pending;
@@ -286,7 +289,8 @@ export class EditorController extends Emitter implements EditorEngine {
     if (pending.onAbort && pending.request.signal) {
       pending.request.signal.removeEventListener("abort", pending.onAbort);
     }
-    if (this.#active === pending) {
+    const wasActive = this.#active === pending;
+    if (wasActive) {
       this.#active = undefined;
       this.#cursor = this.text().length;
       this.setAssist(undefined);
@@ -303,6 +307,7 @@ export class EditorController extends Emitter implements EditorEngine {
       }
       pending.resolve(result);
     }
+    if (wasActive && pending.request.fresh) this.#drafts.delete(pending.request.destination);
     this.changed();
     return true;
   }

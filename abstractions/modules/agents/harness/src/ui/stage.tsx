@@ -17,7 +17,13 @@ export interface ChoiceValue {
 export function StageView(props: { ui: HarnessUIInstance<JSX.Element> }) {
   const version = useVersion(props.ui.controllers.stage, props.ui.controllers.regions);
   const ids = () => { version(); const active = props.ui.controllers.stage.active(); return active ? [active.id] : []; };
-  return <For each={ids()}>{() => props.ui.controllers.stage.active()?.render(version)}</For>;
+  const position = () => (version(), props.ui.controllers.stage.position());
+  return <box height="100%" flexDirection="column" overflow="hidden">
+    {position().total > 1 ? <text height={1} flexShrink={0}>{`${position().index}/${position().total}`}</text> : null}
+    <box flexGrow={1} minHeight={0} overflow="hidden">
+      <For each={ids()}>{() => props.ui.controllers.stage.active()?.render(version)}</For>
+    </box>
+  </box>;
 }
 
 /**

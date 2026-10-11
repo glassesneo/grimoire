@@ -25,6 +25,7 @@ import {
   type DraftRequestOptions,
   type DraftResult,
 } from "./editor-engine";
+import { CommandController, type HarnessCommand } from "./command-controller";
 import { TimelineBindings } from "./harness-client";
 import type { ItemScrollKind } from "./item-actions";
 import { RunStateController, StatuslineController, type StatuslineItemType } from "./statusline";
@@ -33,7 +34,9 @@ export interface HarnessUI<Render = unknown> {
   editor: {
     openDraft(request: DraftRequestOptions): Promise<DraftResult>;
   };
+  commands: { register(definition: HarnessCommand): Registration };
   stage: {
+    activate(id: string): boolean;
     registerType<T>(type: StageContentType<T, Render>): Registration;
     show<T>(request: StageRequest<T, Render>): StageHandle<T>;
   };
@@ -73,6 +76,12 @@ export interface HarnessUIActions {
   moveStageCursor(delta: number): void;
   confirmStage(): void;
   cancelStage(): void;
+  openCommand?(): void;
+  moveStageRequest?(delta: number): void;
+  stageAcceptsText?(): boolean;
+  commandArguments?(): void;
+  moveCommandDraftCursor?(delta: number): void;
+  commandOwnsDraft?(): boolean;
 }
 
 export interface HarnessControllers<Render = unknown> {
@@ -81,6 +90,7 @@ export interface HarnessControllers<Render = unknown> {
   stage: StageController<Render>;
   timeline: ItemTypeRegistry<Render>;
   editor: EditorController;
+  commands: CommandController<Render>;
   bindings: TimelineBindings;
   statusline: StatuslineController;
   runState: RunStateController;
@@ -123,6 +133,7 @@ export function registrySink<Render>(timeline: ItemTypeRegistry<Render>): Timeli
 
 export interface HarnessUIOptions {
   sendPrompt?: (text: string) => Promise<boolean>;
+  notify?: (text: string) => void;
   items?: TimelineItemSink;
 }
 
@@ -135,7 +146,9 @@ export function createHarnessUI<Render = unknown>(
     editor: {
       openDraft: (request) => controllers.editor.openDraft(request),
     },
+    commands: { register: (definition) => controllers.commands.register(definition) },
     stage: {
+      activate: (id) => controllers.stage.activate(id),
       registerType: (type) => controllers.stage.registerType(type),
       show: (request) => controllers.stage.show(request),
     },
@@ -181,6 +194,7 @@ export function createHarnessControllers<Render = unknown>(
   });
   return {
     regions, keys, stage, timeline, editor,
+    commands: new CommandController(stage, editor, options.notify ?? (() => {})),
     bindings: new TimelineBindings(),
     statusline: new StatuslineController(),
     runState: new RunStateController(),

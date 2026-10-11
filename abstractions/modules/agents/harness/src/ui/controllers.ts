@@ -1,6 +1,6 @@
 /**
  * Terminal-independent UI controllers: the region/focus model, the key and
- * type registries, the blocking stage queue, and the structured timeline store.
+ * type registries, the unresolved stage requests, and the structured timeline store.
  * Nothing here imports OpenTUI, Solid, or a terminal; the view layer renders
  * these controllers' snapshots and calls back into them.
  */
@@ -293,7 +293,7 @@ export class KeyRegistry extends Emitter {
 }
 
 // ---------------------------------------------------------------------------
-// Stage queue
+// Stage requests
 // ---------------------------------------------------------------------------
 
 export interface StageContentType<T, Render = unknown> {
@@ -307,6 +307,7 @@ export interface StageContentType<T, Render = unknown> {
    * not reachable through the extension client.
    */
   validate?(value: unknown): value is T;
+  acceptsText?(value: T): boolean;
 }
 
 export interface StageRenderProps<T, Render = unknown> {
@@ -360,6 +361,7 @@ export interface StageEntry<Render = unknown> {
   readonly focused: boolean;
   render(track?: () => void): Render;
   readonly actions: readonly string[];
+  readonly acceptsText: boolean;
   runAction(name: string): void | Promise<void>;
 }
 
@@ -377,6 +379,7 @@ interface PendingStage<Render> {
   resolve: (result: StageResult<unknown>) => void;
   handle: StageHandle<unknown>;
   settled: boolean;
+  acceptsText(): boolean;
   returnFocus: RegionId | undefined;
 }
 
@@ -387,19 +390,26 @@ export interface StageControllerOptions {
   canFocus?: () => boolean;
 }
 
-/**
- * One blocking stage request is shown at a time; the rest wait FIFO. While a
- * request is active the `stage` region is available and focused, and focus
- * returns to whatever held it when the request started.
- */
+/** Arrival order, foreground selection and focus exceptions have one owner. */
+const stageRequestPolicy = {
+  arrival: <R>(pending: readonly PendingStage<R>[], foregroundId: string | undefined, next: PendingStage<R>) =>
+    next.kind === "command" ? next.id : foregroundId ?? pending[0]?.id,
+  successor: <R>(pending: readonly PendingStage<R>[]) => pending[0],
+  restore: <R>(pending: PendingStage<R>, wasActive: boolean) => pending.kind === "command" || wasActive,
+  claim: <R>(pending: PendingStage<R>, explicit: boolean, canFocus: boolean, suppress: boolean) =>
+    explicit || (!suppress && pending.returnFocus === undefined && canFocus),
+};
+
+/** Unresolved requests retain their state; only the foreground receives input. */
 export class StageController<Render = unknown> extends Emitter {
   readonly #regions: RegionController;
   readonly #region: RegionId;
   readonly #canFocus: () => boolean;
   readonly #kinds = new Map<string, { token: object; type: StageContentType<unknown, Render> }>();
-  readonly #queue: PendingStage<Render>[] = [];
-  #active: PendingStage<Render> | undefined;
+  readonly #pending: PendingStage<Render>[] = [];
+  #foregroundId: string | undefined;
   #assistAvailable = false;
+  #suppressSuccessorFocus = false;
   #nextId = 0;
 
   constructor(options: StageControllerOptions) {
@@ -481,7 +491,7 @@ export class StageController<Render = unknown> extends Emitter {
         });
       },
       runAction: (name) => {
-        if (pending.settled) return;
+        if (pending.settled || this.#foregroundId !== pending.id || !this.focused()) return;
         const action = request.type.actions?.[name];
         return action
           ? action({ value: current, handle: handle as StageHandle<T>, focused: this.focused() })
@@ -492,6 +502,7 @@ export class StageController<Render = unknown> extends Emitter {
       resolve: (result) => resolve(result as StageResult<T>),
       handle,
       settled: false,
+      acceptsText: () => request.type.acceptsText?.(current) ?? false,
       returnFocus: undefined,
     };
 
@@ -513,14 +524,16 @@ export class StageController<Render = unknown> extends Emitter {
       request.signal.addEventListener("abort", pending.onAbort, { once: true });
     }
 
-    this.#queue.push(pending);
-    this.#startNext();
+    this.#pending.push(pending);
+    const frontId = stageRequestPolicy.arrival(this.#pending, this.#foregroundId, pending);
+    const front = this.#pending.find((entry) => entry.id === frontId);
+    if (front && frontId !== this.#foregroundId) this.#present(front, pending.kind === "command");
     this.changed();
     return handle as StageHandle<T>;
   }
 
   active(): StageEntry<Render> | undefined {
-    const pending = this.#active;
+    const pending = this.#pending.find((entry) => entry.id === this.#foregroundId);
     if (!pending) {
       return undefined;
     }
@@ -532,16 +545,35 @@ export class StageController<Render = unknown> extends Emitter {
       focused: this.focused(),
       render: pending.render,
       actions: pending.actions,
+      acceptsText: pending.acceptsText(),
       runAction: pending.runAction,
     };
   }
 
   hasActive(): boolean {
-    return this.#active !== undefined;
+    return this.#foregroundId !== undefined;
   }
 
   queued(): number {
-    return this.#queue.length;
+    return this.#pending.length - (this.#foregroundId ? 1 : 0);
+  }
+
+  position(): { index: number; total: number } {
+    return { index: this.#pending.findIndex((entry) => entry.id === this.#foregroundId) + 1, total: this.#pending.length };
+  }
+
+  activate(id: string): boolean {
+    const pending = this.#pending.find((entry) => entry.id === id);
+    if (!pending) return false;
+    this.#present(pending, true);
+    return true;
+  }
+
+  moveRequest(delta: number): void {
+    if (!this.focused() || !this.#foregroundId) return;
+    const index = this.#pending.findIndex((entry) => entry.id === this.#foregroundId);
+    const next = this.#pending[index + delta];
+    if (next) this.#present(next, true);
   }
 
   focused(): boolean {
@@ -549,7 +581,7 @@ export class StageController<Render = unknown> extends Emitter {
   }
 
   async notifyPromptSubmitted(text: string): Promise<void> {
-    const active = this.#active;
+    const active = this.#pending.find((entry) => entry.id === this.#foregroundId);
     if (!active?.onPromptSubmitted) {
       return;
     }
@@ -573,25 +605,24 @@ export class StageController<Render = unknown> extends Emitter {
     this.changed();
   }
 
-  #startNext(): void {
-    if (this.#active) {
-      return;
-    }
-    while (this.#queue.length > 0) {
-      const next = this.#queue.shift() as PendingStage<Render>;
-      if (next.settled) {
-        continue;
-      }
-      next.returnFocus = this.#regions.current();
-      this.#active = next;
-      this.#syncAvailability();
-      if (this.#canFocus()) {
-        this.#regions.requestFocus(this.#region);
-      }
-      this.changed();
-      return;
-    }
+  #present(pending: PendingStage<Render>, explicit = false, suppress = false): void {
+    const claim = stageRequestPolicy.claim(pending, explicit, this.#canFocus(), suppress || this.#suppressSuccessorFocus);
+    this.#suppressSuccessorFocus = false;
+    pending.returnFocus ??= this.#regions.current();
+    this.#foregroundId = pending.id;
     this.#syncAvailability();
+    if (claim) this.#regions.requestFocus(this.#region);
+    this.changed();
+  }
+
+  #startNext(suppress = false): void {
+    if (this.#foregroundId) return;
+    const next = stageRequestPolicy.successor(this.#pending);
+    if (next) this.#present(next, false, suppress);
+    else {
+      this.#suppressSuccessorFocus = false;
+      this.#syncAvailability();
+    }
   }
 
   #settle(pending: PendingStage<Render>, result: StageResult<unknown>): void {
@@ -602,29 +633,24 @@ export class StageController<Render = unknown> extends Emitter {
     if (pending.onAbort && pending.signal) {
       pending.signal.removeEventListener("abort", pending.onAbort);
     }
-    if (this.#active === pending) {
-      this.#active = undefined;
-      pending.resolve(result);
-      if (this.#canFocus()) {
-        if (!this.#regions.requestFocus(pending.returnFocus ?? EDITOR_REGION)) {
-          this.#regions.requestFocus(EDITOR_REGION);
-        }
-      }
-      // Let the requester react before the next request takes the stage.
-      queueMicrotask(() => this.#startNext());
-    } else {
-      const index = this.#queue.indexOf(pending);
-      if (index !== -1) {
-        this.#queue.splice(index, 1);
-      }
-      pending.resolve(result);
+    const wasActive = this.#foregroundId === pending.id;
+    const index = this.#pending.indexOf(pending);
+    if (index !== -1) this.#pending.splice(index, 1);
+    if (wasActive) {
+      this.#foregroundId = undefined;
+      this.#suppressSuccessorFocus = pending.kind === "command";
     }
+    pending.resolve(result);
+    if (stageRequestPolicy.restore(pending, wasActive) && (pending.kind === "command" || this.#canFocus())) {
+      if (!this.#regions.requestFocus(pending.returnFocus ?? EDITOR_REGION)) this.#regions.requestFocus(EDITOR_REGION);
+    }
+    if (wasActive) queueMicrotask(() => this.#startNext(pending.kind === "command"));
     this.#syncAvailability();
     this.changed();
   }
 
   #syncAvailability(): void {
-    this.#regions.setAvailable(this.#region, this.#active !== undefined || this.#assistAvailable);
+    this.#regions.setAvailable(this.#region, this.#pending.length > 0 || this.#assistAvailable);
   }
 }
 

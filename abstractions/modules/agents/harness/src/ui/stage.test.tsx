@@ -12,7 +12,7 @@ async function renderFixture(f: ReturnType<typeof fixture>) {
   return testRender(() => <ScreenLayout ui={f.ui} timeline={<text>timeline</text>} stage={() => <StageView ui={f.ui} />} />, { width: 80, height: 24 });
 }
 
-test("serializes extension select, editor and confirm, restoring drafts and focus", async () => {
+test("registers stage dialogs immediately while editor drafts retain their own FIFO", async () => {
   const f = fixture();
   const { editor, regions, stage } = f.ui.controllers;
   regions.requestFocus("timeline"); editor.setText("prompt draft");
@@ -21,13 +21,34 @@ test("serializes extension select, editor and confirm, restoring drafts and focu
   const confirmed = f.extension.context.confirm("Confirm", "Continue?");
   await tick();
   expect(stage.active()?.kind).toBe("choice");
+  expect(stage.queued()).toBe(1);
+  expect(editor.activeDraft()).toBe(true);
+  regions.requestFocus("stage");
   await stage.active()?.runAction("next"); await stage.active()?.runAction("confirm");
   expect(await cursor).toBe("second"); await tick();
   expect(editor.activeDraft()).toBe(true); expect(editor.text()).toBe("prefill\nsecond line");
-  expect(regions.current()).toBe("editor"); editor.setText("edited\nnotes"); editor.submitDraft();
+  regions.requestFocus("editor"); editor.setText("edited\nnotes"); editor.submitDraft();
   expect(await edited).toBe("edited\nnotes"); await tick();
-  expect(stage.active()?.kind).toBe("confirm"); await stage.active()?.runAction("confirm");
-  expect(await confirmed).toBe(true); expect(editor.text()).toBe("prompt draft"); expect(regions.current()).toBe("timeline");
+  expect(stage.active()?.kind).toBe("confirm"); regions.requestFocus("stage"); await stage.active()?.runAction("confirm");
+  expect(await confirmed).toBe(true); expect(editor.text()).toBe("prompt draft"); expect(regions.current()).toBe("editor");
+  f.dispose();
+});
+
+// Pi dialog arrival and generation teardown are adapter contracts, not SDK behavior.
+test("a hidden stage dialog times out from arrival and generation teardown drains both queues", async () => {
+  const f = fixture();
+  const first = f.extension.context.select("First", ["x"]);
+  const hidden = f.extension.context.confirm("Timed", "?", { timeout: 5 });
+  expect(f.ui.controllers.stage.position().total).toBe(2);
+  expect(await hidden).toBe(false);
+  expect(f.ui.controllers.stage.position().total).toBe(1);
+  const draft = f.extension.context.input("Active");
+  const queued = f.extension.context.editor("Queued", "old");
+  await tick(); f.extension.resetGeneration();
+  expect(await first).toBeUndefined(); expect(await draft).toBeUndefined(); expect(await queued).toBeUndefined();
+  const next = f.extension.context.editor("New", "fresh"); await tick();
+  expect(f.ui.controllers.editor.text()).toBe("fresh");
+  f.ui.controllers.editor.submitDraft(); expect(await next).toBe("fresh");
   f.dispose();
 });
 
