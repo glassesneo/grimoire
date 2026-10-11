@@ -1,7 +1,22 @@
-# Owns Hjem user-service declarations and Darwin lowering. Portable argv is never
-# interpreted by a shell. Native additions may add leaves, never replace them.
-# Lifecycle and ownership are implemented by services.py, not nix-darwin.
-# Invalid declarations fail through the assertions, which guard `serviceApply`.
+# Owns Hjem user-service declarations and their Darwin lowering to LaunchAgents.
+#
+# A service is declared portably in `userServices`, natively in
+# `platform.darwin.launchAgents`, or both under one name, which lowers to one
+# job. Native `config` adds plist leaves to the portable ones and never replaces
+# them: a leaf both define is rejected, as is a native `Program` beside a
+# portable command.
+#
+# The executable and its arguments reach the program as argv, never as shell
+# text. Every job first waits for /nix/store to be mounted, so a custom argv[0]
+# is not preserved. A Label defaults to a hash of the service name and must be
+# unique ignoring case, because it also names the owned plist file. The `user`
+# domain, the default, runs in the Background session and is not guaranteed to
+# be loaded at login; the `gui` domain runs in the Aqua session that login loads.
+#
+# Portable services are rejected on Linux, where native declarations are
+# ignored. Invalid declarations fail through the assertions, which guard
+# `serviceApply`. Lifecycle and ownership are implemented by services.py, not
+# nix-darwin.
 {
   config,
   lib,
@@ -21,7 +36,7 @@
       autoStart = mkOption {
         type = types.bool;
         default = true;
-        description = "Start whenever launchd loads the job: on registration and at each login, not on every switch.";
+        description = "Start when launchd loads the job; this does not by itself guarantee loading at login or restart it on every switch.";
       };
       restartOnSwitch = mkOption {
         type = types.bool;
@@ -56,7 +71,7 @@
       config = mkOption {
         type = types.attrsOf plist;
         default = {};
-        description = "Plist-compatible native additions; identity, executable and session fields are validated.";
+        description = "Native launchd plist fields. For a service also declared in userServices, these extend rather than override the portable declaration; see the contract at the top of this file for constraints.";
       };
       restartOnSwitch = mkOption {
         type = types.bool;
@@ -152,11 +167,14 @@
         then p.restartOnSwitch
         else n.restartOnSwitch;
       runAtLoad = merged.RunAtLoad or false;
+      # launchd can start a job at login before the Nix store volume is mounted.
+      # The command stays positional parameters of the waiting shell.
       config =
-        merged
+        builtins.removeAttrs merged ["Program"]
         // {
           Label = label;
           LimitLoadToSessionType = session;
+          ProgramArguments = ["/bin/sh" "-c" ''/bin/wait4path /nix/store && exec "$@"'' "sh" program] ++ lib.drop 1 args;
         };
     };
   }) (config.userServices // config.platform.darwin.launchAgents);

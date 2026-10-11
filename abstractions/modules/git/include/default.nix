@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "git.include";
-  meta.description = "Include the encrypted INIAD Git configuration in repositories under ~/iniad/.";
+  meta.description = "Configure Git settings through includes.";
 
   options.enable = delib.boolOption true;
 

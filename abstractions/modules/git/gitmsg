@@ -1,12 +1,16 @@
-# Commit type
-# build: Changes that affect the build system or external dependencies
-# chore: Changes that doesn't affect the source code itself
-# ci: Changes to our CI configuration files and scripts (example scopes: Travis, Circle, BrowserStack, SauceLabs)
-# docs: Documentation only changes
-# feat: A new feature
-# fix: A bug fix
-# perf: A code change that improves performance
-# refactor: A code change that neither fixes a bug nor adds a feature
-# revert: A code change that reverts previous commits
-# style: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
-# test: Adding missing tests or correcting existing tests
+# Conventional Commits: <type>: <summary>
+# Optional scope: <type>(<scope>): <summary>
+#
+# feat: a new feature
+# fix: a bug fix
+# Other types may follow the repository's conventions, for example:
+# docs, refactor, perf, test, build, ci, chore, style, revert.
+#
+# Optionally add a body after a blank line to explain the change.
+# Put footers after another blank line.
+#
+# For a breaking change, put ! immediately before the colon and describe
+# the breaking change in the summary, or add this footer:
+# BREAKING CHANGE: <description of the breaking change>
+#
+# Specification: https://www.conventionalcommits.org/en/v1.0.0/

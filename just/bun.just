@@ -4,22 +4,29 @@ set shell := ["sh", "-cu"]
 set positional-arguments
 export bun := justfile_directory() / 'scripts' / 'bun.nu'
 
-# Add PACKAGES to the Bun project of MANIFEST and regenerate its bun.nix.
+# Add packages and regenerate bun.nix; see just --list for shared Bun requirements and effects.
+[arg('manifest', help='Existing package.json; relative paths resolve from the invoking directory')]
+[arg('packages', help='Package names and flags forwarded to bun add')]
 [no-cd]
 add manifest +packages:
   nu --no-config-file "$bun" add "$@"
 
-# Remove PACKAGES from the Bun project of MANIFEST and regenerate its bun.nix.
+# Remove packages and regenerate bun.nix; see just --list for shared Bun requirements and effects.
+[arg('manifest', help='Existing package.json; relative paths resolve from the invoking directory')]
+[arg('packages', help='Package names and flags forwarded to bun remove')]
 [no-cd]
 remove manifest +packages:
   nu --no-config-file "$bun" remove "$@"
 
-# Update PACKAGES (default: all) of the Bun project of MANIFEST and regenerate its bun.nix.
+# Update packages (default: all) and regenerate bun.nix; see just --list for shared Bun requirements and effects.
+[arg('manifest', help='Existing package.json; relative paths resolve from the invoking directory')]
+[arg('packages', help='Package names and flags forwarded to bun update, within package.json ranges')]
 [no-cd]
 update manifest *packages:
   nu --no-config-file "$bun" update "$@"
 
-# Install the Bun project of MANIFEST after a manual package.json edit and regenerate its bun.nix.
+# Run bun install after a manual manifest edit and regenerate bun.nix; see just --list for shared Bun requirements and effects.
+[arg('manifest', help='Existing package.json; relative paths resolve from the invoking directory. No further arguments accepted')]
 [no-cd]
 sync manifest:
   nu --no-config-file "$bun" sync "$@"

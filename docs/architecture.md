@@ -1,6 +1,10 @@
 # Architecture
 
-This file owns the structure of the repository: how the configuration is composed, the Denix concepts it relies on, what each directory owns, and which repository mechanisms exist. Everything outside `abstractions/` exists to compose, extend, verify, or apply it, so the model centers on Denix abstractions.
+This file describes the architecture of ark: its composition, the concepts used to declare configurations, directory responsibilities, and repository mechanisms. It assumes familiarity with Nix.
+
+Ark uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
+
+The framework composes, extends, verifies, and applies the configuration. Modules and hosts express the concrete environment built with it. See [Documentation Policy](documentation-policy.md) for how specifications and choices are documented.
 
 ## Composition
 
@@ -36,9 +40,11 @@ A module's name is its `myconfig` interface path, so choose it for the modules a
 - `extensions/` owns extensions of Denix itself: host attributes and behavior applied to every module or host. Features that consume them live in `abstractions/modules/`.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
 - `tests/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `tests/<name>/default.nix` is discovered automatically. The contract of a single module is tested inside that module instead; see Validation boundary.
-- `scripts/` and `justfile` own operator commands; see `docs/commands.md`.
+- `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
+
+Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Operator procedures and external-command orchestration default to Nushell under `scripts/`. An internal runtime implementation may use another language for a concrete standard-library or safety benefit; explain that reason beside the implementation.
 
 ## Repository mechanisms
 

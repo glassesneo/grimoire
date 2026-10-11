@@ -5,7 +5,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "git";
-  meta.description = "Provide Git with signed commits, a commit message template, and global ignores.";
+  meta.description = "Provide Git and configure the user's Git environment.";
 
   options.enable = delib.boolOption true;
 
@@ -32,7 +32,7 @@ delib.module ({myconfig, ...}: {
         name = myconfig.identity.fullName;
         email = myconfig.identity.email;
         useConfigOnly = true;
-        signingkey = myconfig.ssh.mainIdentity;
+        signingkey = myconfig.ssh.personalKeyFile;
       };
       commit = {
         verbose = true;

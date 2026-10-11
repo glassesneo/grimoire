@@ -1,5 +1,5 @@
 {
-  description = "Modular configuration of everything I own, with Denix";
+  description = "ark: my computing environment, built with Denix";
   outputs = inputs @ {
     self,
     nixpkgs,

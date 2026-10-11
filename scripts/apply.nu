@@ -14,21 +14,30 @@ def resolve-target [host: string, target: string]: nothing -> any {
   error make {msg: $"($host) is not this machine; pass --target"}
 }
 
-def run-on [target: any, command: string] {
-  if $target == null {
-    ^sh -c $command
-  } else {
-    ^ssh -t $target $command
+# Run ACTION, naming STAGE in the error when it fails. The command's own error
+# and exit code follow as the cause.
+def step [stage: string, action: closure]: nothing -> any {
+  try { do $action } catch {|error| error make {msg: $"($stage) failed"} }
+}
+
+def run-on [stage: string, target: any, command: string] {
+  step $stage {
+    if $target == null {
+      ^sh -c $command
+    } else {
+      ^ssh -t $target $command
+    }
   }
 }
 
 # Realize ATTR and keep it alive under ROOT until the procedure finishes.
-def realize [attr: string, root: string]: nothing -> string {
-  ^nix build --print-out-paths --out-link $root $attr | lines | first
+# `lines` would discard the build's exit code; `str trim` propagates it.
+def realize [stage: string, attr: string, root: string]: nothing -> string {
+  step $stage { ^nix build --print-out-paths --out-link $root $attr | str trim }
 }
 
-def push [target: string, ...paths: string] {
-  ^nix copy --no-check-sigs --to $'ssh-ng://($target)' ...$paths
+def push [stage: string, target: string, ...paths: string] {
+  step $stage { ^nix copy --no-check-sigs --to $'ssh-ng://($target)' ...$paths }
 }
 
 def apply-hjem [host: string, target: any, roots: string] {
@@ -36,27 +45,27 @@ def apply-hjem [host: string, target: any, roots: string] {
   let user = if $target == null { $env.USER } else { ^ssh $target whoami | str trim }
   let attr = $'hjemConfigurations."($user)@($host)"'
 
-  let preflight = realize $'($root)#($attr).preflight' ($roots | path join hjem-preflight)
-  let services = realize $'($root)#($attr).serviceApply' ($roots | path join hjem-services)
-  let hjem = realize $'($root)#hjem' ($roots | path join hjem-cli)
+  let preflight = realize "Hjem preflight build" $'($root)#($attr).preflight' ($roots | path join hjem-preflight)
+  let services = realize "Hjem service build" $'($root)#($attr).serviceApply' ($roots | path join hjem-services)
+  let hjem = realize "Hjem CLI build" $'($root)#hjem' ($roots | path join hjem-cli)
   let source = ^nix flake metadata --json $root | from json | get path
 
   if $target != null {
-    push $target $preflight $hjem $services
-    ^nix flake archive --to $'ssh-ng://($target)' $root
+    push "Hjem closure copy" $target $preflight $hjem $services
+    step "flake source copy" { ^nix flake archive --to $'ssh-ng://($target)' $root }
   }
 
-  run-on $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($services)/bin/apply"
+  run-on "Hjem activation" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($services)/bin/apply"
 }
 
 def apply-darwin [host: string, target: any, roots: string] {
-  let system = realize $'(flake-root)#darwinConfigurations."($host)".system' ($roots | path join darwin-system)
+  let system = realize "nix-darwin build" $'(flake-root)#darwinConfigurations."($host)".system' ($roots | path join darwin-system)
 
   if $target != null {
-    push $target $system
+    push "nix-darwin closure copy" $target $system
   }
 
-  run-on $target $"sudo ($system)/sw/bin/nix-env -p /nix/var/nix/profiles/system --set ($system) && sudo ($system)/activate"
+  run-on "nix-darwin activation" $target $"sudo ($system)/sw/bin/nix-env -p /nix/var/nix/profiles/system --set ($system) && sudo ($system)/activate"
 }
 
 # Hold temporary GC roots for everything realized by ACTION, then drop them.

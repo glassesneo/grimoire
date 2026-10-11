@@ -54,12 +54,12 @@ in {
     (lib.mkIf (cfg.enable && cfg.activate.enable) {
       userServices.nix-secrets-activate = {
         command = ["${activate}"];
-        # The RAM disk is gone after a reboot, so secrets are activated at login too.
         autoStart = true;
         restartOnSwitch = true;
       };
       platform.darwin.launchAgents.nix-secrets-activate = {
-        # Login loads only Aqua agents; a Background agent runs only when bootstrapped.
+        # The RAM disk is gone after a reboot. Login loads only Aqua agents, so the
+        # gui domain with autoStart activates secrets at each login.
         domain = "gui";
         config = {
           Label = "org.hjem.nix-secrets-activate";

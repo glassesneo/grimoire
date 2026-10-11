@@ -5,16 +5,13 @@
 }:
 delib.module ({cfg, ...}: {
   name = "pay-respects";
-  meta.description = "Provide pay-respects or replace command-not-found handling with sl.";
+  meta.description = "Provide command typo recovery with pay-respects.";
 
-  options = with delib; {
-    enable = boolOption true;
-    useSl = boolOption true;
-    slOptions = listOfOption str ["-a" "-F"];
-  };
+  options.enable = delib.boolOption true;
 
+  # pay-respects.disrespectful replaces this module's recovery when enabled.
   hjem.ifEnabled = {pkgs, ...}:
-    lib.mkIf (!cfg.useSl) {
+    lib.mkIf (!cfg.disrespectful.enable) {
       packages = [pkgs.pay-respects];
 
       zsh.zshrc.pay-respects.text = ''

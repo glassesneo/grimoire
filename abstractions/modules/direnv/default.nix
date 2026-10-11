@@ -5,7 +5,7 @@
 }:
 delib.module {
   name = "direnv";
-  meta.description = "Provide direnv with nix-direnv and initialize it in Zsh.";
+  meta.description = "Provide and configure direnv, including its Zsh integration.";
 
   options.enable = delib.boolOption true;
 

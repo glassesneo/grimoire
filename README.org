@@ -3,53 +3,11 @@
 
 * About
 
-This repository manages my machines and user environment with the rewrite branch of [[https://github.com/yunfachi/denix][Denix]], [[https://github.com/nix-darwin/nix-darwin][nix-darwin]], and standalone [[https://github.com/feel-co/hjem][Hjem]]. It is a personal configuration, not a reusable template.
+ark is everything I put together for my own computing environment: my machines, tools, and settings, along with the infrastructure that brings them together.
 
-* Layout
+It began as a rewrite of my dotfiles. Built on the rewrite branch of [[https://github.com/yunfachi/denix][Denix]], it includes custom adapters and publishable bundles as well as the configuration itself. It is a personal environment, not a reusable template.
 
-- =abstractions/= contains auto-discovered Denix hosts and modules.
-- =adapters/= connects Denix to unsupported module systems such as Hjem.
-- =extensions/= extends Denix itself, such as host attributes.
-- =lib/= contains pure Nix helpers passed to modules as =mylib=.
-- =tests/= contains sandboxed checks discovered as flake checks.
-- =scripts/= contains the operator commands invoked through =justfile=; see [[file:docs/commands.md][the command contract]].
-- =docs/= contains durable cross-cutting contracts and runbooks. Start with [[file:docs/architecture.md][the architecture contract]]. The generated [[file:docs/generated/modules.md][module catalogue]] is kept separately under =docs/generated/=.
-
-* Commands
-
-Enter the development shell before using the repository commands:
-
-#+begin_src sh
-nix develop
-#+end_src
-
-Entering the development shell installs commit automation; see [[file:docs/commands.md][the command contract]] for automatic staging and failure behavior.
-
-Format, regenerate the module catalogue, and validate the repository:
-
-#+begin_src sh
-just fmt
-just docs
-just eval
-just check hjem
-nix flake check
-#+end_src
-
-Commands take the form =just <layer> <operation> [host]=. The layers are =hjem=, =darwin=, and =all= (nix-darwin, then Hjem); the operations are =build= and =switch=. An omitted host means this machine:
-
-#+begin_src sh
-just hjem build
-just all switch
-just darwin switch seiran
-#+end_src
-
-=build= realizes a configuration without changing any state. =switch= applies it to this machine; applying another host requires an SSH destination through =--target=:
-
-#+begin_src sh
-just all switch seiran-vm1 --target seiran-vm1-raw
-#+end_src
-
-Hjem activation is not transactional; see [[file:docs/commands.md][the command contract]] for the failure boundary.
+For how it is organized, see [[file:docs/architecture.md][Architecture]].
 
 * License
 

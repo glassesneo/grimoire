@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "bat";
-  meta.description = "Provide bat and configure its file display style.";
+  meta.description = "Provide and configure bat for file display.";
 
   options.enable = delib.boolOption true;
 

@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "gomi";
-  meta.description = "Provide gomi and use it as Zsh's rm alias.";
+  meta.description = "Provide gomi and integrate it into Zsh.";
 
   options.enable = delib.boolOption true;
 

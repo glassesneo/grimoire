@@ -16,7 +16,7 @@ spec.loader.exec_module(m)
 class Ctl:
     def __init__(self):
         self.jobs = set()
-        self.starts = 0
+        self.bootstraps = 0
         self.restarts = 0
         self.gui = False
         self.disable = False
@@ -38,7 +38,7 @@ class Ctl:
         if self.fail:
             raise RuntimeError('injected failure')
         self.jobs.add((domain, path.stem))
-        self.starts += 1
+        self.bootstraps += 1
 
     def restart(self, *args):
         self.restarts += 1
@@ -84,10 +84,10 @@ with tempfile.TemporaryDirectory() as tmp:
         m.reconcile(p, home, str(fake), ctl)
     apply(one)
     apply(one)
-    assert ctl.starts == 1 and ctl.restarts == 0
+    assert ctl.bootstraps == 1 and ctl.restarts == 0
     ctl.jobs.clear()
     apply(one)
-    assert ctl.starts == 2
+    assert ctl.bootstraps == 2
     two = generation(2, [dict(job, restart=True)])
     ctl.fail = True
     try:
@@ -229,12 +229,12 @@ with tempfile.TemporaryDirectory() as tmp:
     loading = dict(name='test', label='org.hjem.test', domain='user', restart=True, runAtLoad=True)
     first = generation(1, [loading])
     apply(first)
-    assert ctl.starts == 1 and ctl.restarts == 0
+    assert ctl.bootstraps == 1 and ctl.restarts == 0
     apply(first)
-    assert ctl.starts == 1 and ctl.restarts == 1
+    assert ctl.bootstraps == 1 and ctl.restarts == 1
     apply(generation(2, [loading]))  # Changed content is bootstrapped again.
-    assert ctl.starts == 2 and ctl.restarts == 1
+    assert ctl.bootstraps == 2 and ctl.restarts == 1
 
     ctl.jobs.clear()
     apply(generation(3, [dict(loading, runAtLoad=False)]), home='manual')
-    assert ctl.starts == 3 and ctl.restarts == 2
+    assert ctl.bootstraps == 3 and ctl.restarts == 2

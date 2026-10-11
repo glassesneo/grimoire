@@ -5,11 +5,11 @@
 }:
 delib.module ({cfg, ...}: {
   name = "ssh";
-  meta.description = "Configure the OpenSSH client and the user's main identity.";
+  meta.description = "Configure the OpenSSH client and the user's personal key.";
 
   options = with delib; {
     enable = boolOption true;
-    mainIdentity = readOnly (strOption "~/.ssh/id_ed25519_personal");
+    personalKeyFile = readOnly (description (strOption "~/.ssh/id_ed25519_personal") "Path of the personal SSH private key on each host, used for GitHub authentication and Git commit signing.");
   };
 
   hjem.ifEnabled = {pkgs, ...}: {
@@ -20,7 +20,7 @@ delib.module ({cfg, ...}: {
           Host github.com
             HostName github.com
             User git
-            IdentityFile ${cfg.mainIdentity}
+            IdentityFile ${cfg.personalKeyFile}
 
           Host *
             AddKeysToAgent yes

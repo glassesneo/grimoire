@@ -56,6 +56,8 @@ in
   # These material failure paths are not detected by evaluation/builds. Native
   # read-only mount inspection works in the Darwin sandbox: no jobs or images.
   pkgs.runCommand "nix-secrets-wiring-test" {
+    # The patched package, launchd output and mount inspection are Darwin's.
+    meta.platforms = pkgs.lib.platforms.darwin;
     nativeBuildInputs = [pkgs.python3 pkgs.nushell];
     probe = fixture.probe;
     age = "${pkgs.age}/bin/age";
@@ -83,13 +85,13 @@ in
     assert production_job['label'] == 'org.hjem.nix-secrets-activate'
     assert production_job['label'] != job['label']
     assert job['runAtLoad']
-    script = Path(job['config']['ProgramArguments'][0]).read_text()
+    script = Path(job['config']['ProgramArguments'][4]).read_text()
     assert ' activate ' in script and '--needed-for-users false' in script
     assert re.search(r'^exec /usr/bin/lockf -k \S+/nix-secrets/activate.lock ', script, re.M)
     activation_manifest = re.search(r' activate (\S+) --needed-for-users', script)[1]
     assert json.loads(Path(activation_manifest).read_text()) == manifest
     def wrapper_path(job):
-        wrapper = Path(job['config']['ProgramArguments'][0]).read_text()
+        wrapper = Path(job['config']['ProgramArguments'][4]).read_text()
         value = re.search(r'^\s*export PATH=(.*)$', wrapper, re.M)[1]
         return shlex.split(value)[0].split(':')
 

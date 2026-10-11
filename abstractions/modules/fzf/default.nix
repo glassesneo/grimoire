@@ -5,7 +5,7 @@
 }:
 delib.module {
   name = "fzf";
-  meta.description = "Provide fzf, configure its candidate search and display, and enable selected Zsh bindings.";
+  meta.description = "Provide and configure fzf, including its Zsh integration.";
 
   options.enable = delib.boolOption true;
 

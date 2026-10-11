@@ -21,7 +21,7 @@
 in
   delib.module {
     name = "skills";
-    meta.description = "Declare harness-independent skills, including this repository's own, and deploy their directories through Hjem.";
+    meta.description = "Declare harness-independent skills and deploy them for agent use.";
 
     options.enable = delib.boolOption true;
 
@@ -36,7 +36,7 @@ in
           };
           targetDirs = lib.mkOption {
             type = lib.types.listOf targetDir;
-            description = "Home-relative destination directories; an empty list deploys nothing.";
+            description = "Home-relative parent directories; the skill is linked under its attribute name in each directory. An empty list deploys nothing.";
           };
         };
       });

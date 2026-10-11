@@ -1,6 +1,8 @@
 """Owns serialized, retryable user LaunchAgent reconciliation.
 
 State is a write-ahead ownership journal, not evidence inferred from files.
+The journal and persistent per-user generation roots live under
+.local/state/hjem/services in the configured home, beyond temporary build roots.
 Generation roots are retained until no journal entry can require that closure.
 No global rollback: successful operations remain after an error.
 

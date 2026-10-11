@@ -6,7 +6,7 @@
 }:
 delib.module ({cfg, ...}: {
   name = "harness";
-  meta.description = "Provide the self-built LLM agent harness, built on the Pi SDK with an OpenTUI interface.";
+  meta.description = "Provide and configure the repository's own LLM agent harness.";
 
   options = {pkgs, ...}:
     with delib; {

@@ -1,56 +1,36 @@
 # Documentation Policy
 
-This file owns what the repository documents, where each kind of statement lives, and when documentation changes.
+This file owns what the repository documents, where each kind of statement belongs, and when documentation changes.
 
-## Premise
+## Specifications and choices
 
-This repository holds a framework and the modules that use it. The framework — its layers, ownership boundaries, and command contracts — changes rarely and deliberately. Modules and hosts hold choices: a colorscheme, a default shell, a package. Those change constantly, and are meant to.
+This repository contains the framework used to compose and apply an environment, and the concrete choices made with it. Framework specifications guide implementation and use. Configuration values and the concepts grouped into individual Denix modules are choices expressed by their declarations; they do not require separate specifications.
 
-A document that follows every choice is never finished, and a document that is never finished cannot be trusted. Documentation therefore records only what stays true when a choice changes. Everything else is for the code to say.
+Whether a statement belongs in documentation depends on the reader's task, not on how rarely it changes. Document the specifications needed to use or change a mechanism without deriving them from its implementation. Leave concrete configuration choices in code.
 
-## What is documented
+A module's `meta.description` states its responsibility in one sentence, assuming familiarity with modules in this repository. It lets readers understand that responsibility without reading the implementation and judge whether a future feature belongs there. It is not an inventory of current settings. The generated module catalogue presents that same description with its source location.
 
-A statement is documented when both hold:
+Option descriptions explain what a value means and the constraints needed to specify it. Internal option descriptions address the mechanism's maintainers.
 
-- It stays true when any single value is swapped: another colorscheme, another default shell, another host.
-- It is not evident from the code it concerns.
+The absence of a written contract alone does not justify adding one. When a new criterion appears necessary, discuss that specific criterion with the maintainer rather than treating it as an existing requirement.
 
-Typical subjects are which directory owns which concern, what a layer may and may not do, how a repository mechanism behaves, how a command behaves, and what a change must keep true.
+## Owners
 
-Only written contracts are contracts. What no document states is not a gap: the existing code is correct as it stands, and its absence from documentation is not a reason to add it. Adding a contract is a judgment made against the criteria above, and a statement that does not clearly meet them is not added.
+- `README.org` introduces ark to third-party readers on GitHub. Working in the repository does not depend on reading it.
+- `docs/architecture.md` describes this repository's composition, concepts, directory responsibilities, and mechanism index. It assumes Nix knowledge and is not a general guide to Denix rewrite.
+- A mechanism's contract belongs beside its implementation: its contract comment and option descriptions. Its checks exercise that contract.
+- `justfile` and `just/*.just` own recipe documentation and argument help, read through `just --list` and `just --usage`.
+- `docs/operations.md` owns operational information that does not belong to an individual recipe, including development-shell setup, commit automation, and live verification procedures.
+- `docs/generated/` holds generated references. Regenerate `modules.md` with `just docs`; edit its source metadata, not the generated file.
+- The root `AGENTS.md` owns agent-specific work rules and reading triggers not owned elsewhere. It may summarize the architecture concepts assumed in conversation.
+- A nested `AGENTS.md` owns agent-specific work rules limited to its directory.
 
-## Where statements live
+A contract comment states a mechanism's supported behavior. An implementation comment explains a non-obvious decision beside the code, such as a workaround, ordering constraint, or upstream dependency. It may concern a concrete configuration choice. It does not restate a contract owned elsewhere.
 
-- `docs/architecture.md` owns the structure of the repository: composition, Denix concepts, directory ownership, and an index of repository mechanisms. It names each mechanism in one sentence and leaves its behavior to the mechanism's owner.
-- A repository mechanism — an extension, an adapter contract, a `lib/` helper — is specified beside its implementation: a comment at the top of the file, the `description` of each option it declares, and the checks under `tests/` that exercise it.
-- `docs/commands.md` owns operator commands and their effects on state.
-- `docs/generated/` holds committed, machine-generated reference material, separate from handwritten contracts. `modules.md` lists every Denix module's name, `meta.description`, and declaration paths; regenerate it with `just docs`, never edit it by hand.
-- `README.org` orients humans and lists first commands; it points to owners instead of restating them.
-- The root `AGENTS.md` holds agent-facing decision rules that no other owner covers; apart from the summary allowed under Ownership, it does not restate other documents.
-- An `AGENTS.md` below the root holds agent-facing rules that apply only inside its directory.
+## Updates
 
-Option descriptions are documentation and meet the same criteria.
+Update a specification and its implementation together when the specified behavior changes. A change to a concrete choice does not require documenting that choice separately. Generated references follow their source metadata.
 
-A comment explains why the code beside it is not obvious: a workaround, an ordering constraint, an upstream quirk. It may concern a single choice, because it lives and changes with that code. It does not restate a contract owned elsewhere.
+Documentation and comments may also be corrected or clarified without changing code. Such edits do not by themselves establish a new contract.
 
-## When documentation changes
-
-Documentation changes when a change alters a documented contract, and in the same change, so that code and documentation never disagree.
-
-A change that leaves every documented contract true leaves the documentation alone. This holds wherever the change lands: adapters, extensions, scripts, and commands included. In particular, documentation does not change for:
-
-- a value: adding, changing, or removing a choice inside a module or host;
-- an implementation, fix, or refactor that keeps the documented contract true;
-- facts of a kind handwritten documentation never records, such as inventories, current defaults, copies of command help, or migration notes.
-
-Generated references are the exception for inventories: they follow their source automatically, and `nix flake check` rejects stale output.
-
-A comment changes only when the code it explains changes.
-
-## Ownership
-
-Every documented statement has one owner. Other documents point to the owner instead of repeating the statement. When a contract changes, update its owner first and remove any text that now disagrees with it.
-
-The one exception is the root `AGENTS.md`, which agents load by default. It may summarize the concepts of `docs/architecture.md` that a conversation assumes, and points there for the rules. The summary changes in the same change as the statements it summarizes.
-
-Each document and each specifying source file states at its top what it owns. A statement outside every declared scope has no owner; propose an owner to the user instead of adding the statement.
+Each statement has one owner; other documents point to that owner. The architecture summary in the root `AGENTS.md` changes with the statements it summarizes. Documents and specifying source files make their scope clear at the beginning. If a proposed statement has no owner, propose one to the maintainer before adding it.

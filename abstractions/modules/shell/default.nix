@@ -45,18 +45,25 @@ in
       };
     };
 
-    tests = {pkgs, ...}: {
+    # A distinct package shows that the selected shell module's package is
+    # used, not a default that happens to equal it.
+    tests = {pkgs, ...}: let
+      package = pkgs.writeShellScriptBin "fixture-shell" "" // {shellPath = "/bin/fixture-shell";};
+    in {
       login-shell = {
         uses = ["zsh" "zsh.login" "host" "nixpkgs"];
-        host.myconfig.ifEnabled.shell.loginShell = "zsh";
+        host.myconfig.ifEnabled = {
+          shell.loginShell = "zsh";
+          zsh.package = package;
+        };
         moduleSystem = "darwin";
         expr = result: {
           shell = toString result.config.users.users.fixture.shell;
           # nix-darwin lists shells by their path in the system profile.
-          listed = lib.elem "/run/current-system/sw/bin/zsh" result.config.environment.shells;
+          listed = lib.elem "/run/current-system/sw/bin/fixture-shell" result.config.environment.shells;
         };
         expected = {
-          shell = toString pkgs.zsh;
+          shell = toString package;
           listed = true;
         };
       };

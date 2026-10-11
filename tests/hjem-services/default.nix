@@ -16,9 +16,15 @@
     };
   good = result [
     {
-      userServices.example = {
-        command = ["${pkgs.coreutils}/bin/true" "literal $arg"];
-        environment.A = "a";
+      userServices = {
+        example = {
+          command = ["${pkgs.coreutils}/bin/true" "literal $arg"];
+          environment.A = "a";
+        };
+        manual = {
+          command = ["${pkgs.coreutils}/bin/true"];
+          autoStart = false;
+        };
       };
       platform.darwin.launchAgents = {
         example = {
@@ -137,13 +143,20 @@ in
       python3 ${./reconcile.py} ${../../adapters/hjem/services.py}
       ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
         python3 - "$services" <<'PY'
-        import pathlib, plistlib, sys
-        plists = [plistlib.loads(p.read_bytes()) for p in (pathlib.Path(sys.argv[1]) / 'plists').glob('*.plist')]
-        portable = next(p for p in plists if 'ProgramArguments' in p)
-        assert portable['ProgramArguments'][1] == 'literal $arg'
+        import json, pathlib, plistlib, sys
+        out = pathlib.Path(sys.argv[1])
+        jobs = {job['name']: job for job in json.loads((out / 'services.json').read_text())}
+        plists = {name: plistlib.loads((out / 'plists' / (job['label'] + '.plist')).read_bytes()) for name, job in jobs.items()}
+        wait = ['/bin/sh', '-c', '/bin/wait4path /nix/store && exec "$@"', 'sh']
+        true = '${pkgs.coreutils}/bin/true'
+        portable = plists['example']
+        assert portable['ProgramArguments'] == wait + [true, 'literal $arg']
         assert portable['EnvironmentVariables'] == {'A': 'a', 'B': 'b'}
-        assert portable['RunAtLoad'] is True
         assert portable['LimitLoadToSessionType'] == 'Background'
+        assert plists['native']['ProgramArguments'] == wait + [true] and 'Program' not in plists['native']
+        # The declared autoStart reaches launchd and the reconciler alike.
+        for name, expected in [('example', True), ('manual', False)]:
+            assert plists[name]['RunAtLoad'] is expected and jobs[name]['runAtLoad'] is expected
         PY
       ''}
       touch "$out"

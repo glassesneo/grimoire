@@ -1,4 +1,7 @@
 # Render module metadata and declaration locations without generating a host.
+# Include every module regardless of host enablement, sorted by Denix name.
+# Descriptions come directly from meta.description; source links use declaration
+# paths. The catalogue contains no generation timestamp.
 {lib}: {
   configuration,
   root,

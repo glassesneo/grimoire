@@ -9,7 +9,7 @@
   config.settings.modules.extraSubmodules = {
     options.meta.description = lib.mkOption {
       type = lib.types.addCheck lib.types.str (value: builtins.match "[[:space:]]*" value == null);
-      description = "Responsibility grouped into one concept by this module.";
+      description = "One-sentence responsibility of this module, not an inventory of its current settings.";
     };
   };
 

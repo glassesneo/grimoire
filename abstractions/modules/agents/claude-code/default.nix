@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module ({myconfig, ...}: {
   name = "claude-code";
-  meta.description = "Provide Claude Code and configure its memory, permissions, sandbox, and updates.";
+  meta.description = "Provide and configure Claude Code.";
 
   options.enable = delib.boolOption true;
 
