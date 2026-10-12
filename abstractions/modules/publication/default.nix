@@ -5,5 +5,6 @@ delib.module {
   options.enable = delib.boolOption true;
 
   bundles.ifEnabled.harness.publish = true;
+  bundles.ifEnabled.neovim.publish = true;
   bundles.ifEnabled.skills.publish = true;
 }

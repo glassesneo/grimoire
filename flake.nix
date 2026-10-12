@@ -151,6 +151,8 @@
       url = "github:unnamed-systems/nix-secrets/151f264a22b595802647db8fac09a2dbd6cb202c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    mnw.url = "github:Gerg-L/mnw";
+    neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
     llm-agents.url = "github:numtide/llm-agents.nix";
     # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
     # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.
