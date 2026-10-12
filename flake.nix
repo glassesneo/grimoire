@@ -51,6 +51,12 @@
             indentation = "  ";
           };
         };
+        # Style comes from the nearest .luafmt.toml.
+        settings.formatter.luafmt = {
+          command = "${pkgs.emmylua-formatter}/bin/luafmt";
+          options = ["--write"];
+          includes = ["*.lua"];
+        };
       };
       publishedBundles = configuration.genSystem {
         moduleSystem = "bundles";
@@ -83,6 +89,8 @@
           pkgs.nushell
           pkgs.bun
           inputs.bun2nix.packages.${system}.default
+          pkgs.emmylua-ls
+          pkgs.emmylua-check
           self.packages.${system}.hjem
           self.packages.${system}.harness
         ];

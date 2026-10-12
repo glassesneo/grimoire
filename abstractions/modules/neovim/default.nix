@@ -16,6 +16,11 @@ delib.module ({cfg, ...}: {
         default = {
           inherit (cfg) enable;
           neovim = inputs.neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
+          plugins.dev.ark = {
+            pure = ./config;
+            # Read by the devMode package so Lua edits apply without a rebuild.
+            impure = "~/ark/abstractions/modules/neovim/config";
+          };
         };
       };
       package = packageOption (inputs.mnw.lib.wrap pkgs cfg.settings);
