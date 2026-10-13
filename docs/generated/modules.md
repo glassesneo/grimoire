@@ -22,6 +22,9 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>host</code> | Expose the selected host's information to modules and reflect its identity in OS host names. | [<code>abstractions/modules/host/default.nix</code>](../../abstractions/modules/host/default.nix) |
 | <code>identity</code> | Expose the fixed identity of the person who uses these hosts. | [<code>abstractions/modules/identity/default.nix</code>](../../abstractions/modules/identity/default.nix) |
 | <code>neovim</code> | Provide and configure neovim | [<code>abstractions/modules/neovim/default.nix</code>](../../abstractions/modules/neovim/default.nix) |
+| <code>neovim.completion</code> | Provide insert-mode and command-line completion in Neovim. | [<code>abstractions/modules/neovim/completion/default.nix</code>](../../abstractions/modules/neovim/completion/default.nix) |
+| <code>neovim.diagnostic</code> | Display diagnostics in Neovim buffers. | [<code>abstractions/modules/neovim/diagnostic/default.nix</code>](../../abstractions/modules/neovim/diagnostic/default.nix) |
+| <code>neovim.lsp</code> | Connect Neovim to language servers and format buffers through them. | [<code>abstractions/modules/neovim/lsp/default.nix</code>](../../abstractions/modules/neovim/lsp/default.nix) |
 | <code>nh</code> | Provide nh for package and option searches. | [<code>abstractions/modules/nh/default.nix</code>](../../abstractions/modules/nh/default.nix) |
 | <code>nix</code> | Configure Nix itself. | [<code>abstractions/modules/nix/default.nix</code>](../../abstractions/modules/nix/default.nix) |
 | <code>nixpkgs</code> | Configure Nixpkgs for the host. | [<code>abstractions/modules/nixpkgs/default.nix</code>](../../abstractions/modules/nixpkgs/default.nix) |
