@@ -22,7 +22,8 @@ export function bridgeDialogs(options: {
   const present = async (id: string, d: any, signal: AbortSignal): Promise<Record<string, unknown> | undefined> => {
     if (d.method === "select" || d.method === "confirm") {
       const confirm = d.method === "confirm";
-      const choices = confirm ? ["Yes", "No"] : d.options || [];
+      // The hub accepts only a listed choice, so a select without a list offers none.
+      const choices = confirm ? ["Yes", "No"] : Array.isArray(d.options) ? d.options.map(String) : [];
       const value: ChoiceValue = { title: d.title, message: d.message, choices, cursor: 0, expiresAt: d.expiresAt };
       const handle = ui.stage.show({
         requester: "pi", type: confirm ? options.confirmType : options.choiceType, value, signal,

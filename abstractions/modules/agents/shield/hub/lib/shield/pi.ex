@@ -345,9 +345,14 @@ defmodule Shield.Pi do
       d && (is_nil(d["expiresAt"]) or d["expiresAt"] > now) &&
         (p["cancelled"] == true or
            case d["method"] do
-             "confirm" -> is_boolean(p["confirmed"])
-             "select" -> p["value"] in d["options"]
-             _ -> is_binary(p["value"])
+             "confirm" ->
+               is_boolean(p["confirmed"])
+
+             "select" ->
+               is_list(d["options"]) and is_binary(p["value"]) and p["value"] in d["options"]
+
+             _ ->
+               is_binary(p["value"])
            end)
 
     if valid do

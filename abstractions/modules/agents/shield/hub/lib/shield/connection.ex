@@ -12,7 +12,7 @@ defmodule Shield.Connection do
      %{
        socket: socket,
        ref: %{pid: reader, writer: writer, counter: counter},
-       buffer: "",
+       buffer: P.buffer(),
        pending: MapSet.new()
      }}
   end

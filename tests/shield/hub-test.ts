@@ -45,6 +45,22 @@ try {
   const rawClosed = new Promise<void>(resolve => raw.once("close", resolve));
   raw.write("{malformed\n"); await rawClosed;
   assert((await a.hub("ping")).success);
+  // An envelope may omit its engine; it means Pi both when creating and when joining an agent.
+  const bare = createConnection({ path: socket }); const bareIn = new JsonLines(); const bareRecords: any[] = [];
+  bare.on("data", bytes => bareRecords.push(...bareIn.feed(bytes as Uint8Array)));
+  await new Promise<void>(resolve => bare.once("connect", resolve));
+  const bareAttach = async (cwd: string) => {
+    const requestId = `bare-${bareRecords.length}-${cwd.length}`;
+    bare.write(JSON.stringify({ v: 1, type: "hub_request", id: requestId, "agent-id": null, method: "attach", payload: { cwd, harness: "quin", options: fakeOptions() } }) + "\n");
+    await wait(() => bareRecords.some(r => r.id === requestId));
+    return bareRecords.find(r => r.id === requestId);
+  };
+  assert.equal((await bareAttach(dir)).payload?.["agent-id"], id);
+  const bareCwd = join(dir, "bare"); mkdirSync(bareCwd);
+  const bareId = (await bareAttach(bareCwd)).payload?.["agent-id"];
+  assert(bareId);
+  assert.equal((await attach(connect(), bareCwd)).payload["agent-id"], bareId);
+  bare.destroy();
   const rpc = { op: "rpc", record: { type: "get_state" } };
   const [ra, rb] = await Promise.all([a.request("engine_request", id, rpc, undefined, "same"), b.request("engine_request", id, rpc, undefined, "same")]);
   assert(ra.success && rb.success); assert.equal(ra.id, "same"); assert.equal(rb.id, "same"); assert.equal(ra.payload.id, "same"); assert.equal(rb.payload.id, "same");

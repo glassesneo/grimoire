@@ -20,8 +20,13 @@ const base = (id: string, kind: string): Entry => ({ id, kind, version: 0 });
 const bump = (e: Entry, fields: Record<string, any>) => Object.assign(e, fields, { version: e.version + 1 });
 const text = (content: any) => typeof content === "string" ? content : (content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
 const take = (v: any, keys: string[]) => Object.fromEntries(keys.filter(k => k in v).map(k => [k, v[k]]));
-export function applyEvent(before: View, r: any, now: number): View {
-  const v = structuredClone(before);
+/**
+ * The view after one Pi record. By default `before` is left untouched; `inPlace` updates
+ * it instead, so a streamed token costs time independent of the history's size. A record
+ * that throws may leave an in-place view partly updated, and its connection is then abandoned.
+ */
+export function applyEvent(before: View, r: any, now: number, inPlace = false): View {
+  const v = inPlace ? before : structuredClone(before);
   const entries = v.timeline.entries;
   const newEntry = (kind: string, fields: Record<string, any>) => entries.push({ ...base(`live:${v.nextId++}`, kind), ...fields });
   const last = (p: (e: Entry) => boolean) => entries.findLast(p);
@@ -154,7 +159,7 @@ export class PiAdapter {
       if (this.instance !== r["hub-instance"] || this.agent !== r["agent-id"] || r.seq !== (this.seq ?? -1) + 1) throw new Error("snapshot_sequence_mismatch; reopen quin");
       this.seq = r.seq;
       if (r.payload.op === "lifecycle") this.lifecycle = r.payload.state;
-      if (r.payload.op === "event") this.view = applyEvent(this.view, r.payload.record, r.payload.observedAt);
+      if (r.payload.op === "event") this.view = applyEvent(this.view, r.payload.record, r.payload.observedAt, true);
     }
   }
 }

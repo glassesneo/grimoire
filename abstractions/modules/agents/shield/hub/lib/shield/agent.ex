@@ -41,7 +41,7 @@ defmodule Shield.Agent do
       seq: 0,
       subscribers: %{},
       clients: %{},
-      buffer: "",
+      buffer: Protocol.buffer(),
       state: "starting",
       stopping: false,
       failure: nil
@@ -76,31 +76,25 @@ defmodule Shield.Agent do
 
   def handle_cast(:stop, s), do: {:noreply, stop(s)}
 
+  # Records are applied one at a time, so a record that cannot be applied fails the agent
+  # from the state its predecessors left, after their effects were already delivered.
   def handle_info({port, {:data, bytes}}, %{port: port} = s) do
-    try do
-      {records, buffer} = Protocol.feed(s.buffer, bytes)
+    case decode(s.buffer, bytes) do
+      {:ok, records, buffer} ->
+        {:noreply, Enum.reduce_while(records, %{s | buffer: buffer}, &output/2)}
 
-      s =
-        Enum.reduce(records, %{s | buffer: buffer}, fn r, s ->
-          if s.failure do
-            s
-          else
-            {engine, next} = Pi.output(s.engine, r, now())
-            effects(%{s | engine: engine}, next)
-          end
-        end)
-
-      {:noreply, s}
-    rescue
-      _ -> {:noreply, fail(s, "invalid_pi_frame")}
+      :error ->
+        {:noreply, fail(s, "invalid_pi_frame")}
     end
   end
 
+  # The agent ends with its Pi process: the final lifecycle is delivered, then the
+  # process exits normally and the Manager keeps that state.
   def handle_info({port, {:exit_status, code}}, %{port: port} = s) do
     {engine, pending} = Pi.failed(s.engine)
     state = if s.stopping and is_nil(s.failure) and code in [0, 143], do: "exited", else: "failed"
     s = effects(%{s | port: nil, os_pid: nil, engine: engine}, pending)
-    {:noreply, lifecycle(s, state, %{"exitCode" => code})}
+    {:stop, :normal, lifecycle(s, state, %{"exitCode" => code})}
   end
 
   def handle_info({:EXIT, port, _}, %{port: port} = s), do: {:noreply, s}
@@ -123,7 +117,7 @@ defmodule Shield.Agent do
     if Port.info(port), do: Port.close(port)
     {engine, pending} = Pi.failed(s.engine)
 
-    {:noreply,
+    {:stop, :normal,
      effects(%{s | engine: engine, port: nil, os_pid: nil}, pending)
      |> lifecycle("failed", %{"error" => "exit_not_observed"})}
   end
@@ -144,6 +138,22 @@ defmodule Shield.Agent do
          clients: Map.delete(s.clients, pid),
          subscribers: Map.reject(s.subscribers, fn {_, {_, m}} -> m == monitor end)
      }}
+  end
+
+  defp decode(buffer, bytes) do
+    {records, buffer} = Protocol.feed(buffer, bytes)
+    {:ok, records, buffer}
+  rescue
+    _ -> :error
+  end
+
+  defp output(_, %{failure: failure} = s) when not is_nil(failure), do: {:halt, s}
+
+  defp output(r, s) do
+    {engine, next} = Pi.output(s.engine, r, now())
+    {:cont, effects(%{s | engine: engine}, next)}
+  rescue
+    _ -> {:halt, fail(s, "invalid_pi_frame")}
   end
 
   defp watch(s, ref) do

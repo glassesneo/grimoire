@@ -8,6 +8,9 @@ import { Emitter } from "./ui/controllers";
 import { STATS_EVENTS, type SessionStats } from "./usage";
 import { PiAdapter } from "./view";
 
+/** Lifecycles that end an agent, or this connection to it. */
+const TERMINAL = new Set(["exited", "failed", "disconnected"]);
+
 export class Controller extends Emitter {
   readonly adapter = new PiAdapter();
   /** Until this time, the interrupt key confirms instead of arming. */
@@ -27,7 +30,10 @@ export class Controller extends Emitter {
     client.onRecord = r => this.record(r);
     client.onDisconnect = e => {
       if (this.detached) return;
-      if (this.adapter.lifecycle !== "disconnected") this.notice = e.message;
+      this.armedUntil = 0;
+      // The hub closes the socket after reporting a failure; the end it reported stays.
+      if (TERMINAL.has(this.adapter.lifecycle)) { this.changed(); return; }
+      this.notice = e.message;
       this.adapter.lifecycle = "disconnected";
       this.armedUntil = 0;
       this.changed();

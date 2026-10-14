@@ -9,11 +9,17 @@ const actions = (log: string[]) => [
 ];
 const key = (name: string, mods: { ctrl?: boolean; shift?: boolean } = {}) => ({ name, ...mods });
 
-test("chords parse modifiers and the key name", () => {
-  expect(parseChord("ctrl+shift+f")).toEqual({ name: "f", ctrl: true, shift: true });
-  expect(parseChord("kpenter")).toEqual({ name: "kpenter" });
-  expect(parseChord("ctrl++")).toEqual({ name: "+", ctrl: true });
-  expect(() => parseChord("hyper+x")).toThrow(KeymapError);
+test("every key name parses alone and under every modifier combination", () => {
+  const printable = Array.from({ length: 0x7f - 0x21 }, (_, i) => String.fromCharCode(0x21 + i));
+  const names = [...printable, "space", "tab", "return", "kpenter", "escape", "up", "f12"];
+  const combos = [[], ["ctrl"], ["shift"], ["alt"], ["ctrl", "shift"], ["ctrl", "alt", "shift"]] as const;
+  for (const name of names) {
+    for (const mods of combos) {
+      const expected = { name, ...Object.fromEntries(mods.map((mod) => [mod, true])) };
+      expect(parseChord([...mods, name].join("+"))).toEqual(expected);
+    }
+  }
+  for (const text of ["", "ctrl+", "hyper+x", "x+ctrl", "ctrl++x"]) expect(() => parseChord(text)).toThrow(KeymapError);
 });
 
 test("the focused region wins, then the global layer", () => {

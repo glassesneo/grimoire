@@ -63,6 +63,31 @@ test("an input dialog opens a draft; Esc cancels it, and the hub's close restore
   expect(f.requests).toHaveLength(1);
 });
 
+test("an agent's reported end outlasts the connection closing; only an open agent shows disconnected", () => {
+  const ends: [string, (f: ReturnType<typeof fixture>) => void][] = [
+    ["failed", f => f.c.record({ v: 1, type: "agent_failed", "agent-id": "a", engine: "pi" } as Envelope)],
+    ["exited", f => f.c.record({ ...event({}), payload: { op: "lifecycle", state: "exited", detail: {} } } as Envelope)],
+    ["disconnected", () => {}],
+  ];
+  for (const [state, end] of ends) {
+    const f = fixture(); end(f);
+    (f.c.client.onDisconnect as (e: Error) => void)(new Error("socket closed"));
+    expect(f.c.adapter.lifecycle).toBe(state);
+    expect(f.c.status).toContain(state);
+  }
+});
+
+test("a select whose options are not a list offers no choice but can be cancelled", async () => {
+  for (const options of [undefined, "one", { one: 1 }]) {
+    const f = fixture();
+    f.c.record(event({ type: "extension_ui_request", id: "d", method: "select", title: "Pick", options }));
+    f.press("return"); await Bun.sleep(0);
+    expect(f.requests).toEqual([]);
+    f.press("escape"); await Bun.sleep(0);
+    expect(f.requests).toEqual([{ op: "dialog_reply", id: "d", cancelled: true }]);
+  }
+});
+
 test("detach works from every region and never answers a dialog", () => {
   for (const region of ["editor", "timeline", "stage"]) {
     const f = fixture();

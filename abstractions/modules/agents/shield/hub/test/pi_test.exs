@@ -38,20 +38,53 @@ defmodule Shield.PiTest do
     Enum.reduce(records, s, fn r, s -> elem(Pi.output(s, r, 1000), 0) end)
   end
 
-  test "LF frames preserve split UTF8, CRLF, separators and null" do
-    bytes =
-      Protocol.encode(%{"text" => "日本\u2028語\u2029", "value" => nil})
-      |> String.replace("\n", "\r\n")
-
-    {records, tail} =
-      Enum.reduce(:binary.bin_to_list(bytes), {[], ""}, fn byte, {all, tail} ->
-        {r, tail} = Protocol.feed(tail, <<byte>>)
-        {all ++ r, tail}
+  # Records must not depend on how the transport chunks their bytes.
+  defp feed_all(bytes, size) do
+    {records, buffer} =
+      bytes
+      |> chunks(size)
+      |> Enum.reduce({[], Protocol.buffer()}, fn chunk, {all, buffer} ->
+        {records, buffer} = Protocol.feed(buffer, chunk)
+        {[records | all], buffer}
       end)
 
-    assert tail == ""
-    assert records == [%{"text" => "日本\u2028語\u2029", "value" => nil}]
-    assert_raise JSON.DecodeError, fn -> Protocol.feed("", "not-json\n") end
+    {records |> Enum.reverse() |> List.flatten(), Protocol.buffered(buffer)}
+  end
+
+  defp chunks(<<>>, _), do: []
+
+  defp chunks(bytes, size) when byte_size(bytes) <= size, do: [bytes]
+
+  defp chunks(bytes, size) do
+    <<chunk::binary-size(size), rest::binary>> = bytes
+    [chunk | chunks(rest, size)]
+  end
+
+  test "framing yields the same records however the bytes are chunked" do
+    records = [
+      %{"text" => "日本\u2028語\u2029", "value" => nil},
+      %{"empty" => ""},
+      %{"large" => String.duplicate("x", 300_000)}
+    ]
+
+    bytes = Enum.map_join(records, &(Protocol.encode(&1) |> String.replace("\n", "\r\n")))
+
+    for size <- [1, 2, 3, 7, 4096, 65_536, byte_size(bytes)] do
+      assert feed_all(bytes, size) == {records, 0}
+    end
+
+    {[], held} = feed_all(binary_part(bytes, 0, 10), 3)
+    assert held == 10
+    assert_raise JSON.DecodeError, fn -> Protocol.feed(Protocol.buffer(), "not-json\n") end
+  end
+
+  test "framing rejects a record over the limit, however it is chunked" do
+    over = :binary.copy("x", Protocol.record_limit() + 1)
+
+    for size <- [65_536, byte_size(over)] do
+      assert_raise ArgumentError, fn -> feed_all(over, size) end
+      assert_raise ArgumentError, fn -> feed_all(over <> "\n", size) end
+    end
   end
 
   test "seed follows parentId, excludes abandoned branches, and never merges identical text" do
@@ -224,6 +257,52 @@ defmodule Shield.PiTest do
         )
 
       assert elem(effect, 0) == expected
+    end
+  end
+
+  test "a dialog reply is accepted only when it fits the dialog, and nothing malformed crashes" do
+    dialogs = [
+      %{"method" => "select", "options" => ["one", "two"]},
+      %{"method" => "select", "options" => nil},
+      %{"method" => "select", "options" => %{"one" => 1}},
+      %{"method" => "select", "options" => "one"},
+      %{"method" => "confirm"},
+      %{"method" => "input"},
+      %{"method" => "editor"}
+    ]
+
+    replies = [
+      %{"value" => "one"},
+      %{"value" => "three"},
+      %{"value" => ["one"]},
+      %{"value" => nil},
+      %{"confirmed" => true},
+      %{"confirmed" => "yes"},
+      %{"cancelled" => true},
+      %{}
+    ]
+
+    for dialog <- dialogs, reply <- replies do
+      {s, _} =
+        Pi.output(
+          ready(),
+          Map.merge(dialog, %{"type" => "extension_ui_request", "id" => "d"}),
+          1000
+        )
+
+      r = request("reply", Map.merge(reply, %{"op" => "dialog_reply", "id" => "d"}))
+      {_, [effect | _]} = Pi.input(s, ref(), r, 1000)
+
+      fits =
+        reply["cancelled"] == true or
+          case dialog["method"] do
+            "select" -> is_list(dialog["options"]) and reply["value"] in dialog["options"]
+            "confirm" -> is_boolean(reply["confirmed"])
+            _ -> is_binary(reply["value"])
+          end
+
+      assert elem(effect, 0) == if(fits, do: :transaction, else: :error),
+             "#{inspect(dialog)} answered with #{inspect(reply)}"
     end
   end
 

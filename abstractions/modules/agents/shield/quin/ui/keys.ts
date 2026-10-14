@@ -44,12 +44,13 @@ export class KeymapError extends Error {
 
 const MODIFIERS = new Set(["ctrl", "shift", "alt"]);
 
-/** `ctrl+shift+f`, `escape`, `kpenter`, `:`. Modifiers come first; the last part is the key name. */
+/** `ctrl+shift+f`, `escape`, `kpenter`, `:`, `+`. Modifiers come first; the last part is the key name. */
 export function parseChord(text: string): KeyChord {
-  const parts = text.split("+");
-  // `+` itself is a key name.
-  if (text.endsWith("++")) parts.splice(-2, 2, "+");
-  const name = parts.pop();
+  // A trailing `+` after the separator, or alone, is the `+` key.
+  const plus = text === "+" || text.endsWith("++");
+  const parts = (plus ? text.slice(0, -1) : text).split("+");
+  const last = parts.pop();
+  const name = plus && last === "" ? "+" : last;
   if (!name) throw new KeymapError(`invalid key: ${JSON.stringify(text)}`);
   const chord: KeyChord = { name };
   for (const modifier of parts) {

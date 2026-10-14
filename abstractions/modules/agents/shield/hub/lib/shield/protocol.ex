@@ -15,15 +15,30 @@ defmodule Shield.Protocol do
     if is_map(value), do: value, else: raise(ArgumentError, "record must be an object")
   end
 
-  def feed(buffer, bytes) do
-    parts = :binary.split(buffer <> bytes, "\n", [:global])
-    {lines, [tail]} = Enum.split(parts, -1)
+  @doc "The empty input buffer of `feed/2`."
+  def buffer, do: {[], 0}
 
-    if byte_size(tail) > @record_limit or Enum.any?(lines, &(byte_size(&1) > @record_limit)),
-      do: raise(ArgumentError, "frame_limit")
+  @doc "Bytes held in a buffer until their record's LF arrives."
+  def buffered({_, size}), do: size
 
-    {Enum.map(lines, &decode/1), tail}
+  # Only the new bytes are searched for LF, and a partial record is kept as reversed
+  # pieces until its LF arrives.
+  def feed({pieces, size}, bytes) do
+    case :binary.split(bytes, "\n", [:global]) do
+      [partial] ->
+        {[], {[partial | pieces], limit!(size + byte_size(partial))}}
+
+      [first | rest] ->
+        limit!(size + byte_size(first))
+        {lines, [tail]} = Enum.split(rest, -1)
+        Enum.each(lines, &limit!(byte_size(&1)))
+        line = IO.iodata_to_binary(Enum.reverse([first | pieces]))
+        {Enum.map([line | lines], &decode/1), {[tail], limit!(byte_size(tail))}}
+    end
   end
+
+  defp limit!(size) when size > @record_limit, do: raise(ArgumentError, "frame_limit")
+  defp limit!(size), do: size
 
   def envelope(type, agent \\ nil),
     do: %{"v" => 1, "type" => type, "agent-id" => agent, "engine" => "pi"}

@@ -154,7 +154,8 @@ defmodule Shield.Manager do
           end
 
         a ->
-          if a.harness != p["harness"] or a.engine != r["engine"] do
+          # The envelope may omit the engine; Pi is the only one, as at creation.
+          if a.harness != p["harness"] or a.engine != (r["engine"] || "pi") do
             error(ref, r, "harness_engine_mode_mismatch")
             {:noreply, s}
           else
@@ -166,14 +167,21 @@ defmodule Shield.Manager do
     end
   end
 
+  # An agent that ended normally already reported its final lifecycle; any other exit
+  # means its state owner crashed, which only this notice can report.
   def handle_info({:DOWN, monitor, :process, _, reason}, s) do
     agents =
       Map.new(s.agents, fn {id, a} ->
-        if a.monitor == monitor do
-          Enum.each(a.subscribers, &send(&1, {:agent_failed, id, reason}))
-          {id, %{a | state: "failed", pid: nil, alive: false}}
-        else
-          {id, a}
+        cond do
+          a.monitor != monitor ->
+            {id, a}
+
+          reason == :normal ->
+            {id, %{a | pid: nil, alive: false}}
+
+          true ->
+            Enum.each(a.subscribers, &send(&1, {:agent_failed, id, reason}))
+            {id, %{a | state: "failed", pid: nil, alive: false}}
         end
       end)
 

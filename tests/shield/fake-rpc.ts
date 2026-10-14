@@ -42,6 +42,10 @@ async function command(r: any) {
       } else if (r.message === "flood") {
         response(r, { disposition: "handled" });
         for (let i = 0; i < 256; i++) send({ type: "extension_ui_request", id: `notice-${i}`, method: "notify", message: "f".repeat(128 * 1024) });
+      } else if (r.message === "mixed") {
+        // An applicable event and an inapplicable one in one write.
+        response(r, { disposition: "handled" });
+        process.stdout.write(JSON.stringify({ type: "queue_update", steering: [], followUp: [] }) + "\n" + JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "x" } }) + "\n");
       } else if (r.message === "stall") {
         response(r, { disposition: "handled" });
         await new Promise(() => {});
