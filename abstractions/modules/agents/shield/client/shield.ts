@@ -33,7 +33,10 @@ export async function startHub(path: string) {
 
 export async function main(args = process.argv.slice(2)) {
   if (args.includes("--version")) { console.log("shield 0.1.0"); return; }
-  if (args.includes("--help") || args.length === 0) { console.log("shield [--socket /absolute/hub.sock] start|list|stop <id>|shutdown"); return; }
+  if (args.includes("--help") || args.length === 0) { console.log(`shield [--socket /absolute/hub.sock] start|list|stop <id>|shutdown
+Starts and manages the SHIELD hub that runs Pi agents for quin. Pass the same --socket to quin.
+Agents end with the hub; Pi's session files remain. After shutdown, wait for the hub to exit before starting another.
+CommandCode keys come from CMD_API_KEY or COMMAND_CODE_API_KEY in the environment of shield start.`); return; }
   const index = args.indexOf("--socket");
   let socket: string | undefined;
   if (index !== -1) { socket = args[index + 1]; if (!socket) throw new Error("--socket requires a path"); args.splice(index, 2); }

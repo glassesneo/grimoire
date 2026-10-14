@@ -1,3 +1,9 @@
+/**
+ * The launch descriptor quin sends on attach. Pi's session files, its only
+ * persistent history, are kept per working directory under the state directory.
+ * A mock agent gets its own config, HOME and sessions, the faux provider, and no
+ * resource discovery, external providers, or built-in tools.
+ */
 import { readFileSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";

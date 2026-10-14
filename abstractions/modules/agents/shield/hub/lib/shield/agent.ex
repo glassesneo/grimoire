@@ -273,6 +273,8 @@ defmodule Shield.Agent do
   defp stop(%{port: nil} = s), do: s
   defp stop(%{stopping: true} = s), do: s
 
+  # TERM, then KILL after 5 s. Signals reach Pi's process only, so a KILL can leave tool
+  # descendants running.
   defp stop(s) do
     signal(s.os_pid, "TERM")
     Process.send_after(self(), {:kill, s.os_pid}, 5000)

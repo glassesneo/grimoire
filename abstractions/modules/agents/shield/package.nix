@@ -9,7 +9,11 @@
   makeWrapper,
   # provider/id used when neither --model nor the dedicated Pi settings name a model.
   defaultModel ? null,
+  # Action id to chords, replacing quin's defaults; see quin/ui/keys.ts.
+  keys ? {},
+  writeText,
 }: let
+  keymap = writeText "quin-keymap.json" (builtins.toJSON keys);
   runtime = bun2nix.mkDerivation {
     packageJson = ./runtime/package.json;
     src = lib.fileset.toSource {
@@ -114,7 +118,8 @@ in {
         --set SHIELD_PI ${runtime}/bin/shield-pi \
         --set SHIELD_FAUX ${runtime}/libexec/pi/faux.ts \
         --set SHIELD_COMMANDCODE ${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts \
-        ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"}
+        ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
+        ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}
     '';
     meta = {
       mainProgram = "quin";

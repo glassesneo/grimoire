@@ -1,3 +1,5 @@
+// quin --mock's provider: /fixture-tool, /fixture-dialog, and /fixture-timeout replay fixed,
+// harmless responses. The real bash fixture used by the checks is a separate extension.
 import { fauxProvider, fauxAssistantMessage, fauxThinking, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";

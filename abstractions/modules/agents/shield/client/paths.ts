@@ -1,3 +1,10 @@
+/**
+ * SHIELD's owned locations. Pi config and credentials (auth.json, models.json,
+ * settings.json) live in $XDG_CONFIG_HOME/shield/pi; the socket, its lock and
+ * log, and Pi session files live in $XDG_STATE_HOME/shield, with mock agents
+ * under shield/mock/. Managed directories are 0700 and files and the socket
+ * 0600. Existing Pi and harness directories are never read or copied.
+ */
 import { lstatSync, mkdirSync, chmodSync, realpathSync, openSync, closeSync, constants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, parse } from "node:path";

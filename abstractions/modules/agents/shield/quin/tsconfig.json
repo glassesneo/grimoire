@@ -4,5 +4,5 @@
     "jsx": "preserve", "jsxImportSource": "@opentui/solid", "strict": true,
     "noEmit": true, "skipLibCheck": true, "types": ["bun"]
   },
-  "include": ["*.ts", "*.tsx", "../client/*.ts"]
+  "include": ["*.ts", "*.tsx", "ui/*.ts", "ui/*.tsx", "contributions/*.ts", "../client/*.ts"]
 }

@@ -1,66 +1,169 @@
-import { createHostClipboard, createRendererClipboardAdapter, type ScrollBoxRenderable } from "@opentui/core";
-import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid";
-import { createSignal, createEffect, For, Show, onCleanup } from "solid-js";
-import { EditorView } from "./editor";
-import { Controller, entryText, formatContext, formatUsage } from "./controller";
+/**
+ * Builds quin's UI controllers around one agent connection and renders them.
+ * Setup runs outside rendering, so a keymap error fails startup with its
+ * message instead of a broken screen.
+ */
+import { type CliRenderer, createHostClipboard, createRendererClipboardAdapter, type ScrollBoxRenderable } from "@opentui/core";
+import type { JSX } from "@opentui/solid";
+import { createSignal, onCleanup } from "solid-js";
+import { INTERRUPT_ACTION, setupDefaultActions, type QuinActions } from "./contributions/default";
+import type { Controller } from "./controller";
+import { bridgeDialogs } from "./dialogs";
+import { entryType, scrollTimeline, timelineSync, TimelineView } from "./timeline";
+import type { StatuslineContribution } from "./ui/statusline";
+import { formatChord, type Keymap } from "./ui/keys";
+import { ScreenLayout } from "./ui/layout";
+import { createQuinUI, type QuinUIInstance } from "./ui/quin-ui";
+import { setupStageUI, StageView } from "./ui/stage";
+import { useVersion } from "./ui/state";
+import { formatContext, formatUsage } from "./usage";
 
-// Retains the harness's timeline / stage / wrapped textarea layout and palette.
-export function Screen(props: { controller: Controller }): JSX.Element {
-  const c = props.controller;
-  const renderer = useRenderer();
-  const dimensions = useTerminalDimensions();
-  const [revision, setRevision] = createSignal(0);
-  const [bodyHeight, setBodyHeight] = createSignal(2);
-  const state = () => { revision(); return c; };
+export interface QuinScreen {
+  ui: QuinUIInstance<JSX.Element>;
+  controller: Controller;
+  actions: QuinActions;
+  /** Set by the view once its scrollbox exists. */
+  setScroll(scroll: ScrollBoxRenderable): void;
+  /** Set by the view once the native editor exists. */
+  setEditorReader(read: () => { text: string; cursor: number }): void;
+  queued(): string;
+  dispose(): void;
+}
+
+export function setupScreen(controller: Controller, options: { keymap?: Keymap; renderer?: CliRenderer; cwd?: string } = {}): QuinScreen {
+  const c = controller;
+  const ui = createQuinUI<JSX.Element>({ sendPrompt: text => c.sendPrompt(text), keymap: options.keymap });
+  const { timeline, editor, statusline, runState, keys } = ui.controllers;
   let scroll: ScrollBoxRenderable | undefined;
-  c.changed = () => setRevision(v => v + 1);
-  c.scroll = amount => {
-    if (!scroll) return;
-    if (amount === "selection" && c.current) {
-      const row = scroll.getRenderable(c.current.id);
-      if (row) scroll.scrollTop = Math.max(0, row.y - scroll.y + scroll.scrollTop - Math.floor(scroll.height / 2));
-    } else {
-      const step = Math.max(1, amount.startsWith("half") ? Math.floor(scroll.height / 2) : scroll.height);
-      scroll.scrollBy(amount.endsWith("down") ? step : -step, "absolute");
-    }
-  };
+  let readEditor: (() => { text: string; cursor: number }) | undefined;
+
   let clipboard: ReturnType<typeof createHostClipboard> | undefined;
   try { clipboard = createHostClipboard(); } catch {}
-  const fallback = createRendererClipboardAdapter(renderer);
-  c.copy = async text => {
+  const fallback = options.renderer ? createRendererClipboardAdapter(options.renderer) : undefined;
+  const copy = async (text: string) => {
     try { if (clipboard && (await clipboard.writeText(text, { selection: "clipboard" })).status === "written") return true; } catch {}
-    return fallback.writeText(text, "clipboard").status === "attempted";
+    return fallback?.writeText(text, "clipboard").status === "attempted";
   };
-  useKeyboard(key => c.key(key));
-  const timer = setInterval(() => { c.tick(); if (c.dialog?.expiresAt) c.changed(); }, 100);
-  onCleanup(() => { clearInterval(timer); c.changed = () => {}; void clipboard?.dispose(); });
-  createEffect(() => { const title = state().adapter.view.presentation.title; if (title) renderer.setTerminalTitle(title); });
-  const stageHeight = () => state().dialog ? Math.min(8, Math.max(2, dimensions().height - bodyHeight() - 5)) : 0;
-  // Only a dialog's input needs a label; the prompt editor is marked by its border and cursor, as in the harness.
-  const dialogInput = () => state().dialog && ["input", "editor"].includes(c.dialog.method) ? `${c.dialog.method}: ${c.dialog.title}` : undefined;
-  const queueText = () => { const q = state().adapter.view.queue; return [...q.steering.map(p => `steer: ${text(p)}`), ...q.followUp.map(p => `follow-up: ${text(p)}`)].join("\n"); };
-  return <box width="100%" height="100%" flexDirection="column" backgroundColor="#1e1e2e">
-    <text height={1} flexShrink={0} fg="#cad3f5">{`quin ${state().adapter.mode === "mock" ? "MOCK " : ""}${state().adapter.agent || ""} · ${process.cwd()}`}</text>
-    <scrollbox ref={scroll} flexGrow={1} minHeight={1} stickyScroll stickyStart="bottom" focused={state().focus === "timeline"} onMouseDown={() => { c.armedUntil = 0; c.focus = "timeline"; c.changed(); }}>
-      <For each={state().entries}>{e => <box id={e.id} flexDirection="column" paddingX={1} paddingBottom={1} backgroundColor={state().focus === "timeline" && state().current?.id === e.id ? "#24273a" : undefined}>
-        <text fg={e.kind === "user" ? "#a6da95" : "#8aadf4"}>{`${state().focus === "timeline" && c.current?.id === e.id ? "▶ " : ""}${e.kind}${e.streaming ? " [streaming]" : ""}`}</text>
-        <text fg="#cad3f5">{entryText(e, state().expanded.has(e.id))}</text>
-      </box>}</For>
-      <Show when={queueText()}><text fg="#eed49f">{queueText()}</text></Show>
-    </scrollbox>
-    <text height={1} flexShrink={0} fg="#eed49f">{`${state().adapter.mode === "mock" ? "MOCK · " : ""}${state().armedUntil ? "Press Ctrl+C again within 1s to interrupt" : `${state().status}${state().active ? " · Working" : " · Idle"}`}`}</text>
-    <Show when={state().dialog}>
-      <box height={stageHeight()} flexShrink={0} flexDirection="column" backgroundColor="#24273a" onMouseDown={() => { c.armedUntil = 0; c.focus = "stage"; c.changed(); }}>
-        <text fg="#cad3f5">{`${state().focus === "stage" ? "▶ " : ""}${c.dialog.title} [observed pending; Esc cancels]${c.dialog.expiresAt ? ` ${Math.max(0, Math.ceil((c.dialog.expiresAt - Date.now()) / 1000))}s` : ""}`}</text>
-        <Show when={state().dialog?.message}><text>{c.dialog.message}</text></Show>
-        <Show when={state().choices.length > 0}><select flexGrow={1} minHeight={1} options={state().choices.map(name => ({ name, description: "" }))} selectedIndex={state().choice} showSelectionIndicator showDescription={false} /></Show>
-      </box>
-    </Show>
-    <box height={Math.min(bodyHeight() + (dialogInput() ? 2 : 1), Math.max(3, dimensions().height - stageHeight() - 3))} flexShrink={0} flexDirection="column" border={["top"]} borderColor={state().focus === "editor" ? "#8aadf4" : "#6e738d"} onMouseDown={() => { c.armedUntil = 0; c.focus = "editor"; c.changed(); }}>
-      <Show when={dialogInput()}><text height={1}>{dialogInput()}</text></Show>
-      <EditorView onReader={read => { c.readEditor = read; }} text={state().text} cursor={state().cursor} bodyWidth={dimensions().width} bodyHeight={Math.max(1, Math.min(bodyHeight(), dimensions().height - stageHeight() - (dialogInput() ? 5 : 4)))} focused={state().focus === "editor"} onContentChange={(text, cursor) => c.setText(text, cursor)} onCursorChange={cursor => { c.cursor = cursor; c.changed(); }} onHeightChange={lines => setBodyHeight(Math.max(2, Math.min(8, lines)))} />
-    </box>
-    <text height={1} flexShrink={0} fg="#a5adcb">{[state().adapter.view.timeline.model, state().adapter.view.timeline.thinking, formatContext(state().stats?.contextUsage), state().stats ? formatUsage(state().stats!) : "", ...Object.values(state().adapter.view.presentation.status), "Tab focus · Ctrl+Q detach"].filter(Boolean).join(" · ")}</text>
-  </box>;
+
+  const actions: QuinActions = {
+    submit: () => {
+      // Content-change callbacks may lag a batch of terminal input containing Enter.
+      const latest = readEditor?.();
+      if (latest) editor.setText(latest.text, latest.cursor);
+      if (editor.activeDraft()) editor.submitDraft();
+      else void editor.submitPrompt();
+    },
+    detach: () => c.detach(),
+    interrupt: () => { if (c.interrupt() === "idle") editor.setText(""); },
+    scrollTimeline: amount => scrollTimeline(scroll, amount),
+    revealCursor: () => { const id = timeline.cursor(); if (id) scrollTimeline(scroll, { reveal: id }); },
+    copyTimelineItem: () => {
+      const text = timeline.currentItem()?.sourceText();
+      if (text !== undefined) void copy(text).then(ok => c.fail(ok ? "Copied" : "Clipboard unavailable"));
+    },
+  };
+
+  const stageUI = setupStageUI(ui);
+  const registrations = [timeline.registerType(entryType), setupDefaultActions(ui, actions)];
+  try {
+    keys.checkKeymap();
+  } catch (error) {
+    for (const registration of registrations) registration.dispose();
+    stageUI.dispose();
+    throw error;
+  }
+  const stopDialogs = bridgeDialogs({ controller: c, ui, ...stageUI });
+  c.onEditorText = text => editor.setText(text);
+
+  const sync = timelineSync(timeline, entryType);
+  const statuses = new Map<string, StatuslineContribution>();
+  const notice = statusline.contribute("top", { text: "" });
+  const chord = (id: string) => { const first = keys.chords(id)[0]; return first ? formatChord(first) : undefined; };
+  const hint = statusline.contribute("bottom", { text: "" });
+  const refresh = () => {
+    const view = c.adapter.view;
+    sync(view.timeline.entries);
+    statusline.setFields({
+      session: `${c.adapter.mode === "mock" ? "MOCK " : ""}${c.adapter.agent ?? ""}`,
+      cwd: options.cwd ?? process.cwd(),
+      model: view.timeline.model ?? "",
+      thinking: view.timeline.thinking ? `thinking ${view.timeline.thinking}` : "",
+      context: formatContext(c.stats?.contextUsage),
+      totals: c.stats ? formatUsage(c.stats) : "",
+    });
+    notice.update({ text: c.status });
+    for (const [key, contribution] of statuses) if (!(key in view.presentation.status)) { contribution.dispose(); statuses.delete(key); }
+    for (const [key, text] of Object.entries(view.presentation.status)) {
+      const existing = statuses.get(key);
+      if (existing) existing.update({ text });
+      else statuses.set(key, statusline.contribute("bottom", { text }));
+    }
+    hint.update({ text: [chord("global.focus-next") && `${chord("global.focus-next")} focus`, chord("global.detach") && `${chord("global.detach")} detach`].filter(Boolean).join(" · ") });
+    runState.setActive(c.active);
+    const interrupt = chord(INTERRUPT_ACTION);
+    runState.setMessage(c.armedUntil && interrupt ? `Press ${interrupt} again within 1s to interrupt` : undefined);
+  };
+  refresh();
+  const unsubscribe = c.subscribe(refresh);
+  const timer = setInterval(() => c.tick(), 100);
+
+  return {
+    ui,
+    controller: c,
+    actions,
+    setScroll: element => { scroll = element; },
+    setEditorReader: read => { readEditor = read; },
+    queued: () => {
+      const q = c.adapter.view.queue;
+      const text = (p: any) => typeof p === "string" ? p : p.message || JSON.stringify(p);
+      return [...q.steering.map(p => `steer: ${text(p)}`), ...q.followUp.map(p => `follow-up: ${text(p)}`)].join("\n");
+    },
+    dispose: () => {
+      clearInterval(timer);
+      unsubscribe();
+      stopDialogs();
+      for (const registration of registrations) registration.dispose();
+      stageUI.dispose();
+      void clipboard?.dispose();
+    },
+  };
 }
-const text = (p: any) => typeof p === "string" ? p : p.message || JSON.stringify(p);
+
+export function Screen(props: { screen: QuinScreen; onTitle?(title: string): void }): JSX.Element {
+  const { ui, controller } = props.screen;
+  const version = useVersion(controller, ui.controllers.regions);
+  const [overlay, setOverlay] = createSignal(0);
+  const [topInset, setTopInset] = createSignal(0);
+  onCleanup(() => props.screen.dispose());
+  let lastTitle: string | null = null;
+  const title = () => {
+    version();
+    const next = controller.adapter.view.presentation.title;
+    if (next && next !== lastTitle) { lastTitle = next; props.onTitle?.(next); }
+    return null;
+  };
+  return (
+    <box width="100%" height="100%" backgroundColor="#1e1e2e">
+      {title()}
+      <ScreenLayout
+        ui={ui}
+        statuslines
+        onOverlayHeight={setOverlay}
+        onTopInset={setTopInset}
+        onKey={action => { if (action?.id !== INTERRUPT_ACTION) controller.disarm(); }}
+        onEditorReader={props.screen.setEditorReader}
+        stage={() => <StageView ui={ui} />}
+        timeline={
+          <TimelineView
+            timeline={ui.controllers.timeline}
+            focused={(version(), ui.controllers.regions.current() === "timeline")}
+            queued={(version(), props.screen.queued())}
+            topInset={topInset()}
+            overlayHeight={overlay()}
+            scrollRef={props.screen.setScroll}
+          />
+        }
+      />
+    </box>
+  );
+}

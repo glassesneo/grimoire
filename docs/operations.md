@@ -39,3 +39,9 @@ Inside the development shell, `nu scripts/nix-secrets-smoke.nu` runs the explici
 Run the live check after nix-secrets updates or local patch changes; after Hjem, service wiring, environment or dependency changes that can affect activation; after a macOS upgrade; and before first use on a new machine. Run sandboxed checks first. Unrelated configuration changes do not require this live check.
 
 The live check creates temporary dummy keys, encrypted input, a user LaunchAgent and disk images, then removes its owned test state. Its dedicated job label is separate from normal activation; it refuses an existing probe job and does not switch the normal host or use real credentials. Reboot/login recovery, real-app-specific loading/reload behavior, swap/hibernation protection and forced-interruption cleanup are not established by this check.
+
+## SHIELD live verification
+
+The `shield` and `quin` checks use the faux provider and no credentials. A live provider is verified by hand. Run `shield start` with `CMD_API_KEY` or `COMMAND_CODE_API_KEY` in its environment, or give the key as a runtime command reference in `$XDG_CONFIG_HOME/shield/pi/models.json`; restart the hub after changing its environment. Keep keys out of Nix expressions, command arguments, the store, and logs.
+
+To verify, use an isolated `--socket` on both commands and an exact available model: open `quin --model command-code/<model-id>`, send a short prompt, detach during streaming, and reopen quin in the same directory. The same agent ID, the continued output, and the completed response establish the result; shut the hub down afterwards. This does not verify other providers.

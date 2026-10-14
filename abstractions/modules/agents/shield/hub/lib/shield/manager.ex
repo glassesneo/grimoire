@@ -1,3 +1,5 @@
+# Agents live only as long as the hub: attach joins the newest live root for a directory,
+# and a restarted hub starts fresh agents while Pi's session files remain.
 defmodule Shield.Manager do
   use GenServer
   alias Shield.{Protocol, Connection}
