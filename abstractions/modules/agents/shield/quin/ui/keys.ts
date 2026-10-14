@@ -5,7 +5,12 @@
  * An action id is `<layer>.<name>`. The layer is a region, or `global` for an
  * action reachable from every region. The focused region's chords are tried
  * first, then the global ones. A chord that types a character is not resolved
- * while the focused region accepts text, so it reaches the native input.
+ * while the focused region accepts text, so it reaches the native input;
+ * binding one in a layer that always accepts text is an error. Space is a key,
+ * not a typed character, so it may not be bound in such a layer or globally.
+ *
+ * A key is a single character or one of the names OpenTUI reports, such as
+ * `return`, `escape`, or `space`; a capital letter is `shift+<letter>`.
  */
 import { DuplicateRegistrationError, Emitter, type RegionId, type Registration } from "./controllers";
 
@@ -46,6 +51,17 @@ export class KeymapError extends Error {
 
 const MODIFIERS = new Set(["ctrl", "shift", "alt"]);
 
+/** The names OpenTUI reports for keys that type no single character. */
+const NAMED_KEYS = new Set([
+  "return", "linefeed", "escape", "tab", "space", "backspace", "delete", "insert", "clear",
+  "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+  ...Array.from({ length: 35 }, (_, i) => `f${i + 1}`),
+  ...Array.from({ length: 10 }, (_, i) => `kp${i}`),
+  "kpdecimal", "kpdivide", "kpmultiply", "kpminus", "kpplus", "kpenter", "kpequal", "kpseparator",
+  "kpleft", "kpright", "kpup", "kpdown", "kppageup", "kppagedown", "kphome", "kpend", "kpinsert", "kpdelete",
+  "capslock", "scrolllock", "numlock", "printscreen", "pause", "menu",
+]);
+
 /** `ctrl+shift+f`, `escape`, `kpenter`, `:`, `+`. Modifiers come first; the last part is the key name. */
 export function parseChord(text: string): KeyChord {
   // A trailing `+` after the separator, or alone, is the `+` key.
@@ -54,6 +70,9 @@ export function parseChord(text: string): KeyChord {
   const last = parts.pop();
   const name = plus && last === "" ? "+" : last;
   if (!name) throw new KeymapError(`invalid key: ${JSON.stringify(text)}`);
+  // OpenTUI reports a capital letter as its lowercase name with Shift.
+  if (/^[A-Z]$/.test(name)) throw new KeymapError(`${JSON.stringify(text)} names a capital letter; use shift+${name.toLowerCase()}`);
+  if ([...name].length !== 1 && !NAMED_KEYS.has(name)) throw new KeymapError(`unknown key name ${JSON.stringify(name)} in ${JSON.stringify(text)}`);
   const chord: KeyChord = { name };
   for (const modifier of parts) {
     if (!MODIFIERS.has(modifier)) throw new KeymapError(`unknown modifier ${JSON.stringify(modifier)} in ${JSON.stringify(text)}`);
@@ -76,6 +95,16 @@ function typesText(chord: KeyChord): boolean {
   return !chord.ctrl && !chord.alt && [...chord.name].length === 1;
 }
 
+/** Why a chord cannot be bound in a layer, if it cannot. */
+function unusable(chord: KeyChord, layer: string, textLayers: ReadonlySet<string>): string | undefined {
+  if (typesText(chord) && textLayers.has(layer)) return "types text there, so it could never run";
+  // Space is resolved as a key, as the palette's name input needs, so here it would take the editor's spaces.
+  if (chord.name === "space" && !chord.ctrl && !chord.alt && !chord.shift && (textLayers.has(layer) || layer === GLOBAL_LAYER)) {
+    return "would take the space key from the editor";
+  }
+  return undefined;
+}
+
 export function layerOf(actionId: string): string {
   const index = actionId.indexOf(".");
   if (index < 1 || index === actionId.length - 1) throw new KeymapError(`action id must be <layer>.<name>: ${JSON.stringify(actionId)}`);
@@ -92,6 +121,8 @@ export interface KeyBindingsOptions {
   keymap?: Keymap;
   /** Whether the focused region takes typed characters now. */
   acceptsText?(region: RegionId): boolean;
+  /** Layers whose region always takes typed characters, where such a chord could never run. */
+  textLayers?: readonly string[];
 }
 
 /**
@@ -103,12 +134,14 @@ export class KeyBindings extends Emitter {
   readonly #actions = new Map<string, Entry>();
   readonly #keymap: Keymap;
   readonly #acceptsText: (region: RegionId) => boolean;
+  readonly #textLayers: ReadonlySet<string>;
   #tables: Map<string, Map<string, string>> | undefined;
 
   constructor(options: KeyBindingsOptions = {}) {
     super();
     this.#keymap = options.keymap ?? {};
     this.#acceptsText = options.acceptsText ?? (() => false);
+    this.#textLayers = new Set(options.textLayers ?? []);
     for (const [id, chords] of Object.entries(this.#keymap)) {
       layerOf(id);
       if (!Array.isArray(chords) || !chords.every((chord) => typeof chord === "string")) throw new KeymapError(`keys of ${id} must be a list of strings`);
@@ -179,6 +212,8 @@ export class KeyBindings extends Emitter {
       const table = tables.get(layer) ?? new Map<string, string>();
       tables.set(layer, table);
       for (const chord of this.chords(action.id)) {
+        const reason = unusable(chord, layer, this.#textLayers);
+        if (reason) throw new KeymapError(`${formatChord(chord)} for ${action.id} ${reason}`);
         const id = chordId(chord);
         const existing = table.get(id);
         if (existing !== undefined) throw new KeymapError(`${formatChord(chord)} is bound to both ${existing} and ${action.id}`);

@@ -1,25 +1,23 @@
 // Isolated failed/slow peers must not stop another agent or postpone finite startup/stop deadlines.
 import { strict as assert } from "node:assert";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createConnection } from "node:net";
-import { HubClient, JsonLines, type Envelope } from "../../abstractions/modules/agents/shield/client/protocol";
+import { type HubClient, type Envelope } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 import { PiAdapter } from "../../abstractions/modules/agents/shield/quin/view";
+import { alive, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
 const dir = mkdtempSync(join(tmpdir(), "shield-fail-")), socket = join(dir, "hub.sock");
-const clients: HubClient[] = [];
-const connect = () => { const c = new HubClient(socket); clients.push(c); return c; };
-const wait = async (p: () => boolean, timeout = 8000) => { const end = Date.now() + timeout; while (!p()) { if (Date.now() > end) throw new Error("wait_timeout"); await Bun.sleep(20); } };
-const fake = (mode: string) => ({ mode: "mock", model: "fixture/fixed", launch: { executable: process.execPath, argv: [join(import.meta.dir, "fake-rpc.ts"), mode], env: { FIXTURE_PID: join(dir, `${mode}.pid`) } } });
+const { clients, connect } = clientsOf(socket);
+const fake = (mode: string) => fakeLaunch(dir, mode);
 const cwd = (name: string) => { const p = join(dir, name); mkdirSync(p); return p; };
 const attach = (c: HubClient, path: string, mode = "normal") => c.hub("attach", { cwd: path, harness: "quin", options: fake(mode) });
-const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 try {
   await startHub(socket);
   const bootCwd = cwd("boot"), boot = connect();
   const started = Date.now();
-  const bootRequest = attach(boot, bootCwd, "startup-hang");
+  let bootSettled = 0;
+  const bootRequest = attach(boot, bootCwd, "startup-hang").finally(() => { bootSettled = Date.now(); });
   const healthyCwd = cwd("healthy"), healthy = connect();
   const normal = await attach(healthy, healthyCwd); assert(normal.success);
   const id = normal.payload["agent-id"];
@@ -33,17 +31,22 @@ try {
   await wait(() => events.some(r => r.payload?.detail?.error === "invalid_engine_frame"));
   assert((await get()).success);
   await wait(() => !alive(brokenPid), 6500);
+  // The failure is reported as stopping, then once as failed with its code beside the exit.
+  await wait(() => events.some(r => r.payload?.state === "failed"));
+  await Bun.sleep(200);
+  const brokenEnds = events.filter(r => r.payload?.op === "lifecycle").map(r => [r.payload.state, r.payload.detail]);
+  assert.deepEqual(brokenEnds.slice(-2).map(([state]) => state), ["stopping", "failed"]);
+  assert.equal(brokenEnds.filter(([state]) => state === "failed").length, 1);
+  assert.equal(brokenEnds.at(-1)![1].error, "invalid_engine_frame");
+  assert.equal(typeof brokenEnds.at(-1)![1].exitCode, "number");
   // A paused socket subscriber is disposable; the Port owner continues draining stdout.
-  const slow = createConnection({ path: socket });
-  const frames = new JsonLines(); let subscribed = false, disconnected = false;
-  slow.on("error", () => {});
-  slow.on("close", () => { disconnected = true; });
-  slow.on("data", bytes => { for (const r of frames.feed(bytes as Uint8Array) as Envelope[]) if (r.type === "snapshot") { subscribed = true; slow.pause(); } });
-  await new Promise<void>(resolve => slow.once("connect", resolve));
-  slow.write(JSON.stringify({ v: 1, type: "hub_request", id: "slow", "agent-id": null, engine: "pi", method: "attach", payload: { cwd: healthyCwd, harness: "quin", options: fake("normal") } }) + "\n");
+  let subscribed = false, disconnected = false;
+  const slow = await rawClient(socket, (r: Envelope) => { if (r.type === "snapshot") { subscribed = true; slow.socket.pause(); } });
+  slow.socket.on("close", () => { disconnected = true; });
+  slow.write({ v: 1, type: "hub_request", id: "slow", "agent-id": null, engine: "pi", method: "attach", payload: { cwd: healthyCwd, harness: "quin", options: fake("normal") } });
   await wait(() => subscribed);
   await healthy.engine(id, { op: "rpc", record: { type: "prompt", message: "flood" } }).catch(() => undefined);
-  await Bun.sleep(2000); slow.resume(); await wait(() => disconnected);
+  await Bun.sleep(2000); slow.socket.resume(); await wait(() => disconnected);
   const fresh = connect(); assert((await attach(fresh, healthyCwd)).success);
   assert((await fresh.engine(id, { op: "rpc", record: { type: "get_state" } })).success);
   // Unexpected process exit keeps the old view and does not silently replace the root.
@@ -80,14 +83,10 @@ try {
   }
   const failedBoot = await bootRequest;
   assert.equal(failedBoot.error?.code, "engine_start_timeout");
-  assert(Date.now() - started >= 59000 && Date.now() - started < 64000);
+  assert(bootSettled - started >= 59000 && bootSettled - started < 64000);
   const pid = Number(readFileSync(join(dir, "startup-hang.pid"), "utf8"));
   await wait(() => !alive(pid));
   await fresh.hub("shutdown");
   console.log("failure checks passed: 60s startup deadline, malformed Pi frame, TERM/KILL, slow-reader isolation, unexpected exit/no replacement, consistent ends");
 } catch (e) { try { console.error(readFileSync(`${socket}.log`, "utf8")); } catch {} throw e; }
-finally {
-  const c = connect(); try { await c.hub("shutdown"); } catch {} finally { c.close(); }
-  for (const client of clients) client.close();
-  await Bun.sleep(300); rmSync(dir, { recursive: true, force: true });
-}
+finally { await finish(socket, clients, dir); }

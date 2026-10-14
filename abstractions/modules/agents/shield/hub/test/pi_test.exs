@@ -113,6 +113,94 @@ defmodule Shield.PiTest do
     assert Enum.map(v["timeline"]["entries"], & &1["id"]) == ["seed:one", "seed:two"]
   end
 
+  test "seed restores the branch as the harness does, nested calls from the result's summary" do
+    entry = fn id, parent, fields -> Map.merge(%{"id" => id, "parentId" => parent}, fields) end
+
+    entries = [
+      entry.("m1", nil, %{"type" => "model_change", "provider" => "a", "modelId" => "one"}),
+      entry.("t1", "m1", %{"type" => "thinking_level_change", "thinkingLevel" => "low"}),
+      entry.("m2", "t1", %{"type" => "model_change", "provider" => "b", "modelId" => "two"}),
+      entry.("call", "m2", %{
+        "type" => "message",
+        "message" => %{
+          "role" => "assistant",
+          "content" => [
+            %{"type" => "toolCall", "id" => "c", "name" => "codemode", "arguments" => %{}}
+          ]
+        }
+      }),
+      entry.("result", "call", %{
+        "type" => "message",
+        "message" => %{
+          "role" => "toolResult",
+          "toolCallId" => "c",
+          "content" => [],
+          "isError" => false,
+          "nestedCalls" => %{
+            "complete" => false,
+            "calls" => [
+              %{"id" => "1", "name" => "read", "arguments" => %{"path" => "a"}, "status" => "ok"},
+              %{
+                "id" => "1/1",
+                "name" => "bash",
+                "argumentsBytes" => 9,
+                "status" => "error",
+                "error" => "x"
+              },
+              %{"id" => "gone/2", "name" => "read", "status" => "unfinished"}
+            ]
+          }
+        }
+      }),
+      entry.("summary", "result", %{"type" => "branch_summary", "summary" => "elsewhere"}),
+      entry.("bash", "summary", %{
+        "type" => "message",
+        "message" => %{
+          "role" => "bashExecution",
+          "command" => "ls",
+          "output" => "a",
+          "exitCode" => 0
+        }
+      })
+    ]
+
+    v = PiView.seed(PiView.new(), %{"entries" => entries, "leafId" => "bash"})
+    by_id = Map.new(v["timeline"]["entries"], &{&1["id"], &1})
+
+    assert [%{"setting" => "model", "from" => "a/one", "to" => "b/two"}] =
+             Enum.filter(v["timeline"]["entries"], &(&1["kind"] == "config"))
+
+    assert %{"state" => "done", "nestedIncomplete" => true} = by_id["seed:call/c"]
+
+    assert %{"parentId" => "seed:call/c", "state" => "done", "ordinal" => 0} =
+             by_id["seed:call/1"]
+
+    assert %{
+             "parentId" => "seed:call/1",
+             "state" => "error",
+             "errorSummary" => "x",
+             "args" => %{"available" => false, "bytes" => 9}
+           } = by_id["seed:call/1/1"]
+
+    assert %{"parentId" => "seed:call/c", "state" => "unfinished"} = by_id["seed:call/gone/2"]
+    assert %{"kind" => "branch-summary", "summary" => "elsewhere"} = by_id["seed:summary"]
+    assert %{"kind" => "bash", "command" => "ls", "exitCode" => 0} = by_id["seed:bash"]
+  end
+
+  test "an attach in the other mode is refused, and Pi's own rejection carries its response" do
+    s = ready()
+    assert %{"mode" => "mock", "view" => _} = Pi.snapshot(s)
+
+    {_, [{:error, _, _, "mode_mismatch"}]} =
+      Pi.attach(s, ref(), request("a", %{}), %{"mode" => "live"})
+
+    get = request("g", %{"op" => "rpc", "record" => %{"type" => "get_state"}})
+    {s, [{:write, w}]} = Pi.input(s, ref(), get, 1000)
+    rejected = %{"type" => "response", "id" => w["id"], "success" => false, "error" => "no"}
+    {_, [{:error, _, _, "engine_rejected", payload}]} = Pi.output(s, rejected, 1000)
+    assert payload["id"] == "g" and payload["error"] == "no"
+  end
+
   test "interrupt fences preflights before clear/abort and rejects new sends" do
     s = ready()
 
@@ -247,9 +335,8 @@ defmodule Shield.PiTest do
       broadcasts = for {:broadcast, r, _} <- effects, do: r
 
       if success do
-        assert broadcasts == [%{"type" => "quin_model", "model" => model}]
+        assert broadcasts == [%{"type" => "shield_model", "model" => model}]
         assert next.view["timeline"]["model"] == "other/model"
-        assert next.view["session"]["model"] == model
 
         assert [%{"kind" => "config", "from" => "fixture/fixed", "to" => "other/model"}] =
                  next.view["timeline"]["entries"]
@@ -258,7 +345,8 @@ defmodule Shield.PiTest do
         assert next.view == s.view
       end
 
-      assert Enum.any?(effects, &(elem(&1, 0) == :reply)) == not detached
+      assert Enum.any?(effects, &(elem(&1, 0) == if(success, do: :ok, else: :error))) ==
+               not detached
     end
   end
 

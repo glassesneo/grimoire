@@ -1,5 +1,10 @@
 # Agents live only as long as the hub: attach joins the newest live root for a directory,
-# and a restarted hub starts fresh agents while Pi's session files remain.
+# and a restarted hub starts fresh agents while the engine's session files remain.
+#
+# Every request forwarded to an agent is answered once. An Agent that ends reports its final
+# lifecycle and stops only when released, after the requests forwarded before that report.
+# An Agent that crashes is reported per agent with `agent_failed` to the connections that
+# attached to it or sent it requests; those connections stay open.
 defmodule Shield.Manager do
   use GenServer
   alias Shield.{Protocol, Connection}
@@ -22,10 +27,11 @@ defmodule Shield.Manager do
         {:noreply, s}
 
       r["type"] == "engine_request" ->
+        # The Agent decides whether it takes the request; it only must not have ended.
         case s.agents[r["agent-id"]] do
-          %{pid: pid, state: state} when state in ["starting", "ready"] ->
-            GenServer.cast(pid, {:input, ref, r})
-            {:noreply, s}
+          %{state: state} = a when state not in ["exited", "failed"] ->
+            GenServer.cast(a.pid, {:input, ref, r})
+            {:noreply, put_agent(s, peer(a, ref))}
 
           _ ->
             error(ref, r, "agent_unavailable")
@@ -38,7 +44,9 @@ defmodule Shield.Manager do
   end
 
   def handle_cast({:state, id, state, alive}, s) do
-    {:noreply, %{s | agents: Map.update!(s.agents, id, &%{&1 | state: state, alive: alive})}}
+    a = %{s.agents[id] | state: state, alive: alive}
+    if state in ["exited", "failed"] and is_pid(a.pid), do: GenServer.cast(a.pid, :release)
+    {:noreply, put_agent(s, a)}
   end
 
   def handle_cast({:disconnect, pid}, s) do
@@ -46,9 +54,7 @@ defmodule Shield.Manager do
      %{
        s
        | agents:
-           Map.new(s.agents, fn {id, a} ->
-             {id, %{a | subscribers: MapSet.delete(a.subscribers, pid)}}
-           end)
+           Map.new(s.agents, fn {id, a} -> {id, %{a | peers: MapSet.delete(a.peers, pid)}} end)
      }}
   end
 
@@ -135,7 +141,6 @@ defmodule Shield.Manager do
                 harness: p["harness"],
                 engine: name,
                 module: engine,
-                mode: options["mode"],
                 state: "starting",
                 alive: true,
                 order: s.next,
@@ -145,16 +150,9 @@ defmodule Shield.Manager do
               case DynamicSupervisor.start_child(Shield.Agents, {Shield.Agent, {info, launch}}) do
                 {:ok, pid} ->
                   monitor = Process.monitor(pid)
-
-                  info =
-                    Map.merge(info, %{
-                      pid: pid,
-                      monitor: monitor,
-                      subscribers: MapSet.new([ref.pid])
-                    })
-
-                  GenServer.cast(pid, {:attach, ref, r, options})
-                  {:noreply, %{s | next: s.next + 1, agents: Map.put(s.agents, id, info)}}
+                  a = Map.merge(info, %{pid: pid, monitor: monitor, peers: MapSet.new()})
+                  forward_attach(a, ref, r, options)
+                  {:noreply, put_agent(%{s | next: s.next + 1}, peer(a, ref))}
 
                 _ ->
                   error(ref, r, "engine_start_failed")
@@ -164,16 +162,24 @@ defmodule Shield.Manager do
 
         a ->
           if a.harness != p["harness"] or a.engine != name do
-            error(ref, r, "harness_engine_mode_mismatch")
+            error(ref, r, "harness_engine_mismatch")
             {:noreply, s}
           else
-            GenServer.cast(a.pid, {:attach, ref, r, options})
-            a = %{a | subscribers: MapSet.put(a.subscribers, ref.pid)}
-            {:noreply, %{s | agents: Map.put(s.agents, a.id, a)}}
+            forward_attach(a, ref, r, options)
+            {:noreply, put_agent(s, peer(a, ref))}
           end
       end
     end
   end
+
+  # The connection learns which agent answers the attach, so an Agent crash can answer it.
+  defp forward_attach(a, ref, r, options) do
+    send(ref.pid, {:routed, r["id"], a.id})
+    GenServer.cast(a.pid, {:attach, ref, r, options})
+  end
+
+  defp peer(a, ref), do: %{a | peers: MapSet.put(a.peers, ref.pid)}
+  defp put_agent(s, a), do: %{s | agents: Map.put(s.agents, a.id, a)}
 
   # An agent that ended normally already reported its final lifecycle; any other exit
   # means its state owner crashed, which only this notice can report.
@@ -188,7 +194,7 @@ defmodule Shield.Manager do
             {id, %{a | pid: nil, alive: false}}
 
           true ->
-            Enum.each(a.subscribers, &send(&1, {:agent_failed, id, reason}))
+            Enum.each(a.peers, &send(&1, {:agent_failed, id, reason}))
             {id, %{a | state: "failed", pid: nil, alive: false}}
         end
       end)

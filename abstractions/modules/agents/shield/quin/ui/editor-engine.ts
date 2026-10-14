@@ -9,22 +9,6 @@ import { Emitter, EDITOR_REGION, type RegionId } from "./controllers";
 export const minHeight = 2;
 export const maxHeight = 8;
 
-function sameAssist(
-  a: EditorAssist | undefined,
-  b: EditorAssist | undefined,
-): boolean {
-  if (a === b) {
-    return true;
-  }
-  return (
-    a !== undefined &&
-    b !== undefined &&
-    a.cursor === b.cursor &&
-    a.items.length === b.items.length &&
-    a.items.every((item, index) => item === b.items[index])
-  );
-}
-
 /** The slice of `RegionController` the editor needs; kept structural on purpose. */
 export interface FocusRegions {
   requestFocus(region: RegionId): boolean;
@@ -47,12 +31,6 @@ export type DraftResult =
   | { status: "submitted"; text: string }
   | { status: "cancelled" };
 
-/** Transient assist overlay owned by the active editor; not a blocking request. */
-export interface EditorAssist {
-  items: readonly string[];
-  cursor: number;
-}
-
 export interface EditorSnapshot {
   text: string;
   cursor: number;
@@ -60,8 +38,6 @@ export interface EditorSnapshot {
   label?: string;
   destination?: string;
   preferredHeight: number;
-  /** Assist to draw on the stage, if any. */
-  assist: EditorAssist | undefined;
 }
 
 export interface EditorEngine {
@@ -75,9 +51,6 @@ export interface EditorControllerOptions {
   regions: FocusRegions;
   /** Sends the prompt and resolves whether the session accepted it. */
   sendPrompt?: (text: string) => Promise<boolean>;
-  /** Called with the accepted text, after the session accepts the prompt. */
-  onPromptAccepted?: (text: string) => void | Promise<void>;
-  onAssistChange?: (hasAssist: boolean) => void;
 }
 
 interface DraftRequest {
@@ -90,8 +63,6 @@ interface DraftRequest {
 export class EditorController extends Emitter implements EditorEngine {
   readonly #regions: FocusRegions;
   readonly #sendPrompt: (text: string) => Promise<boolean>;
-  readonly #onPromptAccepted: ((text: string) => void | Promise<void>) | undefined;
-  readonly #onAssistChange: ((hasAssist: boolean) => void) | undefined;
   readonly #drafts = new Map<string, string>();
   readonly #queue: DraftRequest[] = [];
   #promptDraft = "";
@@ -99,14 +70,11 @@ export class EditorController extends Emitter implements EditorEngine {
   #active: DraftRequest | undefined;
   #cursor = 0;
   #preferredHeight = minHeight;
-  #assist: EditorAssist | undefined;
 
   constructor(options: EditorControllerOptions) {
     super();
     this.#regions = options.regions;
     this.#sendPrompt = options.sendPrompt ?? (async () => false);
-    this.#onPromptAccepted = options.onPromptAccepted;
-    this.#onAssistChange = options.onAssistChange;
   }
 
   snapshot(): EditorSnapshot {
@@ -118,7 +86,6 @@ export class EditorController extends Emitter implements EditorEngine {
       label: active?.request.label,
       destination: active?.request.destination,
       preferredHeight: this.#preferredHeight,
-      assist: this.#assist,
     };
   }
 
@@ -161,6 +128,16 @@ export class EditorController extends Emitter implements EditorEngine {
     this.changed();
   }
 
+  /** Replace the prompt draft, whether or not another draft holds the editor. */
+  setPromptText(text: string): void {
+    if (this.#active) {
+      this.#promptDraft = text;
+      this.changed();
+    } else {
+      this.setText(text);
+    }
+  }
+
   /** Cursor position from the adapter; kept for the snapshot, not per draft. */
   setCursor(cursor: number): void {
     if (cursor === this.#cursor) {
@@ -179,15 +156,6 @@ export class EditorController extends Emitter implements EditorEngine {
     this.changed();
   }
 
-  setAssist(assist: EditorAssist | undefined): void {
-    if (sameAssist(this.#assist, assist)) {
-      return;
-    }
-    this.#assist = assist;
-    this.#onAssistChange?.((assist?.items.length ?? 0) > 0);
-    this.changed();
-  }
-
   text(): string {
     const active = this.#active;
     return active ? (this.#drafts.get(active.request.destination) ?? "") : this.#promptDraft;
@@ -199,7 +167,7 @@ export class EditorController extends Emitter implements EditorEngine {
 
   /**
    * Submit the prompt draft through the session. Only an accepted prompt clears
-   * the draft and notifies the active stage requester; a rejected one is kept.
+   * the draft; a rejected one is kept.
    */
   async submitPrompt(): Promise<boolean> {
     if (this.#active || this.#promptPending) {
@@ -221,29 +189,13 @@ export class EditorController extends Emitter implements EditorEngine {
     if (!accepted) {
       return false;
     }
-    // Clearing waits for the in-flight edit to settle, but the requester is told
-    // about every accepted send regardless of what the draft holds now.
+    // Clearing waits for the in-flight edit to settle.
     if (this.#promptDraft.trim() === text) {
       this.#promptDraft = "";
       this.#cursor = 0;
       this.changed();
     }
-    this.#notifyPromptAccepted(text);
     return true;
-  }
-
-  #notifyPromptAccepted(text: string): void {
-    if (!this.#onPromptAccepted) {
-      return;
-    }
-    try {
-      const result = this.#onPromptAccepted(text);
-      if (result && typeof (result as Promise<void>).then === "function") {
-        void (result as Promise<void>).catch(() => {});
-      }
-    } catch {
-      // A requester callback never changes whether the session accepted the prompt.
-    }
   }
 
   /** Complete the active draft as submitted; the draft is retained. */
@@ -274,7 +226,6 @@ export class EditorController extends Emitter implements EditorEngine {
       }
       this.#active = pending;
       this.#cursor = this.text().length;
-      this.setAssist(undefined);
       this.#regions.requestFocus(EDITOR_REGION);
       this.changed();
       return;
@@ -293,7 +244,6 @@ export class EditorController extends Emitter implements EditorEngine {
     if (wasActive) {
       this.#active = undefined;
       this.#cursor = this.text().length;
-      this.setAssist(undefined);
       pending.resolve(result);
       if (!this.#regions.requestFocus(pending.request.requester)) {
         this.#regions.requestFocus(EDITOR_REGION);

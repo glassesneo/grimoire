@@ -60,7 +60,6 @@ export function isContentBlock(value: unknown): value is TextContent | ImageCont
     (value.type === "image" && typeof value.data === "string" && typeof value.mimeType === "string"));
 }
 
-export const isResultContent = (value: unknown): value is ResultContent => Array.isArray(value) && value.every(isContentBlock);
 
 export function imagesOf(content: string | readonly (TextContent | ImageContent)[] | undefined): ImageContent[] {
   return typeof content === "string" || !content ? [] : content.filter((block): block is ImageContent => block.type === "image");

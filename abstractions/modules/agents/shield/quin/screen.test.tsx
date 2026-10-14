@@ -15,12 +15,13 @@ const event = (record: Record<string, unknown>, observedAt = Date.now()) =>
 function fixture(options: { keymap?: Keymap; engine?: (payload: any) => Promise<any> } = {}) {
   const requests: any[] = [];
   let closes = 0, statsReads = 0;
+  const timeouts: (number | undefined)[] = [];
   // Statusline reads are counted apart, so the operation lists below stay exact.
   const client = {
     onRecord: () => {}, onDisconnect: () => {}, close: () => closes++,
-    engine: async (_: string, payload: any) => {
+    engine: async (_: string, payload: any, timeout?: number) => {
       if (payload.record?.type === "get_session_stats") { statsReads++; return { success: true, payload: { data: STATS } }; }
-      requests.push(payload);
+      requests.push(payload); timeouts.push(timeout);
       return options.engine ? options.engine(payload) : { success: true };
     },
   } as unknown as HubClient;
@@ -36,7 +37,7 @@ function fixture(options: { keymap?: Keymap; engine?: (payload: any) => Promise<
     action?.run();
     return action?.id;
   };
-  return { c, screen, regions, editor, press, requests, closes: () => closes, statsReads: () => statsReads };
+  return { c, screen, regions, editor, press, requests, timeouts, closes: () => closes, statsReads: () => statsReads };
 }
 
 test("the interrupt key is timed twice, idle clears input, and another operation disarms", () => {
@@ -327,11 +328,53 @@ test("a command's argument is drafted in the editor, and the editor's candidate 
 test("another client's model change reaches the view and the timeline", async () => {
   const f = fixture();
   f.c.adapter.view.timeline.model = "a/one";
-  f.c.record(event({ type: "quin_model", model: { provider: "b", id: "two" } }));
+  f.c.record(event({ type: "shield_model", model: { provider: "b", id: "two" } }));
   const setup = await testRender(() => <Screen screen={f.screen} />, { width: 100, height: 20 });
   try {
     await setup.flush();
     const frame = setup.captureCharFrame();
     expect(frame).toContain("── model: a/one → b/two");
   } finally { setup.renderer.destroy(); }
+});
+
+test("Pi's editor text replaces the prompt, never the draft a dialog holds", async () => {
+  const f = fixture();
+  f.editor.setText("mine");
+  f.c.record(event({ type: "extension_ui_request", id: "d", method: "input", title: "Input" }));
+  f.editor.setText("answer");
+  f.c.record(event({ type: "extension_ui_request", id: "e", method: "set_editor_text", text: "from pi" }));
+  expect(f.editor.text()).toBe("answer");
+  f.press("escape"); await Bun.sleep(0);
+  expect(f.editor.text()).toBe("from pi");
+});
+
+test("sending to an agent that ended says why instead of doing nothing", async () => {
+  const f = fixture();
+  f.editor.setText("hello");
+  f.c.record({ v: 1, type: "event", "agent-id": "a", engine: "pi", "hub-instance": "h", seq: ++seq, payload: { op: "lifecycle", state: "exited", detail: { exitCode: 0 } } } as Envelope);
+  f.press("return"); await Bun.sleep(0);
+  expect(f.requests).toEqual([]);
+  expect(f.editor.text()).toBe("hello");
+  expect(f.c.status).toContain("run quin again");
+});
+
+test("a request waits as long as the hub's deadline for its command", async () => {
+  const f = fixture();
+  await f.c.send({ op: "rpc", record: { type: "compact" } });
+  await f.c.send({ op: "rpc", record: { type: "get_state" } });
+  expect(f.timeouts).toEqual([605_000, 65_000]);
+});
+
+test("a call's arguments show as far as they have streamed", () => {
+  const f = fixture();
+  const update = (assistantMessageEvent: Record<string, unknown>) => f.c.record(event({ type: "message_update", assistantMessageEvent }));
+  f.c.record(event({ type: "agent_start" }));
+  f.c.record(event({ type: "message_start", message: { role: "assistant", content: [] } }));
+  update({ type: "toolcall_start", contentIndex: 0, id: "c1", toolName: "codemode" });
+  const args = () => (f.screen.ui.controllers.timeline.find("live:0/c1")?.value as any)?.args;
+  expect(args()).toEqual({ available: false });
+  update({ type: "toolcall_delta", contentIndex: 0, delta: '{"code": "await tools.re' });
+  expect(args()).toEqual({ available: true, value: { code: "await tools.re" } });
+  update({ type: "toolcall_delta", contentIndex: 0, delta: 'ad()"}' });
+  expect(args()).toEqual({ available: true, value: { code: "await tools.read()" } });
 });

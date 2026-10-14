@@ -6,6 +6,8 @@ defmodule Shield.Pi do
   @reads ~w(get_state get_messages get_entries get_tree get_last_assistant_text get_available_models get_available_thinking_levels get_session_stats get_commands)
   @writes ~w(prompt steer follow_up abort clear_queue set_model set_thinking_level compact)
   @preflights ~w(prompt steer follow_up)
+  # Requests awaiting Pi's response, attaches waiting for initialization included.
+  @request_limit 4096
   def harnesses, do: ["quin"]
 
   def launch(options, cwd) do
@@ -64,14 +66,14 @@ defmodule Shield.Pi do
     end)
   end
 
-  def snapshot(s), do: s.view
+  def snapshot(s), do: %{"view" => s.view, "mode" => s.mode}
 
   def attach(s, ref, request, options) do
     cond do
       options["mode"] != s.mode ->
-        {s, [{:error, ref, request, "harness_engine_mode_mismatch"}]}
+        {s, [{:error, ref, request, "mode_mismatch"}]}
 
-      map_size(s.pending) + length(s.attaches) >= Shield.Protocol.engine_request_limit() ->
+      map_size(s.pending) + length(s.attaches) >= @request_limit ->
         {s, [{:error, ref, request, "engine_request_limit"}]}
 
       s.initializing ->
@@ -87,7 +89,6 @@ defmodule Shield.Pi do
     p = request["payload"]
 
     cond do
-      s.initializing -> {s, [{:error, ref, request, "agent_starting"}]}
       p["op"] == "interrupt" -> interrupt(s, ref, request, now)
       p["op"] == "dialog_reply" -> dialog(s, ref, request, now)
       p["op"] == "rpc" -> command(s, ref, request, now)
@@ -105,7 +106,7 @@ defmodule Shield.Pi do
       s.interrupt != nil and r["type"] in @writes ->
         {s, [{:error, ref, request, "interrupting"}]}
 
-      map_size(s.pending) >= Shield.Protocol.engine_request_limit() ->
+      map_size(s.pending) >= @request_limit ->
         {s, [{:error, ref, request, "engine_request_limit"}]}
 
       r["type"] == "abort" ->
@@ -117,16 +118,14 @@ defmodule Shield.Pi do
         r =
           if r["type"] == "prompt" and
                (s.view["run"]["active"] or s.view["run"]["accepting"] > 0),
-             do: Map.put(r, "streamingBehavior", "followUp"),
+             do: Map.put_new(r, "streamingBehavior", "followUp"),
              else: r
 
         {s, effects} = rpc(s, r, {:client, ref, request, r["type"]})
 
         if r["type"] == "prompt" do
-          run = Map.update!(s.view["run"], "accepting", &(&1 + 1))
-
-          {put_in(s, [:view, "run"], run),
-           effects ++ [{:broadcast, %{"type" => "quin_run", "run" => run}}]}
+          {s, broadcast} = put_run(s, &Map.update!(&1, "accepting", fn n -> n + 1 end))
+          {s, effects ++ [broadcast]}
         else
           {s, effects}
         end
@@ -245,7 +244,7 @@ defmodule Shield.Pi do
 
   defp response(s, {:client, ref, request, command}, r, now) do
     {s, effects} = accepted_done(s, command, r, now)
-    {s, [{:reply, ref, request, Map.put(r, "id", request["id"])} | effects]}
+    {s, [reply(ref, request, r) | effects]}
   end
 
   defp response(s, {:detached, command}, r, now), do: accepted_done(s, command, r, now)
@@ -261,15 +260,24 @@ defmodule Shield.Pi do
 
   defp response(s, :interrupt_abort, r, _), do: interrupt_done(s, r)
 
+  # Pi's response is the payload either way; its `success` decides the response's.
+  defp reply(ref, request, r) do
+    r = Map.put(r, "id", request["id"])
+
+    if r["success"] == true,
+      do: {:ok, ref, request, r},
+      else: {:error, ref, request, "engine_rejected", r}
+  end
+
   defp accepted_done(s, command, r, now) do
     cond do
       command == "prompt" ->
-        run = Map.update!(s.view["run"], "accepting", &max(0, &1 - 1))
-        {put_in(s, [:view, "run"], run), [{:broadcast, %{"type" => "quin_run", "run" => run}}]}
+        {s, broadcast} = put_run(s, &Map.update!(&1, "accepting", fn n -> max(0, n - 1) end))
+        {s, [broadcast]}
 
       # Pi reports a model change only to the requester; every client's view follows it.
       command == "set_model" and r["success"] == true and is_map(r["data"]) ->
-        record = %{"type" => "quin_model", "model" => r["data"]}
+        record = %{"type" => "shield_model", "model" => r["data"]}
         {%{s | view: View.apply(s.view, record, now)}, [{:broadcast, record, now}]}
 
       true ->
@@ -277,46 +285,32 @@ defmodule Shield.Pi do
     end
   end
 
+  # The run state is the engine's alone, so each change reaches every view as a record.
+  defp put_run(s, change) do
+    run = change.(s.view["run"])
+    {put_in(s, [:view, "run"], run), {:broadcast, %{"type" => "shield_run", "run" => run}}}
+  end
+
   defp interrupt_done(s, r) do
     %{ref: ref, request: request} = s.interrupt
-    run = Map.put(s.view["run"], "interrupting", false)
-
-    {%{s | interrupt: nil, view: Map.put(s.view, "run", run)},
-     [
-       {:reply, ref, request, Map.put(r, "id", request["id"])},
-       {:broadcast, %{"type" => "quin_run", "run" => run}}
-     ]}
+    {s, broadcast} = put_run(%{s | interrupt: nil}, &Map.put(&1, "interrupting", false))
+    {s, [reply(ref, request, r), broadcast]}
   end
 
   defp interrupt(s, ref, request, now) do
     if s.interrupt do
       {s, [{:error, ref, request, "interrupting"}]}
     else
-      run = Map.put(s.view["run"], "interrupting", true)
-
-      s = %{
-        s
-        | interrupt: %{ref: ref, request: request, phase: :fence, deadline: monotonic() + 60_000},
-          view: Map.put(s.view, "run", run)
-      }
-
+      interrupt = %{ref: ref, request: request, phase: :fence, deadline: monotonic() + 60_000}
+      {s, broadcast} = put_run(%{s | interrupt: interrupt}, &Map.put(&1, "interrupting", true))
       {s, cancellation} = cancel_all_dialogs(s, now)
       {s, effects} = advance_interrupt(s, now)
-      {s, [{:broadcast, %{"type" => "quin_run", "run" => run}} | cancellation ++ effects]}
+      {s, [broadcast | cancellation ++ effects]}
     end
   end
 
   defp advance_interrupt(%{interrupt: %{phase: :fence}} = s, _now) do
-    waiting =
-      Enum.any?(s.pending, fn {_, {kind, _}} ->
-        case kind do
-          {:client, _, _, c} -> c in @preflights
-          {:detached, c} -> c in @preflights
-          _ -> false
-        end
-      end)
-
-    if waiting do
+    if Enum.any?(s.pending, fn {_, {kind, _}} -> preflight?(kind) end) do
       {s, []}
     else
       s = put_in(s, [:interrupt, :phase], :clear)

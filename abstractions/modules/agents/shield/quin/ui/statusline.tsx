@@ -3,7 +3,7 @@
  * are information only: neither takes focus or holds a selection.
  */
 import { createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
-import { DuplicateRegistrationError, Emitter, type Registration } from "./controllers";
+import { Emitter } from "./controllers";
 import { useVersion } from "./state";
 import { Line, palette } from "./timeline-types";
 
@@ -12,14 +12,6 @@ export type StatuslinePosition = "top" | "bottom";
 export interface StatuslineSegment {
   text: string;
   color?: string;
-}
-
-/** A compiled statusline contribution kind: a value rendered as one segment. */
-export interface StatuslineItemType<T> {
-  kind: string;
-  segment(value: T): StatuslineSegment;
-  /** Checks a value from outside the harness; a type without it is not client-accessible. */
-  validate?(value: unknown): value is T;
 }
 
 export interface StatuslineContribution {
@@ -43,24 +35,8 @@ interface Contribution {
 }
 
 export class StatuslineController extends Emitter {
-  readonly #types = new Map<string, { token: object; type: StatuslineItemType<unknown> }>();
   readonly #contributions: Contribution[] = [];
   #fields: StatuslineFields = {};
-
-  registerType<T>(type: StatuslineItemType<T>): Registration {
-    if (this.#types.has(type.kind)) throw new DuplicateRegistrationError("statusline", type.kind);
-    const token = {};
-    this.#types.set(type.kind, { token, type: type as unknown as StatuslineItemType<unknown> });
-    return {
-      dispose: () => {
-        if (this.#types.get(type.kind)?.token === token) this.#types.delete(type.kind);
-      },
-    };
-  }
-
-  lookup(kind: string): StatuslineItemType<unknown> | undefined {
-    return this.#types.get(kind)?.type;
-  }
 
   setFields(fields: StatuslineFields): void {
     const next = { ...this.#fields, ...fields };
@@ -81,6 +57,7 @@ export class StatuslineController extends Emitter {
     return {
       update: (next) => {
         if (!this.#contributions.includes(contribution)) return;
+        if (next.text === contribution.segment.text && next.color === contribution.segment.color) return;
         contribution.segment = next;
         this.changed();
       },
@@ -192,17 +169,14 @@ export function statuslineSegments(controller: StatuslineController, position: S
 // Run state
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-export const DEFAULT_WORKING_INTERVAL_MS = 80;
-export const DEFAULT_WORKING_MESSAGE = "Working…";
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const WORKING_INTERVAL_MS = 80;
+const WORKING_MESSAGE = "Working…";
 
-/** Whether accepted work is running, and how extensions asked the indicator to look. */
+/** Whether accepted work is running, and the message beside the spinner. */
 export class RunStateController extends Emitter {
   #active = false;
   #message: string | undefined;
-  #visible = true;
-  #frames: string[] | undefined;
-  #intervalMs: number | undefined;
 
   active(): boolean {
     return this.#active;
@@ -216,55 +190,33 @@ export class RunStateController extends Emitter {
 
   /** Omitted, the default message returns. */
   setMessage(message?: string): void {
+    if (message === this.#message) return;
     this.#message = message;
     this.changed();
   }
 
-  setVisible(visible: boolean): void {
-    this.#visible = visible;
-    this.changed();
-  }
-
-  /** Omitted, the default spinner returns; `frames: []` hides the glyph but keeps the message. */
-  setIndicator(options?: { frames?: string[]; intervalMs?: number }): void {
-    this.#frames = options?.frames ? [...options.frames] : undefined;
-    this.#intervalMs = options?.intervalMs;
-    this.changed();
-  }
-
-  /** What to draw, or undefined when nothing is shown. */
-  snapshot(): { message: string; frames: string[]; intervalMs: number } | undefined {
-    if (!this.#active || !this.#visible) return undefined;
-    return {
-      message: this.#message ?? DEFAULT_WORKING_MESSAGE,
-      frames: this.#frames ?? DEFAULT_WORKING_FRAMES,
-      intervalMs: Math.max(16, this.#intervalMs ?? DEFAULT_WORKING_INTERVAL_MS),
-    };
+  /** The message to draw, or undefined when nothing is shown. */
+  message(): string | undefined {
+    return this.#active ? (this.#message ?? WORKING_MESSAGE) : undefined;
   }
 }
 
-/** A borderless spinner and message; the timer runs only while there is more than one frame to show. */
+/** A borderless spinner and message; the timer runs only while work is running. */
 export function RunStateIndicator(props: { controller: RunStateController }): JSX.Element {
   const version = useVersion(props.controller);
-  const state = () => (version(), props.controller.snapshot());
+  const message = () => (version(), props.controller.message());
+  const running = createMemo(() => message() !== undefined);
   const [frame, setFrame] = createSignal(0);
-  // Restart the animation only when the frames themselves change, not on every update.
-  const animation = createMemo(() => {
-    const current = state();
-    return current && current.frames.length > 1 ? `${current.intervalMs}\u0000${current.frames.join("\u0000")}` : undefined;
-  });
   createEffect(() => {
-    const key = animation();
     setFrame(0);
-    if (!key) return;
-    const [interval, ...frames] = key.split("\u0000");
-    const timer = setInterval(() => setFrame((value) => (value + 1) % frames.length), Number(interval));
+    if (!running()) return;
+    const timer = setInterval(() => setFrame((value) => (value + 1) % WORKING_FRAMES.length), WORKING_INTERVAL_MS);
     onCleanup(() => clearInterval(timer));
   });
   return (
     <Line wrap="none" parts={[
-      state()?.frames.length ? [`${state()!.frames[frame() % state()!.frames.length]} `, palette.accent] : undefined,
-      [state()?.message ?? "", palette.dim],
+      running() ? [`${WORKING_FRAMES[frame()]} `, palette.accent] : undefined,
+      [message() ?? "", palette.dim],
     ]} />
   );
 }

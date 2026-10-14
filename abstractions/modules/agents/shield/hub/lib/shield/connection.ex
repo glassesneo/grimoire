@@ -13,12 +13,15 @@ defmodule Shield.Connection do
        socket: socket,
        ref: %{pid: reader, writer: writer, counter: counter},
        buffer: P.buffer(),
-       pending: MapSet.new()
+       # Unresolved request ids, each with the agent that answers it once one is known.
+       pending: %{}
      }}
   end
 
-  def deliver(ref, record) do
-    frame = P.encode(record)
+  def deliver(ref, record), do: deliver_frame(ref, P.encode(record), record)
+
+  @doc "Delivers a record already encoded as `frame`, so one encoding serves every subscriber."
+  def deliver_frame(ref, frame, record) do
     index = if record["type"] == "snapshot", do: 2, else: 1
     limit = if index == 2, do: P.record_limit(), else: P.live_limit()
     count = :atomics.add_get(ref.counter, index, byte_size(frame))
@@ -68,19 +71,29 @@ defmodule Shield.Connection do
   end
 
   def handle_info({:finished, id}, s),
-    do: {:noreply, %{s | pending: MapSet.delete(s.pending, id)}}
+    do: {:noreply, %{s | pending: Map.delete(s.pending, id)}}
+
+  def handle_info({:routed, id, agent}, s) do
+    if Map.has_key?(s.pending, id),
+      do: {:noreply, %{s | pending: Map.put(s.pending, id, agent)}},
+      else: {:noreply, s}
+  end
 
   def handle_info({:tcp_closed, _}, s), do: {:stop, :normal, s}
   def handle_info({:tcp_error, _, _}, s), do: {:stop, :normal, s}
   def handle_info(:overflow, s), do: {:stop, :normal, s}
 
+  # The crashed Agent can no longer answer, so its requests are answered here; the
+  # connection stays open for its other agents.
   def handle_info({:agent_failed, id, _}, s) do
     deliver(
       s.ref,
       Map.merge(P.envelope("agent_failed", id), %{"error" => %{"code" => "state_owner_failed"}})
     )
 
-    send(s.ref.writer, :close)
+    for {request, ^id} <- s.pending,
+        do: deliver(s.ref, P.error(request, id, nil, "state_owner_failed"))
+
     {:noreply, s}
   end
 
@@ -90,17 +103,18 @@ defmodule Shield.Connection do
         deliver(s.ref, P.error(r["id"], r["agent-id"], nil, "invalid_protocol"))
         s
 
-      MapSet.member?(s.pending, r["id"]) ->
+      Map.has_key?(s.pending, r["id"]) ->
         send(self(), :overflow)
         s
 
-      MapSet.size(s.pending) >= 64 ->
+      map_size(s.pending) >= 64 ->
         deliver(s.ref, P.error(r["id"], r["agent-id"], r["engine"], "request_limit"))
         s
 
       true ->
         GenServer.cast(Shield.Manager, {:request, s.ref, r})
-        %{s | pending: MapSet.put(s.pending, r["id"])}
+        agent = if r["type"] == "engine_request", do: r["agent-id"]
+        %{s | pending: Map.put(s.pending, r["id"], agent)}
     end
   end
 

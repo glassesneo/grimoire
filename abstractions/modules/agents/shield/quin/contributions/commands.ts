@@ -7,7 +7,7 @@ import type { Registration } from "../ui/controllers";
 import type { QuinUI } from "../ui/quin-ui";
 
 export function setupCommands(ui: QuinUI, controller: Controller): Registration[] {
-  const rpc = async (record: Record<string, unknown>): Promise<any> => ((await controller.send({ op: "rpc", record })) as any).payload?.data;
+  const rpc = (record: Record<string, unknown>) => controller.rpc(record);
   return [
     ui.commands.register({
       name: "model", description: "Choose the agent's model", acceptsArguments: true,

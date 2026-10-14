@@ -3,15 +3,17 @@ import { openSync, closeSync, constants } from "node:fs";
 import { HubClient } from "./protocol";
 import { prepareSocket, socketPath } from "./paths";
 
+/** Whether a hub answers at `path`; a missing or refusing socket means none does. */
+async function ping(path: string): Promise<boolean> {
+  const c = new HubClient(path);
+  try { await c.connected; return (await c.hub("ping")).success === true; }
+  catch (e: any) { if (["ENOENT", "ECONNREFUSED"].includes(e.code)) return false; throw e; }
+  finally { c.close(); }
+}
+
 export async function startHub(path: string) {
   prepareSocket(path);
-  try {
-    const c = new HubClient(path);
-    try { await c.connected; const r = await c.hub("ping"); if (r.success) return; }
-    finally { c.close(); }
-  } catch (e: any) {
-    if (!["ENOENT", "ECONNREFUSED"].includes(e.code)) throw e;
-  }
+  if (await ping(path)) return;
   const executable = process.env.SHIELD_LAUNCHER;
   if (!executable) throw new Error("SHIELD_LAUNCHER is missing; use the packaged shield executable");
   const log = openSync(`${path}.log`, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
@@ -23,10 +25,7 @@ export async function startHub(path: string) {
   for (let i = 0; i < 100; i++) {
     if (failure) throw failure;
     await Bun.sleep(100);
-    const c = new HubClient(path);
-    try { await c.connected; const r = await c.hub("ping"); if (r.success) return; }
-    catch (e: any) { if (!["ENOENT", "ECONNREFUSED"].includes(e.code)) throw e; }
-    finally { c.close(); }
+    if (await ping(path)) return;
   }
   throw new Error(`hub not ready; another start may hold the lock. Inspect ${path}.log`);
 }

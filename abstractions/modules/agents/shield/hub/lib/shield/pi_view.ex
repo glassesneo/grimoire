@@ -1,10 +1,19 @@
+# The Pi view, from Pi's RPC JSON events rather than the SDK's session events: a
+# `message_update` carries only its delta (`toolcall_start` adds the call's `id` and
+# `toolName`), so the streamed message is rebuilt from deltas, and a tool call's raw argument
+# JSON is kept in `stream.arguments` by content index until `toolcall_end` gives the parsed
+# arguments.
+#
+# `apply/3` is mirrored by quin's `view.ts`, and both give the same view: a field missing from
+# a record is null in the view, and conditions test for nil, `true`, or a type, never for
+# either language's truthiness. `state/2` and `seed/2` are the hub's alone; clients receive
+# their result in snapshots.
 defmodule Shield.PiView do
   @open_retry ~w(waiting retrying)
 
   def new do
     %{
-      "schema" => "quin-pi-view/1",
-      "session" => %{},
+      "schema" => "shield-pi-view/1",
       "timeline" => %{
         "entries" => [],
         "response" => nil,
@@ -32,63 +41,181 @@ defmodule Shield.PiView do
     name = if is_map(model), do: model["provider"] <> "/" <> model["id"], else: nil
 
     v
-    |> Map.put("session", Map.take(data, ["sessionId", "sessionFile", "model", "thinkingLevel"]))
     |> put_in(["timeline", "model"], name)
     |> put_in(["timeline", "thinking"], data["thinkingLevel"])
   end
 
+  # The active branch as the harness restores it, apart from the harness's own display
+  # records: nested calls come only from a tool result's bounded summary.
   def seed(v, data) do
     by_id = Map.new(data["entries"], &{&1["id"], &1})
-    branch = branch(by_id, data["leafId"], MapSet.new())
+    branch = branch(by_id, data["leafId"], MapSet.new(), [])
 
-    Enum.reduce(branch, v, fn e, v ->
-      id = "seed:" <> e["id"]
+    {v, _} =
+      Enum.reduce(branch, {v, %{}}, fn e, {v, config} ->
+        id = "seed:" <> e["id"]
 
-      case e["type"] do
-        "message" ->
-          m = e["message"]
+        case e["type"] do
+          "message" ->
+            {seed_message(v, id, e["message"]), config}
 
-          case m["role"] do
-            "user" -> append(v, user(id, m))
-            "assistant" -> v |> put_in(["timeline", "response"], id) |> assistant(m, false)
-            "toolResult" -> finish_result(v, m)
-            _ -> v
-          end
+          "compaction" ->
+            {append(
+               v,
+               Map.merge(base(id, "compaction"), %{
+                 "state" => "completed",
+                 "reason" => nil,
+                 "summary" => e["summary"],
+                 "tokensBefore" => e["tokensBefore"],
+                 "errorMessage" => nil
+               })
+             ), config}
 
-        "compaction" ->
-          append(
-            v,
-            Map.merge(base(id, "compaction"), %{
-              "state" => "completed",
-              "summary" => e["summary"],
-              "tokensBefore" => e["tokensBefore"]
-            })
-          )
+          "custom_message" ->
+            if e["display"] == true,
+              do:
+                {append(
+                   v,
+                   Map.merge(
+                     base(id, "custom"),
+                     Map.take(e, ["customType", "content", "details"])
+                   )
+                 ), config},
+              else: {v, config}
 
-        "custom_message" ->
-          if e["display"],
-            do:
-              append(
-                v,
-                Map.merge(base(id, "custom"), Map.take(e, ["customType", "content", "details"]))
-              ),
-            else: v
+          "branch_summary" ->
+            {append(v, Map.put(base(id, "branch-summary"), "summary", e["summary"])), config}
 
-        _ ->
-          v
-      end
-    end)
-    |> put_in(["timeline", "response"], nil)
+          "model_change" ->
+            seed_config(v, config, id, "model", e["provider"] <> "/" <> e["modelId"])
+
+          "thinking_level_change" ->
+            seed_config(v, config, id, "thinking", e["thinkingLevel"])
+
+          _ ->
+            {v, config}
+        end
+      end)
+
+    put_in(v, ["timeline", "response"], nil)
   end
 
-  defp branch(_, nil, _), do: []
+  defp seed_message(v, id, m) do
+    case m["role"] do
+      "user" ->
+        append(v, user(id, m))
 
-  defp branch(entries, id, seen) do
+      "assistant" ->
+        v |> put_in(["timeline", "response"], id) |> assistant(m, false)
+
+      "toolResult" ->
+        v |> finish_result(m) |> seed_nested(m)
+
+      "bashExecution" ->
+        append(
+          v,
+          Map.merge(base(id, "bash"), %{
+            "command" => m["command"],
+            "output" => m["output"],
+            "exitCode" => m["exitCode"],
+            "cancelled" => m["cancelled"],
+            "truncated" => m["truncated"],
+            "fullOutputPath" => m["fullOutputPath"]
+          })
+        )
+
+      _ ->
+        v
+    end
+  end
+
+  # A first value is the initial configuration, not a change.
+  defp seed_config(v, config, id, key, value) do
+    before = config[key]
+
+    v =
+      if not is_nil(before) and before != value,
+        do:
+          append(
+            v,
+            Map.merge(base(id, "config"), %{"setting" => key, "from" => before, "to" => value})
+          ),
+        else: v
+
+    {v, Map.put(config, key, value)}
+  end
+
+  # A call's parent is named only through its id, `<parent>/<n>`; one whose parent is not
+  # listed belongs to the root.
+  defp seed_nested(v, m) do
+    summary = m["nestedCalls"]
+
+    root =
+      Enum.find(
+        Enum.reverse(v["timeline"]["entries"]),
+        &(&1["kind"] == "tool" and is_nil(&1["parentId"]) and &1["callId"] == m["toolCallId"])
+      )
+
+    if is_nil(root) or not is_map(summary) or not is_list(summary["calls"]) do
+      v
+    else
+      scope = root["scope"]
+      calls = Enum.map(summary["calls"], & &1["id"])
+
+      children =
+        summary["calls"]
+        |> Enum.with_index()
+        |> Enum.map(fn {call, position} ->
+          parent =
+            case :binary.matches(call["id"], "/") do
+              [] -> root["callId"]
+              matches -> binary_part(call["id"], 0, elem(List.last(matches), 0))
+            end
+
+          parent = if parent in calls, do: scope <> "/" <> parent, else: root["id"]
+
+          args =
+            if is_nil(call["arguments"]),
+              do: %{"available" => false, "bytes" => call["argumentsBytes"]},
+              else: %{"available" => true, "value" => call["arguments"]}
+
+          Map.merge(base(scope <> "/" <> call["id"], "tool"), %{
+            "callId" => call["id"],
+            "scope" => scope,
+            "parentId" => parent,
+            "name" => call["name"],
+            "ordinal" => position,
+            "args" => args,
+            "state" =>
+              case call["status"] do
+                "ok" -> "done"
+                "error" -> "error"
+                _ -> "unfinished"
+              end,
+            "errorSummary" => call["error"],
+            "nestedIncomplete" => false,
+            "result" => nil
+          })
+        end)
+
+      v
+      |> update_last(
+        &(&1["id"] == root["id"]),
+        &Map.put(&1, "nestedIncomplete", summary["complete"] != true)
+      )
+      |> update_in(["timeline", "entries"], &(&1 ++ children))
+    end
+  end
+
+  # Walks from the leaf to the root, prepending, so the branch comes out root first.
+  defp branch(_, nil, _, branch), do: branch
+
+  defp branch(entries, id, seen, branch) do
     if MapSet.member?(seen, id), do: raise("invalid_entry_tree")
 
     case entries[id] do
       nil -> raise("missing_branch_entry")
-      e -> branch(entries, e["parentId"], MapSet.put(seen, id)) ++ [e]
+      e -> branch(entries, e["parentId"], MapSet.put(seen, id), [e | branch])
     end
   end
 
@@ -156,7 +283,7 @@ defmodule Shield.PiView do
             finish_result(v, m)
 
           "custom" ->
-            if m["display"],
+            if m["display"] == true,
               do: new_entry(v, "custom", Map.take(m, ["customType", "content", "details"])),
               else: v
 
@@ -174,36 +301,40 @@ defmodule Shield.PiView do
         tool_update(v, r, false)
 
       "queue_update" ->
-        Map.put(v, "queue", Map.take(r, ["steering", "followUp"]))
+        Map.put(v, "queue", %{
+          "steering" => r["steering"] || [],
+          "followUp" => r["followUp"] || []
+        })
 
       "thinking_level_changed" ->
-        v |> put_in(["session", "thinkingLevel"], r["level"]) |> config("thinking", r["level"])
-
-      "session_info_changed" ->
-        put_in(v, ["session", "sessionName"], r["name"])
+        config(v, "thinking", r["level"])
 
       "compaction_start" ->
         v
         |> put_in(["run", "compaction"], true)
         |> new_entry("compaction", %{"state" => "running", "reason" => r["reason"]})
 
+      # Pi ends a compaction it never started when overflow recovery fails again.
       "compaction_end" ->
-        v
-        |> put_in(["run", "compaction"], false)
-        |> update_last(fn e -> e["kind"] == "compaction" and e["state"] == "running" end, fn e ->
-          bump(
-            e,
-            Map.merge(r["result"] || %{}, %{
-              "state" =>
-                cond do
-                  r["result"] -> "completed"
-                  r["aborted"] -> "aborted"
-                  true -> "failed"
-                end,
-              "errorMessage" => r["errorMessage"]
-            })
-          )
-        end)
+        result = if is_map(r["result"]), do: r["result"], else: nil
+
+        fields =
+          Map.merge(result || %{}, %{
+            "state" =>
+              cond do
+                result -> "completed"
+                r["aborted"] == true -> "aborted"
+                true -> "failed"
+              end,
+            "errorMessage" => r["errorMessage"]
+          })
+
+        running = &(&1["kind"] == "compaction" and &1["state"] == "running")
+        v = put_in(v, ["run", "compaction"], false)
+
+        if Enum.any?(v["timeline"]["entries"], running),
+          do: update_last(v, running, &bump(&1, fields)),
+          else: new_entry(v, "compaction", Map.put(fields, "reason", r["reason"]))
 
       type when type in ["auto_retry_start", "summarization_retry_scheduled"] ->
         category = if type == "auto_retry_start", do: "response", else: "summary"
@@ -261,7 +392,7 @@ defmodule Shield.PiView do
       "entry_appended" ->
         e = r["entry"]
 
-        if e["type"] == "custom_message" and e["display"],
+        if e["type"] == "custom_message" and e["display"] == true,
           do: new_entry(v, "custom", Map.take(e, ["customType", "content", "details"])),
           else: v
 
@@ -271,12 +402,12 @@ defmodule Shield.PiView do
       "dialog_closed" ->
         update_in(v, ["dialogs"], &Map.delete(&1, r["id"]))
 
-      "quin_run" ->
+      "shield_run" ->
         Map.put(v, "run", r["run"])
 
-      "quin_model" ->
+      "shield_model" ->
         m = r["model"]
-        v |> put_in(["session", "model"], m) |> config("model", m["provider"] <> "/" <> m["id"])
+        config(v, "model", m["provider"] <> "/" <> m["id"])
 
       "extension_error" ->
         new_entry(v, "notice", %{"level" => "error", "text" => r["error"]})
@@ -296,18 +427,20 @@ defmodule Shield.PiView do
 
         put_in(v, ["dialogs", r["id"]], Map.put(r, "expiresAt", expires))
 
+      # An empty status clears its key, as a missing one does.
       "setStatus" ->
         update_in(v, ["presentation", "status"], fn status ->
-          if r["statusText"],
-            do: Map.put(status, r["statusKey"], r["statusText"]),
-            else: Map.delete(status, r["statusKey"])
+          if r["statusText"] in [nil, ""],
+            do: Map.delete(status, r["statusKey"]),
+            else: Map.put(status, r["statusKey"], r["statusText"])
         end)
 
       "setTitle" ->
         put_in(v, ["presentation", "title"], r["title"])
 
       "notify" ->
-        new_entry(v, "notice", %{"level" => r["notifyType"] || "info", "text" => r["message"]})
+        level = if r["notifyType"] in [nil, ""], do: "info", else: r["notifyType"]
+        new_entry(v, "notice", %{"level" => level, "text" => r["message"]})
 
       _ ->
         v
@@ -386,8 +519,8 @@ defmodule Shield.PiView do
             [
               %{
                 "type" => "thinking",
-                "text" => if(b["redacted"], do: "", else: b["thinking"]),
-                "withheld" => !!b["redacted"]
+                "text" => if(b["redacted"] == true, do: "", else: b["thinking"]),
+                "withheld" => b["redacted"] == true
               }
             ]
 
@@ -415,8 +548,11 @@ defmodule Shield.PiView do
             do: %{"available" => true, "value" => b["arguments"]},
             else: %{"available" => false}
 
+        # Once Pi runs the call, its execution's arguments stand.
         if existing do
-          update_last(v, &(&1["id"] == tool_id), &bump(&1, %{"args" => args}))
+          if existing["state"] == "pending",
+            do: update_last(v, &(&1["id"] == tool_id), &change(&1, %{"args" => args})),
+            else: v
         else
           ordinal = v["timeline"]["nextOrdinal"]
 
@@ -481,21 +617,40 @@ defmodule Shield.PiView do
     end
   end
 
+  # Extension tools may return any value; a string or a list becomes the result's content,
+  # and an update without a usable result changes nothing.
   defp tool_update(v, r, partial) do
-    result = r[if(partial, do: "partialResult", else: "result")]
+    result =
+      case r[if(partial, do: "partialResult", else: "result")] do
+        text when is_binary(text) ->
+          %{"content" => [%{"type" => "text", "text" => text}], "details" => nil}
+
+        list when is_list(list) ->
+          %{"content" => list, "details" => nil}
+
+        map when is_map(map) ->
+          map
+
+        _ ->
+          nil
+      end
+
     fields = %{"result" => result && Map.put(result, "partial", partial)}
 
     fields =
       if partial,
         do: fields,
-        else: Map.put(fields, "state", if(r["isError"], do: "error", else: "done"))
+        else: Map.put(fields, "state", if(r["isError"] == true, do: "error", else: "done"))
 
-    update_last(
-      v,
-      &(&1["kind"] == "tool" and &1["callId"] == r["toolCallId"] and
-          &1["parentId"] != nil == (r["parentToolCallId"] != nil)),
-      &bump(&1, fields)
-    )
+    if partial and is_nil(result),
+      do: v,
+      else:
+        update_last(
+          v,
+          &(&1["kind"] == "tool" and &1["callId"] == r["toolCallId"] and
+              &1["parentId"] != nil == (r["parentToolCallId"] != nil)),
+          &bump(&1, fields)
+        )
   end
 
   defp finish_result(v, m),
@@ -514,7 +669,7 @@ defmodule Shield.PiView do
     before = v["timeline"][key]
     v = put_in(v, ["timeline", key], value)
 
-    if before && before != value,
+    if not is_nil(before) and before != value,
       do: new_entry(v, "config", %{"setting" => key, "from" => before, "to" => value}),
       else: v
   end
@@ -547,9 +702,13 @@ defmodule Shield.PiView do
   defp append(v, e), do: update_in(v, ["timeline", "entries"], &(&1 ++ [e]))
   defp bump(e, fields), do: Map.merge(e, Map.put(fields, "version", e["version"] + 1))
 
+  # A bump only when a field changes, so streamed deltas leave unchanged entries' versions.
+  defp change(e, fields),
+    do: if(Enum.all?(fields, fn {k, value} -> e[k] == value end), do: e, else: bump(e, fields))
+
   defp upsert(v, id, kind, fields) do
     if Enum.any?(v["timeline"]["entries"], &(&1["id"] == id)),
-      do: update_last(v, &(&1["id"] == id), &bump(&1, fields)),
+      do: update_last(v, &(&1["id"] == id), &change(&1, fields)),
       else: append(v, Map.merge(base(id, kind), fields))
   end
 

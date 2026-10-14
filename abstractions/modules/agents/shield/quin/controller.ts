@@ -2,6 +2,9 @@
  * The connection to one agent: applies the hub's records to the Pi view and
  * sends prompts, dialog replies, and interrupts. Focus, drafts, selection, and
  * disclosure belong to the UI controllers, not here.
+ *
+ * quin never reattaches: after the agent ends or the hub connection closes,
+ * the last view stays read-only, and sending says to run quin again.
  */
 import { HubClient, type Envelope } from "../client/protocol";
 import { Emitter } from "./ui/controllers";
@@ -11,6 +14,9 @@ import { PiAdapter } from "./view";
 /** Lifecycles that end an agent, or this connection to it. */
 const TERMINAL = new Set(["exited", "failed", "disconnected"]);
 
+/** Shield.Pi's deadline for each command, so a request waits for the hub's answer. */
+const timeout = (payload: any) => (payload?.op === "rpc" && payload.record?.type === "compact" ? 600_000 : 60_000) + 5_000;
+
 export class Controller extends Emitter {
   readonly adapter = new PiAdapter();
   /** Until this time, the interrupt key confirms instead of arming. */
@@ -19,7 +25,7 @@ export class Controller extends Emitter {
   notice: string | undefined = "Connecting to SHIELD…";
   stats: SessionStats | undefined;
   onDetach: () => void = () => {};
-  /** Pi's set_editor_text request. */
+  /** Pi's set_editor_text request, for the prompt draft of every attached client. */
   onEditorText: (text: string) => void = () => {};
   private statsPending = false;
   private statsStale = false;
@@ -35,7 +41,6 @@ export class Controller extends Emitter {
       if (TERMINAL.has(this.adapter.lifecycle)) { this.changed(); return; }
       this.notice = e.message;
       this.adapter.lifecycle = "disconnected";
-      this.armedUntil = 0;
       this.changed();
     };
   }
@@ -73,20 +78,33 @@ export class Controller extends Emitter {
 
   async send(payload: unknown) {
     if (!this.adapter.agent) throw new Error("agent is not ready");
-    const r = await this.client.engine(this.adapter.agent, payload);
+    const r = await this.client.engine(this.adapter.agent, payload, timeout(payload));
     if (!r.success) {
       const pi = (r as any).payload?.error;
-      throw new Error(r.error?.code === "model_required" ? "Set --model provider/id or shield/pi/settings.json defaultProvider/defaultModel"
-        : r.error?.code === "engine_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
+      throw new Error(r.error?.code === "engine_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
     }
     return r;
   }
 
-  /** Resolves whether Pi accepted the prompt; while a run is active it becomes a follow-up. */
+  /** Runs one of Pi's RPC commands and resolves with its data. */
+  async rpc(record: Record<string, unknown>): Promise<any> {
+    return ((await this.send({ op: "rpc", record })) as any).payload?.data;
+  }
+
+  /** Why nothing can be sent now, or undefined while the agent is ready. */
+  get unavailable(): string | undefined {
+    const lifecycle = this.adapter.lifecycle;
+    if (lifecycle === "ready") return undefined;
+    if (TERMINAL.has(lifecycle)) return `The agent is ${lifecycle}; detach and run quin again`;
+    return `The agent is ${lifecycle}; wait until it is ready`;
+  }
+
+  /** Resolves whether Pi accepted the prompt; the hub makes it a follow-up while a run is active. */
   async sendPrompt(text: string): Promise<boolean> {
-    if (this.adapter.lifecycle !== "ready") return false;
+    const unavailable = this.unavailable;
+    if (unavailable) { this.fail(unavailable); return false; }
     try {
-      await this.send({ op: "rpc", record: { type: "prompt", message: text, ...(this.active ? { streamingBehavior: "followUp" } : {}) } });
+      await this.rpc({ type: "prompt", message: text });
       return true;
     } catch (e) {
       this.fail((e as Error).message);
@@ -142,8 +160,8 @@ export class Controller extends Emitter {
     if (this.adapter.lifecycle !== "ready" || !this.adapter.agent) return;
     if (this.statsPending) { this.statsStale = true; return; }
     this.statsPending = true;
-    this.send({ op: "rpc", record: { type: "get_session_stats" } })
-      .then(r => { this.stats = (r as any).payload?.data; this.changed(); })
+    this.rpc({ type: "get_session_stats" })
+      .then(data => { this.stats = data; this.changed(); })
       .catch(() => {})
       .finally(() => { this.statsPending = false; if (this.statsStale) { this.statsStale = false; this.refreshStats(); } });
   }

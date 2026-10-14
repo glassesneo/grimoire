@@ -10,5 +10,6 @@ pkgs.runCommand "quin-check" {
 } ''
   quin --version
   quin --help
+  HOME="$TMPDIR" quin --check-keymap
   touch "$out"
 ''

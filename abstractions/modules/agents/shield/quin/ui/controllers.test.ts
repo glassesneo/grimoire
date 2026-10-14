@@ -1,6 +1,7 @@
 // quin departs from the harness here: an expanded item that shows children is not selectable.
 import { expect, test } from "bun:test";
 import { ItemTypeRegistry, materializeItem, type ItemType } from "./controllers";
+import { createItemActions } from "./item-actions";
 
 const type: ItemType<null> = { kind: "node", render: () => null, expandable: () => true, sourceText: () => undefined, actions: {} };
 // a ─ b ─ c        d (no children)
@@ -58,4 +59,31 @@ test("an expanded item that gains its first child hands the cursor to it", () =>
   expect(timeline.cursor()).toBe("a");
   timeline.replace([node("a"), node("b", "a")]);
   expect(timeline.cursor()).toBe("b");
+});
+
+test("expanding the last item scrolls the child the cursor moves to into view", () => {
+  const timeline = new ItemTypeRegistry();
+  timeline.registerType(type);
+  const node = (id: string, parentId?: string) => materializeItem({ id, version: 0, type, value: null, parentId });
+  timeline.replace([...Array.from({ length: 30 }, (_, i) => node(`x${i}`)), node("p"), node("p1", "p"), node("p2", "p")]);
+  // One row per visible item, and blank rows below as tall as the overlay, as the view lays them out.
+  const overlay = 3;
+  const box = {
+    scrollTop: 0, height: 10, y: 0,
+    get scrollHeight() { return timeline.visibleItems().length + overlay; },
+    getRenderable(id: string) {
+      const index = timeline.visibleItems().findIndex((item) => item.id === id);
+      return index === -1 ? undefined : { y: index - box.scrollTop, height: 1 };
+    },
+  };
+  const actions = createItemActions({ timeline, scrollbox: () => box, overlayHeight: () => overlay });
+  const shown = (id: string) => { const top = box.getRenderable(id)!.y; return top >= 0 && top < box.height - overlay; };
+  actions.frame();
+  timeline.setCursor("p");
+  expect(shown("p")).toBe(true);
+  actions.expand();
+  actions.frame();
+  expect(timeline.cursor()).toBe("p1");
+  expect(shown("p1")).toBe(true);
+  expect(shown("p")).toBe(true);
 });

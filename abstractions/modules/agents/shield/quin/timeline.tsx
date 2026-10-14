@@ -23,7 +23,8 @@ import {
   type TimelineTypes,
   type ToolSnapshot,
 } from "./ui/timeline-types";
-import type { Entry } from "./view";
+import { parsePartialJson } from "./partial-json";
+import type { Entry, View } from "./view";
 
 /** An item of a registered type; the registry holds every type erased. */
 function item<T>(id: string, version: number, type: ItemType<T, JSX.Element>, value: T, options: { parentId?: string; initiallyExpanded?: boolean } = {}): TimelineItem<JSX.Element> {
@@ -33,7 +34,7 @@ function item<T>(id: string, version: number, type: ItemType<T, JSX.Element>, va
 /** The view keeps absent fields as null; the item values use undefined. */
 const optional = <T,>(value: T | null | undefined): T | undefined => value ?? undefined;
 
-/** Tool results reach the view as a message content, a string, or a wrapper; only text and image blocks are kept. */
+/** The view keeps a result as a wrapper whose content is a string or blocks; only text and image blocks are kept. */
 function toolResult(result: any): ToolSnapshot["result"] {
   if (!result || typeof result !== "object") return undefined;
   const partial = result.partial === true;
@@ -107,9 +108,32 @@ function retryValue(entry: Entry): RetryValue {
 
 interface Projected {
   version: number;
-  /** Ids and versions of the calls the items list, to notice a call that changed. */
+  /** Ids and versions of the calls the items list, and arguments still streaming, to notice a change. */
   calls: string;
   items: readonly TimelineItem<JSX.Element>[];
+}
+
+/**
+ * The raw argument JSON of the streaming response's calls by tool entry id.
+ * The view keeps it by content index until Pi parses the arguments.
+ */
+function streamedArguments(stream: View["stream"] | undefined): Map<string, string> {
+  const raw = new Map<string, string>();
+  if (!stream?.messageId) return raw;
+  for (const [index, text] of Object.entries(stream.arguments)) {
+    const block = stream.message?.content?.[Number(index)];
+    if (block?.type === "toolCall" && block.id != null) raw.set(`${stream.messageId}/${block.id}`, text);
+  }
+  return raw;
+}
+
+/** A pending call's arguments as far as they have streamed, as the harness shows them. */
+function argsOf(entry: Entry, streamed: ReadonlyMap<string, string>): ToolSnapshot["args"] {
+  const args = entry.args ?? { available: false };
+  const raw = streamed.get(entry.id);
+  if (args.available || entry.state !== "pending" || raw === undefined) return args;
+  const value = parsePartialJson(raw);
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? { available: true, value } : args;
 }
 
 /**
@@ -125,7 +149,8 @@ class TimelineProjector {
   constructor(readonly types: TimelineTypes, readonly registry: Pick<ItemTypeRegistry<JSX.Element>, "lookup">) {}
 
   /** The items for `entries`; the previous array itself when no item changed, so the caller can skip replacing them. */
-  project(entries: readonly Entry[]): TimelineItem<JSX.Element>[] {
+  project(entries: readonly Entry[], stream?: View["stream"]): TimelineItem<JSX.Element>[] {
+    const streamed = streamedArguments(stream);
     const tools = new Map<string, Entry>();
     const children = new Map<string, Entry[]>();
     for (const entry of entries) if (entry.kind === "tool") tools.set(entry.id, entry);
@@ -149,10 +174,10 @@ class TimelineProjector {
     const emit = (entry: Entry) => {
       // Every call a tool made, its calls' calls included, in the order they started.
       const calls = entry.kind === "tool" ? descendants(entry.id).sort((a, b) => a.ordinal - b.ordinal) : [];
-      const key = calls.map((call) => `${call.id}@${call.version}`).join(",");
+      const key = calls.map((call) => `${call.id}@${call.version}`).join(",") + `#${streamed.get(entry.id)?.length ?? ""}`;
       let cached = this.#cache.get(entry.id);
       if (!cached || cached.version !== entry.version || cached.calls !== key) {
-        cached = { version: entry.version, calls: key, items: this.#projectEntry(entry, calls, tools) };
+        cached = { version: entry.version, calls: key, items: this.#projectEntry(entry, calls, tools, streamed) };
       }
       next.set(entry.id, cached);
       result.push(...cached.items);
@@ -167,7 +192,7 @@ class TimelineProjector {
     return this.#last = result;
   }
 
-  #projectEntry(entry: Entry, calls: readonly Entry[], tools: ReadonlyMap<string, Entry>): TimelineItem<JSX.Element>[] {
+  #projectEntry(entry: Entry, calls: readonly Entry[], tools: ReadonlyMap<string, Entry>, streamed: ReadonlyMap<string, string>): TimelineItem<JSX.Element>[] {
     const { types } = this;
     switch (entry.kind) {
       case "user":
@@ -181,16 +206,40 @@ class TimelineProjector {
           callId: entry.callId,
           name: entry.name,
           parentCallId: parent?.callId,
-          args: entry.args ?? { available: false },
+          args: argsOf(entry, streamed),
           state: entry.state,
           result: toolResult(entry.result),
-          errorSummary: undefined,
+          errorSummary: optional(entry.errorSummary),
           calls: calls.map((call): NestedCallSummary => ({ name: call.name, args: call.args ?? { available: false }, state: call.state })),
           callsIncomplete: entry.nestedIncomplete === true,
         };
-        const type = this.registry.lookup(builtInToolKind(entry.name)) ?? (types.tool as ItemType<unknown, JSX.Element>);
-        return [item(entry.id, entry.version, type, snapshot, { parentId: parent?.id })];
+        return [item(entry.id, entry.version, this.#toolType(entry.name), snapshot, { parentId: parent?.id })];
       }
+      // A shell command from the session, shown as the bash tool shows its call.
+      case "bash": {
+        const snapshot: ToolSnapshot = {
+          id: entry.id,
+          callId: entry.id,
+          name: "bash",
+          parentCallId: undefined,
+          args: entry.command == null ? { available: false } : { available: true, value: { command: entry.command } },
+          state: "done",
+          result: {
+            content: [{ type: "text", text: entry.output ?? "" }],
+            details: {
+              exitCode: optional(entry.exitCode), cancelled: optional(entry.cancelled), truncated: optional(entry.truncated),
+              ...(entry.fullOutputPath ? { fullOutputPath: entry.fullOutputPath } : {}),
+            },
+            partial: false,
+          },
+          errorSummary: undefined,
+          calls: [],
+          callsIncomplete: false,
+        };
+        return [item(entry.id, entry.version, this.#toolType("bash"), snapshot)];
+      }
+      case "branch-summary":
+        return [item(entry.id, entry.version, types.branchSummary, { summary: entry.summary ?? "" })];
       case "custom":
         return [item(entry.id, entry.version, types.custom, {
           customType: entry.customType, content: typeof entry.content === "string" ? entry.content : contentBlocks(entry.content), details: entry.details,
@@ -209,6 +258,10 @@ class TimelineProjector {
       default:
         return [item(entry.id, entry.version, types.notice, { level: "warning" as const, text: `unknown timeline entry: ${entry.kind}` })];
     }
+  }
+
+  #toolType(name: string): ItemType<unknown, JSX.Element> {
+    return this.registry.lookup(builtInToolKind(name)) ?? (this.types.tool as ItemType<unknown, JSX.Element>);
   }
 }
 

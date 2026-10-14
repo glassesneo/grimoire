@@ -6,8 +6,6 @@
  */
 import {
   ItemTypeRegistry,
-  type ItemFactory,
-  type ItemType,
   RegionController,
   type RegionId,
   type Registration,
@@ -19,7 +17,7 @@ import {
 import { CommandController, type QuinCommand } from "./command-controller";
 import { EditorController, maxHeight, minHeight, type DraftRequestOptions, type DraftResult } from "./editor-engine";
 import { type Action, KeyBindings, type Keymap } from "./keys";
-import { RunStateController, StatuslineController, type StatuslineItemType } from "./statusline";
+import { RunStateController, StatuslineController } from "./statusline";
 
 /** Tab order of the regions that take focus. */
 export const FOCUS_ORDER: readonly RegionId[] = ["editor", "timeline", "stage"];
@@ -29,23 +27,13 @@ export interface QuinUI<Render = unknown> {
     openDraft(request: DraftRequestOptions): Promise<DraftResult>;
   };
   stage: {
-    activate(id: string): boolean;
     registerType<T>(type: StageContentType<T, Render>): Registration;
     show<T>(request: StageRequest<T, Render>): StageHandle<T>;
-  };
-  timeline: {
-    registerType<T>(type: ItemType<T, Render>): ItemFactory<T, Render>;
   };
   actions: {
     register(actions: readonly Action[]): Registration;
   };
   commands: { register(definition: QuinCommand): Registration };
-  regions: {
-    requestFocus(region: RegionId): boolean;
-  };
-  statusline: {
-    registerType<T>(type: StatuslineItemType<T>): Registration;
-  };
 }
 
 export interface QuinControllers<Render = unknown> {
@@ -77,15 +65,11 @@ export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): Qui
     controllers,
     editor: { openDraft: (request) => controllers.editor.openDraft(request) },
     stage: {
-      activate: (id) => controllers.stage.activate(id),
       registerType: (type) => controllers.stage.registerType(type),
       show: (request) => controllers.stage.show(request),
     },
-    timeline: { registerType: (type) => controllers.timeline.registerType(type) },
     actions: { register: (actions) => controllers.keys.register(actions) },
     commands: { register: (definition) => controllers.commands.register(definition) },
-    regions: { requestFocus: (region) => controllers.regions.requestFocus(region) },
-    statusline: { registerType: (type) => controllers.statusline.registerType(type) },
   };
 }
 
@@ -103,15 +87,11 @@ export function createQuinControllers<Render = unknown>(options: QuinUIOptions =
     // An active draft owns the editor; a stage request must not steal it back.
     canFocus: () => !editor?.activeDraft(),
   });
-  editor = new EditorController({
-    regions,
-    sendPrompt: options.sendPrompt,
-    onPromptAccepted: (text) => stage.notifyPromptSubmitted(text),
-    onAssistChange: (hasAssist) => stage.setAssistAvailable(hasAssist),
-  });
+  editor = new EditorController({ regions, sendPrompt: options.sendPrompt });
   const keys = new KeyBindings({
     keymap: options.keymap,
     acceptsText: (region) => region === "editor" || (region === "stage" && (stage.active()?.acceptsText ?? false)),
+    textLayers: ["editor"],
   });
   return {
     regions, keys, stage, timeline, editor, statusline: new StatuslineController(), runState: new RunStateController(),

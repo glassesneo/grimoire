@@ -27,10 +27,10 @@ defmodule Shield.Listener do
       {:error, :enoent} ->
         :ok
 
-      {:ok, %{type: :other, uid: uid}} ->
+      {:ok, %{type: :other, uid: uid, mode: mode}} ->
         if uid != current_uid(), do: raise("socket_owner")
-        {_, socket_type} = System.cmd("/bin/test", ["-S", path])
-        if socket_type != 0, do: raise("unsafe_socket_path")
+        # S_IFSOCK: the file type bits of a socket.
+        if Bitwise.band(mode, 0o170000) != 0o140000, do: raise("unsafe_socket_path")
 
         case :gen_tcp.connect(
                {:local, String.to_charlist(path)},

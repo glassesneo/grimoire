@@ -10,7 +10,7 @@ const actions = (log: string[]) => [
 const key = (name: string, mods: { ctrl?: boolean; shift?: boolean } = {}) => ({ name, ...mods });
 
 test("every key name parses alone and under every modifier combination", () => {
-  const printable = Array.from({ length: 0x7f - 0x21 }, (_, i) => String.fromCharCode(0x21 + i));
+  const printable = Array.from({ length: 0x7f - 0x21 }, (_, i) => String.fromCharCode(0x21 + i)).filter((c) => !/[A-Z]/.test(c));
   const names = [...printable, "space", "tab", "return", "kpenter", "escape", "up", "f12"];
   const combos = [[], ["ctrl"], ["shift"], ["alt"], ["ctrl", "shift"], ["ctrl", "alt", "shift"]] as const;
   for (const name of names) {
@@ -20,6 +20,22 @@ test("every key name parses alone and under every modifier combination", () => {
     }
   }
   for (const text of ["", "ctrl+", "hyper+x", "x+ctrl", "ctrl++x"]) expect(() => parseChord(text)).toThrow(KeymapError);
+});
+
+test("only names OpenTUI reports are keys, and a capital letter is shift and its letter", () => {
+  for (const text of ["enter", "esc", "ctrl+Q", "Q", "pgdn"]) expect(() => parseChord(text)).toThrow(KeymapError);
+  expect(() => parseChord("ctrl+Q")).toThrow("use shift+q");
+});
+
+test("a binding that could never run, or would take the editor's spaces, is rejected", () => {
+  const bind = (id: string, chord: string) => new KeyBindings({ keymap: { [id]: [chord] }, textLayers: ["editor"] })
+    .register([{ id, run: () => {} }]);
+  expect(() => bind("editor.x", ":")).toThrow("could never run");
+  expect(() => bind("editor.x", "space")).toThrow("space key");
+  expect(() => bind("global.x", "space")).toThrow("space key");
+  expect(() => bind("stage.x", "space")).not.toThrow();
+  expect(() => bind("global.x", ":")).not.toThrow();
+  expect(() => bind("editor.x", "ctrl+space")).not.toThrow();
 });
 
 test("the focused region wins, then the global layer", () => {

@@ -1,6 +1,6 @@
 /** The screen layout, copied from the harness's `ScreenLayout`. */
 import { type JSX, useKeyboard, useTerminalDimensions } from "@opentui/solid";
-import { createEffect, createMemo, For } from "solid-js";
+import { createEffect, createMemo } from "solid-js";
 import { EditorView } from "./editor";
 import type { Action } from "./keys";
 import { allocateHeights, type QuinUIInstance } from "./quin-ui";
@@ -39,14 +39,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
   const snapshot = () => (version(), editor.snapshot());
   const stageActive = () => (version(), stage.hasActive());
 
-  const hasStage = () => stageActive() ? Boolean(props.stage) : Boolean(snapshot().assist?.items.length);
-  const assistView = () => (
-    <box flexDirection="column">
-      <For each={snapshot().assist?.items ?? []}>
-        {(item, index) => <text>{`${index() === snapshot().assist?.cursor ? "▶ " : "  "}${item}`}</text>}
-      </For>
-    </box>
-  );
+  const hasStage = () => stageActive() && Boolean(props.stage);
 
   // The one global key handler: resolve the focused region's binding, suppress
   // the key's native handling, then run the action exactly once.
@@ -65,9 +58,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
       dimensions().height,
       { preferredHeight: snapshot().preferredHeight },
       {
-        preferredHeight: stageActive()
-          ? (stage.active()?.preferredHeight ?? 0) + 1
-          : (editor.snapshot().assist?.items.length ?? 0),
+        preferredHeight: stageActive() ? (stage.active()?.preferredHeight ?? 0) + 1 : 0,
       },
       { top: props.statuslines, bottom: props.statuslines },
     ),
@@ -79,7 +70,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
   const below = () => allocation().editor + allocation().stage + allocation().bottom;
   const room = () => dimensions().height - allocation().top - below();
   // The indicator covers a timeline row only while the timeline keeps two others.
-  const indicator = () => (version(), runState.snapshot() !== undefined) && room() >= 3;
+  const indicator = () => (version(), runState.message() !== undefined) && room() >= 3;
   // A blank row separates the history from the bars and the indicator from
   // its neighbours, while the terminal is tall enough to spare them.
   const margin = () => (props.statuslines && room() >= 8 ? 1 : 0);
@@ -163,7 +154,7 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
           focused={focusedRegion() === "stage"}
           onMouseDown={() => regions.requestFocus("stage")}
         >
-          {stageActive() ? props.stage?.() : assistView()}
+          {props.stage?.()}
         </box>
       ) : null}
       <box

@@ -139,16 +139,6 @@ export class CommandController<Render = unknown> {
     if (handle && this.#front(handle)) this.#close(handle);
   }
 
-  resetGeneration(): void {
-    const handle = this.#handle;
-    if (!handle) return;
-    const value = handle.value();
-    if (value.mode === "loading" || value.mode === "candidates" || (value.mode === "arguments" && value.command?.candidates)) {
-      this.notify("Command candidates became unavailable when the session generation ended");
-      this.#close(handle);
-    }
-  }
-
   dispose(): void {
     if (this.#handle) this.#close(this.#handle);
     this.#unsubscribe();

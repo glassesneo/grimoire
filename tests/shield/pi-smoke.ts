@@ -1,6 +1,6 @@
 // Real Pi compatibility: mock/fixtures stream, persist and restore without provider auth.
 import { strict as assert } from "node:assert";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HubClient, type Envelope } from "../../abstractions/modules/agents/shield/client/protocol";
@@ -8,10 +8,10 @@ import { startHub } from "../../abstractions/modules/agents/shield/client/shield
 import { options } from "../../abstractions/modules/agents/shield/quin/launch";
 import { PiAdapter, type View } from "../../abstractions/modules/agents/shield/quin/view";
 import { codemodeErrorLocation, codemodeOutput, codemodeWallTime } from "../../abstractions/modules/agents/shield/quin/ui/codemode-result";
+import { alive, finish, wait } from "./support";
 const dir = mkdtempSync(join(tmpdir(), "shield-pi-"));
 const socket = join(dir, "hub.sock");
 Object.assign(process.env, { HOME: dir, XDG_CONFIG_HOME: join(dir, "config"), XDG_STATE_HOME: join(dir, "state") });
-const wait = async (test: () => boolean, timeout = 15000) => { const until = Date.now() + timeout; while (!test()) { if (Date.now() > until) throw new Error("wait_timeout"); await Bun.sleep(20); } };
 const clients: HubClient[] = [];
 function connect() {
   const client = new HubClient(socket); clients.push(client);
@@ -21,7 +21,6 @@ function connect() {
 }
 const attach = (c: HubClient, cwd = dir, opts = options(true, undefined, cwd)) => c.hub("attach", { cwd, harness: "quin", options: opts });
 const prompt = (c: HubClient, id: string, message: string) => c.engine(id, { op: "rpc", record: { type: "prompt", message } });
-const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 try {
   console.log("Pi: initial stream and reattach");
   await startHub(socket);
@@ -83,7 +82,7 @@ try {
   await wait(() => watcher.adapter.view.timeline.thinking === "high");
   const selected = await rpc({ type: "set_model", provider: "shield-faux", modelId: "fixed" });
   assert.equal(`${selected.provider}/${selected.id}`, "shield-faux/fixed");
-  await wait(() => watcher.events.some(e => e.payload?.record?.type === "quin_model"));
+  await wait(() => watcher.events.some(e => e.payload?.record?.type === "shield_model"));
   assert.equal(watcher.adapter.view.timeline.model, "shield-faux/fixed");
   await wait(() => d.adapter.seq === watcher.adapter.seq);
   assert.deepEqual(watcher.adapter.view, d.adapter.view);
@@ -109,8 +108,10 @@ try {
   const timedRequest = prompt(e.client, id, "/fixture-timeout").catch(() => undefined);
   await wait(() => Object.keys(e.adapter.view.dialogs).length > 0);
   e.client.close(); f.client.close();
+  // Pi's 250 ms timeout closes the dialog while no client is attached; a loaded builder may report it late.
   await Bun.sleep(350);
-  const g = connect(); assert((await attach(g.client)).success); assert.deepEqual(g.adapter.view.dialogs, {});
+  const g = connect(); assert((await attach(g.client)).success);
+  await wait(() => Object.keys(g.adapter.view.dialogs).length === 0, 5000);
   await timedRequest;
   const state = await g.client.engine(id, { op: "rpc", record: { type: "get_state" } });
   const file = state.payload.data.sessionFile; assert(existsSync(file));
@@ -134,6 +135,21 @@ try {
   await wait(() => existsSync(pidFile)); const pid = Number(readFileSync(pidFile, "utf8")); assert(alive(pid));
   await bash.client.hub("stop", { id: bashId });
   await wait(() => bash.adapter.lifecycle === "exited" && !alive(pid), 6000);
+  // A live agent's argv, with the faux provider standing in for Command Code so it runs offline:
+  // the model is given codemode alone, and quin's codemode replaces Pi's built-in one.
+  console.log("Pi: live codemode-only launch");
+  const liveCwd = join(dir, "live"); mkdirSync(liveCwd);
+  process.env.SHIELD_COMMANDCODE = process.env.SHIELD_FAUX;
+  const liveOptions = options(false, "shield-faux/fixed", liveCwd);
+  Object.assign(liveOptions.launch.env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
+  const live = connect(); const liveRoot = await attach(live.client, liveCwd, liveOptions); assert(liveRoot.success, JSON.stringify(liveRoot));
+  const liveId = liveRoot.payload["agent-id"];
+  assert((await prompt(live.client, liveId, "/fixture-tools")).success);
+  const report = () => live.adapter.view.timeline.entries.find(e => e.kind === "assistant" && !e.streaming && e.parts.some((p: any) => p.text?.startsWith("{")));
+  await wait(() => !!report());
+  assert.deepEqual(JSON.parse(report()!.parts.find((p: any) => p.text?.startsWith("{")).text), { declared: ["codemode"], codemode: 1 });
+  await live.client.hub("stop", { id: liveId });
+  await wait(() => live.adapter.lifecycle === "exited");
   const oldHubPid = Number((await g.client.hub("ping")).payload["hub-pid"]);
   await g.client.hub("shutdown"); await wait(() => !existsSync(socket) && !alive(oldHubPid));
   console.log("Pi: reboot without restoring roots");
@@ -142,10 +158,6 @@ try {
   const newState = await reboot.client.engine(fresh.payload["agent-id"], { op: "rpc", record: { type: "get_state" } });
   assert.notEqual(newState.payload.data.sessionFile, file); assert(existsSync(file));
   await reboot.client.hub("shutdown");
-  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, palette commands, four dialogs/first winner/timeout, history/reboot, real bash TERM");
+  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, palette commands, four dialogs/first winner/timeout, history/reboot, real bash TERM, live codemode-only tools");
 } catch (e) { try { console.error(readFileSync(`${socket}.log`, "utf8")); } catch {} throw e; }
-finally {
-  const cleanup = new HubClient(socket); try { await cleanup.hub("shutdown"); } catch {} finally { cleanup.close(); }
-  for (const c of clients) c.close();
-  await Bun.sleep(300); rmSync(dir, { recursive: true, force: true });
-}
+finally { await finish(socket, clients, dir); }

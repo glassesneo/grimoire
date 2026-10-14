@@ -3,6 +3,11 @@
  * and confirm become stage requests, input and editor become editor drafts.
  * The hub owns each dialog and accepts its first valid reply from any UI, so a
  * dialog that leaves the view closes its local request without replying.
+ *
+ * As in the harness, a select or confirm dialog takes focus when it arrives
+ * unless an editor draft is active, even while the prompt holds text, so the
+ * next Enter answers it. That holds for a dialog another client's request
+ * caused as well.
  */
 import type { JSX } from "@opentui/solid";
 import type { Controller } from "./controller";

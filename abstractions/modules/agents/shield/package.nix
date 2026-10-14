@@ -14,6 +14,7 @@
   writeText,
 }: let
   keymap = writeText "quin-keymap.json" (builtins.toJSON keys);
+  piVersion = (lib.importJSON ./runtime/package.json).dependencies."@earendil-works/pi-coding-agent";
   runtime = bun2nix.mkDerivation {
     packageJson = ./runtime/package.json;
     src = lib.fileset.toSource {
@@ -119,8 +120,14 @@ in {
         --set SHIELD_FAUX ${runtime}/libexec/pi/faux.ts \
         --set SHIELD_CODEMODE ${runtime}/libexec/pi/codemode.ts \
         --set SHIELD_COMMANDCODE ${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts \
+        --set SHIELD_PI_VERSION ${piVersion} \
         ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
         ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}
+    '';
+    # quin's action ids live in its code, so only quin can reject a configured keymap.
+    doInstallCheck = keys != {};
+    installCheckPhase = ''
+      HOME="$TMPDIR" "$out/bin/quin" --check-keymap
     '';
     meta = {
       mainProgram = "quin";

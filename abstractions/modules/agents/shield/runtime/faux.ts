@@ -1,14 +1,14 @@
 // quin --mock's provider: /fixture-tool, /fixture-codemode, /fixture-dialog, and
-// /fixture-timeout replay fixed, harmless responses. The real bash fixture used by the
+// /fixture-timeout replay fixed, harmless responses; /fixture-tools reports the tools. The real bash fixture used by the
 // checks is a separate extension.
-import { fauxProvider, fauxAssistantMessage, fauxThinking, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
+import { fauxProvider, fauxAssistantMessage, fauxThinking, fauxText, fauxToolCall, type FauxResponseStep } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 export default function (pi: ExtensionAPI) {
   const faux = fauxProvider({ provider: "shield-faux", models: [{ id: "fixed", reasoning: true }], tokensPerSecond: 24, tokenSize: { min: 2, max: 2 } });
   pi.registerProvider(faux.provider);
-  let fixture: ReturnType<typeof fauxAssistantMessage>[] | undefined;
+  let fixture: FauxResponseStep[] | undefined;
   pi.on("before_agent_start", () => {
     if (fixture) {
       faux.setResponses(fixture);
@@ -39,6 +39,21 @@ export default function (pi: ExtensionAPI) {
       fauxAssistantMessage("Fixture scripts finished."),
     ];
     pi.sendUserMessage("Run codemode fixture", { deliverAs: "followUp" });
+  } });
+  // Answers with the tools the request declares, replayed from the transcript's system
+  // messages, and how many tools named codemode are registered.
+  pi.registerCommand("fixture-tools", { description: "Report the tools declared to the model", handler: async () => {
+    fixture = [(context) => {
+      const declared = new Set<string>();
+      for (const message of context.messages) {
+        if (message.role !== "system") continue;
+        for (const tool of message.toolsRemoved ?? []) declared.delete(tool.name);
+        for (const tool of message.toolsAdded ?? []) declared.add(tool.name);
+      }
+      const codemode = pi.getAllTools().filter((tool) => tool.name === "codemode").length;
+      return fauxAssistantMessage(fauxText(JSON.stringify({ declared: [...declared].sort(), codemode })));
+    }];
+    pi.sendUserMessage("Report tools", { deliverAs: "followUp" });
   } });
   pi.registerCommand("fixture-timeout", { description: "A short standard dialog timeout", handler: async (_, ctx) => {
     await ctx.ui.select("Timed fixture", ["one"], { timeout: 250 });

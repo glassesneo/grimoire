@@ -8,7 +8,8 @@ import { type JSX, useRenderer } from "@opentui/solid";
 import { createSignal, onCleanup, onMount, type Signal } from "solid-js";
 import { setupCommands } from "./contributions/commands";
 import { INTERRUPT_ACTION, setupDefaultActions, type QuinActions } from "./contributions/default";
-import type { Controller } from "./controller";
+import type { HubClient } from "../client/protocol";
+import { Controller } from "./controller";
 import { bridgeDialogs } from "./dialogs";
 import { queuedPrompts, registerTimelineTypes } from "./timeline";
 import { createItemActions, type ClipboardWriter, type TimelineScrollBox } from "./ui/item-actions";
@@ -84,7 +85,8 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     throw error;
   }
   const stopDialogs = bridgeDialogs({ controller: c, ui, ...stageUI });
-  c.onEditorText = text => editor.setText(text);
+  // Pi's text replaces the prompt, never a dialog's or the palette's draft.
+  c.onEditorText = text => editor.setPromptText(text);
 
   // Entering the timeline puts an off-screen cursor on the latest item.
   let lastRegion = regions.current();
@@ -96,12 +98,13 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   const statuses = new Map<string, StatuslineContribution>();
   const notice = statusline.contribute("top", { text: "" });
   const chord = (id: string) => { const first = keys.chords(id)[0]; return first ? formatChord(first) : undefined; };
-  const hint = statusline.contribute("bottom", { text: "" });
+  // The keymap is fixed for the screen's life, so the hint is too.
+  statusline.contribute("bottom", { text: [chord("global.focus-next") && `${chord("global.focus-next")} focus`, chord("global.detach") && `${chord("global.detach")} detach`].filter(Boolean).join(" · ") });
   let shown: unknown;
   const refresh = () => {
     const view = c.adapter.view;
     // Records that leave the timeline as it was, such as a notice or the interrupt key, keep its items.
-    const items = projector.project(view.timeline.entries);
+    const items = projector.project(view.timeline.entries, view.stream);
     if (items !== shown) timeline.replace(shown = items);
     statusline.setFields({
       session: `${c.adapter.mode === "mock" ? "MOCK " : ""}${c.adapter.agent ?? ""}`,
@@ -118,7 +121,6 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       if (existing) existing.update({ text });
       else statuses.set(key, statusline.contribute("bottom", { text }));
     }
-    hint.update({ text: [chord("global.focus-next") && `${chord("global.focus-next")} focus`, chord("global.detach") && `${chord("global.detach")} detach`].filter(Boolean).join(" · ") });
     runState.setActive(c.active);
     const interrupt = chord(INTERRUPT_ACTION);
     runState.setMessage(c.armedUntil && interrupt ? `Press ${interrupt} again within 1s to interrupt` : undefined);
@@ -149,6 +151,12 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       void itemActions.dispose();
     },
   };
+}
+
+/** Rejects a keymap quin cannot use, without a hub or a terminal. */
+export function checkKeymap(keymap: Keymap | undefined): void {
+  const client = { onRecord: () => {}, onDisconnect: () => {}, close: () => {} } as unknown as HubClient;
+  setupScreen(new Controller(client), { keymap }).dispose();
 }
 
 export function Screen(props: { screen: QuinScreen; onTitle?(title: string): void }): JSX.Element {

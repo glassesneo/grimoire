@@ -13,7 +13,6 @@ import {
   type CompactionState,
   imagesOf,
   isRecord,
-  isResultContent,
   type NoticeLevel,
   type ResultContent,
   type RetryAttempt,
@@ -365,28 +364,6 @@ export interface NoticeValue {
   text: string;
 }
 
-
-function isArguments(value: unknown): value is ToolArguments {
-  return isRecord(value) && (value.available === true ? "value" in value : value.available === false && (value.bytes === undefined || typeof value.bytes === "number"));
-}
-
-const TOOL_STATES = new Set<unknown>(["pending", "running", "done", "error", "unfinished", "missing"]);
-
-export function isToolSnapshot(value: unknown): value is ToolSnapshot {
-  if (!isRecord(value)) return false;
-  const { id, callId, name, parentCallId, args, state, result, errorSummary, calls, callsIncomplete } = value;
-  return typeof id === "string" && typeof callId === "string" && typeof name === "string" &&
-    (parentCallId === undefined || typeof parentCallId === "string") && isArguments(args) && TOOL_STATES.has(state) &&
-    (result === undefined || (isRecord(result) && isResultContent(result.content) && typeof result.partial === "boolean")) &&
-    (errorSummary === undefined || typeof errorSummary === "string") &&
-    Array.isArray(calls) && calls.every((call) => isRecord(call) && typeof call.name === "string" && isArguments(call.args) && TOOL_STATES.has(call.state)) &&
-    typeof callsIncomplete === "boolean";
-}
-
-export function isCustomValue(value: unknown): value is CustomValue {
-  return isRecord(value) && typeof value.customType === "string" && (typeof value.content === "string" || isResultContent(value.content));
-}
-
 // ---------------------------------------------------------------------------
 // Tool presentations
 // ---------------------------------------------------------------------------
@@ -504,7 +481,6 @@ function toolType(kind: string, spec: ToolSpec): ItemType<ToolSnapshot, JSX.Elem
     sourceText: toolSource,
     marker: (value) => markerColor[value.state],
     actions: {},
-    validate: isToolSnapshot,
   };
 }
 
@@ -936,7 +912,6 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     sourceText: (value) => contentText(value.content),
     marker: () => palette.accent,
     actions: {},
-    validate: isCustomValue,
   };
   const config: ItemType<ConfigValue, JSX.Element> = {
     kind: "config",

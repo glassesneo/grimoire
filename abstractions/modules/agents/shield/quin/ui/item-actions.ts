@@ -65,7 +65,6 @@ export interface ItemActions<Render = unknown> {
   collapse(): void;
   /** Follow the latest output again, as when a prompt is accepted. */
   follow(): void;
-  following(): boolean;
   /** Apply following or anchoring to the laid-out rows; the view calls it every frame. */
   frame(): void;
   /** Copy the cursor item's `sourceText()` to the clipboard. */
@@ -218,6 +217,8 @@ export function createItemActions<Render>(
   let slack = 0;
   /** The scroll position the actions last left, to notice scrolling they did not do. */
   let expected: number | undefined;
+  /** A cursor that disclosure moved onto a row not laid out yet, to scroll into view once it is. */
+  let revealing: string | undefined;
 
   const setSlack = (rows: number) => {
     if (rows === slack) return;
@@ -295,11 +296,13 @@ export function createItemActions<Render>(
 
   /**
    * Hold `target`'s first line where it is while `act` changes the items; an
-   * off-screen target is first brought to the center, in the same step.
+   * off-screen target is first brought to the center, in the same step. When
+   * expanding moves the cursor to a child, the child is scrolled into view.
    */
   const disclose = (target: string | undefined, act: () => string | undefined, closing = false) => {
     if (target === undefined) return;
     pause();
+    revealing = undefined;
     const box = scrollbox();
     const row = box?.getRenderable(target);
     if (box && row) {
@@ -322,6 +325,21 @@ export function createItemActions<Render>(
       }
     }
     act();
+    const cursor = timeline.cursor();
+    if (!closing && cursor !== undefined && cursor !== target) revealing = cursor;
+  };
+
+  /** Scroll the least that shows the first rows of a laid-out row, and hold it there. */
+  const showRow = (box: TimelineScrollBox, id: string): boolean => {
+    const row = box.getRenderable(id);
+    if (!row) return false;
+    const top = rowTop(box, row);
+    const first = box.scrollTop + topInset();
+    const end = top + Math.min(row.height, usableRows(box));
+    const desired = Math.max(0, top < first ? top - topInset() : end > first + usableRows(box) ? end - topInset() - usableRows(box) : box.scrollTop);
+    anchor = { id, offset: top - desired };
+    box.scrollTop = desired;
+    return true;
   };
 
   return {
@@ -386,8 +404,6 @@ export function createItemActions<Render>(
       setSlack(0);
     },
 
-    following: () => follow,
-
     frame(): void {
       const box = scrollbox();
       if (!box || scroll.animating()) {
@@ -415,6 +431,7 @@ export function createItemActions<Render>(
           box.scrollTop = desired;
         }
       }
+      if (revealing !== undefined && (follow || timeline.cursor() !== revealing || showRow(box, revealing))) revealing = undefined;
       expected = box.scrollTop;
     },
 

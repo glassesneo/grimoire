@@ -123,7 +123,7 @@ export class RegionController extends Emitter {
     return this.#regions.map((region) => region.id);
   }
 
-  /** Register an additional region. Not exposed through `HarnessUI`. */
+  /** Register an additional region. */
   register(region: RegionId, options: { fallback?: RegionId; available?: boolean } = {}): Registration {
     if (this.#regions.some((candidate) => candidate.id === region)) {
       throw new Error(`region already registered: ${region}`);
@@ -185,11 +185,6 @@ export interface StageContentType<T, Render = unknown> {
   /** Resolved value when the request is cancelled or its signal aborts. */
   defaultValue: T;
   actions?: Record<string, StageAction<T>>;
-  /**
-   * Checks a value that arrives from outside the harness. A type without it is
-   * not reachable through the extension client.
-   */
-  validate?(value: unknown): value is T;
   acceptsText?(value: T): boolean;
 }
 
@@ -215,7 +210,6 @@ export interface StageRequest<T, Render = unknown> {
   type: StageContentType<T, Render>;
   value: T;
   preferredHeight: number;
-  onPromptSubmitted?(event: { text: string; handle: StageHandle }): void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -256,7 +250,6 @@ interface PendingStage<Render> {
   actions: readonly string[];
   render: (track?: () => void) => Render;
   runAction: (name: string) => void | Promise<void>;
-  onPromptSubmitted?: (event: { text: string; handle: StageHandle }) => void | Promise<void>;
   signal?: AbortSignal;
   onAbort?: () => void;
   resolve: (result: StageResult<unknown>) => void;
@@ -291,7 +284,6 @@ export class StageController<Render = unknown> extends Emitter {
   readonly #kinds = new Map<string, { token: object; type: StageContentType<unknown, Render> }>();
   readonly #pending: PendingStage<Render>[] = [];
   #foregroundId: string | undefined;
-  #assistAvailable = false;
   #suppressSuccessorFocus = false;
   #nextId = 0;
 
@@ -321,7 +313,7 @@ export class StageController<Render = unknown> extends Emitter {
     };
   }
 
-  /** The registered definition of a kind; its values are unchecked until validated. */
+  /** The registered definition of a kind. */
   lookup(kind: string): StageContentType<unknown, Render> | undefined {
     return this.#kinds.get(kind)?.type;
   }
@@ -380,7 +372,6 @@ export class StageController<Render = unknown> extends Emitter {
           ? action({ value: current, handle: handle as StageHandle<T>, focused: this.focused() })
           : undefined;
       },
-      onPromptSubmitted: request.onPromptSubmitted,
       signal: request.signal,
       resolve: (result) => resolve(result as StageResult<T>),
       handle,
@@ -463,31 +454,6 @@ export class StageController<Render = unknown> extends Emitter {
     return this.#regions.current() === this.#region;
   }
 
-  async notifyPromptSubmitted(text: string): Promise<void> {
-    const active = this.#pending.find((entry) => entry.id === this.#foregroundId);
-    if (!active?.onPromptSubmitted) {
-      return;
-    }
-    try {
-      await active.onPromptSubmitted({ text, handle: active.handle });
-    } catch {
-      // A requester callback never changes the prompt result or escapes unhandled.
-    }
-  }
-
-  /**
-   * Availability contributed by a transient editor assist. The region stays
-   * focusable while either a request or a nonempty assist owns it.
-   */
-  setAssistAvailable(available: boolean): void {
-    if (this.#assistAvailable === available) {
-      return;
-    }
-    this.#assistAvailable = available;
-    this.#syncAvailability();
-    this.changed();
-  }
-
   #present(pending: PendingStage<Render>, explicit = false, suppress = false): void {
     const claim = stageRequestPolicy.claim(pending, explicit, this.#canFocus(), suppress || this.#suppressSuccessorFocus);
     this.#suppressSuccessorFocus = false;
@@ -533,7 +499,7 @@ export class StageController<Render = unknown> extends Emitter {
   }
 
   #syncAvailability(): void {
-    this.#regions.setAvailable(this.#region, this.#pending.length > 0 || this.#assistAvailable);
+    this.#regions.setAvailable(this.#region, this.#pending.length > 0);
   }
 }
 
@@ -582,11 +548,6 @@ export interface ItemType<T, Render = unknown> {
    */
   live?: boolean;
   actions: Record<string, ItemAction<T>>;
-  /**
-   * Checks a value that arrives from outside the harness. A type without it is
-   * not reachable through the extension client.
-   */
-  validate?(value: unknown): value is T;
 }
 
 export interface ItemRenderProps<T, Render = unknown> {
@@ -603,11 +564,6 @@ export interface ItemAction<T> {
 export interface ItemActionEvent<T> {
   value: T;
   id: string;
-}
-
-export interface ItemFactory<T, Render = unknown> extends Registration {
-  readonly kind: string;
-  create(value: T, options?: { parentId?: string; initiallyExpanded?: boolean }): TimelineItemInput<T, Render>;
 }
 
 /**
@@ -668,13 +624,11 @@ export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>):
 }
 
 /**
- * Timeline items as a tree in reading order. `append` replaces by id so a
- * streamed item keeps its identity; `replace` reconciles a whole history and
- * moves the cursor to the nearest surviving ancestor or neighbour.
+ * Timeline items as a tree in reading order. `replace` reconciles a whole
+ * history, keeping items by id, and moves the cursor to the nearest surviving ancestor or neighbour.
  *
  * Disclosure is held here, by item id, for as long as the registry lives; it is
- * never persisted, and `resetDisclosure` drops it when another history replaces
- * this one. Only items whose ancestors are all expanded are visible, and the
+ * never persisted. Only items whose ancestors are all expanded are visible, and the
  * cursor only ever rests on a visible item.
  */
 export class ItemTypeRegistry<Render = unknown> extends Emitter {
@@ -684,7 +638,6 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
   readonly #expanded = new Map<string, boolean>();
   #children: Map<string, string[]> | undefined;
   #cursor: string | undefined;
-  #nextId = 0;
   #revision = 0;
 
   /**
@@ -701,7 +654,7 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     super.changed();
   }
 
-  registerType<T>(type: ItemType<T, Render>): ItemFactory<T, Render> {
+  registerType<T>(type: ItemType<T, Render>): Registration {
     if (this.#kinds.has(type.kind)) {
       throw new DuplicateRegistrationError("item", type.kind);
     }
@@ -709,14 +662,6 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     this.#kinds.set(type.kind, { token, type: type as unknown as ItemType<unknown, Render> });
     this.changed();
     return {
-      kind: type.kind,
-      create: (value: T, options = {}) => ({
-        id: `timeline-${this.#nextId++}`,
-        version: 0,
-        type,
-        value,
-        ...options,
-      }),
       dispose: () => {
         if (this.#kinds.get(type.kind)?.token !== token) {
           return;
@@ -727,34 +672,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     };
   }
 
-  /** The registered definition of a kind; its values are unchecked until validated. */
+  /** The registered definition of a kind. */
   lookup(kind: string): ItemType<unknown, Render> | undefined {
     return this.#kinds.get(kind)?.type;
-  }
-
-  append<T>(input: TimelineItemInput<T, Render>): TimelineItem<Render> {
-    const item = materializeItem(input);
-    const index = this.#indexById.get(item.id);
-    if (index === undefined) {
-      this.#indexById.set(item.id, this.#items.length);
-      this.#items.push(item);
-    } else {
-      this.#items[index] = item;
-    }
-    this.#children = undefined;
-    this.#normalizeCursor(undefined);
-    this.changed();
-    return item;
-  }
-
-  /** Remove an item and its descendants. */
-  remove(id: string): boolean {
-    if (!this.#indexById.has(id)) {
-      return false;
-    }
-    const removed = new Set([id, ...this.#descendants(id)]);
-    this.replace(this.#items.filter((item) => !removed.has(item.id)));
-    return true;
   }
 
   /**
@@ -784,16 +704,6 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
       }
     }
     this.#normalizeCursor(previousIndex);
-    this.changed();
-  }
-
-  /** Forget every disclosure choice, for a history that replaces this one. */
-  resetDisclosure(): void {
-    if (this.#expanded.size === 0) {
-      return;
-    }
-    this.#expanded.clear();
-    this.#normalizeCursor(undefined);
     this.changed();
   }
 
@@ -828,10 +738,6 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
   /** Ancestor ids, nearest first. */
   ancestors(id: string): readonly string[] {
     return this.#ancestors(id);
-  }
-
-  depth(id: string): number {
-    return this.#ancestors(id).length;
   }
 
   isExpandable(id: string): boolean {
@@ -985,17 +891,6 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
       parent = this.find(parent)?.parentId;
     }
     return ancestors;
-  }
-
-  #descendants(id: string): string[] {
-    const result: string[] = [];
-    const pending = [...this.children(id)];
-    while (pending.length > 0) {
-      const next = pending.shift() as string;
-      result.push(next);
-      pending.push(...this.children(next));
-    }
-    return result;
   }
 
   /**

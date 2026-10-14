@@ -1,13 +1,14 @@
 # Both transports split bytes on LF only. OTP's JSON implementation avoids Hex dependencies.
 # A record is at most 64 MiB; a connection may hold 64 unresolved requests and a 16 MiB live
-# backlog, with snapshot bytes counted apart. A peer that exceeds them or sends an invalid
-# record is disconnected, never silently truncated.
+# backlog, with snapshot bytes counted apart. A peer that exceeds the record or backlog limit,
+# sends a line that is not a JSON object, or reuses the id of an unresolved request is
+# disconnected, never silently truncated; a decodable record that is not a valid request gets
+# an `invalid_protocol` response, and one past the request limit a `request_limit` response.
 defmodule Shield.Protocol do
   @record_limit 64 * 1024 * 1024
   @live_limit 16 * 1024 * 1024
   def record_limit, do: @record_limit
   def live_limit, do: @live_limit
-  def engine_request_limit, do: 4096
   def encode(value), do: JSON.encode!(value) <> "\n"
 
   def decode(line) do

@@ -20,6 +20,7 @@ export interface Envelope {
 // Byte framing preserves split UTF-8 codepoints and Unicode separators.
 export class JsonLines {
   private chunks: Buffer[] = [];
+  private decoder = new TextDecoder("utf-8", { fatal: true });
   private size = 0;
   feed(bytes: Uint8Array): unknown[] {
     const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -34,7 +35,7 @@ export class JsonLines {
       if (end === -1) break;
       const line = Buffer.concat(this.chunks, this.size);
       this.chunks = []; this.size = 0;
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(line);
+      const text = this.decoder.decode(line);
       const value = JSON.parse(text.endsWith("\r") ? text.slice(0, -1) : text);
       if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid_record");
       records.push(value);
@@ -53,7 +54,8 @@ export class HubClient {
   onDisconnect: (e: Error) => void = () => {};
   private closed = false;
   readonly connected: Promise<void>;
-  constructor(path: string) {
+  /** `engineName` names the engine of every request; null means the hub's default. */
+  constructor(path: string, private readonly engineName: string | null = null) {
     this.socket = createConnection({ path });
     this.connected = new Promise((resolve, reject) => {
       this.socket.once("connect", resolve);
@@ -81,20 +83,24 @@ export class HubClient {
     this.pending.clear();
     this.onDisconnect(error);
   }
-  async request(type: "hub_request" | "engine_request", agent: string | null, payload: unknown, method?: string, id = `c${this.next++}`): Promise<Envelope> {
+  /**
+   * Resolves with the hub's response. The hub answers every request within its own
+   * deadline, so `timeout` is that deadline plus a margin, never a shorter one.
+   */
+  async request(type: "hub_request" | "engine_request", agent: string | null, payload: unknown, method?: string, timeout = 65_000, id = `c${this.next++}`): Promise<Envelope> {
     await this.connected;
     if (this.closed) throw new Error("disconnected");
     if (this.pending.has(id) || this.pending.size >= 64) throw new Error("request_limit_or_duplicate");
-    const record = { v: 1, type, id, "agent-id": agent, engine: "pi", method, payload };
+    const record = { v: 1, type, id, "agent-id": agent, engine: this.engineName, method, payload };
     const frame = JSON.stringify(record) + "\n";
     if (Buffer.byteLength(frame) > RECORD_LIMIT || this.socket.writableLength + Buffer.byteLength(frame) > LIVE_LIMIT) throw new Error("outgoing_frame_or_queue_limit");
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("request_timeout; acceptance unknown (not resent)")); }, 65_000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("request_timeout; acceptance unknown (not resent)")); }, timeout);
       this.pending.set(id, { resolve, reject, timer });
       this.socket.write(frame, e => { if (e) this.fail(e); });
     });
   }
   hub(method: string, payload: unknown = {}) { return this.request("hub_request", null, payload, method); }
-  engine(agent: string, payload: unknown) { return this.request("engine_request", agent, payload); }
+  engine(agent: string, payload: unknown, timeout?: number) { return this.request("engine_request", agent, payload, undefined, timeout); }
   close() { this.socket.destroy(); }
 }

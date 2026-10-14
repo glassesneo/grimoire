@@ -32,19 +32,24 @@ defmodule Shield.Agent do
 
     {:os_pid, os_pid} = Port.info(port, :os_pid)
     {engine, effects} = info.module.init(launch)
+    queued = :atomics.new(1, [])
+    writer = spawn_link(fn -> write_loop(port, queued) end)
 
     s = %{
       info: info,
       engine: engine,
       port: port,
       os_pid: os_pid,
+      writer: writer,
+      queued: queued,
       seq: 0,
       subscribers: %{},
       clients: %{},
       buffer: Protocol.buffer(),
       state: "starting",
       stopping: false,
-      failure: nil
+      failure: nil,
+      ended: false
     }
 
     Process.send_after(self(), :startup_timeout, 60_000)
@@ -53,36 +58,35 @@ defmodule Shield.Agent do
   end
 
   def handle_cast({:attach, ref, r, options}, s) do
-    if s.state in ["starting", "ready"] do
+    if live?(s) do
       s = watch(s, ref)
       {engine, next} = s.info.module.attach(s.engine, ref, r, options)
       {:noreply, effects(%{s | engine: engine}, next)}
     else
-      Connection.deliver(
-        ref,
-        Protocol.error(r["id"], s.info.id, s.info.engine, "agent_unavailable")
-      )
-
-      {:noreply, s}
+      unavailable(s, ref, r, "agent_unavailable")
     end
   end
 
   def handle_cast({:input, ref, r}, s) do
-    if s.state == "ready" do
-      s = watch(s, ref)
-      {engine, next} = s.info.module.input(s.engine, ref, r, now())
-      {:noreply, effects(%{s | engine: engine}, next)}
-    else
-      Connection.deliver(
-        ref,
-        Protocol.error(r["id"], s.info.id, s.info.engine, "agent_unavailable")
-      )
+    cond do
+      not live?(s) ->
+        unavailable(s, ref, r, "agent_unavailable")
 
-      {:noreply, s}
+      s.state == "starting" ->
+        unavailable(s, ref, r, "agent_starting")
+
+      true ->
+        s = watch(s, ref)
+        {engine, next} = s.info.module.input(s.engine, ref, r, now())
+        {:noreply, effects(%{s | engine: engine}, next)}
     end
   end
 
   def handle_cast(:stop, s), do: {:noreply, stop(s)}
+
+  # The Manager forwards nothing after it has seen the final lifecycle, so every request it
+  # forwarded earlier is already in this mailbox, and has been answered, when this arrives.
+  def handle_cast(:release, %{ended: true} = s), do: {:stop, :normal, s}
 
   # Records are applied one at a time, so a record that cannot be applied fails the agent
   # from the state its predecessors left, after their effects were already delivered.
@@ -96,13 +100,19 @@ defmodule Shield.Agent do
     end
   end
 
-  # The agent ends with its Pi process: the final lifecycle is delivered, then the
-  # process exits normally and the Manager keeps that state.
+  # The agent ends with its engine process: the final lifecycle is delivered once, with a
+  # failure's code beside the exit code, and the Agent then waits for the Manager's release.
   def handle_info({port, {:exit_status, code}}, %{port: port} = s) do
     {engine, pending} = s.info.module.failed(s.engine, "engine_exited")
     state = if s.stopping and is_nil(s.failure) and code in [0, 143], do: "exited", else: "failed"
+
+    detail =
+      if s.failure,
+        do: %{"error" => s.failure, "exitCode" => code},
+        else: %{"exitCode" => code}
+
     s = effects(%{s | port: nil, os_pid: nil, engine: engine}, pending)
-    {:stop, :normal, lifecycle(s, state, %{"exitCode" => code})}
+    {:noreply, finish(s, state, detail)}
   end
 
   def handle_info({:EXIT, port, _}, %{port: port} = s), do: {:noreply, s}
@@ -125,12 +135,14 @@ defmodule Shield.Agent do
     if Port.info(port), do: Port.close(port)
     {engine, pending} = s.info.module.failed(s.engine, "engine_exited")
 
-    {:stop, :normal,
+    {:noreply,
      effects(%{s | engine: engine, port: nil, os_pid: nil}, pending)
-     |> lifecycle("failed", %{"error" => "exit_not_observed"})}
+     |> finish("failed", %{"error" => "exit_not_observed"})}
   end
 
   def handle_info({:kill_timeout, _}, s), do: {:noreply, s}
+
+  def handle_info(:tick, %{ended: true} = s), do: {:noreply, s}
 
   def handle_info(:tick, s) do
     {engine, next} = s.info.module.expire(s.engine, now())
@@ -164,6 +176,10 @@ defmodule Shield.Agent do
     _ -> {:halt, fail(s, "invalid_engine_frame")}
   end
 
+  defp live?(s), do: s.state in ["starting", "ready"] and is_nil(s.failure) and not s.stopping
+
+  defp unavailable(s, ref, r, code), do: {:noreply, effect({:error, ref, r, code}, s)}
+
   defp watch(s, ref) do
     if Map.has_key?(s.clients, ref.pid),
       do: s,
@@ -182,12 +198,22 @@ defmodule Shield.Agent do
 
   defp effect({:write, r}, s) do
     frame = Protocol.encode(r)
+    size = byte_size(frame)
 
     cond do
-      s.port == nil or s.failure -> s
-      byte_size(frame) > Protocol.record_limit() -> rejected(s, r, "engine_input_frame_limit")
-      not Port.command(s.port, frame, [:nosuspend]) -> rejected(s, r, "engine_stdin_busy")
-      true -> s
+      s.port == nil or s.failure ->
+        s
+
+      size > Protocol.record_limit() ->
+        rejected(s, r, "engine_input_frame_limit")
+
+      :atomics.get(s.queued, 1) + size > Protocol.record_limit() ->
+        rejected(s, r, "engine_stdin_busy")
+
+      true ->
+        :atomics.add(s.queued, 1, size)
+        send(s.writer, {:frame, frame})
+        s
     end
   end
 
@@ -199,17 +225,9 @@ defmodule Shield.Agent do
   defp effect({:transaction, engine, next, ref, request, payload}, s) do
     after_effect = effects(s, next)
 
-    if not is_nil(after_effect.failure) or is_nil(after_effect.port) do
-      Connection.deliver(
-        ref,
-        Protocol.error(request["id"], s.info.id, s.info.engine, "engine_write_rejected")
-      )
-
-      after_effect
-    else
-      Connection.deliver(ref, Protocol.response(request["id"], s.info.id, s.info.engine, payload))
-      %{after_effect | engine: engine}
-    end
+    if not is_nil(after_effect.failure) or is_nil(after_effect.port),
+      do: effect({:error, ref, request, "engine_write_rejected"}, after_effect),
+      else: effect({:ok, ref, request, payload}, %{after_effect | engine: engine})
   end
 
   defp effect({:ready}, s), do: lifecycle(s, "ready", %{})
@@ -220,27 +238,16 @@ defmodule Shield.Agent do
       Map.merge(Protocol.envelope("snapshot", s.info.id, s.info.engine), %{
         "hub-instance" => s.info.instance,
         "seq" => s.seq,
-        "payload" => %{
-          "lifecycle" => s.state,
-          "mode" => s.info.mode,
-          "view" => s.info.module.snapshot(s.engine)
-        }
+        "payload" => Map.put(s.info.module.snapshot(s.engine), "lifecycle", s.state)
       })
 
-    if byte_size(Protocol.encode(record)) > Protocol.record_limit() do
-      Connection.deliver(
-        ref,
-        Protocol.error(r["id"], s.info.id, s.info.engine, "snapshot_frame_limit")
-      )
+    frame = Protocol.encode(record)
 
-      s
+    if byte_size(frame) > Protocol.record_limit() do
+      effect({:error, ref, r, "snapshot_frame_limit"}, s)
     else
-      Connection.deliver(ref, record)
-
-      Connection.deliver(
-        ref,
-        Protocol.response(r["id"], s.info.id, s.info.engine, %{"agent-id" => s.info.id})
-      )
+      Connection.deliver_frame(ref, frame, record)
+      effect({:ok, ref, r, %{"agent-id" => s.info.id}}, s)
 
       if Map.has_key?(s.subscribers, ref.pid),
         do: s,
@@ -253,21 +260,17 @@ defmodule Shield.Agent do
     s
   end
 
-  defp effect({:ok, ref, r, payload}, s) do
-    Connection.deliver(ref, Protocol.response(r["id"], s.info.id, s.info.engine, payload))
+  defp effect({:error, ref, r, code, payload}, s) do
+    Connection.deliver(
+      ref,
+      Map.put(Protocol.error(r["id"], s.info.id, s.info.engine, code), "payload", payload)
+    )
+
     s
   end
 
-  defp effect({:reply, ref, r, result}, s) do
-    record =
-      if result["success"],
-        do: Protocol.response(r["id"], s.info.id, s.info.engine, result),
-        else:
-          Map.merge(Protocol.error(r["id"], s.info.id, s.info.engine, "engine_rejected"), %{
-            "payload" => result
-          })
-
-    Connection.deliver(ref, record)
+  defp effect({:ok, ref, r, payload}, s) do
+    Connection.deliver(ref, Protocol.response(r["id"], s.info.id, s.info.engine, payload))
     s
   end
 
@@ -281,6 +284,8 @@ defmodule Shield.Agent do
     broadcast(%{s | state: state}, %{"op" => "lifecycle", "state" => state, "detail" => detail})
   end
 
+  defp finish(s, state, detail), do: %{lifecycle(s, state, detail) | ended: true}
+
   defp broadcast(s, payload) do
     seq = s.seq + 1
 
@@ -291,28 +296,50 @@ defmodule Shield.Agent do
         "payload" => payload
       })
 
-    Enum.each(s.subscribers, fn {_, {ref, _}} -> Connection.deliver(ref, r) end)
+    if map_size(s.subscribers) > 0 do
+      frame = Protocol.encode(r)
+      Enum.each(s.subscribers, fn {_, {ref, _}} -> Connection.deliver_frame(ref, frame, r) end)
+    end
+
     %{s | seq: seq}
   end
 
   defp fail(%{failure: failure} = s, _) when not is_nil(failure), do: s
 
+  # A failure is reported as `stopping` with its code; `failed` follows once the process
+  # has exited.
   defp fail(s, code) do
     {engine, pending} = s.info.module.failed(s.engine, code)
     s = effects(%{s | failure: code, engine: engine}, pending)
-    s |> lifecycle("failed", %{"error" => code}) |> stop()
+
+    cond do
+      is_nil(s.port) -> finish(s, "failed", %{"error" => code})
+      s.stopping -> s
+      true -> s |> lifecycle("stopping", %{"error" => code}) |> stop()
+    end
   end
 
   defp stop(%{port: nil} = s), do: s
   defp stop(%{stopping: true} = s), do: s
 
-  # TERM, then KILL after 5 s. Signals reach Pi's process only, so a KILL can leave tool
-  # descendants running.
+  # TERM, then KILL after 5 s. Signals reach the engine's process only, so a KILL can leave
+  # its descendants running.
   defp stop(s) do
     signal(s.os_pid, "TERM")
     Process.send_after(self(), {:kill, s.os_pid}, 5000)
     s = %{s | stopping: true}
     if s.failure, do: s, else: lifecycle(s, "stopping", %{})
+  end
+
+  # Writes block here instead of in the Agent, so a process that reads stdin slowly delays
+  # only its own input.
+  defp write_loop(port, queued) do
+    receive do
+      {:frame, frame} ->
+        Port.command(port, frame)
+        :atomics.sub(queued, 1, byte_size(frame))
+        write_loop(port, queued)
+    end
   end
 
   # This short OS operation runs under the lifetime owner, never a delayed worker.
@@ -322,6 +349,7 @@ defmodule Shield.Agent do
   defp now, do: System.system_time(:millisecond)
 
   def terminate(_, s) do
+    Process.exit(s.writer, :kill)
     if s.port, do: signal(s.os_pid, "TERM")
   end
 end

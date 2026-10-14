@@ -20,8 +20,13 @@ for (const [index, event] of events.entries()) {
   assert.deepEqual(view, hub[index], `trace mismatch at ${index}: ${event.type}`);
   assert.deepEqual(live, hub[index], `in-place trace mismatch at ${index}: ${event.type}`);
 }
-assert.equal(view.timeline.entries.filter(e => e.kind === "user").length, 2);
-assert.equal(view.timeline.entries.filter(e => e.kind === "assistant").length, 2);
+assert.equal(view.timeline.entries.filter(e => e.kind === "user").length, 3);
+assert.equal(view.timeline.entries.filter(e => e.kind === "assistant").length, 3);
 assert.equal(view.timeline.entries.find(e => e.callId === "call")?.state, "done");
 assert(!("text" in view.presentation));
+// A compaction Pi ends without starting it is shown failed; an empty status clears its key.
+assert.equal(view.timeline.entries.find(e => e.kind === "compaction" && e.reason === "overflow")?.state, "failed");
+assert.deepEqual(view.presentation.status, {});
+// An extension tool's string or list result becomes content instead of failing the reducers.
+assert.deepEqual(view.timeline.entries.find(e => e.callId === "stringy")?.result, { content: [{ type: "text", text: "listed" }], details: null, partial: false });
 console.log("shared trace passed at every revision");
