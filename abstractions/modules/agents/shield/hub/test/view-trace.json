@@ -37,6 +37,7 @@
   {"type":"agent_start"},
   {"type":"auto_retry_end","success":false,"attempt":2,"finalError":"gave up"},
   {"type":"thinking_level_changed","level":"high"},
+  {"type":"quin_model","model":{"provider":"fixture","id":"other"}},
   {"type":"entry_appended","entry":{"type":"custom_message","customType":"fixture","content":"custom","display":true}},
   {"type":"extension_ui_request","id":"notice","method":"notify","message":"complete","notifyType":"info"},
   {"type":"agent_end","messages":[]},

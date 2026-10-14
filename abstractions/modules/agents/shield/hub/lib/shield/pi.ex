@@ -3,7 +3,7 @@ defmodule Shield.Pi do
   alias Shield.PiView, as: View
 
   @reads ~w(get_state get_messages get_entries get_tree get_last_assistant_text get_available_models get_available_thinking_levels get_session_stats get_commands)
-  @writes ~w(prompt steer follow_up abort clear_queue)
+  @writes ~w(prompt steer follow_up abort clear_queue set_model set_thinking_level compact)
   @preflights ~w(prompt steer follow_up)
   def launch(options, cwd) do
     d = options["launch"]
@@ -74,10 +74,9 @@ defmodule Shield.Pi do
       s.initializing ->
         {%{s | attaches: s.attaches ++ [{ref, request, options}]}, []}
 
+      # A model chooses only a new root's model: any client can change it later.
       true ->
-        # A default model only chooses a new root's model; an explicit one must match.
-        verify = if options["modelSource"] == "default", do: nil, else: options["model"]
-        rpc(s, %{"type" => "get_state"}, {:attach, ref, request, verify})
+        {s, [{:subscribe, ref, request}]}
     end
   end
 
@@ -135,11 +134,24 @@ defmodule Shield.Pi do
     command = r["type"]
 
     allowed =
-      if command in @preflights,
-        do: ~w(type id message images streamingBehavior),
-        else: if(command == "get_entries", do: ~w(type id since), else: ~w(type id))
+      case command do
+        c when c in @preflights -> ~w(type id message images streamingBehavior)
+        "get_entries" -> ~w(type id since)
+        "set_model" -> ~w(type id provider modelId)
+        "set_thinking_level" -> ~w(type id level)
+        "compact" -> ~w(type id customInstructions)
+        _ -> ~w(type id)
+      end
 
     fields = Enum.all?(Map.keys(r), &(&1 in allowed))
+
+    arguments =
+      case command do
+        "set_model" -> is_binary(r["provider"]) and is_binary(r["modelId"])
+        "set_thinking_level" -> is_binary(r["level"])
+        "compact" -> is_nil(r["customInstructions"]) or is_binary(r["customInstructions"])
+        _ -> true
+      end
 
     message =
       command not in @preflights or
@@ -154,7 +166,7 @@ defmodule Shield.Pi do
                is_binary(image["mimeType"])
            end))
 
-    fields and message and images and command in (@reads ++ @writes) and
+    fields and arguments and message and images and command in (@reads ++ @writes) and
       r["streamingBehavior"] in [nil, "steer", "followUp"] and
       (is_nil(r["since"]) or is_binary(r["since"]))
   end
@@ -228,22 +240,12 @@ defmodule Shield.Pi do
     end
   end
 
-  defp response(s, {:attach, ref, request, model}, r, _) do
-    if r["success"] == true and
-         (model == nil or (is_map(r["data"]["model"]) and name(r["data"]["model"]) == model)) do
-      # Verification is private; it must not overwrite the continuously maintained view.
-      {s, [{:subscribe, ref, request}]}
-    else
-      {s, [{:error, ref, request, "model_mismatch"}]}
-    end
+  defp response(s, {:client, ref, request, command}, r, now) do
+    {s, effects} = accepted_done(s, command, r, now)
+    {s, [{:reply, ref, request, Map.put(r, "id", request["id"])} | effects]}
   end
 
-  defp response(s, {:client, ref, request, command}, r, _) do
-    effects = [{:reply, ref, request, Map.put(r, "id", request["id"])}]
-    accepted_done(s, command, effects)
-  end
-
-  defp response(s, {:detached, command}, _, _), do: accepted_done(s, command, [])
+  defp response(s, {:detached, command}, r, now), do: accepted_done(s, command, r, now)
 
   defp response(s, :interrupt_clear, r, _) do
     if r["success"] == true do
@@ -256,14 +258,19 @@ defmodule Shield.Pi do
 
   defp response(s, :interrupt_abort, r, _), do: interrupt_done(s, r)
 
-  defp accepted_done(s, command, effects) do
-    if command == "prompt" do
-      run = Map.update!(s.view["run"], "accepting", &max(0, &1 - 1))
+  defp accepted_done(s, command, r, now) do
+    cond do
+      command == "prompt" ->
+        run = Map.update!(s.view["run"], "accepting", &max(0, &1 - 1))
+        {put_in(s, [:view, "run"], run), [{:broadcast, %{"type" => "quin_run", "run" => run}}]}
 
-      {put_in(s, [:view, "run"], run),
-       effects ++ [{:broadcast, %{"type" => "quin_run", "run" => run}}]}
-    else
-      {s, effects}
+      # Pi reports a model change only to the requester; every client's view follows it.
+      command == "set_model" and r["success"] == true and is_map(r["data"]) ->
+        record = %{"type" => "quin_model", "model" => r["data"]}
+        {%{s | view: View.apply(s.view, record, now)}, [{:broadcast, record, now}]}
+
+      true ->
+        {s, []}
     end
   end
 
@@ -415,7 +422,6 @@ defmodule Shield.Pi do
         kind =
           case kind do
             {:client, %{pid: ^pid}, _, c} -> {:detached, c}
-            {:attach, %{pid: ^pid}, _, _} -> {:detached, "get_state"}
             _ -> kind
           end
 
@@ -453,7 +459,6 @@ defmodule Shield.Pi do
   end
 
   defp request_error({:client, ref, r, _}, code), do: [{:error, ref, r, code}]
-  defp request_error({:attach, ref, r, _}, code), do: [{:error, ref, r, code}]
   defp request_error(_, _), do: []
   defp preflight?({:client, _, _, c}), do: c in @preflights
   defp preflight?({:detached, c}), do: c in @preflights
@@ -462,9 +467,16 @@ defmodule Shield.Pi do
   defp rpc(s, record, kind) do
     id = "shield:" <> Integer.to_string(s.next)
 
-    {%{s | next: s.next + 1, pending: Map.put(s.pending, id, {kind, monotonic() + 60_000})},
-     [{:write, Map.put(record, "id", id)}]}
+    {%{
+       s
+       | next: s.next + 1,
+         pending: Map.put(s.pending, id, {kind, monotonic() + timeout(record)})
+     }, [{:write, Map.put(record, "id", id)}]}
   end
+
+  # Compaction summarizes the history with the model, which can take minutes.
+  defp timeout(%{"type" => "compact"}), do: 600_000
+  defp timeout(_), do: 60_000
 
   defp name(m), do: m["provider"] <> "/" <> m["id"]
   defp monotonic, do: System.monotonic_time(:millisecond)

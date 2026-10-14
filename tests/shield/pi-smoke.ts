@@ -73,6 +73,21 @@ try {
   assert.match(codemodeOutput(completed.result.content).output, /fixture complete/);
   assert.equal(failed.state, "error");
   assert.deepEqual(codemodeErrorLocation(failed.args.value.code, { content: failed.result.content, isError: true }), { kind: "located", line: 2, error: "TypeError: cannot read property 'missing' of null\n    at <anonymous> (codemode.js:2:1)" });
+  // The palette's RPC commands: another client's view follows each change.
+  console.log("Pi: palette commands");
+  const watcher = connect(); assert((await attach(watcher.client)).success);
+  const rpc = async (record: Record<string, unknown>) => { const r = await d.client.engine(id, { op: "rpc", record }); assert(r.success, JSON.stringify(r)); return r.payload.data; };
+  assert((await rpc({ type: "get_available_models" })).models.some((m: any) => m.provider === "shield-faux" && m.id === "fixed"));
+  assert((await rpc({ type: "get_available_thinking_levels" })).levels.includes("high"));
+  await rpc({ type: "set_thinking_level", level: "high" });
+  await wait(() => watcher.adapter.view.timeline.thinking === "high");
+  const selected = await rpc({ type: "set_model", provider: "shield-faux", modelId: "fixed" });
+  assert.equal(`${selected.provider}/${selected.id}`, "shield-faux/fixed");
+  await wait(() => watcher.events.some(e => e.payload?.record?.type === "quin_model"));
+  assert.equal(watcher.adapter.view.timeline.model, "shield-faux/fixed");
+  await wait(() => d.adapter.seq === watcher.adapter.seq);
+  assert.deepEqual(watcher.adapter.view, d.adapter.view);
+  watcher.client.close();
   // Observe a dialog, disconnect its origin, then restore without extending its deadline.
   console.log("Pi: standard dialogs");
   const dialogRequest = prompt(d.client, id, "/fixture-dialog").catch(() => undefined);
@@ -127,7 +142,7 @@ try {
   const newState = await reboot.client.engine(fresh.payload["agent-id"], { op: "rpc", record: { type: "get_state" } });
   assert.notEqual(newState.payload.data.sessionFile, file); assert(existsSync(file));
   await reboot.client.hub("shutdown");
-  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, four dialogs/first winner/timeout, history/reboot, real bash TERM");
+  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, palette commands, four dialogs/first winner/timeout, history/reboot, real bash TERM");
 } catch (e) { try { console.error(readFileSync(`${socket}.log`, "utf8")); } catch {} throw e; }
 finally {
   const cleanup = new HubClient(socket); try { await cleanup.hub("shutdown"); } catch {} finally { cleanup.close(); }

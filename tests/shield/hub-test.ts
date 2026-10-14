@@ -65,7 +65,8 @@ try {
   const [ra, rb] = await Promise.all([a.request("engine_request", id, rpc, undefined, "same"), b.request("engine_request", id, rpc, undefined, "same")]);
   assert(ra.success && rb.success); assert.equal(ra.id, "same"); assert.equal(rb.id, "same"); assert.equal(ra.payload.id, "same"); assert.equal(rb.payload.id, "same");
   assert(!(await attach(b, dir, { ...fakeOptions(), mode: "live" })).success);
-  assert.equal((await attach(b, dir, { ...fakeOptions(), model: "fixture/wrong" })).error?.code, "model_mismatch");
+  // A model chooses only a new root's model; naming another one still joins this agent.
+  assert.equal((await attach(b, dir, { ...fakeOptions(), model: "fixture/other" })).payload?.["agent-id"], id);
   assert.equal((await a.engine(id, { op: "rpc", record: { type: "prompt", message: "/new" } })).error?.code, "unsupported_or_invalid_rpc");
   for (let i = 0; i < 2; i++) {
     assert((await a.engine(id, { op: "rpc", record: { type: "prompt", message: "same" } })).success);

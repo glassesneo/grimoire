@@ -30,6 +30,8 @@ export interface Action {
   run(): void;
   /** Chords bound when the keymap does not name this action. */
   keys?: readonly string[];
+  /** Whether the action applies now; otherwise its chords fall through to the global layer and the native input. */
+  when?(): boolean;
 }
 
 /** Action id to chords. Listing an action replaces its default chords; an empty list unbinds it. */
@@ -163,8 +165,11 @@ export class KeyBindings extends Emitter {
     if (typesText(chord) && this.#acceptsText(region)) return undefined;
     const tables = this.#tables ?? new Map();
     const id = chordId(chord);
-    const actionId = tables.get(region)?.get(id) ?? tables.get(GLOBAL_LAYER)?.get(id);
-    return actionId === undefined ? undefined : this.#actions.get(actionId)?.action;
+    const applies = (actionId: string | undefined) => {
+      const action = actionId === undefined ? undefined : this.#actions.get(actionId)?.action;
+      return action && (action.when?.() ?? true) ? action : undefined;
+    };
+    return applies(tables.get(region)?.get(id)) ?? applies(tables.get(GLOBAL_LAYER)?.get(id));
   }
 
   #rebuild(): void {

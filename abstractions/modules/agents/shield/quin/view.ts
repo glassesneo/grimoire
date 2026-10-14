@@ -160,6 +160,12 @@ export function applyEvent(before: View, r: any, now: number, inPlace = false): 
       break;
     case "dialog_closed": delete v.dialogs[r.id]; break;
     case "quin_run": v.run = r.run; break;
+    case "quin_model": {
+      const from = v.timeline.model, to = `${r.model.provider}/${r.model.id}`;
+      v.session.model = r.model; v.timeline.model = to;
+      if (from && from !== to) newEntry("config", { setting: "model", from, to });
+      break;
+    }
     case "extension_error": newEntry("notice", { level: "error", text: r.error }); break;
   }
   return v;

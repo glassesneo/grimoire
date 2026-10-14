@@ -27,9 +27,8 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   }
   if (model && !/^[^/]+\/.+/.test(model)) throw new Error("--model requires provider/id");
   // Model absence is sent through attach: an existing root can still be opened;
-  // the hub refuses creation and explains model_required. A default model is not
-  // checked against an existing root; an explicit (or mock) one is.
-  const modelSource = explicitModel || mock ? "explicit" : "default";
+  // the hub refuses creation and explains model_required. The model chooses only
+  // a new root's model, since any client can change it later.
   privateDirectory(config);
   const sessions = join(stateDirectory(), mock ? "mock/sessions" : "sessions", createHash("sha256").update(cwd).digest("hex"));
   privateDirectory(sessions);
@@ -51,5 +50,5 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
     Object.assign(env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
     argv.push("--no-extensions", "--no-builtin-tools", "--tools", "shield_fixture,codemode", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
   }
-  return { mode: mock ? "mock" : "live", model, modelSource, launch: { executable, argv, env } };
+  return { mode: mock ? "mock" : "live", model, launch: { executable, argv, env } };
 }

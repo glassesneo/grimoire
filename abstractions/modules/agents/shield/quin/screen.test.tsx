@@ -289,3 +289,49 @@ test("a retry sequence is one item that collects its attempts, and each sequence
   expect(frame).not.toContain("waiting to retry");
   expect(frame).not.toContain("retrying…");
 });
+
+const MODELS = { success: true, payload: { data: { models: [{ provider: "b", id: "two", name: "Two" }, { provider: "a", id: "one", name: "One" }] } } };
+
+test("the palette opens from the timeline and the editor and runs a command chosen by name and candidate", async () => {
+  for (const open of [(f: ReturnType<typeof fixture>) => { f.regions.requestFocus("timeline"); f.press(":"); }, (f: ReturnType<typeof fixture>) => f.press("g", { ctrl: true })]) {
+    const f = fixture({ engine: async payload => payload.record?.type === "get_available_models" ? MODELS : { success: true } });
+    const commands = f.screen.ui.controllers.commands;
+    open(f);
+    expect(f.regions.current()).toBe("stage");
+    expect(commands.names().map(command => command.name)).toEqual(["model", "thinking", "compact"]);
+    // The name input takes typed characters, so j and : do not move or reopen.
+    expect(f.press("j")).toBeUndefined();
+    f.press("return"); await Bun.sleep(0);
+    expect(commands.value()?.filtered.map(candidate => candidate.value)).toEqual(["a/one", "b/two"]);
+    f.press("j"); f.press("return"); await Bun.sleep(0);
+    expect(f.requests).toEqual([{ op: "rpc", record: { type: "get_available_models" } }, { op: "rpc", record: { type: "set_model", provider: "b", modelId: "two" } }]);
+    expect(commands.value()).toBeUndefined();
+  }
+});
+
+test("a command's argument is drafted in the editor, and the editor's candidate keys apply only to that draft", async () => {
+  const f = fixture();
+  expect(f.press("n", { ctrl: true })).toBeUndefined();
+  f.press("g", { ctrl: true });
+  const commands = f.screen.ui.controllers.commands;
+  commands.setQuery("compact");
+  f.press("space");
+  expect(f.regions.current()).toBe("editor");
+  expect(f.press("n", { ctrl: true })).toBe("editor.command-next");
+  f.editor.setText("keep the tests"); f.press("return"); await Bun.sleep(0);
+  expect(f.requests).toEqual([{ op: "rpc", record: { type: "compact", customInstructions: "keep the tests" } }]);
+  expect(commands.value()).toBeUndefined();
+  expect(f.press("n", { ctrl: true })).toBeUndefined();
+});
+
+test("another client's model change reaches the view and the timeline", async () => {
+  const f = fixture();
+  f.c.adapter.view.timeline.model = "a/one";
+  f.c.record(event({ type: "quin_model", model: { provider: "b", id: "two" } }));
+  const setup = await testRender(() => <Screen screen={f.screen} />, { width: 100, height: 20 });
+  try {
+    await setup.flush();
+    const frame = setup.captureCharFrame();
+    expect(frame).toContain("── model: a/one → b/two");
+  } finally { setup.renderer.destroy(); }
+});

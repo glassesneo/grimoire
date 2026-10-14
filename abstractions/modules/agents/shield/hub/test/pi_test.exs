@@ -218,45 +218,69 @@ defmodule Shield.PiTest do
     {_, [{:error, _, _, "dialog_closed_or_invalid"}]} = Pi.input(committed, ref(), r, 2000)
   end
 
-  test "attach checks model without replacing shared revision" do
+  test "attaching to a ready root subscribes at once, whatever model it names" do
     s = ready()
     {s, _} = Pi.output(s, %{"type" => "thinking_level_changed", "level" => "high"}, 1000)
 
-    {s, [{:write, r}]} =
-      Pi.attach(s, ref(), request("a", %{}), %{"model" => nil, "mode" => "mock"})
+    for model <- [nil, "fixture/fixed", "other/model"] do
+      {next, [{:subscribe, _, _}]} =
+        Pi.attach(s, ref(), request("a", %{}), %{"model" => model, "mode" => "mock"})
 
-    {next, [{:subscribe, _, _}]} =
-      Pi.output(
-        s,
-        %{
-          "type" => "response",
-          "id" => r["id"],
-          "success" => true,
-          "data" => %{"thinkingLevel" => "off"}
-        },
-        1000
-      )
-
-    assert next.view == s.view
-    assert next.view["session"]["thinkingLevel"] == "high"
+      assert next == s
+    end
   end
 
-  test "only an explicit model must match the existing root" do
-    s = ready()
-    state = %{"model" => %{"provider" => "fixture", "id" => "fixed"}}
+  test "a model change reaches every view, whether or not its requester stayed" do
+    model = %{"provider" => "other", "id" => "model"}
 
-    for {source, expected} <- [{"default", :subscribe}, {"explicit", :error}, {nil, :error}] do
-      options = %{"model" => "other/model", "mode" => "mock", "modelSource" => source}
-      {s, [{:write, r}]} = Pi.attach(s, ref(), request("a", %{}), options)
+    set = %{
+      "op" => "rpc",
+      "record" => %{"type" => "set_model", "provider" => "other", "modelId" => "model"}
+    }
 
+    for detached <- [false, true], success <- [true, false] do
+      {s, [{:write, w}]} = Pi.input(ready(), ref(), request("m", set), 1000)
+      s = if detached, do: Pi.detach(s, self()), else: s
+      data = if success, do: model, else: nil
+      response = %{"type" => "response", "id" => w["id"], "success" => success, "data" => data}
+      {next, effects} = Pi.output(s, response, 1000)
+      broadcasts = for {:broadcast, r, _} <- effects, do: r
+
+      if success do
+        assert broadcasts == [%{"type" => "quin_model", "model" => model}]
+        assert next.view["timeline"]["model"] == "other/model"
+        assert next.view["session"]["model"] == model
+
+        assert [%{"kind" => "config", "from" => "fixture/fixed", "to" => "other/model"}] =
+                 next.view["timeline"]["entries"]
+      else
+        assert broadcasts == []
+        assert next.view == s.view
+      end
+
+      assert Enum.any?(effects, &(elem(&1, 0) == :reply)) == not detached
+    end
+  end
+
+  test "palette commands reach Pi only with well-formed arguments" do
+    cases = [
+      {%{"type" => "set_model", "provider" => "p", "modelId" => "m"}, true},
+      {%{"type" => "set_model", "provider" => "p"}, false},
+      {%{"type" => "set_model", "provider" => 1, "modelId" => "m"}, false},
+      {%{"type" => "set_thinking_level", "level" => "high"}, true},
+      {%{"type" => "set_thinking_level"}, false},
+      {%{"type" => "compact"}, true},
+      {%{"type" => "compact", "customInstructions" => "keep tests"}, true},
+      {%{"type" => "compact", "customInstructions" => 3}, false},
+      {%{"type" => "compact", "extra" => true}, false},
+      {%{"type" => "new_session"}, false}
+    ]
+
+    for {record, accepted} <- cases do
       {_, [effect]} =
-        Pi.output(
-          s,
-          %{"type" => "response", "id" => r["id"], "success" => true, "data" => state},
-          1000
-        )
+        Pi.input(ready(), ref(), request("c", %{"op" => "rpc", "record" => record}), 1000)
 
-      assert elem(effect, 0) == expected
+      assert match?({:write, _}, effect) == accepted, inspect(record)
     end
   end
 

@@ -274,6 +274,10 @@ defmodule Shield.PiView do
       "quin_run" ->
         Map.put(v, "run", r["run"])
 
+      "quin_model" ->
+        m = r["model"]
+        v |> put_in(["session", "model"], m) |> config("model", m["provider"] <> "/" <> m["id"])
+
       "extension_error" ->
         new_entry(v, "notice", %{"level" => "error", "text" => r["error"]})
 

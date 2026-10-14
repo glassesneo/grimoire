@@ -6,6 +6,7 @@
 import { type CliRenderer, engine } from "@opentui/core";
 import { type JSX, useRenderer } from "@opentui/solid";
 import { createSignal, onCleanup, onMount, type Signal } from "solid-js";
+import { setupCommands } from "./contributions/commands";
 import { INTERRUPT_ACTION, setupDefaultActions, type QuinActions } from "./contributions/default";
 import type { Controller } from "./controller";
 import { bridgeDialogs } from "./dialogs";
@@ -15,6 +16,7 @@ import type { StatuslineContribution } from "./ui/statusline";
 import { formatChord, type Keymap } from "./ui/keys";
 import { ScreenLayout } from "./ui/layout";
 import { createQuinUI, type QuinUIInstance } from "./ui/quin-ui";
+import { setupCommandUI } from "./ui/commands";
 import { setupStageUI, StageView } from "./ui/stage";
 import { useVersion } from "./ui/state";
 import { TimelineView } from "./ui/timeline";
@@ -42,7 +44,7 @@ export interface QuinScreen {
 export function setupScreen(controller: Controller, options: { keymap?: Keymap; renderer?: CliRenderer; clipboard?: ClipboardWriter; cwd?: string } = {}): QuinScreen {
   const c = controller;
   // An accepted prompt follows the latest output again, as in the harness.
-  const ui = createQuinUI<JSX.Element>({ sendPrompt: async text => { const accepted = await c.sendPrompt(text); if (accepted) itemActions.follow(); return accepted; }, keymap: options.keymap });
+  const ui = createQuinUI<JSX.Element>({ sendPrompt: async text => { const accepted = await c.sendPrompt(text); if (accepted) itemActions.follow(); return accepted; }, keymap: options.keymap, notify: text => c.fail(text) });
   const { timeline, editor, statusline, runState, keys, regions } = ui.controllers;
   let scroll: TimelineScrollBox | undefined;
   let readEditor: (() => { text: string; cursor: number }) | undefined;
@@ -66,15 +68,18 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     detach: () => c.detach(),
     interrupt: () => { if (c.interrupt() === "idle") editor.setText(""); },
     timeline: itemActions,
+    openCommand: () => ui.controllers.commands.open(),
   };
 
   const stageUI = setupStageUI(ui);
+  const commandUI = setupCommandUI(ui);
   const { registrations: typeRegistrations, projector } = registerTimelineTypes(timeline);
-  const registrations = [...typeRegistrations, setupDefaultActions(ui, actions)];
+  const registrations = [...typeRegistrations, ...setupCommands(ui, c), setupDefaultActions(ui, actions)];
   try {
     keys.checkKeymap();
   } catch (error) {
     for (const registration of registrations) registration.dispose();
+    commandUI.dispose();
     stageUI.dispose();
     throw error;
   }
@@ -139,7 +144,8 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       unsubscribeRegions();
       stopDialogs();
       for (const registration of registrations) registration.dispose();
-      stageUI.dispose();
+      commandUI.dispose();
+    stageUI.dispose();
       void itemActions.dispose();
     },
   };

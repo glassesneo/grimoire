@@ -15,6 +15,7 @@ export interface QuinActions {
   detach(): void;
   /** Idle, clear the input; during a run, arm and then interrupt. */
   interrupt(): void;
+  openCommand(): void;
   /** Timeline cursor, disclosure, scrolling, and copying; see `ui/item-actions.ts`. */
   timeline: Pick<ItemActions, "move" | "scroll" | "toggle" | "expand" | "collapse" | "copy">;
 }
@@ -22,7 +23,7 @@ export interface QuinActions {
 export const INTERRUPT_ACTION = "global.interrupt";
 
 export function setupDefaultActions(ui: QuinUIInstance<unknown>, actions: QuinActions): Registration {
-  const { regions, stage, editor } = ui.controllers;
+  const { regions, stage, editor, commands } = ui.controllers;
   const cycle = (delta: number) => {
     const available = FOCUS_ORDER.filter((region) => regions.isAvailable(region));
     const index = available.indexOf(regions.current());
@@ -41,8 +42,13 @@ export function setupDefaultActions(ui: QuinUIInstance<unknown>, actions: QuinAc
     { id: "global.focus-stage", run: () => regions.requestFocus("stage") },
 
     { id: "editor.submit", keys: ["return", "kpenter"], run: actions.submit },
+    { id: "editor.open-command", keys: ["ctrl+g"], run: () => actions.openCommand() },
+    // While the palette drafts a command's argument here, these pick among its candidates.
+    { id: "editor.command-next", keys: ["ctrl+n"], run: () => commands.move(1, true), when: () => commands.ownsDraft() },
+    { id: "editor.command-previous", keys: ["ctrl+p"], run: () => commands.move(-1, true), when: () => commands.ownsDraft() },
     { id: "editor.cancel-draft", keys: ["escape"], run: () => editor.cancelDraft() },
 
+    { id: "timeline.open-command", keys: [":"], run: () => actions.openCommand() },
     { id: "timeline.cursor-down", keys: ["j", "down"], run: () => actions.timeline.move(1) },
     { id: "timeline.cursor-up", keys: ["k", "up"], run: () => actions.timeline.move(-1) },
     { id: "timeline.toggle-item", keys: ["return", "kpenter", "space"], run: () => actions.timeline.toggle() },
@@ -55,6 +61,9 @@ export function setupDefaultActions(ui: QuinUIInstance<unknown>, actions: QuinAc
     { id: "timeline.scroll-half-up", keys: ["ctrl+u"], run: () => actions.timeline.scroll("half-up") },
     { id: "timeline.focus-editor", keys: ["escape"], run: () => regions.requestFocus("editor") },
 
+    // Typed characters reach a stage that takes text, such as the palette's name input.
+    { id: "stage.open-command", keys: [":"], run: () => actions.openCommand() },
+    { id: "stage.command-arguments", keys: ["space"], run: () => runStage("arguments") },
     { id: "stage.cursor-down", keys: ["j", "down", "ctrl+n"], run: () => runStage("next") },
     { id: "stage.cursor-up", keys: ["k", "up", "ctrl+p"], run: () => runStage("previous") },
     { id: "stage.confirm", keys: ["return", "kpenter"], run: () => runStage("confirm") },

@@ -16,6 +16,7 @@ import {
   type StageHandle,
   type StageRequest,
 } from "./controllers";
+import { CommandController, type QuinCommand } from "./command-controller";
 import { EditorController, maxHeight, minHeight, type DraftRequestOptions, type DraftResult } from "./editor-engine";
 import { type Action, KeyBindings, type Keymap } from "./keys";
 import { RunStateController, StatuslineController, type StatuslineItemType } from "./statusline";
@@ -38,6 +39,7 @@ export interface QuinUI<Render = unknown> {
   actions: {
     register(actions: readonly Action[]): Registration;
   };
+  commands: { register(definition: QuinCommand): Registration };
   regions: {
     requestFocus(region: RegionId): boolean;
   };
@@ -54,6 +56,7 @@ export interface QuinControllers<Render = unknown> {
   editor: EditorController;
   statusline: StatuslineController;
   runState: RunStateController;
+  commands: CommandController<Render>;
 }
 
 export interface QuinUIInstance<Render = unknown> extends QuinUI<Render> {
@@ -64,6 +67,8 @@ export interface QuinUIOptions {
   /** Resolves whether the engine accepted the prompt. */
   sendPrompt?: (text: string) => Promise<boolean>;
   keymap?: Keymap;
+  /** Reports a command that failed or could not run. */
+  notify?: (text: string) => void;
 }
 
 export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): QuinUIInstance<Render> {
@@ -78,6 +83,7 @@ export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): Qui
     },
     timeline: { registerType: (type) => controllers.timeline.registerType(type) },
     actions: { register: (actions) => controllers.keys.register(actions) },
+    commands: { register: (definition) => controllers.commands.register(definition) },
     regions: { requestFocus: (region) => controllers.regions.requestFocus(region) },
     statusline: { registerType: (type) => controllers.statusline.registerType(type) },
   };
@@ -107,7 +113,10 @@ export function createQuinControllers<Render = unknown>(options: QuinUIOptions =
     keymap: options.keymap,
     acceptsText: (region) => region === "editor" || (region === "stage" && (stage.active()?.acceptsText ?? false)),
   });
-  return { regions, keys, stage, timeline, editor, statusline: new StatuslineController(), runState: new RunStateController() };
+  return {
+    regions, keys, stage, timeline, editor, statusline: new StatuslineController(), runState: new RunStateController(),
+    commands: new CommandController(stage, editor, options.notify ?? (() => {})),
+  };
 }
 
 const maxStageHeight = 10;

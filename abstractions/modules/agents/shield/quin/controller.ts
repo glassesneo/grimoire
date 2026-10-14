@@ -74,7 +74,11 @@ export class Controller extends Emitter {
   async send(payload: unknown) {
     if (!this.adapter.agent) throw new Error("agent is not ready");
     const r = await this.client.engine(this.adapter.agent, payload);
-    if (!r.success) throw new Error(r.error?.code === "model_required" ? "Set --model provider/id or shield/pi/settings.json defaultProvider/defaultModel" : r.error?.code || "request rejected");
+    if (!r.success) {
+      const pi = (r as any).payload?.error;
+      throw new Error(r.error?.code === "model_required" ? "Set --model provider/id or shield/pi/settings.json defaultProvider/defaultModel"
+        : r.error?.code === "pi_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
+    }
     return r;
   }
 
