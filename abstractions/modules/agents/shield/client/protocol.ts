@@ -9,7 +9,7 @@ export interface Envelope {
   type: string;
   id?: string;
   "agent-id": string | null;
-  engine: "pi" | null;
+  engine: string | null;
   success?: boolean;
   payload?: any;
   error?: { code: string };

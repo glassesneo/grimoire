@@ -77,7 +77,7 @@ export class Controller extends Emitter {
     if (!r.success) {
       const pi = (r as any).payload?.error;
       throw new Error(r.error?.code === "model_required" ? "Set --model provider/id or shield/pi/settings.json defaultProvider/defaultModel"
-        : r.error?.code === "pi_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
+        : r.error?.code === "engine_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
     }
     return r;
   }

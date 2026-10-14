@@ -30,7 +30,7 @@ try {
   const brokenPid = Number(readFileSync(join(dir, "invalid-ignore.pid"), "utf8"));
   const bad = await broken.engine(brokenRoot.payload["agent-id"], { op: "rpc", record: { type: "prompt", message: "invalid" } });
   assert.equal(bad.error?.code, "acceptance_unknown");
-  await wait(() => events.some(r => r.payload?.detail?.error === "invalid_pi_frame"));
+  await wait(() => events.some(r => r.payload?.detail?.error === "invalid_engine_frame"));
   assert((await get()).success);
   await wait(() => !alive(brokenPid), 6500);
   // A paused socket subscriber is disposable; the Port owner continues draining stdout.
@@ -79,7 +79,7 @@ try {
     const next = await attach(c, path); assert(next.success, name); assert.notEqual(next.payload["agent-id"], ended.id, name);
   }
   const failedBoot = await bootRequest;
-  assert.equal(failedBoot.error?.code, "pi_start_timeout");
+  assert.equal(failedBoot.error?.code, "engine_start_timeout");
   assert(Date.now() - started >= 59000 && Date.now() - started < 64000);
   const pid = Number(readFileSync(join(dir, "startup-hang.pid"), "utf8"));
   await wait(() => !alive(pid));

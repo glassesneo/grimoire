@@ -96,10 +96,18 @@ defmodule Shield.Manager do
     p = r["payload"]
     cwd = p["cwd"]
     options = p["options"]
+    # The envelope may omit the engine; it then means the default one, at creation and join alike.
+    name = r["engine"] || Shield.Engine.default()
+
+    engine =
+      case Shield.Engine.fetch(name) do
+        {:ok, engine} -> engine
+        :error -> nil
+      end
 
     valid =
-      is_binary(cwd) and Path.type(cwd) == :absolute and File.dir?(cwd) and p["harness"] == "quin" and
-        is_map(options)
+      is_binary(cwd) and Path.type(cwd) == :absolute and File.dir?(cwd) and engine != nil and
+        p["harness"] in engine.harnesses() and is_map(options)
 
     if not valid do
       error(ref, r, "invalid_attach")
@@ -115,7 +123,7 @@ defmodule Shield.Manager do
         nil ->
           id = s.instance <> "-" <> Integer.to_string(s.next)
 
-          case Shield.Pi.launch(options, cwd) do
+          case engine.launch(options, cwd) do
             {:error, code} ->
               error(ref, r, code)
               {:noreply, s}
@@ -124,8 +132,9 @@ defmodule Shield.Manager do
               info = %{
                 id: id,
                 cwd: cwd,
-                harness: "quin",
-                engine: "pi",
+                harness: p["harness"],
+                engine: name,
+                module: engine,
                 mode: options["mode"],
                 state: "starting",
                 alive: true,
@@ -148,14 +157,13 @@ defmodule Shield.Manager do
                   {:noreply, %{s | next: s.next + 1, agents: Map.put(s.agents, id, info)}}
 
                 _ ->
-                  error(ref, r, "pi_start_failed")
+                  error(ref, r, "engine_start_failed")
                   {:noreply, s}
               end
           end
 
         a ->
-          # The envelope may omit the engine; Pi is the only one, as at creation.
-          if a.harness != p["harness"] or a.engine != (r["engine"] || "pi") do
+          if a.harness != p["harness"] or a.engine != name do
             error(ref, r, "harness_engine_mode_mismatch")
             {:noreply, s}
           else
@@ -213,6 +221,9 @@ defmodule Shield.Manager do
       "parent-id" => nil
     }
 
-  defp reply(ref, r, p), do: Connection.deliver(ref, Protocol.response(r["id"], r["agent-id"], p))
-  defp error(ref, r, e), do: Connection.deliver(ref, Protocol.error(r["id"], r["agent-id"], e))
+  defp reply(ref, r, p),
+    do: Connection.deliver(ref, Protocol.response(r["id"], r["agent-id"], r["engine"], p))
+
+  defp error(ref, r, e),
+    do: Connection.deliver(ref, Protocol.error(r["id"], r["agent-id"], r["engine"], e))
 end

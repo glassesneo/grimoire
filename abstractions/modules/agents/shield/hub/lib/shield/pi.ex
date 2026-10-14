@@ -1,10 +1,13 @@
 # Pi-specific commands, correlation, initialization and transient view. No socket ownership.
 defmodule Shield.Pi do
+  @behaviour Shield.Engine
   alias Shield.PiView, as: View
 
   @reads ~w(get_state get_messages get_entries get_tree get_last_assistant_text get_available_models get_available_thinking_levels get_session_stats get_commands)
   @writes ~w(prompt steer follow_up abort clear_queue set_model set_thinking_level compact)
   @preflights ~w(prompt steer follow_up)
+  def harnesses, do: ["quin"]
+
   def launch(options, cwd) do
     d = options["launch"]
     model = options["model"]
@@ -437,12 +440,15 @@ defmodule Shield.Pi do
 
   def reject_write(s, id) do
     case Map.pop(s.pending, id) do
-      {nil, _} -> {s, []}
-      {{kind, _}, pending} -> {%{s | pending: pending}, request_error(kind, "pi_write_rejected")}
+      {nil, _} ->
+        {s, []}
+
+      {{kind, _}, pending} ->
+        {%{s | pending: pending}, request_error(kind, "engine_write_rejected")}
     end
   end
 
-  def failed(s, reason \\ "pi_start_failed") do
+  def failed(s, reason) do
     effects =
       Enum.flat_map(s.pending, fn {_, {kind, _}} ->
         request_error(kind, if(preflight?(kind), do: "acceptance_unknown", else: reason))

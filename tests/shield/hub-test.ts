@@ -49,9 +49,9 @@ try {
   const bare = createConnection({ path: socket }); const bareIn = new JsonLines(); const bareRecords: any[] = [];
   bare.on("data", bytes => bareRecords.push(...bareIn.feed(bytes as Uint8Array)));
   await new Promise<void>(resolve => bare.once("connect", resolve));
-  const bareAttach = async (cwd: string) => {
+  const bareAttach = async (cwd: string, envelope: Record<string, unknown> = {}, harness = "quin") => {
     const requestId = `bare-${bareRecords.length}-${cwd.length}`;
-    bare.write(JSON.stringify({ v: 1, type: "hub_request", id: requestId, "agent-id": null, method: "attach", payload: { cwd, harness: "quin", options: fakeOptions() } }) + "\n");
+    bare.write(JSON.stringify({ v: 1, type: "hub_request", id: requestId, "agent-id": null, method: "attach", payload: { cwd, harness, options: fakeOptions() }, ...envelope }) + "\n");
     await wait(() => bareRecords.some(r => r.id === requestId));
     return bareRecords.find(r => r.id === requestId);
   };
@@ -60,6 +60,9 @@ try {
   const bareId = (await bareAttach(bareCwd)).payload?.["agent-id"];
   assert(bareId);
   assert.equal((await attach(connect(), bareCwd)).payload["agent-id"], bareId);
+  // Only a registered engine, with a harness it admits, can create or join an agent.
+  assert.equal((await bareAttach(dir, { engine: "other" })).error?.code, "invalid_protocol");
+  assert.equal((await bareAttach(dir, { engine: "pi" }, "other")).error?.code, "invalid_attach");
   bare.destroy();
   const rpc = { op: "rpc", record: { type: "get_state" } };
   const [ra, rb] = await Promise.all([a.request("engine_request", id, rpc, undefined, "same"), b.request("engine_request", id, rpc, undefined, "same")]);
@@ -111,7 +114,7 @@ try {
   assert((await other.engine(otherRoot.payload["agent-id"], rpc)).success);
   const [uncertain, notSent] = await Promise.all([pending, rejected]);
   assert.equal(uncertain?.error?.code, "acceptance_unknown");
-  assert.equal(notSent?.error?.code, "pi_write_rejected");
+  assert.equal(notSent?.error?.code, "engine_write_rejected");
   const pid = Number(readFileSync(join(dir, "child-ignore-term.pid"), "utf8"));
   const oldHubPid = Number((await other.hub("ping")).payload["hub-pid"]);
   const start = Date.now(); await other.hub("shutdown");

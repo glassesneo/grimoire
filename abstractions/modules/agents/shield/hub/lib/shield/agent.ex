@@ -1,6 +1,6 @@
 defmodule Shield.Agent do
   use GenServer
-  alias Shield.{Pi, Protocol, Connection}
+  alias Shield.{Protocol, Connection}
 
   def child_spec(args),
     do: %{id: __MODULE__, start: {__MODULE__, :start_link, [args]}, restart: :temporary}
@@ -31,7 +31,7 @@ defmodule Shield.Agent do
       ])
 
     {:os_pid, os_pid} = Port.info(port, :os_pid)
-    {engine, effects} = Pi.init(launch)
+    {engine, effects} = info.module.init(launch)
 
     s = %{
       info: info,
@@ -55,10 +55,14 @@ defmodule Shield.Agent do
   def handle_cast({:attach, ref, r, options}, s) do
     if s.state in ["starting", "ready"] do
       s = watch(s, ref)
-      {engine, next} = Pi.attach(s.engine, ref, r, options)
+      {engine, next} = s.info.module.attach(s.engine, ref, r, options)
       {:noreply, effects(%{s | engine: engine}, next)}
     else
-      Connection.deliver(ref, Protocol.error(r["id"], s.info.id, "agent_unavailable"))
+      Connection.deliver(
+        ref,
+        Protocol.error(r["id"], s.info.id, s.info.engine, "agent_unavailable")
+      )
+
       {:noreply, s}
     end
   end
@@ -66,10 +70,14 @@ defmodule Shield.Agent do
   def handle_cast({:input, ref, r}, s) do
     if s.state == "ready" do
       s = watch(s, ref)
-      {engine, next} = Pi.input(s.engine, ref, r, now())
+      {engine, next} = s.info.module.input(s.engine, ref, r, now())
       {:noreply, effects(%{s | engine: engine}, next)}
     else
-      Connection.deliver(ref, Protocol.error(r["id"], s.info.id, "agent_unavailable"))
+      Connection.deliver(
+        ref,
+        Protocol.error(r["id"], s.info.id, s.info.engine, "agent_unavailable")
+      )
+
       {:noreply, s}
     end
   end
@@ -84,14 +92,14 @@ defmodule Shield.Agent do
         {:noreply, Enum.reduce_while(records, %{s | buffer: buffer}, &output/2)}
 
       :error ->
-        {:noreply, fail(s, "invalid_pi_frame")}
+        {:noreply, fail(s, "invalid_engine_frame")}
     end
   end
 
   # The agent ends with its Pi process: the final lifecycle is delivered, then the
   # process exits normally and the Manager keeps that state.
   def handle_info({port, {:exit_status, code}}, %{port: port} = s) do
-    {engine, pending} = Pi.failed(s.engine)
+    {engine, pending} = s.info.module.failed(s.engine, "engine_exited")
     state = if s.stopping and is_nil(s.failure) and code in [0, 143], do: "exited", else: "failed"
     s = effects(%{s | port: nil, os_pid: nil, engine: engine}, pending)
     {:stop, :normal, lifecycle(s, state, %{"exitCode" => code})}
@@ -101,7 +109,7 @@ defmodule Shield.Agent do
   def handle_info({:EXIT, _, _}, s), do: {:noreply, s}
 
   def handle_info(:startup_timeout, %{state: "starting"} = s),
-    do: {:noreply, fail(s, "pi_start_timeout")}
+    do: {:noreply, fail(s, "engine_start_timeout")}
 
   def handle_info(:startup_timeout, s), do: {:noreply, s}
 
@@ -115,7 +123,7 @@ defmodule Shield.Agent do
 
   def handle_info({:kill_timeout, pid}, %{os_pid: pid, port: port} = s) when not is_nil(port) do
     if Port.info(port), do: Port.close(port)
-    {engine, pending} = Pi.failed(s.engine)
+    {engine, pending} = s.info.module.failed(s.engine, "engine_exited")
 
     {:stop, :normal,
      effects(%{s | engine: engine, port: nil, os_pid: nil}, pending)
@@ -125,7 +133,7 @@ defmodule Shield.Agent do
   def handle_info({:kill_timeout, _}, s), do: {:noreply, s}
 
   def handle_info(:tick, s) do
-    {engine, next} = Pi.expire(s.engine, now())
+    {engine, next} = s.info.module.expire(s.engine, now())
     Process.send_after(self(), :tick, 100)
     {:noreply, effects(%{s | engine: engine}, next)}
   end
@@ -134,7 +142,7 @@ defmodule Shield.Agent do
     {:noreply,
      %{
        s
-       | engine: Pi.detach(s.engine, pid),
+       | engine: s.info.module.detach(s.engine, pid),
          clients: Map.delete(s.clients, pid),
          subscribers: Map.reject(s.subscribers, fn {_, {_, m}} -> m == monitor end)
      }}
@@ -150,10 +158,10 @@ defmodule Shield.Agent do
   defp output(_, %{failure: failure} = s) when not is_nil(failure), do: {:halt, s}
 
   defp output(r, s) do
-    {engine, next} = Pi.output(s.engine, r, now())
+    {engine, next} = s.info.module.output(s.engine, r, now())
     {:cont, effects(%{s | engine: engine}, next)}
   rescue
-    _ -> {:halt, fail(s, "invalid_pi_frame")}
+    _ -> {:halt, fail(s, "invalid_engine_frame")}
   end
 
   defp watch(s, ref) do
@@ -177,8 +185,8 @@ defmodule Shield.Agent do
 
     cond do
       s.port == nil or s.failure -> s
-      byte_size(frame) > Protocol.record_limit() -> rejected(s, r, "pi_input_frame_limit")
-      not Port.command(s.port, frame, [:nosuspend]) -> rejected(s, r, "pi_stdin_busy")
+      byte_size(frame) > Protocol.record_limit() -> rejected(s, r, "engine_input_frame_limit")
+      not Port.command(s.port, frame, [:nosuspend]) -> rejected(s, r, "engine_stdin_busy")
       true -> s
     end
   end
@@ -192,10 +200,14 @@ defmodule Shield.Agent do
     after_effect = effects(s, next)
 
     if not is_nil(after_effect.failure) or is_nil(after_effect.port) do
-      Connection.deliver(ref, Protocol.error(request["id"], s.info.id, "pi_write_rejected"))
+      Connection.deliver(
+        ref,
+        Protocol.error(request["id"], s.info.id, s.info.engine, "engine_write_rejected")
+      )
+
       after_effect
     else
-      Connection.deliver(ref, Protocol.response(request["id"], s.info.id, payload))
+      Connection.deliver(ref, Protocol.response(request["id"], s.info.id, s.info.engine, payload))
       %{after_effect | engine: engine}
     end
   end
@@ -205,22 +217,30 @@ defmodule Shield.Agent do
 
   defp effect({:subscribe, ref, r}, s) do
     record =
-      Map.merge(Protocol.envelope("snapshot", s.info.id), %{
+      Map.merge(Protocol.envelope("snapshot", s.info.id, s.info.engine), %{
         "hub-instance" => s.info.instance,
         "seq" => s.seq,
         "payload" => %{
           "lifecycle" => s.state,
           "mode" => s.info.mode,
-          "view" => Pi.snapshot(s.engine)
+          "view" => s.info.module.snapshot(s.engine)
         }
       })
 
     if byte_size(Protocol.encode(record)) > Protocol.record_limit() do
-      Connection.deliver(ref, Protocol.error(r["id"], s.info.id, "snapshot_frame_limit"))
+      Connection.deliver(
+        ref,
+        Protocol.error(r["id"], s.info.id, s.info.engine, "snapshot_frame_limit")
+      )
+
       s
     else
       Connection.deliver(ref, record)
-      Connection.deliver(ref, Protocol.response(r["id"], s.info.id, %{"agent-id" => s.info.id}))
+
+      Connection.deliver(
+        ref,
+        Protocol.response(r["id"], s.info.id, s.info.engine, %{"agent-id" => s.info.id})
+      )
 
       if Map.has_key?(s.subscribers, ref.pid),
         do: s,
@@ -229,27 +249,30 @@ defmodule Shield.Agent do
   end
 
   defp effect({:error, ref, r, code}, s) do
-    Connection.deliver(ref, Protocol.error(r["id"], s.info.id, code))
+    Connection.deliver(ref, Protocol.error(r["id"], s.info.id, s.info.engine, code))
     s
   end
 
   defp effect({:ok, ref, r, payload}, s) do
-    Connection.deliver(ref, Protocol.response(r["id"], s.info.id, payload))
+    Connection.deliver(ref, Protocol.response(r["id"], s.info.id, s.info.engine, payload))
     s
   end
 
   defp effect({:reply, ref, r, result}, s) do
     record =
       if result["success"],
-        do: Protocol.response(r["id"], s.info.id, result),
-        else: Map.merge(Protocol.error(r["id"], s.info.id, "pi_rejected"), %{"payload" => result})
+        do: Protocol.response(r["id"], s.info.id, s.info.engine, result),
+        else:
+          Map.merge(Protocol.error(r["id"], s.info.id, s.info.engine, "engine_rejected"), %{
+            "payload" => result
+          })
 
     Connection.deliver(ref, record)
     s
   end
 
   defp rejected(s, r, reason) do
-    {engine, next} = Pi.reject_write(s.engine, r["id"])
+    {engine, next} = s.info.module.reject_write(s.engine, r["id"])
     effects(%{s | engine: engine}, next) |> fail(reason)
   end
 
@@ -262,7 +285,7 @@ defmodule Shield.Agent do
     seq = s.seq + 1
 
     r =
-      Map.merge(Protocol.envelope("event", s.info.id), %{
+      Map.merge(Protocol.envelope("event", s.info.id, s.info.engine), %{
         "hub-instance" => s.info.instance,
         "seq" => seq,
         "payload" => payload
@@ -275,7 +298,7 @@ defmodule Shield.Agent do
   defp fail(%{failure: failure} = s, _) when not is_nil(failure), do: s
 
   defp fail(s, code) do
-    {engine, pending} = Pi.failed(s.engine, code)
+    {engine, pending} = s.info.module.failed(s.engine, code)
     s = effects(%{s | failure: code, engine: engine}, pending)
     s |> lifecycle("failed", %{"error" => code}) |> stop()
   end

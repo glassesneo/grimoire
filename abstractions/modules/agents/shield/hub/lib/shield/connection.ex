@@ -87,7 +87,7 @@ defmodule Shield.Connection do
   defp request(r, s) do
     cond do
       not P.valid?(r) ->
-        deliver(s.ref, P.error(r["id"], r["agent-id"], "invalid_protocol"))
+        deliver(s.ref, P.error(r["id"], r["agent-id"], nil, "invalid_protocol"))
         s
 
       MapSet.member?(s.pending, r["id"]) ->
@@ -95,7 +95,7 @@ defmodule Shield.Connection do
         s
 
       MapSet.size(s.pending) >= 64 ->
-        deliver(s.ref, P.error(r["id"], r["agent-id"], "request_limit"))
+        deliver(s.ref, P.error(r["id"], r["agent-id"], r["engine"], "request_limit"))
         s
 
       true ->

@@ -40,20 +40,20 @@ defmodule Shield.Protocol do
   defp limit!(size) when size > @record_limit, do: raise(ArgumentError, "frame_limit")
   defp limit!(size), do: size
 
-  def envelope(type, agent \\ nil),
-    do: %{"v" => 1, "type" => type, "agent-id" => agent, "engine" => "pi"}
+  def envelope(type, agent \\ nil, engine \\ nil),
+    do: %{"v" => 1, "type" => type, "agent-id" => agent, "engine" => engine}
 
-  def response(id, agent, payload),
+  def response(id, agent, engine, payload),
     do:
-      Map.merge(envelope("response", agent), %{
+      Map.merge(envelope("response", agent, engine), %{
         "id" => id,
         "success" => true,
         "payload" => payload
       })
 
-  def error(id, agent, code),
+  def error(id, agent, engine, code),
     do:
-      Map.merge(envelope("response", agent), %{
+      Map.merge(envelope("response", agent, engine), %{
         "id" => id,
         "success" => false,
         "error" => %{"code" => code}
@@ -61,7 +61,7 @@ defmodule Shield.Protocol do
 
   def valid?(r),
     do:
-      r["v"] == 1 and r["engine"] in [nil, "pi"] and Map.has_key?(r, "agent-id") and
+      r["v"] == 1 and Shield.Engine.known?(r["engine"]) and Map.has_key?(r, "agent-id") and
         is_binary(r["id"]) and r["type"] in ["hub_request", "engine_request"] and
         is_map(r["payload"])
 end
