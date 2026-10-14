@@ -854,6 +854,20 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return this.#ancestors(id).every((ancestor) => this.isExpanded(ancestor));
   }
 
+  /**
+   * Whether the cursor may rest on a visible item. Unlike the harness, an
+   * expanded item whose children show is not selectable: its children are,
+   * and collapsing returns the cursor to it.
+   */
+  isSelectable(id: string): boolean {
+    return this.isVisible(id) && !(this.isExpanded(id) && this.children(id).length > 0);
+  }
+
+  /** Visible items the cursor may rest on, in reading order. */
+  selectableItems(): readonly TimelineItem<Render>[] {
+    return this.visibleItems().filter((item) => this.isSelectable(item.id));
+  }
+
   cursor(): string | undefined {
     return this.#cursor;
   }
@@ -862,9 +876,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return this.#cursor === undefined ? undefined : this.find(this.#cursor);
   }
 
-  /** Select a visible item; a hidden or unknown one leaves the cursor alone. */
+  /** Select a selectable item; any other leaves the cursor alone. */
   setCursor(id: string): boolean {
-    if (!this.isVisible(id)) {
+    if (!this.isSelectable(id)) {
       return false;
     }
     if (this.#cursor !== id) {
@@ -874,9 +888,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     return true;
   }
 
-  /** Move the cursor by `delta` visible items, clamped; choose an end if unset. */
+  /** Move the cursor by `delta` selectable items, clamped; choose an end if unset. */
   moveCursor(delta: number): void {
-    const visible = this.visibleItems();
+    const visible = this.selectableItems();
     if (visible.length === 0) {
       return;
     }
@@ -985,8 +999,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
   }
 
   /**
-   * Keep the cursor on a visible item: a hidden cursor moves to its nearest
-   * visible ancestor; with no cursor, the first item takes it.
+   * Keep the cursor on a selectable item: a hidden cursor moves to its nearest
+   * visible ancestor, and an expanded one to the first selectable item it
+   * shows; with no cursor, the first selectable item takes it.
    */
   #normalizeCursor(previousIndex: number | undefined): void {
     if (this.#cursor !== undefined && this.#indexById.has(this.#cursor)) {
@@ -994,10 +1009,16 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
         const ancestors = this.#ancestors(this.#cursor);
         this.#cursor = ancestors.find((ancestor) => this.isVisible(ancestor)) ?? ancestors.findLast((ancestor) => this.#indexById.has(ancestor));
       }
+      if (this.#cursor !== undefined && this.isVisible(this.#cursor) && !this.isSelectable(this.#cursor)) {
+        // An expanded item shows its children right after it, so the next selectable item is inside it.
+        const visible = this.visibleItems();
+        const at = visible.findIndex((item) => item.id === this.#cursor);
+        this.#cursor = visible.slice(at + 1).find((item) => this.isSelectable(item.id))?.id;
+      }
       return;
     }
     if (this.#cursor === undefined && previousIndex === undefined) {
-      this.#cursor = this.visibleItems()[0]?.id;
+      this.#cursor = this.selectableItems()[0]?.id;
     } else if (this.#cursor !== undefined) {
       this.#cursor = undefined;
     }
