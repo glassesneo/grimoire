@@ -1,0 +1,15 @@
+{
+  "name": "quin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@opentui/core": "0.6.0",
+    "@opentui/solid": "0.6.0",
+    "solid-js": "1.9.12"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "7.0.2"
+  }
+}

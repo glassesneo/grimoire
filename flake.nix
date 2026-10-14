@@ -84,16 +84,22 @@
         else existingPackages // publishedBundles;
 
       devShells.default = pkgs.mkShellNoCC {
-        packages = [
-          pkgs.just
-          pkgs.nushell
-          pkgs.bun
-          inputs.bun2nix.packages.${system}.default
-          pkgs.emmylua-ls
-          pkgs.emmylua-check
-          self.packages.${system}.hjem
-          self.packages.${system}.harness
-        ];
+        packages =
+          [
+            pkgs.just
+            pkgs.nushell
+            pkgs.bun
+            inputs.bun2nix.packages.${system}.default
+            pkgs.emmylua-ls
+            pkgs.emmylua-check
+            self.packages.${system}.hjem
+            self.packages.${system}.harness
+          ]
+          ++ lib.optionals (system == "aarch64-darwin") [
+            self.packages.${system}.shield
+            self.packages.${system}.quin
+            pkgs.beamPackages.elixir
+          ];
         inherit (commitHooks) shellHook;
       };
 
