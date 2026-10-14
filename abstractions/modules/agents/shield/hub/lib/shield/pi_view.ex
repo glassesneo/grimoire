@@ -1,4 +1,6 @@
 defmodule Shield.PiView do
+  @open_retry ~w(waiting retrying)
+
   def new do
     %{
       "schema" => "quin-pi-view/1",
@@ -93,7 +95,9 @@ defmodule Shield.PiView do
   def apply(v, r, now) do
     case r["type"] do
       "agent_start" ->
-        put_in(v, ["run", "active"], true)
+        v
+        |> put_in(["run", "active"], true)
+        |> update_retry("response", ["waiting"], &bump(&1, %{"state" => "retrying"}))
 
       "agent_settled" ->
         v =
@@ -202,22 +206,54 @@ defmodule Shield.PiView do
         end)
 
       type when type in ["auto_retry_start", "summarization_retry_scheduled"] ->
-        v
-        |> put_in(["run", "retry"], true)
-        |> new_entry(
-          "retry",
-          Map.merge(Map.take(r, ["attempt", "maxAttempts", "delayMs", "errorMessage"]), %{
-            "state" => "waiting"
-          })
-        )
+        category = if type == "auto_retry_start", do: "response", else: "summary"
 
-      type when type in ["auto_retry_end", "summarization_retry_finished"] ->
+        attempt = %{
+          "attempt" => r["attempt"],
+          "maxAttempts" => r["maxAttempts"],
+          "delayMs" => r["delayMs"],
+          "error" => r["errorMessage"]
+        }
+
+        v = put_in(v, ["run", "retry"], true)
+
+        if open_retry?(v, category),
+          do:
+            update_retry(v, category, @open_retry, fn e ->
+              bump(e, %{"state" => "waiting", "attempts" => e["attempts"] ++ [attempt]})
+            end),
+          else:
+            new_entry(v, "retry", %{
+              "category" => category,
+              "state" => "waiting",
+              "attempts" => [attempt],
+              "finalError" => nil
+            })
+
+      "summarization_retry_attempt_start" ->
+        if open_retry?(v, "summary"),
+          do: update_retry(v, "summary", @open_retry, &bump(&1, %{"state" => "retrying"})),
+          else:
+            new_entry(v, "retry", %{
+              "category" => "summary",
+              "state" => "retrying",
+              "attempts" => [],
+              "finalError" => nil
+            })
+
+      "summarization_retry_finished" ->
         v
         |> put_in(["run", "retry"], false)
-        |> update_last(
-          &(&1["kind"] == "retry"),
+        |> update_retry("summary", @open_retry, &bump(&1, %{"state" => "ended"}))
+
+      "auto_retry_end" ->
+        v
+        |> put_in(["run", "retry"], false)
+        |> update_retry(
+          "response",
+          @open_retry,
           &bump(&1, %{
-            "state" => if(r["success"] == false, do: "failed", else: "ended"),
+            "state" => if(r["success"] == true, do: "succeeded", else: "failed"),
             "finalError" => r["finalError"]
           })
         )
@@ -512,6 +548,16 @@ defmodule Shield.PiView do
       do: update_last(v, &(&1["id"] == id), &bump(&1, fields)),
       else: append(v, Map.merge(base(id, kind), fields))
   end
+
+  # One entry per retry sequence of a category, open while waiting or retrying, as the harness keeps them.
+  defp retry?(e, category, states),
+    do: e["kind"] == "retry" and e["category"] == category and e["state"] in states
+
+  defp open_retry?(v, category),
+    do: Enum.any?(v["timeline"]["entries"], &retry?(&1, category, @open_retry))
+
+  defp update_retry(v, category, states, update),
+    do: update_last(v, &retry?(&1, category, states), update)
 
   defp update_last(v, predicate, update) do
     entries = v["timeline"]["entries"]

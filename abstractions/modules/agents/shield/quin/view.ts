@@ -47,12 +47,19 @@ export function applyEvent(before: View, r: any, now: number, inPlace = false): 
       else entries.push({ ...base(id, "tool"), callId: block.id, scope, parentId: null, name: block.name, ordinal: v.timeline.nextOrdinal++, args, state: scope.startsWith("seed:") ? "missing" : "pending", nestedIncomplete: false, result: null });
     }
   };
+  // One entry per retry sequence of a category, open while waiting or retrying, as the harness keeps them.
+  const openRetry = (category: string, states = ["waiting", "retrying"]) => last(e => e.kind === "retry" && e.category === category && states.includes(e.state));
   const toolUpdate = (record: any, partial: boolean) => {
     const result = record[partial ? "partialResult" : "result"];
     update(e => e.kind === "tool" && e.callId === record.toolCallId && (e.parentId != null) === (record.parentToolCallId != null), { result: result ? { ...result, partial } : null, ...(!partial ? { state: record.isError ? "error" : "done" } : {}) });
   };
   switch (r.type) {
-    case "agent_start": v.run.active = true; break;
+    case "agent_start": {
+      v.run.active = true;
+      const waiting = openRetry("response", ["waiting"]);
+      if (waiting) bump(waiting, { state: "retrying" });
+      break;
+    }
     case "agent_settled":
       v.run.active = false; v.run.retry = false; v.timeline.response = null;
       for (const e of entries) {
@@ -125,8 +132,23 @@ export function applyEvent(before: View, r: any, now: number, inPlace = false): 
     case "session_info_changed": v.session.sessionName = r.name ?? null; break;
     case "compaction_start": v.run.compaction = true; newEntry("compaction", { state: "running", reason: r.reason }); break;
     case "compaction_end": v.run.compaction = false; update(e => e.kind === "compaction" && e.state === "running", { ...(r.result || {}), state: r.result ? "completed" : r.aborted ? "aborted" : "failed", errorMessage: r.errorMessage ?? null }); break;
-    case "auto_retry_start": case "summarization_retry_scheduled": v.run.retry = true; newEntry("retry", { ...take(r, ["attempt", "maxAttempts", "delayMs", "errorMessage"]), state: "waiting" }); break;
-    case "auto_retry_end": case "summarization_retry_finished": v.run.retry = false; update(e => e.kind === "retry", { state: r.success === false ? "failed" : "ended", finalError: r.finalError ?? null }); break;
+    case "auto_retry_start": case "summarization_retry_scheduled": {
+      v.run.retry = true;
+      const category = r.type === "auto_retry_start" ? "response" : "summary";
+      const attempt = { attempt: r.attempt ?? null, maxAttempts: r.maxAttempts ?? null, delayMs: r.delayMs ?? null, error: r.errorMessage ?? null };
+      const open = openRetry(category);
+      if (open) bump(open, { state: "waiting", attempts: [...open.attempts, attempt] });
+      else newEntry("retry", { category, state: "waiting", attempts: [attempt], finalError: null });
+      break;
+    }
+    case "summarization_retry_attempt_start": {
+      const open = openRetry("summary");
+      if (open) bump(open, { state: "retrying" });
+      else newEntry("retry", { category: "summary", state: "retrying", attempts: [], finalError: null });
+      break;
+    }
+    case "summarization_retry_finished": { v.run.retry = false; const open = openRetry("summary"); if (open) bump(open, { state: "ended" }); break; }
+    case "auto_retry_end": { v.run.retry = false; const open = openRetry("response"); if (open) bump(open, { state: r.success === true ? "succeeded" : "failed", finalError: r.finalError ?? null }); break; }
     case "entry_appended": if (r.entry.type === "custom_message" && r.entry.display) newEntry("custom", take(r.entry, ["customType", "content", "details"])); break;
     case "extension_ui_request":
       switch (r.method) {

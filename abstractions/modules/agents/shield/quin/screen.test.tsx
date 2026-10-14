@@ -272,3 +272,20 @@ test("an expanded codemode script shows its calls as children before the next ca
   expect(expanded.frame).toContain("▶2 null.missing;  ← error");
   expect(expanded.frame).toContain("error at line 2");
 });
+
+test("a retry sequence is one item that collects its attempts, and each sequence ends in its final state", async () => {
+  const retry = (attempt: number, maxAttempts: number, errorMessage: string, type = "auto_retry_start") => ({ type, attempt, maxAttempts, delayMs: 500, errorMessage });
+  const { frame, f } = await renderRun([
+    retry(1, 2, "overloaded"), { type: "agent_start" }, retry(2, 2, "overloaded again"), { type: "agent_start" },
+    { type: "auto_retry_end", success: false, attempt: 2, finalError: "gave up" },
+    retry(1, 3, "summary failed", "summarization_retry_scheduled"),
+    { type: "summarization_retry_attempt_start", source: "compaction", reason: "threshold" },
+    { type: "summarization_retry_finished" },
+    retry(1, 3, "temporary"), { type: "agent_start" }, { type: "auto_retry_end", success: true, attempt: 1 },
+  ]);
+  const items = f.screen.ui.controllers.timeline.items().filter(item => item.type.kind === "retry");
+  expect(items.map(item => (item.value as any).attempts.length)).toEqual([2, 1, 1]);
+  for (const text of ["retry 2/2 · failed", "gave up", "summary retry 1/3 · ended", "retry 1/3 · succeeded"]) expect(frame).toContain(text);
+  expect(frame).not.toContain("waiting to retry");
+  expect(frame).not.toContain("retrying…");
+});

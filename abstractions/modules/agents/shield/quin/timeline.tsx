@@ -96,14 +96,11 @@ function projectResponse(entry: Entry, types: TimelineTypes): TimelineItem<JSX.E
   return [parent, ...children];
 }
 
-/** The view records one retry entry per scheduled attempt, of either category. */
 function retryValue(entry: Entry): RetryValue {
   return {
-    category: "response",
+    category: entry.category,
     state: entry.state as RetryState,
-    attempts: typeof entry.attempt === "number"
-      ? [{ attempt: entry.attempt, maxAttempts: entry.maxAttempts, delayMs: entry.delayMs ?? 0, error: entry.errorMessage ?? "" }]
-      : [],
+    attempts: (entry.attempts ?? []).map((attempt: any) => ({ ...attempt, delayMs: attempt.delayMs ?? 0, error: attempt.error ?? "" })),
     finalError: optional(entry.finalError),
   };
 }
