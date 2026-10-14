@@ -18,14 +18,14 @@
     packageJson = ./runtime/package.json;
     src = lib.fileset.toSource {
       root = ./runtime;
-      fileset = lib.fileset.unions [./runtime/package.json ./runtime/bun.lock ./runtime/faux.ts ./runtime/bash-fixture.ts];
+      fileset = lib.fileset.unions [./runtime/package.json ./runtime/bun.lock ./runtime/faux.ts ./runtime/bash-fixture.ts ./runtime/codemode.ts];
     };
     bunDeps = bun2nix.fetchBunDeps {bunNix = ./runtime/bun.nix;};
     buildPhase = "true";
     installPhase = ''
       mkdir -p "$out/libexec/pi"
       cp -r node_modules "$out/libexec/pi/"
-      cp faux.ts bash-fixture.ts "$out/libexec/pi/"
+      cp faux.ts bash-fixture.ts codemode.ts "$out/libexec/pi/"
       mkdir -p "$out/bin"
       cat > "$out/bin/shield-pi" <<EOF
       #!${stdenvNoCC.shell}
@@ -117,6 +117,7 @@ in {
       makeWrapper ${clients}/libexec/shield/quin "$out/bin/quin" \
         --set SHIELD_PI ${runtime}/bin/shield-pi \
         --set SHIELD_FAUX ${runtime}/libexec/pi/faux.ts \
+        --set SHIELD_CODEMODE ${runtime}/libexec/pi/codemode.ts \
         --set SHIELD_COMMANDCODE ${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts \
         ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
         ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}

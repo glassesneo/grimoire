@@ -5,7 +5,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { DuplicateRegistrationError, Emitter, type Registration } from "./controllers";
 import { useVersion } from "./state";
-import { Line, palette } from "./style";
+import { Line, palette } from "./timeline-types";
 
 export type StatuslinePosition = "top" | "bottom";
 

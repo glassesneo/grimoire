@@ -22,6 +22,7 @@ in
       export SHIELD_NODE=${pkgs.nodejs}/bin/node
         export SHIELD_PI=${packages.runtime}/bin/shield-pi
         export SHIELD_FAUX=${packages.runtime}/libexec/pi/faux.ts
+        export SHIELD_CODEMODE=${packages.runtime}/libexec/pi/codemode.ts
         export SHIELD_BASH_FIXTURE=${packages.runtime}/libexec/pi/bash-fixture.ts
         shield --version
         shield --help

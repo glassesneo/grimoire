@@ -128,7 +128,7 @@ test("a preflight dialog can reply while its parent prompt response remains pend
 });
 
 test("scroll chords belong to the timeline; the editor keeps them", () => {
-  const f = fixture(); const scrolls: string[] = []; f.screen.actions.scrollTimeline = amount => scrolls.push(amount);
+  const f = fixture(); const scrolls: string[] = []; f.screen.actions.timeline.scroll = amount => scrolls.push(amount);
   for (const name of ["f", "b", "d", "u"]) expect(f.press(name, { ctrl: true })).toBeUndefined();
   f.regions.requestFocus("timeline");
   for (const name of ["f", "b", "d", "u"]) f.press(name, { ctrl: true });
@@ -183,7 +183,7 @@ test("renderer shows mock, run, tool state, queue, status totals, dialog, and in
   const setup = await testRender(() => <Screen screen={f.screen} />, { width: 120, height: 24 });
   try {
     await setup.flush(); const first = setup.captureCharFrame();
-    expect(first).toContain("MOCK"); expect(first).toContain("fixture [running]"); expect(first).toContain("queued input"); expect(first).toContain("Working");
+    expect(first).toContain("MOCK"); expect(first).toContain("⏺ fixture (arguments unavailable) · running…"); expect(first).toContain("queued: queued input"); expect(first).toContain("Working");
     expect(first).toContain("ctx 25% of 200k"); expect(first).toContain("↑12k ↓678 R2.0k $0.042");
     expect(first).toContain("Tab focus"); expect(first).not.toContain("[editor]");
     f.c.interrupt(); await setup.flush(); expect(setup.captureCharFrame()).toContain("Press Ctrl+C again within 1s to interrupt");
@@ -191,4 +191,84 @@ test("renderer shows mock, run, tool state, queue, status totals, dialog, and in
     await setup.flush(); expect(setup.captureCharFrame()).toContain("Continue?"); expect(f.regions.current()).toBe("stage");
   } finally { setup.renderer.destroy(); }
   expect(f.requests).toEqual([]);
+});
+
+/** Pi's events for one response whose calls are a codemode script and a direct read, as the pinned runtime emits them. */
+function codemodeRun(code: string, content: { type: "text"; text: string }[], isError: boolean, nested: string[]) {
+  const message = { role: "assistant", content: [{ type: "toolCall", id: "c1", name: "codemode", arguments: { code } }, { type: "toolCall", id: "r1", name: "read", arguments: { path: "b.txt" } }], stopReason: "toolUse" };
+  const calls = nested.map((name, index) => ({ id: `c1/${index + 1}`, name, args: name === "read" ? { path: "a.txt" } : { command: "echo hi" } }));
+  return [
+    { type: "agent_start" },
+    { type: "message_start", message: { role: "assistant", content: [] } },
+    { type: "message_end", message },
+    { type: "tool_execution_start", toolCallId: "c1", toolName: "codemode", args: { code } },
+    { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "b.txt" } },
+    // The script's calls are recorded after the direct read that started before them.
+    ...calls.flatMap(call => [
+      { type: "tool_execution_start", toolCallId: call.id, toolName: call.name, args: call.args, parentToolCallId: "c1" },
+      { type: "tool_execution_end", toolCallId: call.id, toolName: call.name, result: { content: [{ type: "text", text: "x\n" }] }, isError: false, parentToolCallId: "c1" },
+    ]),
+    { type: "tool_execution_end", toolCallId: "c1", toolName: "codemode", result: { content, details: {} }, isError },
+    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { content: [{ type: "text", text: "y\n" }] }, isError: false },
+    { type: "agent_settled" },
+  ];
+}
+
+/** A tool item's call id, without the response that scopes it. */
+const call = (id: string) => id.slice(id.indexOf("/") + 1);
+
+async function renderRun(records: Record<string, unknown>[], expand: string[] = []) {
+  const f = fixture();
+  for (const record of records) f.c.record(event(record));
+  const timeline = f.screen.ui.controllers.timeline;
+  f.regions.requestFocus("timeline");
+  for (const id of expand) { timeline.setCursor(id); f.press("l"); }
+  const setup = await testRender(() => <Screen screen={f.screen} />, { width: 100, height: 40 });
+  try { await setup.flush(); return { frame: setup.captureCharFrame(), visible: timeline.visibleItems().map(item => item.id), f }; }
+  finally { setup.renderer.destroy(); }
+}
+
+test("a codemode script lists its calls in start order and ends with its output while collapsed", async () => {
+  const code = 'const a = await tools.read({ path: "a.txt" });\ntext(a);\nawait tools.bash({ command: "echo hi" });\nreturn { ok: 1 };';
+  const content = [
+    { type: "text" as const, text: "Script completed\nWall time 0.0 seconds\nOutput:\n" },
+    { type: "text" as const, text: '==> text 1/2 <==\nx\n==> text 2/2 <==\n{"ok":1}' },
+  ];
+  const { frame, visible } = await renderRun(codemodeRun(code, content, false, ["read", "bash"]));
+  expect(visible.filter(id => id.includes("/")).map(call)).toEqual(["c1", "r1"]);
+  const lines = frame.split("\n").map(line => line.trimEnd());
+  const header = lines.findIndex(line => line.includes("⏵ codemode 2 calls · 0.0s · done"));
+  expect(header).toBeGreaterThan(-1);
+  // The selected script's range bar runs down its rows; the text follows it.
+  expect(lines.slice(header + 1, header + 7).map(line => line.replace(/^\s*[┃╹]?\s*/, ""))).toEqual([
+    "· read a.txt · done",
+    "· $ echo hi · done",
+    "→ ==> text 1/2 <==",
+    "x",
+    "==> text 2/2 <==",
+    "ok 1",
+  ]);
+  expect(frame).toContain("⏺ read b.txt · done");
+});
+
+test("an expanded codemode script shows its calls as children before the next call, and its source", async () => {
+  const code = 'await tools.read({ path: "a.txt" });\nnull.missing;';
+  const content = [
+    { type: "text" as const, text: "Script failed\nWall time 0.0 seconds\nOutput:\n" },
+    { type: "text" as const, text: "Script error:\nTypeError: cannot read property 'missing' of null\n    at <anonymous> (codemode.js:2:1)\n\nTool calls made before the failure (they are not undone): read (ok)" },
+  ];
+  const collapsed = await renderRun(codemodeRun(code, content, true, ["read"]));
+  expect(collapsed.frame).toContain("⏵ codemode 1 call · 0.0s · failed at line 2");
+  expect(collapsed.frame).toContain("→ TypeError: cannot read property 'missing' of null");
+  const script = collapsed.visible.find(id => call(id) === "c1")!;
+  const expanded = await renderRun(codemodeRun(code, content, true, ["read"]), [script]);
+  expect(expanded.visible.filter(id => id.includes("/")).map(call)).toEqual(["c1", "c1/1", "r1"]);
+  const lines = expanded.frame.split("\n").map(line => line.trimEnd());
+  const header = lines.findIndex(line => line.includes("⏷ codemode 1 call · 0.0s · failed at line 2"));
+  expect(header).toBeGreaterThan(-1);
+  expect(lines[header + 1]).toContain("⏺ read a.txt · done");
+  expect(expanded.frame).toContain("javascript");
+  expect(expanded.frame).toContain(' 1 await tools.read({ path: "a.txt" });');
+  expect(expanded.frame).toContain("▶2 null.missing;  ← error");
+  expect(expanded.frame).toContain("error at line 2");
 });

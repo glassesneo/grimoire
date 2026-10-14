@@ -3,19 +3,21 @@
  * Setup runs outside rendering, so a keymap error fails startup with its
  * message instead of a broken screen.
  */
-import { type CliRenderer, createHostClipboard, createRendererClipboardAdapter, type ScrollBoxRenderable } from "@opentui/core";
-import type { JSX } from "@opentui/solid";
-import { createSignal, onCleanup } from "solid-js";
+import { type CliRenderer, engine } from "@opentui/core";
+import { type JSX, useRenderer } from "@opentui/solid";
+import { createSignal, onCleanup, onMount, type Signal } from "solid-js";
 import { INTERRUPT_ACTION, setupDefaultActions, type QuinActions } from "./contributions/default";
 import type { Controller } from "./controller";
 import { bridgeDialogs } from "./dialogs";
-import { entryType, scrollTimeline, timelineSync, TimelineView } from "./timeline";
+import { queuedPrompts, registerTimelineTypes } from "./timeline";
+import { createItemActions, type ClipboardWriter, type TimelineScrollBox } from "./ui/item-actions";
 import type { StatuslineContribution } from "./ui/statusline";
 import { formatChord, type Keymap } from "./ui/keys";
 import { ScreenLayout } from "./ui/layout";
 import { createQuinUI, type QuinUIInstance } from "./ui/quin-ui";
 import { setupStageUI, StageView } from "./ui/stage";
 import { useVersion } from "./ui/state";
+import { TimelineView } from "./ui/timeline";
 import { formatContext, formatUsage } from "./usage";
 
 export interface QuinScreen {
@@ -23,27 +25,35 @@ export interface QuinScreen {
   controller: Controller;
   actions: QuinActions;
   /** Set by the view once its scrollbox exists. */
-  setScroll(scroll: ScrollBoxRenderable): void;
+  setScroll(scroll: TimelineScrollBox | undefined): void;
+  /** Applies following and anchoring to the laid-out timeline; the view calls it every frame. */
+  frame(): void;
+  /** Rows the overlays cover over the timeline's bottom and top edges, as the layout reports them. */
+  overlay: Signal<number>;
+  topInset: Signal<number>;
+  /** Blank rows after the history that keep an anchored item in place. */
+  slack(): number;
   /** Set by the view once the native editor exists. */
   setEditorReader(read: () => { text: string; cursor: number }): void;
-  queued(): string;
+  queued(): { steering: string[]; followUp: string[] };
   dispose(): void;
 }
 
-export function setupScreen(controller: Controller, options: { keymap?: Keymap; renderer?: CliRenderer; cwd?: string } = {}): QuinScreen {
+export function setupScreen(controller: Controller, options: { keymap?: Keymap; renderer?: CliRenderer; clipboard?: ClipboardWriter; cwd?: string } = {}): QuinScreen {
   const c = controller;
-  const ui = createQuinUI<JSX.Element>({ sendPrompt: text => c.sendPrompt(text), keymap: options.keymap });
-  const { timeline, editor, statusline, runState, keys } = ui.controllers;
-  let scroll: ScrollBoxRenderable | undefined;
+  // An accepted prompt follows the latest output again, as in the harness.
+  const ui = createQuinUI<JSX.Element>({ sendPrompt: async text => { const accepted = await c.sendPrompt(text); if (accepted) itemActions.follow(); return accepted; }, keymap: options.keymap });
+  const { timeline, editor, statusline, runState, keys, regions } = ui.controllers;
+  let scroll: TimelineScrollBox | undefined;
   let readEditor: (() => { text: string; cursor: number }) | undefined;
-
-  let clipboard: ReturnType<typeof createHostClipboard> | undefined;
-  try { clipboard = createHostClipboard(); } catch {}
-  const fallback = options.renderer ? createRendererClipboardAdapter(options.renderer) : undefined;
-  const copy = async (text: string) => {
-    try { if (clipboard && (await clipboard.writeText(text, { selection: "clipboard" })).status === "written") return true; } catch {}
-    return fallback?.writeText(text, "clipboard").status === "attempted";
-  };
+  const overlay = createSignal(0);
+  const topInset = createSignal(0);
+  const [slack, setSlack] = createSignal(0);
+  const itemActions = createItemActions({
+    timeline, scrollbox: () => scroll, overlayHeight: overlay[0], topInset: topInset[0],
+    renderer: options.renderer, clipboard: options.clipboard, onSlackChange: setSlack,
+    notify: (_level, text) => c.fail(text),
+  });
 
   const actions: QuinActions = {
     submit: () => {
@@ -55,16 +65,12 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     },
     detach: () => c.detach(),
     interrupt: () => { if (c.interrupt() === "idle") editor.setText(""); },
-    scrollTimeline: amount => scrollTimeline(scroll, amount),
-    revealCursor: () => { const id = timeline.cursor(); if (id) scrollTimeline(scroll, { reveal: id }); },
-    copyTimelineItem: () => {
-      const text = timeline.currentItem()?.sourceText();
-      if (text !== undefined) void copy(text).then(ok => c.fail(ok ? "Copied" : "Clipboard unavailable"));
-    },
+    timeline: itemActions,
   };
 
   const stageUI = setupStageUI(ui);
-  const registrations = [timeline.registerType(entryType), setupDefaultActions(ui, actions)];
+  const { registrations: typeRegistrations, projector } = registerTimelineTypes(timeline);
+  const registrations = [...typeRegistrations, setupDefaultActions(ui, actions)];
   try {
     keys.checkKeymap();
   } catch (error) {
@@ -75,14 +81,23 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   const stopDialogs = bridgeDialogs({ controller: c, ui, ...stageUI });
   c.onEditorText = text => editor.setText(text);
 
-  const sync = timelineSync(timeline, entryType);
+  // Entering the timeline puts an off-screen cursor on the latest item.
+  let lastRegion = regions.current();
+  const unsubscribeRegions = regions.subscribe(() => {
+    const region = regions.current();
+    if (region === "timeline" && lastRegion !== "timeline") itemActions.reveal();
+    lastRegion = region;
+  });
   const statuses = new Map<string, StatuslineContribution>();
   const notice = statusline.contribute("top", { text: "" });
   const chord = (id: string) => { const first = keys.chords(id)[0]; return first ? formatChord(first) : undefined; };
   const hint = statusline.contribute("bottom", { text: "" });
+  let shown: unknown;
   const refresh = () => {
     const view = c.adapter.view;
-    sync(view.timeline.entries);
+    // Records that leave the timeline as it was, such as a notice or the interrupt key, keep its items.
+    const items = projector.project(view.timeline.entries);
+    if (items !== shown) timeline.replace(shown = items);
     statusline.setFields({
       session: `${c.adapter.mode === "mock" ? "MOCK " : ""}${c.adapter.agent ?? ""}`,
       cwd: options.cwd ?? process.cwd(),
@@ -112,19 +127,20 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     controller: c,
     actions,
     setScroll: element => { scroll = element; },
+    frame: () => itemActions.frame(),
+    overlay,
+    topInset,
+    slack,
     setEditorReader: read => { readEditor = read; },
-    queued: () => {
-      const q = c.adapter.view.queue;
-      const text = (p: any) => typeof p === "string" ? p : p.message || JSON.stringify(p);
-      return [...q.steering.map(p => `steer: ${text(p)}`), ...q.followUp.map(p => `follow-up: ${text(p)}`)].join("\n");
-    },
+    queued: () => queuedPrompts(c.adapter.view.queue),
     dispose: () => {
       clearInterval(timer);
       unsubscribe();
+      unsubscribeRegions();
       stopDialogs();
       for (const registration of registrations) registration.dispose();
       stageUI.dispose();
-      void clipboard?.dispose();
+      void itemActions.dispose();
     },
   };
 }
@@ -132,9 +148,12 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
 export function Screen(props: { screen: QuinScreen; onTitle?(title: string): void }): JSX.Element {
   const { ui, controller } = props.screen;
   const version = useVersion(controller, ui.controllers.regions);
-  const [overlay, setOverlay] = createSignal(0);
-  const [topInset, setTopInset] = createSignal(0);
-  onCleanup(() => props.screen.dispose());
+  const [overlay, setOverlay] = props.screen.overlay;
+  const [topInset, setTopInset] = props.screen.topInset;
+  // Item scrolling animates on OpenTUI's timeline engine, driven by this renderer.
+  const renderer = useRenderer();
+  onMount(() => engine.attach(renderer));
+  onCleanup(() => { engine.detach(); props.screen.dispose(); });
   let lastTitle: string | null = null;
   const title = () => {
     version();
@@ -160,7 +179,9 @@ export function Screen(props: { screen: QuinScreen; onTitle?(title: string): voi
             queued={(version(), props.screen.queued())}
             topInset={topInset()}
             overlayHeight={overlay()}
+            slack={props.screen.slack()}
             scrollRef={props.screen.setScroll}
+            onFrame={props.screen.frame}
           />
         }
       />

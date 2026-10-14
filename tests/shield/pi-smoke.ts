@@ -7,6 +7,7 @@ import { HubClient, type Envelope } from "../../abstractions/modules/agents/shie
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 import { options } from "../../abstractions/modules/agents/shield/quin/launch";
 import { PiAdapter, type View } from "../../abstractions/modules/agents/shield/quin/view";
+import { codemodeErrorLocation, codemodeOutput, codemodeWallTime } from "../../abstractions/modules/agents/shield/quin/ui/codemode-result";
 const dir = mkdtempSync(join(tmpdir(), "shield-pi-"));
 const socket = join(dir, "hub.sock");
 Object.assign(process.env, { HOME: dir, XDG_CONFIG_HOME: join(dir, "config"), XDG_STATE_HOME: join(dir, "state") });
@@ -56,6 +57,22 @@ try {
   assert(d.adapter.view.timeline.entries.some(e => e.kind === "tool" && e.state === "running"));
   await toolRequest.catch(() => undefined);
   await wait(() => d.adapter.view.timeline.entries.some(e => e.kind === "tool" && e.state === "done") && !d.adapter.view.run.active);
+  // Codemode in `only` mode: each script's calls arrive as its children, and the result
+  // text keeps the format quin's timeline reads for wall time, output, and the failing line.
+  console.log("Pi: codemode scripts");
+  assert((await prompt(d.client, id, "/fixture-codemode")).success);
+  const scripts = () => d.adapter.view.timeline.entries.filter(e => e.kind === "tool" && e.name === "codemode");
+  await wait(() => scripts().length === 2 && scripts().every(e => ["done", "error"].includes(e.state)) && !d.adapter.view.run.active);
+  for (const script of scripts()) {
+    const calls = d.adapter.view.timeline.entries.filter(e => e.kind === "tool" && e.parentId === script.id);
+    assert.deepEqual(calls.map(e => [e.name, e.state]), [["shield_fixture", "done"]]);
+    assert(codemodeWallTime(script.result.content), JSON.stringify(script.result));
+  }
+  const [completed, failed] = scripts();
+  assert.equal(completed.state, "done");
+  assert.match(codemodeOutput(completed.result.content).output, /fixture complete/);
+  assert.equal(failed.state, "error");
+  assert.deepEqual(codemodeErrorLocation(failed.args.value.code, { content: failed.result.content, isError: true }), { kind: "located", line: 2, error: "TypeError: cannot read property 'missing' of null\n    at <anonymous> (codemode.js:2:1)" });
   // Observe a dialog, disconnect its origin, then restore without extending its deadline.
   console.log("Pi: standard dialogs");
   const dialogRequest = prompt(d.client, id, "/fixture-dialog").catch(() => undefined);
@@ -110,7 +127,7 @@ try {
   const newState = await reboot.client.engine(fresh.payload["agent-id"], { op: "rpc", record: { type: "get_state" } });
   assert.notEqual(newState.payload.data.sessionFile, file); assert(existsSync(file));
   await reboot.client.hub("shutdown");
-  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, four dialogs/first winner/timeout, history/reboot, real bash TERM");
+  console.log("Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, four dialogs/first winner/timeout, history/reboot, real bash TERM");
 } catch (e) { try { console.error(readFileSync(`${socket}.log`, "utf8")); } catch {} throw e; }
 finally {
   const cleanup = new HubClient(socket); try { await cleanup.hub("shutdown"); } catch {} finally { cleanup.close(); }

@@ -1,4 +1,5 @@
 import type { Envelope } from "../client/protocol";
+import { contentText } from "./ui/pi-content";
 
 // Wire view mirrors Shield.PiView; fixtures compare both implementations by value.
 export interface View {
@@ -18,7 +19,6 @@ export function emptyView(): View {
 }
 const base = (id: string, kind: string): Entry => ({ id, kind, version: 0 });
 const bump = (e: Entry, fields: Record<string, any>) => Object.assign(e, fields, { version: e.version + 1 });
-const text = (content: any) => typeof content === "string" ? content : (content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
 const take = (v: any, keys: string[]) => Object.fromEntries(keys.filter(k => k in v).map(k => [k, v[k]]));
 /**
  * The view after one Pi record. By default `before` is left untouched; `inPlace` updates
@@ -62,7 +62,7 @@ export function applyEvent(before: View, r: any, now: number, inPlace = false): 
       break;
     case "message_start": {
       const m = r.message;
-      if (m.role === "user") newEntry("user", { text: text(m.content), images: Array.isArray(m.content) ? m.content.filter((b: any) => b.type === "image") : [] });
+      if (m.role === "user") newEntry("user", { text: contentText(m.content || []), images: Array.isArray(m.content) ? m.content.filter((b: any) => b.type === "image") : [] });
       if (m.role === "assistant") {
         const id = `live:${v.nextId++}`;
         v.timeline.response = id; v.timeline.nextOrdinal = 0;

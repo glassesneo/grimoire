@@ -1,8 +1,9 @@
 /**
  * The launch descriptor quin sends on attach. Pi's session files, its only
  * persistent history, are kept per working directory under the state directory.
- * A mock agent gets its own config, HOME and sessions, the faux provider, and no
- * resource discovery, external providers, or built-in tools.
+ * Every agent has codemode in `only` mode. A mock agent gets its own config, HOME and
+ * sessions, the faux provider, and no resource discovery, external providers, or
+ * built-in tools.
  */
 import { readFileSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -34,9 +35,11 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   privateDirectory(sessions);
   const executable = process.env.SHIELD_PI;
   const extension = process.env[mock ? "SHIELD_FAUX" : "SHIELD_COMMANDCODE"];
-  if (!executable || !extension) throw new Error("Pi runtime is missing; use packaged quin");
-  const argv = ["--mode", "rpc", "--no-approve", "--session-dir", sessions, "--extension", extension];
+  const codemode = process.env.SHIELD_CODEMODE;
+  if (!executable || !extension || !codemode) throw new Error("Pi runtime is missing; use packaged quin");
+  const argv = ["--mode", "rpc", "--no-approve", "--session-dir", sessions, "--extension", extension, "--extension", codemode];
   if (model) argv.push("--model", model);
+  if (!mock) argv.push("--tools", "+codemode");
   const env: Record<string, string> = {
     HOME: mock ? join(stateDirectory(), "mock/home") : homedir(),
     PATH: process.env.PATH || "/usr/bin:/bin", LANG: "en_US.UTF-8",
@@ -46,7 +49,7 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   if (mock) {
     privateDirectory(env.HOME!);
     Object.assign(env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
-    argv.push("--no-extensions", "--no-builtin-tools", "--tools", "shield_fixture", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
+    argv.push("--no-extensions", "--no-builtin-tools", "--tools", "shield_fixture,codemode", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
   }
   return { mode: mock ? "mock" : "live", model, modelSource, launch: { executable, argv, env } };
 }
