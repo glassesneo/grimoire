@@ -9,6 +9,8 @@
   quin = inputs.self.packages.${system}.quin or null;
   bun2nix = inputs.bun2nix.packages.${system}.default;
   shield = ../../abstractions/modules/agents/shield;
+  # Directories, relative to the repository, that the type check and lint cover.
+  tsRoots = ["abstractions/modules/agents/shield/quin" "abstractions/modules/agents/shield/client" "tests/shield-process" "tests/shield-trace"];
 in
   bun2nix.mkDerivation {
     pname = "quin-check";
@@ -25,11 +27,12 @@ in
     nativeBuildInputs = [quin pkgs.oxlint pkgs.tsgolint];
     buildPhase = ''
       bun node_modules/typescript/bin/tsc -p abstractions/modules/agents/shield/quin
-      oxlint --deny-warnings abstractions/modules/agents/shield/quin abstractions/modules/agents/shield/client tests/shield-process tests/shield-trace
+      oxlint --deny-warnings ${pkgs.lib.escapeShellArgs tsRoots}
       quin --version
       quin --help
       HOME="$TMPDIR" quin --check-keymap
     '';
+    passthru = {inherit tsRoots;};
     installPhase = ''
       touch "$out"
     '';

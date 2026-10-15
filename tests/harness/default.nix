@@ -9,6 +9,8 @@
   harness = inputs.self.packages.${system}.harness;
   bun2nix = inputs.bun2nix.packages.${system}.default;
   dir = ../../abstractions/modules/agents/harness;
+  # Directories, relative to the repository, that the type check and lint cover.
+  tsRoots = ["abstractions/modules/agents/harness"];
 in
   bun2nix.mkDerivation {
     pname = "harness-check";
@@ -31,8 +33,9 @@ in
     '';
     nativeBuildInputs = [harness pkgs.oxlint pkgs.tsgolint];
     buildPhase = ''
-      oxlint --deny-warnings abstractions/modules/agents/harness
+      oxlint --deny-warnings ${pkgs.lib.escapeShellArgs tsRoots}
     '';
+    passthru = {inherit tsRoots;};
     installPhase = ''
       touch "$out"
     '';
