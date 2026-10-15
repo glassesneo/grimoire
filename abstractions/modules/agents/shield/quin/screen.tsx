@@ -27,18 +27,18 @@ interface QuinScreen {
   controller: Controller;
   actions: QuinActions;
   /** Set by the view once its scrollbox exists. */
-  setScroll(scroll: TimelineScrollBox | undefined): void;
+  setScroll: (scroll: TimelineScrollBox | undefined) => void;
   /** Applies following and anchoring to the laid-out timeline; the view calls it every frame. */
-  frame(): void;
+  frame: () => void;
   /** Rows the overlays cover over the timeline's bottom and top edges, as the layout reports them. */
   overlay: Signal<number>;
   topInset: Signal<number>;
   /** Blank rows after the history that keep an anchored item in place. */
-  slack(): number;
+  slack: () => number;
   /** Set by the view once the native editor exists. */
-  setEditorReader(read: () => { text: string; cursor: number }): void;
-  queued(): { steering: string[]; followUp: string[] };
-  dispose(): void;
+  setEditorReader: (read: () => { text: string; cursor: number }) => void;
+  queued: () => { steering: string[]; followUp: string[] };
+  dispose: () => void;
 }
 
 export function setupScreen(

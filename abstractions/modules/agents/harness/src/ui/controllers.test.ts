@@ -869,7 +869,6 @@ describe("EditorController", () => {
   });
 
   test("clears the transient assist on draft settle and falls back when the requester is gone", () => {
-    const { regions } = fakeRegions();
     const focus: string[] = [];
     let allowsBorrower = false;
     const editor = new EditorController({

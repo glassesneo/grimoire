@@ -63,25 +63,25 @@ export type ScrollKind = ItemScrollKind;
  * model (focus moves) are handled by the contribution directly.
  */
 export interface HarnessUIActions {
-  submit(): void;
-  cancel(): void;
-  quit(): void;
-  focusFromEditor(target: "timeline" | "stage"): void;
-  moveTimelineCursor(delta: number): void;
-  scrollTimeline(kind: ScrollKind): void;
-  toggleTimelineItem(): void;
-  expandTimelineItem(): void;
-  collapseTimelineItem(): void;
-  copyTimelineItem(): void;
-  moveStageCursor(delta: number): void;
-  confirmStage(): void;
-  cancelStage(): void;
-  openCommand?(): void;
-  moveStageRequest?(delta: number): void;
-  stageAcceptsText?(): boolean;
-  commandArguments?(): void;
-  moveCommandDraftCursor?(delta: number): void;
-  commandOwnsDraft?(): boolean;
+  submit: () => void;
+  cancel: () => void;
+  quit: () => void;
+  focusFromEditor: (target: "timeline" | "stage") => void;
+  moveTimelineCursor: (delta: number) => void;
+  scrollTimeline: (kind: ScrollKind) => void;
+  toggleTimelineItem: () => void;
+  expandTimelineItem: () => void;
+  collapseTimelineItem: () => void;
+  copyTimelineItem: () => void;
+  moveStageCursor: (delta: number) => void;
+  confirmStage: () => void;
+  cancelStage: () => void;
+  openCommand?: () => void;
+  moveStageRequest?: (delta: number) => void;
+  stageAcceptsText?: () => boolean;
+  commandArguments?: () => void;
+  moveCommandDraftCursor?: (delta: number) => void;
+  commandOwnsDraft?: () => boolean;
 }
 
 export interface HarnessControllers<Render = unknown> {

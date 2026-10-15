@@ -14,12 +14,12 @@ interface ScreenLayoutProps<Render = unknown> {
   /** Show the one-row status lines above the timeline and below the editor. */
   statuslines?: boolean;
   /** Rows the overlays cover over the timeline's bottom and top edges. */
-  onOverlayHeight?(rows: number): void;
-  onTopInset?(rows: number): void;
+  onOverlayHeight?: (rows: number) => void;
+  onTopInset?: (rows: number) => void;
   /** Every key, with the action it resolved to; called before the action runs. */
-  onKey?(action: Action | undefined): void;
+  onKey?: (action: Action | undefined) => void;
   /** Reads the native editor's text, which can run ahead of its change callbacks. */
-  onEditorReader?(read: () => { text: string; cursor: number }): void;
+  onEditorReader?: (read: () => { text: string; cursor: number }) => void;
 }
 
 /**

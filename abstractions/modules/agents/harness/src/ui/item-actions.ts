@@ -50,27 +50,27 @@ export interface ClipboardWriter {
   dispose(): Promise<void>;
 }
 
-export interface ItemActions<Render = unknown> {
+export interface ItemActions {
   /** Move the cursor among visible items and center its first line in the usable rows. */
-  move(delta: number): void;
+  move: (delta: number) => void;
   /** Put an off-screen cursor on the last visible item, as when the timeline gains focus. */
-  reveal(): void;
+  reveal: () => void;
   /** Page or half-page scroll, interpolated over the configured duration. */
-  scroll(kind: ItemScrollKind): void;
+  scroll: (kind: ItemScrollKind) => void;
   /** Expand or collapse the cursor item, keeping its first line in place. */
-  toggle(): void;
+  toggle: () => void;
   /** Expand the cursor item; an expanded or non-expandable item is left alone. */
-  expand(): void;
+  expand: () => void;
   /** Collapse the cursor item, or else its nearest expanded ancestor, which becomes selected. */
-  collapse(): void;
+  collapse: () => void;
   /** Follow the latest output again, as when a prompt is accepted. */
-  follow(): void;
-  following(): boolean;
+  follow: () => void;
+  following: () => boolean;
   /** Apply following or anchoring to the laid-out rows; the view calls it every frame. */
-  frame(): void;
+  frame: () => void;
   /** Copy the cursor item's `sourceText()` to the clipboard. */
-  copy(): Promise<boolean>;
-  dispose(): Promise<void>;
+  copy: () => Promise<boolean>;
+  dispose: () => Promise<void>;
 }
 
 export interface ItemActionsOptions<Render = unknown> {
@@ -208,9 +208,7 @@ class SmoothScroll {
   }
 }
 
-export function createItemActions<Render>(
-  options: ItemActionsOptions<Render>,
-): ItemActions<Render> {
+export function createItemActions<Render>(options: ItemActionsOptions<Render>): ItemActions {
   const { timeline, scrollbox, overlayHeight } = options;
   const topInset = options.topInset ?? (() => 0);
   const notify = options.notify;

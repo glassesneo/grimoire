@@ -69,7 +69,7 @@ async function main() {
   renderer.on("destroy", () => {
     controller.detach();
   });
-  render(
+  await render(
     () => <Screen screen={screen} onTitle={(title) => renderer.setTerminalTitle(title)} />,
     renderer,
   );

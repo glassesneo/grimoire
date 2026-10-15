@@ -101,6 +101,8 @@
             pkgs.nushell
             pkgs.bun
             pkgs.oxfmt
+            pkgs.oxlint
+            pkgs.tsgolint
             inputs.bun2nix.packages.${system}.default
             pkgs.emmylua-ls
             pkgs.emmylua-check

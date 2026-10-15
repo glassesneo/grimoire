@@ -58,7 +58,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("fixture-tool", {
     description: "Run a harmless mock tool",
-    handler: async (_, ctx) => {
+    handler: async () => {
       fixture = [
         fauxAssistantMessage(fauxToolCall("shield_fixture", {}, { id: "fixture-call" }), {
           stopReason: "toolUse",

@@ -85,7 +85,7 @@ test("completes queued and active extension abort, timeout and disposal with def
   abort.abort();
   expect(await queued).toBeUndefined();
   await tick();
-  f.ui.controllers.stage.active()?.runAction("cancel");
+  await f.ui.controllers.stage.active()?.runAction("cancel");
   expect(await first).toBeUndefined();
   const timeout = f.extension.context.input("Timed", undefined, { timeout: 5 });
   expect(await timeout).toBeUndefined();

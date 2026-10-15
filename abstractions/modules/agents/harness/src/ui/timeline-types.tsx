@@ -631,13 +631,13 @@ interface ToolSpec {
   /** The header's label; the tool's name when omitted. */
   label?: string;
   /** The call in a few words, for its header and for a codemode overview line. */
-  summary(call: { args: ToolArguments; calls?: readonly NestedCallSummary[] }): string;
+  summary: (call: { args: ToolArguments; calls?: readonly NestedCallSummary[] }) => string;
   /** The header's closing status; the state's name when omitted. */
-  status?(snapshot: ToolSnapshot): string;
+  status?: (snapshot: ToolSnapshot) => string;
   /** Rows under the header while collapsed; the error preview when omitted. */
   Preview?: (props: { snapshot: ToolSnapshot }) => JSX.Element;
-  details(snapshot: ToolSnapshot): JSX.Element;
-  expandable(snapshot: ToolSnapshot): boolean;
+  details: (snapshot: ToolSnapshot) => JSX.Element;
+  expandable: (snapshot: ToolSnapshot) => boolean;
 }
 
 function toolType(kind: string, spec: ToolSpec): ItemType<ToolSnapshot, JSX.Element> {
@@ -702,8 +702,10 @@ const readSpec: ToolSpec = {
   summary: ({ args }) => {
     const record = argsRecord(args);
     if (typeof record?.path !== "string") return argsText(args);
-    const { path, offset, limit } = record;
-    return `${path}${offset !== undefined || limit !== undefined ? `:${offset ?? 1}${limit !== undefined ? `+${limit}` : ""}` : ""}`;
+    // Pi's read schema types both as numbers; anything else is left out of the summary.
+    const offset = typeof record.offset === "number" ? record.offset : undefined;
+    const limit = typeof record.limit === "number" ? record.limit : undefined;
+    return `${record.path}${offset !== undefined || limit !== undefined ? `:${offset ?? 1}${limit !== undefined ? `+${limit}` : ""}` : ""}`;
   },
   Preview: (props) => (
     <>

@@ -1,7 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
-  type AgentSessionEvent,
   type AgentSessionRuntime,
   type AgentSessionServices,
   type CreateAgentSessionRuntimeFactory,

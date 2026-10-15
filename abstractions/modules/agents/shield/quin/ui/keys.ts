@@ -118,7 +118,7 @@ export function parseChord(text: string): KeyChord {
     throw new KeymapError(
       `${JSON.stringify(text)} names a capital letter; use shift+${name.toLowerCase()}`,
     );
-  if ([...name].length !== 1 && !NAMED_KEYS.has(name))
+  if (!isCharacter(name) && !NAMED_KEYS.has(name))
     throw new KeymapError(`unknown key name ${JSON.stringify(name)} in ${JSON.stringify(text)}`);
   const chord: KeyChord = { name };
   for (const modifier of parts) {
@@ -145,9 +145,14 @@ function chordId(chord: KeyChord): string {
   return `${chord.name}|${chord.ctrl ? 1 : 0}|${chord.shift ? 1 : 0}|${chord.alt ? 1 : 0}`;
 }
 
+/** One user-perceived character, such as a letter with a combining mark. */
+function isCharacter(text: string): boolean {
+  return Array.from(new Intl.Segmenter().segment(text)).length === 1;
+}
+
 /** A chord that types its own character: one visible character, without Ctrl or Alt. */
 function typesText(chord: KeyChord): boolean {
-  return !chord.ctrl && !chord.alt && (chord.name === "space" || [...chord.name].length === 1);
+  return !chord.ctrl && !chord.alt && (chord.name === "space" || isCharacter(chord.name));
 }
 
 /** Why a chord cannot be bound in a layer, if it cannot. */

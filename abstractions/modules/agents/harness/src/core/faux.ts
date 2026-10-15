@@ -70,6 +70,8 @@ function substituteTools(session: AgentSession, results: Record<string, ToolResu
   const descriptor = Object.getOwnPropertyDescriptor(state, "tools");
   if (!descriptor?.get || !descriptor.set)
     throw new Error("pi's agent state no longer exposes a tools accessor");
+  // `get` is reinstalled as the same object's getter and `set` is called on it, so both keep `state` as `this`.
+  // oxlint-disable-next-line typescript/unbound-method
   const { get, set } = descriptor;
   const wrap = (tools: Tool[]): Tool[] =>
     tools.map(

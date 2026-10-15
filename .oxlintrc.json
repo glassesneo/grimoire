@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "options": { "typeAware": true },
+  "overrides": [
+    {
+      "files": ["*.tsx"],
+      "rules": { "no-unassigned-vars": "off" }
+    },
+    {
+      "files": ["*.test.ts", "*.test.tsx"],
+      "rules": { "typescript/await-thenable": "off" }
+    }
+  ]
+}

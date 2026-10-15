@@ -62,7 +62,7 @@ function CommandNameInput(props: {
 }
 
 function CommandView(
-  props: StageRenderProps<CommandValue, JSX.Element> & {
+  props: StageRenderProps<CommandValue> & {
     controller: CommandController<JSX.Element>;
   },
 ) {

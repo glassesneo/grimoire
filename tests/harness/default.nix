@@ -1,7 +1,39 @@
-# Build the published harness, so its type check and install check run with the
-# other checks instead of only when the package is built explicitly.
+# Lints the harness against the repository's .oxlintrc.json, with type
+# information from its own dependencies, and builds the published harness so
+# its type check and install check run with the other checks.
 {
   inputs,
+  pkgs,
   system,
-}:
-inputs.self.packages.${system}.harness
+}: let
+  harness = inputs.self.packages.${system}.harness;
+  bun2nix = inputs.bun2nix.packages.${system}.default;
+  dir = ../../abstractions/modules/agents/harness;
+in
+  bun2nix.mkDerivation {
+    pname = "harness-check";
+    version = "0.0.0";
+    src = pkgs.lib.fileset.toSource {
+      root = ../..;
+      fileset = pkgs.lib.fileset.unions [
+        ../../.oxlintrc.json
+        (dir + "/package.json")
+        (dir + "/bun.lock")
+        (dir + "/tsconfig.json")
+        (dir + "/build.ts")
+        (dir + "/src")
+      ];
+    };
+    bunDeps = harness.bunDeps;
+    postUnpack = ''
+      cp "$sourceRoot/abstractions/modules/agents/harness/package.json" "$sourceRoot/package.json"
+      cp "$sourceRoot/abstractions/modules/agents/harness/bun.lock" "$sourceRoot/bun.lock"
+    '';
+    nativeBuildInputs = [harness pkgs.oxlint pkgs.tsgolint];
+    buildPhase = ''
+      oxlint --deny-warnings abstractions/modules/agents/harness
+    '';
+    installPhase = ''
+      touch "$out"
+    '';
+  }

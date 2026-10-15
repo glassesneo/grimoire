@@ -13,7 +13,7 @@ test("the compiled harness executes codemode from an unrelated cwd", async () =>
     // and apart from XDG_CONFIG_HOME/harness, where the run keeps its files.
     const executable = join(directory, "bin", "harness");
     const build = await compile(entrypoints, executable);
-    expect(build.success, build.logs.join("\n")).toBe(true);
+    expect(build.success, build.logs.map((log) => log.message).join("\n")).toBe(true);
     const resultPath = join(directory, "result.json");
     const extensionPath = join(directory, "probe.js");
     await writeFile(

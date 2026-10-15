@@ -86,11 +86,15 @@ export class StatuslineController extends Emitter {
 /** Terminal columns a string occupies. */
 const displayWidth = (text: string): number => Bun.stringWidth(text);
 
+/** User-perceived characters, so a cut never splits an emoji sequence or a combining mark. */
+const graphemes = (text: string): string[] =>
+  Array.from(new Intl.Segmenter().segment(text), ({ segment }) => segment);
+
 /** Cut `text` to `width` columns, keeping its start or, for paths, its end. */
 function fitText(text: string, width: number, keep: "start" | "end" = "start"): string {
   if (width <= 0) return "";
   if (displayWidth(text) <= width) return text;
-  const characters = [...text];
+  const characters = graphemes(text);
   let result = "";
   if (keep === "end") {
     for (let index = characters.length - 1; index >= 0; index--) {

@@ -11,6 +11,9 @@
   writeText,
   settings ? {},
 }: let
+  bunDeps = bun2nix.fetchBunDeps {
+    bunNix = ./bun.nix;
+  };
   unwrapped = bun2nix.mkDerivation {
     packageJson = ./package.json;
 
@@ -26,9 +29,7 @@
       ];
     };
 
-    bunDeps = bun2nix.fetchBunDeps {
-      bunNix = ./bun.nix;
-    };
+    inherit bunDeps;
 
     buildPhase = ''
       runHook preBuild
@@ -84,6 +85,7 @@
 in
   runCommand "harness-${unwrapped.version}" {
     nativeBuildInputs = [makeWrapper];
+    passthru = {inherit bunDeps;};
     meta.mainProgram = "harness";
   } ''
     makeWrapper ${unwrapped}/libexec/harness/harness "$out/bin/harness" \

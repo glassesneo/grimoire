@@ -551,22 +551,22 @@ interface TimelineItemInput<T, Render = unknown> {
 export interface ItemType<T, Render = unknown> {
   kind: string;
   /** The item's own rows: what it shows collapsed, or its header when expanded. */
-  render(props: ItemRenderProps<T>): Render;
+  render: (props: ItemRenderProps<T>) => Render;
   /** Expanded content drawn after the item's selectable children. */
-  renderDetails?(props: ItemRenderProps<T>): Render;
+  renderDetails?: (props: ItemRenderProps<T>) => Render;
   /**
    * Whether the value has more to show expanded. Selectable children make an
    * item expandable regardless, so this answers only for the value's content.
    */
-  expandable?(value: T): boolean;
+  expandable?: (value: T) => boolean;
   /** What the copy action writes; undefined when the item holds no original text. */
-  sourceText(value: T): string | undefined;
+  sourceText: (value: T) => string | undefined;
   /**
    * The color of the item's mark in the timeline's gutter, for its kind or,
    * for work with an outcome, that outcome. The view chooses one when it is
    * omitted.
    */
-  marker?(value: T): string | undefined;
+  marker?: (value: T) => string | undefined;
   /**
    * The render functions read `props` lazily, inside JSX, so a view can keep
    * an item's renderables while its value changes, as a streamed reply does.

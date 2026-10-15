@@ -706,8 +706,8 @@ test("a burst updates only changed timeline items and preserves nested summaries
   expect(timeline.revision()).toBe(revision + 1);
   expect(timeline.find("live:0/r1")).toBe(unrelated);
   expect(timeline.isExpanded("live:0/c1")).toBe(true);
-  expect((timeline.find("live:0/c1")?.value as any).calls[0].state).toBe("error");
-  expect((timeline.find(child.id)?.value as any).state).toBe("error");
+  expect((timeline.find("live:0/c1")!.value as any).calls[0].state).toBe("error");
+  expect((timeline.find(child.id)!.value as any).state).toBe("error");
   f.screen.dispose();
 });
 

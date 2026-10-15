@@ -13,7 +13,7 @@ test("the compiled harness renders Markdown and highlights code from an unrelate
   try {
     const outfile = join(directory, "probe");
     const build = await compile([resolve(import.meta.dir, "compiled-markdown.probe.tsx")], outfile);
-    expect(build.success, build.logs.join("\n")).toBe(true);
+    expect(build.success, build.logs.map((log) => log.message).join("\n")).toBe(true);
     const run = Bun.spawnSync([outfile], {
       cwd: directory,
       env: { PATH: process.env.PATH ?? "", HOME: directory, XDG_CONFIG_HOME: directory },

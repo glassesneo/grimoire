@@ -63,7 +63,7 @@ export function TextareaEngine(props: EditorViewProps): JSX.Element {
   createEffect(() => {
     const text = props.text;
     const cursor = props.cursor;
-    props.bodyWidth;
+    void props.bodyWidth;
     if (!textarea) {
       return;
     }

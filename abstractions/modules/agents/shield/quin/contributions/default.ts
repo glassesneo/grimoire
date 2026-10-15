@@ -5,10 +5,10 @@ import { KeyBindings, type Action, type Keymap } from "../ui/keys";
 import { FOCUS_ORDER, regionText, type QuinUIInstance } from "../ui/quin-ui";
 
 export interface QuinActions {
-  submit(): void;
-  detach(): void;
-  interrupt(): void;
-  openCommand(): void;
+  submit: () => void;
+  detach: () => void;
+  interrupt: () => void;
+  openCommand: () => void;
   timeline: Pick<ItemActions, "move" | "scroll" | "toggle" | "expand" | "collapse" | "copy">;
 }
 export const INTERRUPT_ACTION = "global.interrupt";

@@ -64,7 +64,7 @@ export interface HarnessUIClient {
       value: unknown;
       preferredHeight: number;
       signal?: AbortSignal;
-      onPromptSubmitted?(event: { text: string; handle: StageHandle }): void | Promise<void>;
+      onPromptSubmitted?: (event: { text: string; handle: StageHandle }) => void | Promise<void>;
     }): StageHandle<unknown>;
   };
   statusline: {
@@ -353,7 +353,7 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): {
     retire() {
       if (!live) return;
       live = false;
-      for (const dispose of [...disposers]) dispose();
+      for (const dispose of disposers) dispose();
     },
   };
 }

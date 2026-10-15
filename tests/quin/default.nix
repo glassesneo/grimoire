@@ -1,5 +1,6 @@
-# Type-checks quin, the clients, and the SHIELD test scripts against quin's tsconfig, then
-# runs the published quin. The package build runs only quin's Bun tests.
+# Type-checks and lints quin, the clients, and the SHIELD test scripts against
+# quin's tsconfig and the repository's .oxlintrc.json, then runs the published
+# quin. The package build runs only quin's Bun tests.
 {
   inputs,
   pkgs,
@@ -14,16 +15,17 @@ in
     version = "0.1.0";
     src = pkgs.lib.fileset.toSource {
       root = ../..;
-      fileset = pkgs.lib.fileset.unions [(shield + "/quin") (shield + "/client") ../shield-process ../shield-trace];
+      fileset = pkgs.lib.fileset.unions [../../.oxlintrc.json (shield + "/quin") (shield + "/client") ../shield-process ../shield-trace];
     };
     bunDeps = quin.bunDeps;
     postUnpack = ''
       cp "$sourceRoot/abstractions/modules/agents/shield/quin/package.json" "$sourceRoot/package.json"
       cp "$sourceRoot/abstractions/modules/agents/shield/quin/bun.lock" "$sourceRoot/bun.lock"
     '';
-    nativeBuildInputs = [quin];
+    nativeBuildInputs = [quin pkgs.oxlint pkgs.tsgolint];
     buildPhase = ''
       bun node_modules/typescript/bin/tsc -p abstractions/modules/agents/shield/quin
+      oxlint --deny-warnings abstractions/modules/agents/shield/quin abstractions/modules/agents/shield/client tests/shield-process tests/shield-trace
       quin --version
       quin --help
       HOME="$TMPDIR" quin --check-keymap

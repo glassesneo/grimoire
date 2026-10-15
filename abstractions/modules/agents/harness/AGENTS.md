@@ -7,5 +7,5 @@
 
 ## Validation
 
-- In this directory, run `bun node_modules/typescript/bin/tsc --noEmit` and `bun test`. The package build runs both, so `nix build .#checks.<system>.harness` covers them in the sandbox.
+- In this directory, run `bun node_modules/typescript/bin/tsc --noEmit` and `bun test`; from the repository root, run `oxlint --deny-warnings abstractions/modules/agents/harness` with the development shell's oxlint. The package build runs the first two, and `nix build .#checks.<system>.harness` builds it and runs the lint in the sandbox.
 - Test behavior that spans the session and the model with `createFauxSession` from `src/core/faux.ts` instead of a live provider; it can also return given tool results instead of running tools.
