@@ -27,12 +27,12 @@ test("only names OpenTUI reports are keys, and a capital letter is shift and its
   expect(() => parseChord("ctrl+Q")).toThrow("use shift+q");
 });
 
-test("a binding that could never run, or would take the editor's spaces, is rejected", () => {
-  const bind = (id: string, chord: string) => new KeyBindings({ keymap: { [id]: [chord] }, textLayers: ["editor"] })
+test("text bindings in an always-textual region are rejected", () => {
+  const bind = (id: string, chord: string) => new KeyBindings({ keymap: { [id]: [chord] }, textRegions: { editor: true } })
     .register([{ id, run: () => {} }]);
   expect(() => bind("editor.x", ":")).toThrow("could never run");
-  expect(() => bind("editor.x", "space")).toThrow("space key");
-  expect(() => bind("global.x", "space")).toThrow("space key");
+  expect(() => bind("editor.x", "space")).toThrow("could never run");
+  expect(() => bind("global.x", "space")).not.toThrow();
   expect(() => bind("stage.x", "space")).not.toThrow();
   expect(() => bind("global.x", ":")).not.toThrow();
   expect(() => bind("editor.x", "ctrl+space")).not.toThrow();
@@ -58,8 +58,10 @@ test("a keymap replaces an action's chords, and an empty list unbinds it", () =>
 });
 
 test("typed characters reach a region that accepts text", () => {
-  const keys = new KeyBindings({ acceptsText: (region) => region === "editor" });
-  keys.register([{ id: "global.colon", keys: [":"], run: () => {} }, ...actions([])]);
+  const keys = new KeyBindings({ textRegions: { editor: true } });
+  keys.register([{ id: "global.colon", keys: [":", "space"], run: () => {} }, ...actions([])]);
+  expect(keys.resolve("editor", key("space"))).toBeUndefined();
+  expect(keys.resolve("timeline", key("space"))?.id).toBe("global.colon");
   expect(keys.resolve("editor", key(":"))).toBeUndefined();
   expect(keys.resolve("timeline", key(":"))?.id).toBe("global.colon");
   expect(keys.resolve("editor", key("return"))?.id).toBe("editor.submit");

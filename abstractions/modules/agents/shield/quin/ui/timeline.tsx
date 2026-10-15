@@ -15,12 +15,12 @@ const MARK_DEFAULT = palette.thinking;
 /** Behind an expanded item and everything it shows, to mark where the expansion ends. */
 const EXPANDED_BACKGROUND = "#24273a";
 
-export interface QueuedPrompts {
+interface QueuedPrompts {
   steering: readonly string[];
   followUp: readonly string[];
 }
 
-export interface TimelineViewProps {
+interface TimelineViewProps {
   timeline: ItemTypeRegistry<JSX.Element>;
   /** Rows the screen's overlays cover over the scrollbox's bottom edge. */
   overlayHeight: number;

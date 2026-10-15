@@ -4,13 +4,23 @@ import { testRender } from "@opentui/solid";
 import type { HubClient, Envelope } from "../client/protocol";
 import { Controller } from "./controller";
 import { Screen, setupScreen } from "./screen";
+import { checkKeymap } from "./contributions/default";
 import type { Keymap } from "./ui/keys";
-import { emptyView } from "./view";
+import { emptyView, type Entry, type ViewPatch } from "./view";
 
 const STATS = { tokens: { input: 12_345, output: 678, cacheRead: 2000, cacheWrite: 0 }, cost: 0.0421, contextUsage: { tokens: 50_000, contextWindow: 200_000, percent: 25 } };
 let seq = 0;
-const event = (record: Record<string, unknown>, observedAt = Date.now()) =>
-  ({ v: 1, type: "event", "agent-id": "a", engine: "pi", "hub-instance": "h", seq: ++seq, payload: { op: "event", record, observedAt } }) as Envelope;
+const event = (record: Record<string, unknown>, patch: ViewPatch = { entries: [] }) =>
+  ({ v: 1, type: "event", "agent-id": "a", engine: "pi", "hub-instance": "h", seq: ++seq, payload: { op: "event", record, patch } }) as Envelope;
+let dialogs: Record<string, any> = {};
+const dialog = (record: Record<string, any>) => {
+  dialogs = { ...dialogs, [record.id]: { ...record, expiresAt: null } };
+  return event(record, { entries: [], dialogs });
+};
+const closeDialog = (id: string) => {
+  dialogs = { ...dialogs }; delete dialogs[id];
+  return event({ type: "dialog_closed", id }, { entries: [], dialogs });
+};
 
 function fixture(options: { keymap?: Keymap; engine?: (payload: any) => Promise<any> } = {}) {
   const requests: any[] = [];
@@ -26,7 +36,7 @@ function fixture(options: { keymap?: Keymap; engine?: (payload: any) => Promise<
     },
   } as unknown as HubClient;
   const c = new Controller(client);
-  seq = 0;
+  seq = 0; dialogs = {};
   c.record({ v: 1, type: "snapshot", "agent-id": "a", engine: "pi", "hub-instance": "h", seq: 0, payload: { view: emptyView(), lifecycle: "ready", mode: "mock" } } as Envelope);
   const screen = setupScreen(c, { keymap: options.keymap, cwd: "/project" });
   const { regions, keys, editor } = screen.ui.controllers;
@@ -49,18 +59,18 @@ test("the interrupt key is timed twice, idle clears input, and another operation
   f.c.interrupt(1300); f.c.tick(2400); expect(f.c.armedUntil).toBe(0);
   f.c.interrupt(2500); expect(f.c.interrupt(2600)).toBe("sent"); expect(f.requests).toEqual([{ op: "interrupt" }]);
   f.c.interrupt(3000);
-  f.c.record(event({ type: "agent_settled" }));
+  f.c.record(event({ type: "agent_settled" }, { entries: [], run: emptyView().run }));
   expect(f.c.armedUntil).toBe(0);
 });
 
 test("an input dialog opens a draft; Esc cancels it, and the hub's close restores focus", async () => {
   const f = fixture(); f.regions.requestFocus("timeline");
-  f.c.record(event({ type: "extension_ui_request", id: "d", method: "input", title: "Input" }));
+  f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "input", title: "Input" }));
   expect(f.regions.current()).toBe("editor"); expect(f.editor.activeDraft()).toBe(true);
   f.editor.setText("answer"); f.press("escape"); await Bun.sleep(0);
   expect(f.requests).toEqual([{ op: "dialog_reply", id: "d", cancelled: true }]);
   expect(f.regions.current()).toBe("timeline");
-  f.c.record(event({ type: "dialog_closed", id: "d" }));
+  f.c.record(closeDialog("d"));
   expect(f.requests).toHaveLength(1);
 });
 
@@ -81,7 +91,7 @@ test("an agent's reported end outlasts the connection closing; only an open agen
 test("a select whose options are not a list offers no choice but can be cancelled", async () => {
   for (const options of [undefined, "one", { one: 1 }]) {
     const f = fixture();
-    f.c.record(event({ type: "extension_ui_request", id: "d", method: "select", title: "Pick", options }));
+    f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "select", title: "Pick", options }));
     f.press("return"); await Bun.sleep(0);
     expect(f.requests).toEqual([]);
     f.press("escape"); await Bun.sleep(0);
@@ -92,7 +102,7 @@ test("a select whose options are not a list offers no choice but can be cancelle
 test("detach works from every region and never answers a dialog", () => {
   for (const region of ["editor", "timeline", "stage"]) {
     const f = fixture();
-    f.c.record(event({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?" }));
+    f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?" }));
     f.regions.requestFocus(region);
     expect(f.press("q", { ctrl: true })).toBe("global.detach");
     expect(f.closes()).toBe(1); expect(f.requests).toEqual([]);
@@ -101,12 +111,12 @@ test("detach works from every region and never answers a dialog", () => {
 
 test("a dialog answered elsewhere closes here without a reply; several dialogs are switched in order", async () => {
   const f = fixture();
-  f.c.record(event({ type: "extension_ui_request", id: "a", method: "select", title: "First", options: ["x", "y"] }));
-  f.c.record(event({ type: "extension_ui_request", id: "b", method: "confirm", title: "Second" }));
+  f.c.record(dialog({ type: "extension_ui_request", id: "a", method: "select", title: "First", options: ["x", "y"] }));
+  f.c.record(dialog({ type: "extension_ui_request", id: "b", method: "confirm", title: "Second" }));
   const stage = f.screen.ui.controllers.stage;
   expect(f.regions.current()).toBe("stage"); expect(stage.position()).toEqual({ index: 1, total: 2 });
   f.press("f", { ctrl: true }); expect(stage.position()).toEqual({ index: 2, total: 2 });
-  f.c.record(event({ type: "dialog_closed", id: "b" })); await Bun.sleep(0);
+  f.c.record(closeDialog("b")); await Bun.sleep(0);
   expect(stage.position()).toEqual({ index: 1, total: 1 });
   f.press("j"); f.press("return"); await Bun.sleep(0);
   expect(f.requests).toEqual([{ op: "dialog_reply", id: "a", value: "y" }]);
@@ -118,7 +128,7 @@ test("a preflight dialog can reply while its parent prompt response remains pend
   const f = fixture({ engine: async payload => payload.op === "rpc" ? prompt : { success: true } });
   f.editor.setText("prompt");
   f.press("return"); await Bun.sleep(0);
-  f.c.record(event({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?" }));
+  f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?" }));
   f.press("return"); await Bun.sleep(0);
   expect(f.requests).toEqual([
     { op: "rpc", record: { type: "prompt", message: "prompt" } },
@@ -141,6 +151,14 @@ test("keypad Enter submits like Enter", async () => {
   expect(f.requests).toEqual([{ op: "rpc", record: { type: "prompt", message: "from keypad" } }]);
 });
 
+test("standalone keymap validation rejects malformed, unknown and conflicting bindings", () => {
+  for (const value of [null, [], "bad"]) expect(() => checkKeymap(value as any)).toThrow("object of action ids");
+  expect(() => checkKeymap({ "global.missing": ["x"] })).toThrow("unknown actions");
+  expect(() => checkKeymap({ "global.detach": ["ctrl+c"] })).toThrow("bound to both");
+  expect(() => checkKeymap({ "editor.submit": ["space"] })).toThrow("could never run");
+  expect(() => checkKeymap({ "global.detach": ["space"] })).not.toThrow();
+});
+
 test("a configured keymap replaces the default chords", () => {
   const f = fixture({ keymap: { "global.detach": ["ctrl+x"], "global.focus-timeline": ["ctrl+o"] } });
   expect(f.press("q", { ctrl: true })).toBeUndefined();
@@ -149,13 +167,13 @@ test("a configured keymap replaces the default chords", () => {
   expect(() => fixture({ keymap: { "global.missing": ["x"] } })).toThrow("unknown actions in keymap: global.missing");
 });
 
-test("nested tools appear under their expanded parent", () => {
+test("nested tools appear under their expanded parent", async () => {
   const f = fixture(); const timeline = f.screen.ui.controllers.timeline;
-  f.c.adapter.view.timeline.entries = [
+  f.c.record(event({}, { entries: [
     { id: "t", kind: "tool", version: 0, name: "parent", state: "running", args: { available: false }, parentId: null },
     { id: "n", kind: "tool", version: 0, name: "child", state: "running", args: { available: false }, parentId: "t" },
-  ];
-  f.c.record(event({ type: "queue_update", steering: [], followUp: [] }));
+  ] }));
+  await Bun.sleep(0);
   expect(timeline.visibleItems().map(item => item.id)).toEqual(["t"]);
   f.regions.requestFocus("timeline"); f.press("l");
   expect(timeline.visibleItems().map(item => item.id)).toEqual(["t", "n"]);
@@ -176,7 +194,7 @@ test("native text plus Enter in one input batch submits the complete buffer", as
 test("renderer shows mock, run, tool state, queue, status totals, dialog, and interrupt confirmation", async () => {
   const f = fixture(); await Bun.sleep(0);
   expect(f.statsReads()).toBe(1);
-  f.c.adapter.view.timeline.entries = [{ id: "tool", kind: "tool", version: 0, name: "fixture", state: "running", args: { available: false } }];
+  f.c.record(event({}, { entries: [{ id: "tool", kind: "tool", version: 0, name: "fixture", state: "running", args: { available: false } }] }));
   f.c.adapter.view.queue.followUp = ["queued input"];
   f.c.adapter.view.run.active = true;
   f.c.record(event({ type: "message_end", message: { role: "user", content: "hi" } })); await Bun.sleep(0);
@@ -188,39 +206,33 @@ test("renderer shows mock, run, tool state, queue, status totals, dialog, and in
     expect(first).toContain("ctx 25% of 200k"); expect(first).toContain("↑12k ↓678 R2.0k $0.042");
     expect(first).toContain("Tab focus"); expect(first).not.toContain("[editor]");
     f.c.interrupt(); await setup.flush(); expect(setup.captureCharFrame()).toContain("Press Ctrl+C again within 1s to interrupt");
-    f.c.record(event({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?", message: "A confirmation" }));
+    f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "confirm", title: "Continue?", message: "A confirmation" }));
     await setup.flush(); expect(setup.captureCharFrame()).toContain("Continue?"); expect(f.regions.current()).toBe("stage");
   } finally { setup.renderer.destroy(); }
   expect(f.requests).toEqual([]);
 });
 
-/** Pi's events for one response whose calls are a codemode script and a direct read, as the pinned runtime emits them. */
-function codemodeRun(code: string, content: { type: "text"; text: string }[], isError: boolean, nested: string[]) {
-  const message = { role: "assistant", content: [{ type: "toolCall", id: "c1", name: "codemode", arguments: { code } }, { type: "toolCall", id: "r1", name: "read", arguments: { path: "b.txt" } }], stopReason: "toolUse" };
-  const calls = nested.map((name, index) => ({ id: `c1/${index + 1}`, name, args: name === "read" ? { path: "a.txt" } : { command: "echo hi" } }));
+/** Authoritative entries; Pi event reduction is tested at the hub, not in the renderer. */
+function codemodeRun(code: string, content: { type: "text"; text: string }[], isError: boolean, nested: string[]): Entry[] {
+  const tool = (callId: string, name: string, args: unknown, ordinal: number, fields: object = {}): Entry => ({
+    id: `live:0/${callId}`, callId, kind: "tool", version: 0, name, ordinal,
+    args: { available: true, value: args }, state: "done", parentId: null, ...fields,
+  });
   return [
-    { type: "agent_start" },
-    { type: "message_start", message: { role: "assistant", content: [] } },
-    { type: "message_end", message },
-    { type: "tool_execution_start", toolCallId: "c1", toolName: "codemode", args: { code } },
-    { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "b.txt" } },
-    // The script's calls are recorded after the direct read that started before them.
-    ...calls.flatMap(call => [
-      { type: "tool_execution_start", toolCallId: call.id, toolName: call.name, args: call.args, parentToolCallId: "c1" },
-      { type: "tool_execution_end", toolCallId: call.id, toolName: call.name, result: { content: [{ type: "text", text: "x\n" }] }, isError: false, parentToolCallId: "c1" },
-    ]),
-    { type: "tool_execution_end", toolCallId: "c1", toolName: "codemode", result: { content, details: {} }, isError },
-    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { content: [{ type: "text", text: "y\n" }] }, isError: false },
-    { type: "agent_settled" },
+    tool("c1", "codemode", { code }, 0, { state: isError ? "error" : "done", result: { content, details: {} } }),
+    tool("r1", "read", { path: "b.txt" }, 1, { result: { content: [{ type: "text", text: "y\n" }] } }),
+    ...nested.map((name, index) => tool(`c1/${index + 1}`, name, name === "read" ? { path: "a.txt" } : { command: "echo hi" }, index + 2,
+      { parentId: "live:0/c1", result: { content: [{ type: "text", text: "x\n" }] } })),
   ];
 }
 
 /** A tool item's call id, without the response that scopes it. */
 const call = (id: string) => id.slice(id.indexOf("/") + 1);
 
-async function renderRun(records: Record<string, unknown>[], expand: string[] = []) {
+async function renderRun(entries: Entry[], expand: string[] = []) {
   const f = fixture();
-  for (const record of records) f.c.record(event(record));
+  f.c.record(event({}, { entries }));
+  await Bun.sleep(0);
   const timeline = f.screen.ui.controllers.timeline;
   f.regions.requestFocus("timeline");
   for (const id of expand) { timeline.setCursor(id); f.press("l"); }
@@ -274,15 +286,12 @@ test("an expanded codemode script shows its calls as children before the next ca
   expect(expanded.frame).toContain("error at line 2");
 });
 
-test("a retry sequence is one item that collects its attempts, and each sequence ends in its final state", async () => {
-  const retry = (attempt: number, maxAttempts: number, errorMessage: string, type = "auto_retry_start") => ({ type, attempt, maxAttempts, delayMs: 500, errorMessage });
+test("retry items show their attempts and final state", async () => {
+  const attempt = (attempt: number, maxAttempts: number, error: string) => ({ attempt, maxAttempts, delayMs: 500, error });
   const { frame, f } = await renderRun([
-    retry(1, 2, "overloaded"), { type: "agent_start" }, retry(2, 2, "overloaded again"), { type: "agent_start" },
-    { type: "auto_retry_end", success: false, attempt: 2, finalError: "gave up" },
-    retry(1, 3, "summary failed", "summarization_retry_scheduled"),
-    { type: "summarization_retry_attempt_start", source: "compaction", reason: "threshold" },
-    { type: "summarization_retry_finished" },
-    retry(1, 3, "temporary"), { type: "agent_start" }, { type: "auto_retry_end", success: true, attempt: 1 },
+    { id: "r1", kind: "retry", version: 0, category: "response", state: "failed", attempts: [attempt(1, 2, "overloaded"), attempt(2, 2, "overloaded again")], finalError: "gave up" },
+    { id: "r2", kind: "retry", version: 0, category: "summary", state: "ended", attempts: [attempt(1, 3, "summary failed")] },
+    { id: "r3", kind: "retry", version: 0, category: "response", state: "succeeded", attempts: [attempt(1, 3, "temporary")] },
   ]);
   const items = f.screen.ui.controllers.timeline.items().filter(item => item.type.kind === "retry");
   expect(items.map(item => (item.value as any).attempts.length)).toEqual([2, 1, 1]);
@@ -328,7 +337,10 @@ test("a command's argument is drafted in the editor, and the editor's candidate 
 test("another client's model change reaches the view and the timeline", async () => {
   const f = fixture();
   f.c.adapter.view.timeline.model = "a/one";
-  f.c.record(event({ type: "shield_model", model: { provider: "b", id: "two" } }));
+  f.c.record(event({ type: "shield_model", model: { provider: "b", id: "two" } }, {
+    entries: [{ id: "model", version: 0, kind: "config", setting: "model", from: "a/one", to: "b/two" }],
+    timeline: { response: null, nextOrdinal: 0, thinking: null, model: "b/two" },
+  }));
   const setup = await testRender(() => <Screen screen={f.screen} />, { width: 100, height: 20 });
   try {
     await setup.flush();
@@ -340,7 +352,7 @@ test("another client's model change reaches the view and the timeline", async ()
 test("Pi's editor text replaces the prompt, never the draft a dialog holds", async () => {
   const f = fixture();
   f.editor.setText("mine");
-  f.c.record(event({ type: "extension_ui_request", id: "d", method: "input", title: "Input" }));
+  f.c.record(dialog({ type: "extension_ui_request", id: "d", method: "input", title: "Input" }));
   f.editor.setText("answer");
   f.c.record(event({ type: "extension_ui_request", id: "e", method: "set_editor_text", text: "from pi" }));
   expect(f.editor.text()).toBe("answer");
@@ -365,16 +377,38 @@ test("a request waits as long as the hub's deadline for its command", async () =
   expect(f.timeouts).toEqual([605_000, 65_000]);
 });
 
-test("a call's arguments show as far as they have streamed", () => {
+test("a burst updates only changed timeline items and preserves nested summaries and disclosure", async () => {
   const f = fixture();
-  const update = (assistantMessageEvent: Record<string, unknown>) => f.c.record(event({ type: "message_update", assistantMessageEvent }));
-  f.c.record(event({ type: "agent_start" }));
-  f.c.record(event({ type: "message_start", message: { role: "assistant", content: [] } }));
-  update({ type: "toolcall_start", contentIndex: 0, id: "c1", toolName: "codemode" });
+  const timeline = f.screen.ui.controllers.timeline;
+  const entries = codemodeRun("code", [], false, ["read"]);
+  f.c.record(event({}, { entries })); await Bun.sleep(0);
+  const unrelated = timeline.find("live:0/r1");
+  timeline.setCursor("live:0/c1"); timeline.expand();
+  const child = entries[2]!;
+  const revision = timeline.revision();
+  f.c.record(event({}, { entries: [{ ...child, version: 1, state: "running" }] }));
+  f.c.record(event({}, { entries: [{ ...child, version: 2, state: "error" }] }));
+  await Bun.sleep(0);
+  expect(timeline.revision()).toBe(revision + 1);
+  expect(timeline.find("live:0/r1")).toBe(unrelated);
+  expect(timeline.isExpanded("live:0/c1")).toBe(true);
+  expect((timeline.find("live:0/c1")?.value as any).calls[0].state).toBe("error");
+  expect((timeline.find(child.id)?.value as any).state).toBe("error");
+  f.screen.dispose();
+});
+
+test("a call's arguments show as far as they have streamed", async () => {
+  const f = fixture();
+  const tool = { id: "live:0/c1", kind: "tool", version: 0, name: "codemode", state: "pending", args: { available: false } };
+  const update = async (raw: string, entries: Entry[] = []) => {
+    f.c.record(event({}, { entries, stream: { messageId: "live:0", message: { content: [{ type: "toolCall", id: "c1" }] }, arguments: { "0": raw } } }));
+    await Bun.sleep(0);
+  };
+  await update("", [tool]);
   const args = () => (f.screen.ui.controllers.timeline.find("live:0/c1")?.value as any)?.args;
   expect(args()).toEqual({ available: false });
-  update({ type: "toolcall_delta", contentIndex: 0, delta: '{"code": "await tools.re' });
+  await update('{"code": "await tools.re');
   expect(args()).toEqual({ available: true, value: { code: "await tools.re" } });
-  update({ type: "toolcall_delta", contentIndex: 0, delta: 'ad()"}' });
+  await update('{"code": "await tools.read()"}');
   expect(args()).toEqual({ available: true, value: { code: "await tools.read()" } });
 });

@@ -7,7 +7,7 @@ import { allocateHeights, type QuinUIInstance } from "./quin-ui";
 import { useVersion } from "./state";
 import { RunStateIndicator, StatuslineView, statuslineSegments } from "./statusline";
 
-export interface ScreenLayoutProps<Render = unknown> {
+interface ScreenLayoutProps<Render = unknown> {
   ui: QuinUIInstance<Render>;
   timeline: JSX.Element;
   stage?: () => JSX.Element;

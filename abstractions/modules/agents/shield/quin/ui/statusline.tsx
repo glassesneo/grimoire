@@ -7,9 +7,9 @@ import { Emitter } from "./controllers";
 import { useVersion } from "./state";
 import { Line, palette } from "./timeline-types";
 
-export type StatuslinePosition = "top" | "bottom";
+type StatuslinePosition = "top" | "bottom";
 
-export interface StatuslineSegment {
+interface StatuslineSegment {
   text: string;
   color?: string;
 }
@@ -20,7 +20,7 @@ export interface StatuslineContribution {
 }
 
 /** Fields the harness owns; contributions cannot replace or remove them. */
-export interface StatuslineFields {
+interface StatuslineFields {
   session?: string;
   cwd?: string;
   model?: string;
@@ -76,10 +76,10 @@ export class StatuslineController extends Emitter {
 }
 
 /** Terminal columns a string occupies. */
-export const displayWidth = (text: string): number => Bun.stringWidth(text);
+const displayWidth = (text: string): number => Bun.stringWidth(text);
 
 /** Cut `text` to `width` columns, keeping its start or, for paths, its end. */
-export function fitText(text: string, width: number, keep: "start" | "end" = "start"): string {
+function fitText(text: string, width: number, keep: "start" | "end" = "start"): string {
   if (width <= 0) return "";
   if (displayWidth(text) <= width) return text;
   const characters = [...text];
@@ -99,7 +99,7 @@ export function fitText(text: string, width: number, keep: "start" | "end" = "st
   return `${result}…`;
 }
 
-export interface LineSegment extends StatuslineSegment {
+interface LineSegment extends StatuslineSegment {
   /** Lower numbers are kept first when the line is too narrow. */
   priority: number;
   /** Shortened instead of dropped, keeping this end. */
@@ -109,7 +109,7 @@ export interface LineSegment extends StatuslineSegment {
 const SEPARATOR = " · ";
 
 /** Segments that fit `width`, in their original order, dropping or shortening the lowest priorities first. */
-export function composeLine(segments: readonly LineSegment[], width: number): StatuslineSegment[] {
+function composeLine(segments: readonly LineSegment[], width: number): StatuslineSegment[] {
   const present = segments.map((segment, index) => ({ segment, index })).filter(({ segment }) => segment.text !== "");
   const fitted = new Map<number, string>();
   let used = 0;

@@ -17,7 +17,7 @@ import { contentText, type ImageContent, imagesOf, type TextContent } from "./pi
  * last error marker. A result that does not have this shape is reported as
  * unrecognized instead of guessed at.
  */
-export type ScriptErrorLocation =
+type ScriptErrorLocation =
   | { kind: "located"; line: number; error: string }
   | { kind: "unlocated"; error: string }
   | { kind: "unrecognized" };
@@ -82,7 +82,7 @@ export function codemodeErrorLocation(
   return { kind: "unlocated", error };
 }
 
-export interface CodemodeOutput {
+interface CodemodeOutput {
   /** "Script completed" or "Script failed", with the wall time, when the header is recognized. */
   header: string | undefined;
   /**

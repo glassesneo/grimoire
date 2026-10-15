@@ -10,11 +10,11 @@ export const minHeight = 2;
 export const maxHeight = 8;
 
 /** The slice of `RegionController` the editor needs; kept structural on purpose. */
-export interface FocusRegions {
+interface FocusRegions {
   requestFocus(region: RegionId): boolean;
 }
 
-export type EditorFocusTarget = "timeline" | "stage";
+type EditorFocusTarget = "timeline" | "stage";
 
 export interface DraftRequestOptions {
   destination: string;
@@ -31,7 +31,7 @@ export type DraftResult =
   | { status: "submitted"; text: string }
   | { status: "cancelled" };
 
-export interface EditorSnapshot {
+interface EditorSnapshot {
   text: string;
   cursor: number;
   mode: "prompt" | "draft";
@@ -40,14 +40,14 @@ export interface EditorSnapshot {
   preferredHeight: number;
 }
 
-export interface EditorEngine {
+interface EditorEngine {
   snapshot(): EditorSnapshot;
   subscribe(listener: () => void): () => void;
   openDraft(request: DraftRequestOptions): Promise<DraftResult>;
   requestFocus(target: EditorFocusTarget): void;
 }
 
-export interface EditorControllerOptions {
+interface EditorControllerOptions {
   regions: FocusRegions;
   /** Sends the prompt and resolves whether the session accepted it. */
   sendPrompt?: (text: string) => Promise<boolean>;

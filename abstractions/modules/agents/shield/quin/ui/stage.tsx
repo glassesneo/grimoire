@@ -42,7 +42,7 @@ function Countdown(props: { expiresAt: number }): JSX.Element {
  * actions. `kind` is the caller's registration name, so a contribution can
  * reuse the renderer and actions without colliding with `choice`/`confirm`.
  */
-export function createChoiceType(kind: string): StageContentType<ChoiceValue, JSX.Element> {
+function createChoiceType(kind: string): StageContentType<ChoiceValue, JSX.Element> {
   return {
     kind,
     defaultValue: { title: "", choices: [], cursor: 0 },

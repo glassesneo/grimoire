@@ -11,7 +11,7 @@ import { dirname, isAbsolute, join, resolve, parse } from "node:path";
 
 export const stateDirectory = () => join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "shield");
 export const configDirectory = () => join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "shield/pi");
-export const defaultSocket = () => join(stateDirectory(), "hub.sock");
+const defaultSocket = () => join(stateDirectory(), "hub.sock");
 export function socketPath(value = defaultSocket()) {
   if (!isAbsolute(value)) throw new Error("--socket requires an absolute path");
   if (Buffer.byteLength(value) > 100) throw new Error("socket path too long (Darwin Unix socket limit)");
@@ -41,7 +41,7 @@ export function privateDirectory(path: string) {
   if (stat.uid !== process.getuid?.() || !stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`unsafe directory owner/type: ${path}`);
   chmodSync(path, 0o700);
 }
-export function managedFile(path: string, kind: "file" | "socket") {
+function managedFile(path: string, kind: "file" | "socket") {
   try {
     const stat = lstatSync(path);
     if (stat.uid !== process.getuid?.() || stat.isSymbolicLink() || (kind === "file" ? !stat.isFile() : !stat.isSocket())) throw new Error(`unsafe ${kind}: ${path}`);

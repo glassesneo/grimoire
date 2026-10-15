@@ -4,9 +4,9 @@
   pkgs,
   system,
 }: let
-  packages = pkgs.callPackage ../../abstractions/modules/agents/shield/package.nix {
-    bun2nix = inputs.bun2nix.packages.${system}.default;
-  };
+  quin = inputs.self.packages.${system}.quin or null;
+  shield = inputs.self.packages.${system}.shield;
+  runtime = quin.runtime;
   source = pkgs.lib.fileset.toSource {
     root = ../..;
     fileset = pkgs.lib.fileset.unions [./. ../../abstractions/modules/agents/shield];
@@ -14,16 +14,17 @@
 in
   pkgs.runCommand "shield-check" {
     nativeBuildInputs = [pkgs.bun pkgs.beamPackages.elixir inputs.self.packages.${system}.shield];
-    meta.platforms = ["aarch64-darwin"];
+    meta.platforms =
+      if quin == null
+      then []
+      else quin.meta.platforms;
   } ''
         export HOME="$TMPDIR/home" XDG_CONFIG_HOME="$TMPDIR/config" XDG_STATE_HOME="$TMPDIR/state"
         mkdir -p "$HOME"
-        export SHIELD_LAUNCHER=${packages.launcher}
-      export SHIELD_NODE=${pkgs.nodejs}/bin/node
-        export SHIELD_PI=${packages.runtime}/bin/shield-pi
-        export SHIELD_FAUX=${packages.runtime}/libexec/pi/faux.ts
-        export SHIELD_CODEMODE=${packages.runtime}/libexec/pi/codemode.ts
-        export SHIELD_BASH_FIXTURE=${packages.runtime}/libexec/pi/bash-fixture.ts
+        export SHIELD_LAUNCHER=${shield.launcher}
+        export SHIELD_NODE=${runtime.node}
+        ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: value: "export ${name}=${pkgs.lib.escapeShellArg value}") runtime.env)}
+        export SHIELD_BASH_FIXTURE=${runtime.bashFixture}
         shield --version
         shield --help
         bun run ${source}/tests/shield/lock-probe.ts

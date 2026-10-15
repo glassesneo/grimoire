@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { configDirectory, privateDirectory, stateDirectory } from "../client/paths";
 
-export function options(mock: boolean, explicitModel?: string, cwd = realpathSync(process.cwd())) {
+export function options(mock: boolean, explicitModel?: string, cwd = realpathSync(process.cwd()), runtime: { extension?: string; tools?: string; builtinTools?: boolean } = {}) {
   const config = mock ? join(stateDirectory(), "mock/pi") : configDirectory();
   let model = explicitModel;
   if (mock) {
@@ -33,12 +33,13 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   const sessions = join(stateDirectory(), mock ? "mock/sessions" : "sessions", createHash("sha256").update(cwd).digest("hex"));
   privateDirectory(sessions);
   const executable = process.env.SHIELD_PI;
-  const extension = process.env[mock ? "SHIELD_FAUX" : "SHIELD_COMMANDCODE"];
+  const extension = runtime.extension ?? process.env[mock ? "SHIELD_FAUX" : "SHIELD_COMMANDCODE"];
   const codemode = process.env.SHIELD_CODEMODE;
   if (!executable || !extension || !codemode) throw new Error("Pi runtime is missing; use packaged quin");
   const argv = ["--mode", "rpc", "--no-approve", "--session-dir", sessions, "--extension", extension, "--extension", codemode];
   if (model) argv.push("--model", model);
-  if (!mock) argv.push("--tools", "+codemode");
+  argv.push("--tools", runtime.tools ?? (mock ? "shield_fixture,codemode" : "+codemode"));
+  if (!(runtime.builtinTools ?? !mock)) argv.push("--no-builtin-tools");
   const env: Record<string, string> = {
     HOME: mock ? join(stateDirectory(), "mock/home") : homedir(),
     PATH: process.env.PATH || "/usr/bin:/bin", LANG: "en_US.UTF-8",
@@ -48,7 +49,7 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   if (mock) {
     privateDirectory(env.HOME!);
     Object.assign(env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
-    argv.push("--no-extensions", "--no-builtin-tools", "--tools", "shield_fixture,codemode", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
+    argv.push("--no-extensions", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
   }
   return { mode: mock ? "mock" : "live", model, launch: { executable, argv, env } };
 }

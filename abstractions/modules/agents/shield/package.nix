@@ -13,6 +13,14 @@
   keys ? {},
   writeText,
 }: let
+  platforms = ["aarch64-darwin"];
+  runtimeEnv = {
+    SHIELD_PI = "${runtime}/bin/shield-pi";
+    SHIELD_FAUX = "${runtime}/libexec/pi/faux.ts";
+    SHIELD_CODEMODE = "${runtime}/libexec/pi/codemode.ts";
+    SHIELD_COMMANDCODE = "${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts";
+    SHIELD_PI_VERSION = piVersion;
+  };
   keymap = writeText "quin-keymap.json" (builtins.toJSON keys);
   piVersion = (lib.importJSON ./runtime/package.json).dependencies."@earendil-works/pi-coding-agent";
   runtime = bun2nix.mkDerivation {
@@ -104,9 +112,10 @@ in {
     installPhase = ''
       makeWrapper ${clients}/libexec/shield/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
     '';
+    passthru = {inherit launcher;};
     meta = {
       mainProgram = "shield";
-      platforms = ["aarch64-darwin"];
+      inherit platforms;
     };
   };
   quin = stdenvNoCC.mkDerivation {
@@ -116,11 +125,7 @@ in {
     nativeBuildInputs = [makeWrapper];
     installPhase = ''
       makeWrapper ${clients}/libexec/shield/quin "$out/bin/quin" \
-        --set SHIELD_PI ${runtime}/bin/shield-pi \
-        --set SHIELD_FAUX ${runtime}/libexec/pi/faux.ts \
-        --set SHIELD_CODEMODE ${runtime}/libexec/pi/codemode.ts \
-        --set SHIELD_COMMANDCODE ${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts \
-        --set SHIELD_PI_VERSION ${piVersion} \
+        ${lib.concatStringsSep " " (lib.mapAttrsToList (name: value: "--set ${name} ${lib.escapeShellArg value}") runtimeEnv)} \
         ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
         ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}
     '';
@@ -129,9 +134,14 @@ in {
     installCheckPhase = ''
       HOME="$TMPDIR" "$out/bin/quin" --check-keymap
     '';
+    passthru.runtime = {
+      env = runtimeEnv;
+      node = "${nodejs}/bin/node";
+      bashFixture = "${runtime}/libexec/pi/bash-fixture.ts";
+    };
     meta = {
       mainProgram = "quin";
-      platforms = ["aarch64-darwin"];
+      inherit platforms;
     };
   };
 }

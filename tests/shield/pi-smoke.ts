@@ -16,7 +16,7 @@ const clients: HubClient[] = [];
 function connect() {
   const client = new HubClient(socket); clients.push(client);
   const adapter = new PiAdapter(), events: Envelope[] = [], views = new Map<number, View>();
-  client.onRecord = r => { events.push(r); adapter.apply(r); if (adapter.seq != null) views.set(adapter.seq, adapter.view); };
+  client.onRecord = r => { events.push(r); adapter.apply(r); if (adapter.seq != null) views.set(adapter.seq, structuredClone(adapter.view)); };
   return { client, adapter, events, views };
 }
 const attach = (c: HubClient, cwd = dir, opts = options(true, undefined, cwd)) => c.hub("attach", { cwd, harness: "quin", options: opts });
@@ -122,13 +122,9 @@ try {
   // Real Pi's detached bash child is stopped by its TERM handler, not a mock replacement.
   console.log("Pi: real bash TERM");
   const bashCwd = join(dir, "bash"); mkdirSync(bashCwd);
-  const bashOptions = options(true, undefined, bashCwd);
+  const bashOptions = options(true, undefined, bashCwd, { extension: process.env.SHIELD_BASH_FIXTURE, tools: "bash", builtinTools: true });
   const pidFile = join(dir, "bash.pid");
   bashOptions.launch.env.SHIELD_FIXTURE_PID = pidFile;
-  const argv = bashOptions.launch.argv;
-  argv[argv.indexOf("--extension") + 1] = process.env.SHIELD_BASH_FIXTURE!;
-  argv.splice(argv.indexOf("--no-builtin-tools"), 1);
-  argv[argv.indexOf("--tools") + 1] = "bash";
   const bash = connect(); const created = await attach(bash.client, bashCwd, bashOptions); assert(created.success, JSON.stringify(created));
   const bashId = created.payload["agent-id"];
   assert((await prompt(bash.client, bashId, "wait")).success);
@@ -139,8 +135,7 @@ try {
   // the model is given codemode alone, and quin's codemode replaces Pi's built-in one.
   console.log("Pi: live codemode-only launch");
   const liveCwd = join(dir, "live"); mkdirSync(liveCwd);
-  process.env.SHIELD_COMMANDCODE = process.env.SHIELD_FAUX;
-  const liveOptions = options(false, "shield-faux/fixed", liveCwd);
+  const liveOptions = options(false, "shield-faux/fixed", liveCwd, { extension: process.env.SHIELD_FAUX });
   Object.assign(liveOptions.launch.env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
   const live = connect(); const liveRoot = await attach(live.client, liveCwd, liveOptions); assert(liveRoot.success, JSON.stringify(liveRoot));
   const liveId = liveRoot.payload["agent-id"];

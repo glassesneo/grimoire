@@ -1,36 +1,32 @@
 import { createCliRenderer } from "@opentui/core";
 import { render } from "@opentui/solid";
 import { readFileSync, realpathSync } from "node:fs";
+import { parseArgs } from "node:util";
 import { HubClient } from "../client/protocol";
 import { socketPath } from "../client/paths";
 import { options } from "./launch";
 import { Controller } from "./controller";
-import { checkKeymap, Screen, setupScreen } from "./screen";
+import { Screen, setupScreen } from "./screen";
+import { checkKeymap } from "./contributions/default";
 import type { Keymap } from "./ui/keys";
 
 /** The keymap the package wrapper names; see ui/keys.ts. */
 function keymap(): Keymap | undefined {
   const path = process.env.SHIELD_KEYMAP;
   if (!path) return undefined;
-  const value = JSON.parse(readFileSync(path, "utf8"));
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`keymap ${path} must be an object of action ids`);
-  return value;
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  if (args.includes("--version")) { console.log(`quin 0.1.0 (Pi ${process.env.SHIELD_PI_VERSION ?? "unknown"})`); return; }
+  const { values: args } = parseArgs({ options: {
+    version: { type: "boolean" }, help: { type: "boolean" }, "check-keymap": { type: "boolean" },
+    mock: { type: "boolean", default: false }, model: { type: "string" }, socket: { type: "string" },
+  } });
+  if (args.version) { console.log(`quin 0.1.0 (Pi ${process.env.SHIELD_PI_VERSION ?? "unknown"})`); return; }
   // The package build runs this, so a configured keymap quin rejects fails the build.
-  if (args.includes("--check-keymap")) { checkKeymap(keymap()); return; }
-  if (args.includes("--help")) { console.log(`quin [--mock] [--model provider/id] [--socket /absolute/hub.sock]\nAttaches to the agent of this directory, creating it if needed; start SHIELD first with shield start.\nBy default Ctrl+Q detaches and Ctrl+C twice interrupts (shield.keys rebinds them).\nPi runs with codemode only: the model writes scripts that call the other tools.\nA new agent's model: --model, then $XDG_CONFIG_HOME/shield/pi/settings.json (defaultProvider/defaultModel), then ${process.env.SHIELD_DEFAULT_MODEL || "none"}.\n--model only chooses a new agent's model; open the command palette (: in the timeline, Ctrl+G in the editor) for /model, /thinking, or /compact. Pi reads credentials such as a ChatGPT login from $XDG_CONFIG_HOME/shield/pi/auth.json.\n--mock uses an isolated agent with a fixed provider; try /fixture-tool, /fixture-codemode, /fixture-dialog, or /fixture-timeout.`); return; }
-  let model: string | undefined, socket: string | undefined, mock = false;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--mock") mock = true;
-    else if (["--model", "--socket"].includes(args[i]!)) {
-      const value = args[++i]; if (!value) throw new Error(`missing ${args[i - 1]} value`);
-      if (args[i - 1] === "--model") model = value; else socket = value;
-    } else throw new Error(`unknown option: ${args[i]}`);
-  }
+  if (args["check-keymap"]) { checkKeymap(keymap()); return; }
+  if (args.help) { console.log(`quin [--mock] [--model provider/id] [--socket /absolute/hub.sock]\nAttaches to the agent of this directory, creating it if needed; start SHIELD first with shield start.\nBy default Ctrl+Q detaches and Ctrl+C twice interrupts (shield.keys rebinds them).\nPi runs with codemode only: the model writes scripts that call the other tools.\nA new agent's model: --model, then $XDG_CONFIG_HOME/shield/pi/settings.json (defaultProvider/defaultModel), then ${process.env.SHIELD_DEFAULT_MODEL || "none"}.\n--model only chooses a new agent's model; open the command palette (: in the timeline, Ctrl+G in the editor) for /model, /thinking, or /compact. Pi reads credentials such as a ChatGPT login from $XDG_CONFIG_HOME/shield/pi/auth.json.\n--mock uses an isolated agent with a fixed provider; try /fixture-tool, /fixture-codemode, /fixture-dialog, or /fixture-timeout.`); return; }
+  const { model, socket, mock } = args;
   const keys = keymap();
   checkKeymap(keys);
   const client = new HubClient(socketPath(socket), "pi");

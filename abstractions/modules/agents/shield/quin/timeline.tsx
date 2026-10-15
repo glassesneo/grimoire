@@ -12,7 +12,7 @@ import {
   isContentBlock,
   type ResultContent,
   type RetryState,
-  splitFencedBlocks,
+  StreamingFences,
 } from "./ui/pi-content";
 import {
   builtInToolKind,
@@ -23,7 +23,7 @@ import {
   type TimelineTypes,
   type ToolSnapshot,
 } from "./ui/timeline-types";
-import { parsePartialJson } from "./partial-json";
+import { parse, Allow } from "partial-json";
 import type { Entry, View } from "./view";
 
 /** An item of a registered type; the registry holds every type erased. */
@@ -62,7 +62,7 @@ function projectUser(entry: Entry, types: TimelineTypes): TimelineItem<JSX.Eleme
 }
 
 /** A response and its parts: thinking, prose, and fenced code, each selectable in source order. */
-function projectResponse(entry: Entry, types: TimelineTypes): TimelineItem<JSX.Element>[] {
+function projectResponse(entry: Entry, types: TimelineTypes, fences: Map<number, StreamingFences>): TimelineItem<JSX.Element>[] {
   const parts: { type: "thinking" | "text"; text: string; withheld?: boolean }[] = entry.parts ?? [];
   const thinking = parts.filter((part) => part.type === "thinking");
   const body = parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
@@ -82,7 +82,9 @@ function projectResponse(entry: Entry, types: TimelineTypes): TimelineItem<JSX.E
         { text: part.text, withheld: part.withheld ?? false }, { parentId: entry.id }));
       continue;
     }
-    for (const [block, fenced] of splitFencedBlocks(part.text, { openFences: true }).entries()) {
+    let splitter = fences.get(index);
+    if (!splitter) fences.set(index, splitter = new StreamingFences());
+    for (const [block, fenced] of splitter.split(part.text).entries()) {
       const id = `${entry.id}:text:${index}:part:${block}`;
       // A blank run between fences has nothing to show or select; the part
       // index still advances so the ids after it stay stable.
@@ -132,23 +134,83 @@ function argsOf(entry: Entry, streamed: ReadonlyMap<string, string>): ToolSnapsh
   const args = entry.args ?? { available: false };
   const raw = streamed.get(entry.id);
   if (args.available || entry.state !== "pending" || raw === undefined) return args;
-  const value = parsePartialJson(raw);
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? { available: true, value } : args;
+  try {
+    const value = parse(raw, Allow.ALL);
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? { available: true, value } : args;
+  } catch { return args; }
 }
 
 /**
  * Turns the view's entries into timeline items, reusing an entry's items while
  * neither it nor the calls it lists changed, so unchanged rows keep their
- * renderables. The view updates entries in place, so versions, not identity,
- * tell what changed.
+ * renderables. Wire patches identify the changed entries; appends rebuild tree
+ * order, while value-only changes replace just their items and ancestor summaries.
  */
 class TimelineProjector {
   #cache = new Map<string, Projected>();
-  #last: TimelineItem<JSX.Element>[] = [];
+  #entries = new Map<string, Entry>();
+  #tools = new Map<string, Entry>();
+  #children = new Map<string, Entry[]>();
+  #positions = new Map<string, number>();
+  #fences = new Map<string, Map<number, StreamingFences>>();
 
-  constructor(readonly types: TimelineTypes, readonly registry: Pick<ItemTypeRegistry<JSX.Element>, "lookup">) {}
+  constructor(readonly types: TimelineTypes, readonly registry: ItemTypeRegistry<JSX.Element>) {}
 
-  /** The items for `entries`; the previous array itself when no item changed, so the caller can skip replacing them. */
+  sync(entries: readonly Entry[], stream: View["stream"], dirty?: Set<string>): void {
+    const structural = dirty === undefined || entries.length !== this.#entries.size || [...dirty].some(id => {
+      const before = this.#entries.get(id);
+      return !before;
+    });
+    if (structural) {
+      if (dirty === undefined) { this.#cache.clear(); this.#fences.clear(); }
+      const items = this.project(entries, stream);
+      this.registry.replace(items);
+      return;
+    }
+    if (!dirty?.size) return;
+    const changed = new Map<string, Entry>();
+    // The adapter replaces entries, so positions stay stable until an append or snapshot.
+    for (const id of dirty) {
+      const index = this.#positions.get(id);
+      if (index === undefined) continue;
+      const entry = entries[index];
+      const before = this.#entries.get(id)!;
+      if (entry.kind !== before.kind || entry.parentId !== before.parentId || entry.ordinal !== before.ordinal) {
+        this.registry.replace(this.project(entries, stream));
+        return;
+      }
+      this.#entries.set(id, entry);
+      if (entry.kind === "tool") this.#tools.set(id, entry);
+      changed.set(id, entry);
+      let parent = entry.parentId;
+      while (parent && this.#tools.has(parent)) {
+        const ancestor = this.#tools.get(parent)!;
+        changed.set(parent, ancestor);
+        parent = ancestor.parentId;
+      }
+    }
+    const streamed = streamedArguments(stream);
+    const replacements: TimelineItem<JSX.Element>[] = [];
+    for (const [id, entry] of changed) {
+      const descendants = (id: string): Entry[] => (this.#children.get(id) ?? []).flatMap(child => [this.#tools.get(child.id)!, ...descendants(child.id)]);
+      const calls = descendants(id).sort((a, b) => a.ordinal - b.ordinal);
+      const items = this.#projectEntry(entry, calls, this.#tools, streamed);
+      const previous = this.#cache.get(id)!;
+      if (items.length !== previous.items.length || items.some((item, i) => item.id !== previous.items[i].id)) {
+        this.registry.replace(this.project(entries, stream));
+        return;
+      }
+      this.#cache.set(id, { version: entry.version, calls: this.#key(calls, streamed.get(id)), items });
+      replacements.push(...items);
+    }
+    this.registry.update(replacements);
+  }
+
+  #key(calls: readonly Entry[], raw?: string): string {
+    return calls.map(call => `${call.id}@${call.version}`).join(",") + `#${raw ?? ""}`;
+  }
+
+  /** Rebuild reading order, reusing unchanged entries' projected items. */
   project(entries: readonly Entry[], stream?: View["stream"]): TimelineItem<JSX.Element>[] {
     const streamed = streamedArguments(stream);
     const tools = new Map<string, Entry>();
@@ -174,7 +236,7 @@ class TimelineProjector {
     const emit = (entry: Entry) => {
       // Every call a tool made, its calls' calls included, in the order they started.
       const calls = entry.kind === "tool" ? descendants(entry.id).sort((a, b) => a.ordinal - b.ordinal) : [];
-      const key = calls.map((call) => `${call.id}@${call.version}`).join(",") + `#${streamed.get(entry.id)?.length ?? ""}`;
+      const key = this.#key(calls, streamed.get(entry.id));
       let cached = this.#cache.get(entry.id);
       if (!cached || cached.version !== entry.version || cached.calls !== key) {
         cached = { version: entry.version, calls: key, items: this.#projectEntry(entry, calls, tools, streamed) };
@@ -188,8 +250,11 @@ class TimelineProjector {
       if (!nested(entry)) emit(entry);
     }
     this.#cache = next;
-    if (result.length === this.#last.length && result.every((item, index) => item === this.#last[index])) return this.#last;
-    return this.#last = result;
+    this.#entries = new Map(entries.map(entry => [entry.id, entry]));
+    this.#positions = new Map(entries.map((entry, index) => [entry.id, index]));
+    this.#tools = tools;
+    this.#children = children;
+    return result;
   }
 
   #projectEntry(entry: Entry, calls: readonly Entry[], tools: ReadonlyMap<string, Entry>, streamed: ReadonlyMap<string, string>): TimelineItem<JSX.Element>[] {
@@ -197,8 +262,12 @@ class TimelineProjector {
     switch (entry.kind) {
       case "user":
         return projectUser(entry, types);
-      case "assistant":
-        return responseVisible(entry) ? projectResponse(entry, types) : [];
+      case "assistant": {
+        if (!responseVisible(entry)) return [];
+        let fences = this.#fences.get(entry.id);
+        if (!fences) this.#fences.set(entry.id, fences = new Map());
+        return projectResponse(entry, types, fences);
+      }
       case "tool": {
         const parent = entry.parentId == null ? undefined : tools.get(entry.parentId);
         const snapshot: ToolSnapshot = {

@@ -12,7 +12,7 @@ export interface Registration {
   dispose(): void;
 }
 
-export type RegistrationCategory = "item" | "stage" | "statusline" | "action";
+type RegistrationCategory = "item" | "stage" | "statusline" | "action";
 
 export class DuplicateRegistrationError extends Error {
   constructor(
@@ -48,7 +48,7 @@ export class Emitter {
 // Regions and focus
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_REGIONS: readonly RegionId[] = ["timeline", "stage", "editor"];
+const DEFAULT_REGIONS: readonly RegionId[] = ["timeline", "stage", "editor"];
 export const EDITOR_REGION: RegionId = "editor";
 
 interface RegionState {
@@ -57,7 +57,7 @@ interface RegionState {
   fallback: RegionId | undefined;
 }
 
-export interface RegionControllerOptions {
+interface RegionControllerOptions {
   regions?: readonly RegionId[];
   fallback?: RegionId;
 }
@@ -195,11 +195,11 @@ export interface StageRenderProps<T, Render = unknown> {
   focused: boolean;
 }
 
-export interface StageAction<T> {
+interface StageAction<T> {
   (event: StageActionEvent<T>): void | Promise<void>;
 }
 
-export interface StageActionEvent<T> {
+interface StageActionEvent<T> {
   value: T;
   handle: StageHandle<T>;
   focused: boolean;
@@ -213,7 +213,7 @@ export interface StageRequest<T, Render = unknown> {
   signal?: AbortSignal;
 }
 
-export type StageResult<T> =
+type StageResult<T> =
   | { status: "closed"; value: T }
   | { status: "cancelled"; value: T; reason?: string };
 
@@ -230,7 +230,7 @@ export interface StageHandle<T = unknown> {
 }
 
 /** The active stage request in the store's erased form, for a view to render. */
-export interface StageEntry<Render = unknown> {
+interface StageEntry<Render = unknown> {
   readonly id: string;
   readonly requester: string;
   readonly kind: string;
@@ -259,7 +259,7 @@ interface PendingStage<Render> {
   returnFocus: RegionId | undefined;
 }
 
-export interface StageControllerOptions {
+interface StageControllerOptions {
   regions: RegionController;
   region?: RegionId;
   /** Guards automatic focus claims; explicit `requestFocus` bypasses this. */
@@ -507,7 +507,7 @@ export class StageController<Render = unknown> extends Emitter {
 // Structured timeline
 // ---------------------------------------------------------------------------
 
-export interface TimelineItemInput<T, Render = unknown> {
+interface TimelineItemInput<T, Render = unknown> {
   id: string;
   version: number;
   type: ItemType<T, Render>;
@@ -550,18 +550,18 @@ export interface ItemType<T, Render = unknown> {
   actions: Record<string, ItemAction<T>>;
 }
 
-export interface ItemRenderProps<T, Render = unknown> {
+interface ItemRenderProps<T, Render = unknown> {
   value: T;
   id: string;
   version: number;
   expanded: boolean;
 }
 
-export interface ItemAction<T> {
+interface ItemAction<T> {
   (event: ItemActionEvent<T>): void | Promise<void>;
 }
 
-export interface ItemActionEvent<T> {
+interface ItemActionEvent<T> {
   value: T;
   id: string;
 }
@@ -704,6 +704,17 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
       }
     }
     this.#normalizeCursor(previousIndex);
+    this.changed();
+  }
+
+  /** Replace values without rebuilding an unchanged tree or moving its cursor. */
+  update(items: readonly TimelineItem<Render>[]): void {
+    if (!items.length) return;
+    for (const item of items) {
+      const index = this.#indexById.get(item.id);
+      if (index === undefined) throw new Error(`unknown timeline item: ${item.id}`);
+      this.#items[index] = item;
+    }
     this.changed();
   }
 

@@ -36,7 +36,7 @@ export interface QuinUI<Render = unknown> {
   commands: { register(definition: QuinCommand): Registration };
 }
 
-export interface QuinControllers<Render = unknown> {
+interface QuinControllers<Render = unknown> {
   regions: RegionController;
   keys: KeyBindings;
   stage: StageController<Render>;
@@ -51,7 +51,7 @@ export interface QuinUIInstance<Render = unknown> extends QuinUI<Render> {
   readonly controllers: QuinControllers<Render>;
 }
 
-export interface QuinUIOptions {
+interface QuinUIOptions {
   /** Resolves whether the engine accepted the prompt. */
   sendPrompt?: (text: string) => Promise<boolean>;
   keymap?: Keymap;
@@ -78,7 +78,7 @@ export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): Qui
  * region's availability, and typed characters reach the editor and any stage
  * content that accepts text.
  */
-export function createQuinControllers<Render = unknown>(options: QuinUIOptions = {}): QuinControllers<Render> {
+function createQuinControllers<Render = unknown>(options: QuinUIOptions = {}): QuinControllers<Render> {
   const regions = new RegionController();
   const timeline = new ItemTypeRegistry<Render>();
   let editor: EditorController | undefined;
@@ -90,8 +90,7 @@ export function createQuinControllers<Render = unknown>(options: QuinUIOptions =
   editor = new EditorController({ regions, sendPrompt: options.sendPrompt });
   const keys = new KeyBindings({
     keymap: options.keymap,
-    acceptsText: (region) => region === "editor" || (region === "stage" && (stage.active()?.acceptsText ?? false)),
-    textLayers: ["editor"],
+    textRegions: regionText(() => stage.active()?.acceptsText ?? false),
   });
   return {
     regions, keys, stage, timeline, editor, statusline: new StatuslineController(), runState: new RunStateController(),
@@ -99,10 +98,12 @@ export function createQuinControllers<Render = unknown>(options: QuinUIOptions =
   };
 }
 
+export const regionText = (stage: () => boolean = () => false) => ({ editor: true, stage });
+
 const maxStageHeight = 10;
 const editorChromeHeight = 2;
 
-export interface HeightAllocation {
+interface HeightAllocation {
   /** Total rows the editor occupies, including its border. */
   editor: number;
   /** Rows available to the editor body. */

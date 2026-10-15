@@ -109,7 +109,7 @@ defmodule Shield.PiTest do
       }
     ]
 
-    v = PiView.seed(PiView.new(), %{"entries" => entries, "leafId" => "two"})
+    v = PiView.seed(PiView.new(), %{"entries" => entries, "leafId" => "two"}) |> PiView.snapshot()
     assert Enum.map(v["timeline"]["entries"], & &1["id"]) == ["seed:one", "seed:two"]
   end
 
@@ -164,7 +164,9 @@ defmodule Shield.PiTest do
       })
     ]
 
-    v = PiView.seed(PiView.new(), %{"entries" => entries, "leafId" => "bash"})
+    v =
+      PiView.seed(PiView.new(), %{"entries" => entries, "leafId" => "bash"}) |> PiView.snapshot()
+
     by_id = Map.new(v["timeline"]["entries"], &{&1["id"], &1})
 
     assert [%{"setting" => "model", "from" => "a/one", "to" => "b/two"}] =
@@ -332,14 +334,14 @@ defmodule Shield.PiTest do
       data = if success, do: model, else: nil
       response = %{"type" => "response", "id" => w["id"], "success" => success, "data" => data}
       {next, effects} = Pi.output(s, response, 1000)
-      broadcasts = for {:broadcast, r, _} <- effects, do: r
+      broadcasts = for {:broadcast, payload} <- effects, do: payload["record"]
 
       if success do
         assert broadcasts == [%{"type" => "shield_model", "model" => model}]
         assert next.view["timeline"]["model"] == "other/model"
 
         assert [%{"kind" => "config", "from" => "fixture/fixed", "to" => "other/model"}] =
-                 next.view["timeline"]["entries"]
+                 Pi.snapshot(next)["view"]["timeline"]["entries"]
       else
         assert broadcasts == []
         assert next.view == s.view

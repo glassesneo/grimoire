@@ -2,7 +2,7 @@
 import { type Registration, type StageContentType, type StageHandle, type StageController } from "./controllers";
 import type { EditorController } from "./editor-engine";
 
-export interface CommandCandidate {
+interface CommandCandidate {
   value: string;
   label: string;
   description?: string;

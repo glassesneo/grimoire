@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { parseArgs } from "node:util";
 import { openSync, closeSync, constants } from "node:fs";
 import { HubClient } from "./protocol";
 import { prepareSocket, socketPath } from "./paths";
@@ -31,17 +32,17 @@ export async function startHub(path: string) {
 }
 
 export async function main(args = process.argv.slice(2)) {
-  if (args.includes("--version")) { console.log("shield 0.1.0"); return; }
-  if (args.includes("--help") || args.length === 0) { console.log(`shield [--socket /absolute/hub.sock] start|list|stop <id>|shutdown
+  const { values, positionals } = parseArgs({ args, allowPositionals: true, options: {
+    version: { type: "boolean" }, help: { type: "boolean" }, socket: { type: "string" },
+  } });
+  if (values.version) { console.log("shield 0.1.0"); return; }
+  if (values.help || args.length === 0) { console.log(`shield [--socket /absolute/hub.sock] start|list|stop <id>|shutdown
 Starts and manages the SHIELD hub that runs Pi agents for quin. Pass the same --socket to quin.
 Agents end with the hub; Pi's session files remain. After shutdown, wait for the hub to exit before starting another.
 CommandCode keys come from CMD_API_KEY or COMMAND_CODE_API_KEY in the environment of shield start.`); return; }
-  const index = args.indexOf("--socket");
-  let socket: string | undefined;
-  if (index !== -1) { socket = args[index + 1]; if (!socket) throw new Error("--socket requires a path"); args.splice(index, 2); }
-  const path = socketPath(socket);
-  const [method, id] = args;
-  if (!["start", "list", "stop", "shutdown"].includes(method!) || (method === "stop" ? args.length !== 2 : args.length !== 1)) throw new Error("invalid arguments; see shield --help");
+  const path = socketPath(values.socket);
+  const [method, id] = positionals;
+  if (!["start", "list", "stop", "shutdown"].includes(method!) || (method === "stop" ? positionals.length !== 2 : positionals.length !== 1)) throw new Error("invalid arguments; see shield --help");
   if (method === "start") { await startHub(path); console.log(`SHIELD ready: ${path}`); return; }
   const client = new HubClient(path);
   try {

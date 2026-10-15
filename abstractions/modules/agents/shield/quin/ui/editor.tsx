@@ -2,7 +2,7 @@ import type { TextareaRenderable } from "@opentui/core";
 import { createEffect } from "solid-js";
 import type { JSX } from "@opentui/solid";
 
-export interface EditorViewProps {
+interface EditorViewProps {
   /** The draft the controller currently shows; edits from elsewhere arrive here. */
   text: string;
   cursor: number;
@@ -22,7 +22,7 @@ export interface EditorViewProps {
  * newline binding is kept here; wrapped height is measured after each layout and
  * content change.
  */
-export function TextareaEngine(props: EditorViewProps): JSX.Element {
+function TextareaEngine(props: EditorViewProps): JSX.Element {
   let textarea: TextareaRenderable | undefined;
   let lastText: string | undefined;
   let lastCursor: number | undefined;

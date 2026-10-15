@@ -24,7 +24,7 @@ import {
 import type { ItemType } from "./controllers";
 import { PiImage } from "./pi-image";
 
-export const PREVIEW_ROWS = 4;
+const PREVIEW_ROWS = 4;
 
 export const palette = {
   text: "#cdd6f4",
@@ -49,7 +49,7 @@ const syntaxStyles = new WeakMap<CliRenderer["nativeScene"], Map<string, SyntaxS
  * its native resource context. Highlighted chunks take the plain-text color
  * from the style, not from a renderable's `fg`, so a muted text needs its own.
  */
-export function syntaxStyle(text: string = palette.text): SyntaxStyle {
+function syntaxStyle(text: string = palette.text): SyntaxStyle {
   const scene = useRenderer().nativeScene;
   let styles = syntaxStyles.get(scene);
   if (!styles) syntaxStyles.set(scene, styles = new Map());
@@ -86,7 +86,7 @@ export function syntaxStyle(text: string = palette.text): SyntaxStyle {
 // ---------------------------------------------------------------------------
 
 /** One line of differently colored segments, wrapped as a whole. */
-export function styled(...parts: (readonly [text: string, color?: string] | false | undefined)[]): StyledText {
+function styled(...parts: (readonly [text: string, color?: string] | false | undefined)[]): StyledText {
   return new StyledText(parts.flatMap((part) => (part ? [fg(part[1] ?? palette.text)(part[0])] : [])));
 }
 
@@ -95,7 +95,7 @@ export function styled(...parts: (readonly [text: string, color?: string] | fals
  * how many rows follow. The rows are measured from the rendered content, so
  * the count matches what expanding shows at this width.
  */
-export function Preview(props: { text: string; fg?: string; rows?: number; markdown?: boolean }): JSX.Element {
+function Preview(props: { text: string; fg?: string; rows?: number; markdown?: boolean }): JSX.Element {
   const [height, setHeight] = createSignal(0);
   const rows = () => props.rows ?? PREVIEW_ROWS;
   // The limit is a layout constraint, so the first frame already has the
@@ -135,7 +135,7 @@ export function Markdown(props: { text: string; streaming?: boolean; fg?: string
   );
 }
 
-export function CodeBlock(props: { body: string; language: string }): JSX.Element {
+function CodeBlock(props: { body: string; language: string }): JSX.Element {
   return (
     <box border borderColor="#45475a" flexDirection="column" paddingX={1}>
       {props.language ? <text fg={palette.accent}>{props.language}</text> : null}
@@ -154,7 +154,7 @@ function filetypeOf(language: string): string | undefined {
 }
 
 /** Up to `limit` characters of a JSON value on one line. */
-export function compactJson(value: unknown, limit = 80): string {
+function compactJson(value: unknown, limit = 80): string {
   let text: string;
   try {
     text = JSON.stringify(value) ?? String(value);
@@ -228,7 +228,7 @@ function decodeError(data: string): string | undefined {
  * only once the image loads, so the row grows then; a decoding failure is
  * reported in place as text.
  */
-export function FittedImage(props: { content: ImageContent; label: string }): JSX.Element {
+function FittedImage(props: { content: ImageContent; label: string }): JSX.Element {
   const [error, setError] = createSignal<string | undefined>(decodeError(props.content.data));
   const [height, setHeight] = createSignal(1);
   let node: ImageRenderable | undefined;
@@ -259,19 +259,19 @@ function exceedsPreview(text: string): boolean {
 // Values
 // ---------------------------------------------------------------------------
 
-export interface UserValue {
+interface UserValue {
   text: string;
   /** Attachment metadata; the images themselves are child items. */
   images: string[];
 }
 
-export interface ImageValue {
+interface ImageValue {
   /** A genuine path or name when the source gave one, otherwise the MIME type and size. */
   label: string;
   content: ImageContent;
 }
 
-export interface ResponseValue {
+interface ResponseValue {
   /** Thinking text joined, for the collapsed preview. */
   thinking: string;
   hasThinking: boolean;
@@ -284,17 +284,17 @@ export interface ResponseValue {
   errorMessage: string | undefined;
 }
 
-export interface ThinkingValue {
+interface ThinkingValue {
   text: string;
   withheld: boolean;
 }
 
-export interface ProseValue {
+interface ProseValue {
   text: string;
   streaming: boolean;
 }
 
-export interface CodeValue {
+interface CodeValue {
   language: string;
   body: string;
   /** The raw fenced block, fences included. */
@@ -328,7 +328,7 @@ export interface ToolSnapshot {
   callsIncomplete: boolean;
 }
 
-export interface CompactionValue {
+interface CompactionValue {
   state: CompactionState;
   reason: string | undefined;
   summary: string | undefined;
@@ -343,23 +343,23 @@ export interface RetryValue {
   finalError: string | undefined;
 }
 
-export interface SummaryValue {
+interface SummaryValue {
   summary: string;
 }
 
-export interface CustomValue {
+interface CustomValue {
   customType: string;
   content: string | ResultContent;
   details: unknown;
 }
 
-export interface ConfigValue {
+interface ConfigValue {
   setting: "model" | "thinking";
   from: string;
   to: string;
 }
 
-export interface NoticeValue {
+interface NoticeValue {
   level: NoticeLevel;
   text: string;
 }
@@ -378,7 +378,7 @@ function argField(snapshot: ToolSnapshot, field: string): string | undefined {
 }
 
 /** Text on one line, its line breaks shown as `joiner`. */
-export function singleLine(text: string, joiner = " "): string {
+function singleLine(text: string, joiner = " "): string {
   return text.replace(/\s*\n\s*/g, joiner);
 }
 

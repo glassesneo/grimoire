@@ -66,7 +66,7 @@ defmodule Shield.Pi do
     end)
   end
 
-  def snapshot(s), do: %{"view" => s.view, "mode" => s.mode}
+  def snapshot(s), do: %{"view" => View.snapshot(s.view), "mode" => s.mode}
 
   def attach(s, ref, request, options) do
     cond do
@@ -197,9 +197,9 @@ defmodule Shield.Pi do
          r["type"] in ~w(agent_start message_start message_end entry_appended queue_update) do
       {s, [{:fail, "initialization_not_idle"}]}
     else
-      s = %{s | view: View.apply(s.view, r, now)}
+      {s, broadcast} = apply_record(s, r, now)
       {s, cancellation} = cancel_interrupt_dialog(s, r, now)
-      {s, [{:broadcast, r, now} | cancellation]}
+      {s, [broadcast | cancellation]}
     end
   end
 
@@ -278,7 +278,8 @@ defmodule Shield.Pi do
       # Pi reports a model change only to the requester; every client's view follows it.
       command == "set_model" and r["success"] == true and is_map(r["data"]) ->
         record = %{"type" => "shield_model", "model" => r["data"]}
-        {%{s | view: View.apply(s.view, record, now)}, [{:broadcast, record, now}]}
+        {s, broadcast} = apply_record(s, record, now)
+        {s, [broadcast]}
 
       true ->
         {s, []}
@@ -288,7 +289,7 @@ defmodule Shield.Pi do
   # The run state is the engine's alone, so each change reaches every view as a record.
   defp put_run(s, change) do
     run = change.(s.view["run"])
-    {put_in(s, [:view, "run"], run), {:broadcast, %{"type" => "shield_run", "run" => run}}}
+    apply_record(s, %{"type" => "shield_run", "run" => run}, System.system_time(:millisecond))
   end
 
   defp interrupt_done(s, r) do
@@ -372,10 +373,12 @@ defmodule Shield.Pi do
   defp close_dialog(s, id, reply, now) do
     r = %{"type" => "dialog_closed", "id" => id}
 
-    {%{s | view: View.apply(s.view, r, now)},
+    {s, broadcast} = apply_record(s, r, now)
+
+    {s,
      [
        {:write, Map.merge(reply, %{"type" => "extension_ui_response", "id" => id})},
-       {:broadcast, r, now}
+       broadcast
      ]}
   end
 
@@ -394,7 +397,8 @@ defmodule Shield.Pi do
           Enum.reduce(s.view["dialogs"], {s, []}, fn {id, d}, {s, effects} ->
             if d["expiresAt"] && d["expiresAt"] <= now do
               r = %{"type" => "dialog_closed", "id" => id}
-              {%{s | view: View.apply(s.view, r, now)}, effects ++ [{:broadcast, r, now}]}
+              {s, broadcast} = apply_record(s, r, now)
+              {s, effects ++ [broadcast]}
             else
               {s, effects}
             end
@@ -477,6 +481,19 @@ defmodule Shield.Pi do
   # Compaction summarizes the history with the model, which can take minutes.
   defp timeout(%{"type" => "compact"}), do: 600_000
   defp timeout(_), do: 60_000
+
+  defp apply_record(s, record, now) do
+    view = View.apply(s.view, record, now)
+
+    payload = %{
+      "op" => "event",
+      "record" => record,
+      "observedAt" => now,
+      "patch" => View.patch(s.view, view)
+    }
+
+    {%{s | view: view}, {:broadcast, payload}}
+  end
 
   defp name(m), do: m["provider"] <> "/" <> m["id"]
   defp monotonic, do: System.monotonic_time(:millisecond)

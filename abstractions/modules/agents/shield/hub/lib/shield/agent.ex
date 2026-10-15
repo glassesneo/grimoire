@@ -217,10 +217,7 @@ defmodule Shield.Agent do
     end
   end
 
-  defp effect({:broadcast, r}, s), do: effect({:broadcast, r, now()}, s)
-
-  defp effect({:broadcast, r, observed}, s),
-    do: broadcast(s, %{"op" => "event", "record" => r, "observedAt" => observed})
+  defp effect({:broadcast, payload}, s), do: broadcast(s, payload)
 
   defp effect({:transaction, engine, next, ref, request, payload}, s) do
     after_effect = effects(s, next)

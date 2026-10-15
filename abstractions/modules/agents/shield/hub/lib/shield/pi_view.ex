@@ -4,18 +4,23 @@
 # JSON is kept in `stream.arguments` by content index until `toolcall_end` gives the parsed
 # arguments.
 #
-# `apply/3` is mirrored by quin's `view.ts`, and both give the same view: a field missing from
-# a record is null in the view, and conditions test for nil, `true`, or a type, never for
-# either language's truthiness. `state/2` and `seed/2` are the hub's alone; clients receive
-# their result in snapshots.
+# The hub alone reduces records. Entries are indexed by id, with newest-first order;
+# snapshots expose chronological arrays (shield-pi-view/2). An event's `patch.entries`
+# upserts complete entries by id, appending new ids in the supplied order; entries are never
+# removed or reordered between snapshots. Optional `patch.timeline` replaces the timeline
+# metadata, not its entries. Other supplied sections replace their entire previous value;
+# omitted sections stay unchanged. Clients apply patches in envelope sequence without
+# interpreting Pi records. A missing record field becomes null in the view.
 defmodule Shield.PiView do
   @open_retry ~w(waiting retrying)
 
   def new do
     %{
-      "schema" => "shield-pi-view/1",
+      :order => [],
+      :changed => [],
+      "schema" => "shield-pi-view/2",
       "timeline" => %{
-        "entries" => [],
+        "entries" => %{},
         "response" => nil,
         "nextOrdinal" => 0,
         "model" => nil,
@@ -34,6 +39,38 @@ defmodule Shield.PiView do
       "dialogs" => %{},
       "presentation" => %{"status" => %{}, "title" => nil}
     }
+  end
+
+  def snapshot(v) do
+    v
+    |> Map.drop([:order, :changed])
+    |> put_in(
+      ["timeline", "entries"],
+      Enum.map(Enum.reverse(v.order), &v["timeline"]["entries"][&1])
+    )
+  end
+
+  def patch(before, after_view) do
+    sections =
+      for key <- ~w(stream nextId run queue dialogs presentation),
+          before[key] != after_view[key],
+          into: %{},
+          do: {key, after_view[key]}
+
+    timeline = Map.delete(after_view["timeline"], "entries")
+
+    sections =
+      if Map.delete(before["timeline"], "entries") == timeline,
+        do: sections,
+        else: Map.put(sections, "timeline", timeline)
+
+    entries =
+      after_view.changed
+      |> Enum.reverse()
+      |> Enum.uniq()
+      |> Enum.map(&after_view["timeline"]["entries"][&1])
+
+    Map.put(sections, "entries", entries)
   end
 
   def state(v, data) do
@@ -152,7 +189,7 @@ defmodule Shield.PiView do
 
     root =
       Enum.find(
-        Enum.reverse(v["timeline"]["entries"]),
+        entries(v),
         &(&1["kind"] == "tool" and is_nil(&1["parentId"]) and &1["callId"] == m["toolCallId"])
       )
 
@@ -199,11 +236,8 @@ defmodule Shield.PiView do
         end)
 
       v
-      |> update_last(
-        &(&1["id"] == root["id"]),
-        &Map.put(&1, "nestedIncomplete", summary["complete"] != true)
-      )
-      |> update_in(["timeline", "entries"], &(&1 ++ children))
+      |> update_entry(root["id"], &Map.put(&1, "nestedIncomplete", summary["complete"] != true))
+      |> then(fn v -> Enum.reduce(children, v, &append(&2, &1)) end)
     end
   end
 
@@ -220,6 +254,8 @@ defmodule Shield.PiView do
   end
 
   def apply(v, r, now) do
+    v = %{v | changed: []}
+
     case r["type"] do
       "agent_start" ->
         v
@@ -233,19 +269,17 @@ defmodule Shield.PiView do
           |> put_in(["run", "retry"], false)
           |> put_in(["timeline", "response"], nil)
 
-        update_in(v, ["timeline", "entries"], fn entries ->
-          Enum.map(entries, fn e ->
-            cond do
-              e["kind"] == "tool" and e["state"] in ["pending", "running"] ->
-                bump(e, %{"state" => "unfinished"})
+        Enum.reduce(entries(v), v, fn e, v ->
+          cond do
+            e["kind"] == "tool" and e["state"] in ["pending", "running"] ->
+              update_entry(v, e["id"], &bump(&1, %{"state" => "unfinished"}))
 
-              e["kind"] == "assistant" and e["streaming"] ->
-                bump(e, %{"streaming" => false})
+            e["kind"] == "assistant" and e["streaming"] ->
+              update_entry(v, e["id"], &bump(&1, %{"streaming" => false}))
 
-              true ->
-                e
-            end
-          end)
+            true ->
+              v
+          end
         end)
 
       "message_start" ->
@@ -332,7 +366,7 @@ defmodule Shield.PiView do
         running = &(&1["kind"] == "compaction" and &1["state"] == "running")
         v = put_in(v, ["run", "compaction"], false)
 
-        if Enum.any?(v["timeline"]["entries"], running),
+        if Enum.any?(entries(v), running),
           do: update_last(v, running, &bump(&1, fields)),
           else: new_entry(v, "compaction", Map.put(fields, "reason", r["reason"]))
 
@@ -541,7 +575,7 @@ defmodule Shield.PiView do
     Enum.reduce(m["content"] || [], v, fn b, v ->
       if b && b["type"] == "toolCall" do
         tool_id = scope <> "/" <> b["id"]
-        existing = Enum.find(v["timeline"]["entries"], &(&1["id"] == tool_id))
+        existing = v["timeline"]["entries"][tool_id]
 
         args =
           if Map.has_key?(b, "arguments"),
@@ -551,7 +585,7 @@ defmodule Shield.PiView do
         # Once Pi runs the call, its execution's arguments stand.
         if existing do
           if existing["state"] == "pending",
-            do: update_last(v, &(&1["id"] == tool_id), &change(&1, %{"args" => args})),
+            do: update_entry(v, tool_id, &change(&1, %{"args" => args})),
             else: v
         else
           ordinal = v["timeline"]["nextOrdinal"]
@@ -583,18 +617,18 @@ defmodule Shield.PiView do
 
     parent =
       Enum.find(
-        Enum.reverse(v["timeline"]["entries"]),
+        entries(v),
         &(&1["kind"] == "tool" and &1["callId"] == r["parentToolCallId"])
       )
 
     scope = if parent, do: parent["scope"], else: scope
     if is_nil(scope), do: raise("tool_without_scope")
     id = scope <> "/" <> r["toolCallId"]
-    existing = Enum.find(v["timeline"]["entries"], &(&1["id"] == id))
+    existing = v["timeline"]["entries"][id]
     fields = %{"state" => "running", "args" => %{"available" => true, "value" => r["args"]}}
 
     if existing do
-      update_last(v, &(&1["id"] == id), &bump(&1, fields))
+      update_entry(v, id, &bump(&1, fields))
     else
       ordinal = v["timeline"]["nextOrdinal"]
 
@@ -699,7 +733,27 @@ defmodule Shield.PiView do
     append(v, Map.merge(base(id, kind), fields))
   end
 
-  defp append(v, e), do: update_in(v, ["timeline", "entries"], &(&1 ++ [e]))
+  defp entries(v), do: Stream.map(v.order, &v["timeline"]["entries"][&1])
+
+  defp append(v, e) do
+    v
+    |> put_in(["timeline", "entries", e["id"]], e)
+    |> Map.update!(:order, &[e["id"] | &1])
+    |> Map.update!(:changed, &[e["id"] | &1])
+  end
+
+  defp update_entry(v, id, update) do
+    before = v["timeline"]["entries"][id]
+    after_entry = update.(before)
+
+    if before == after_entry,
+      do: v,
+      else:
+        v
+        |> put_in(["timeline", "entries", id], after_entry)
+        |> Map.update!(:changed, &[id | &1])
+  end
+
   defp bump(e, fields), do: Map.merge(e, Map.put(fields, "version", e["version"] + 1))
 
   # A bump only when a field changes, so streamed deltas leave unchanged entries' versions.
@@ -707,8 +761,8 @@ defmodule Shield.PiView do
     do: if(Enum.all?(fields, fn {k, value} -> e[k] == value end), do: e, else: bump(e, fields))
 
   defp upsert(v, id, kind, fields) do
-    if Enum.any?(v["timeline"]["entries"], &(&1["id"] == id)),
-      do: update_last(v, &(&1["id"] == id), &change(&1, fields)),
+    if Map.has_key?(v["timeline"]["entries"], id),
+      do: update_entry(v, id, &change(&1, fields)),
       else: append(v, Map.merge(base(id, kind), fields))
   end
 
@@ -717,19 +771,15 @@ defmodule Shield.PiView do
     do: e["kind"] == "retry" and e["category"] == category and e["state"] in states
 
   defp open_retry?(v, category),
-    do: Enum.any?(v["timeline"]["entries"], &retry?(&1, category, @open_retry))
+    do: Enum.any?(entries(v), &retry?(&1, category, @open_retry))
 
   defp update_retry(v, category, states, update),
     do: update_last(v, &retry?(&1, category, states), update)
 
   defp update_last(v, predicate, update) do
-    entries = v["timeline"]["entries"]
-
-    at =
-      entries |> Enum.with_index() |> Enum.reverse() |> Enum.find(fn {e, _} -> predicate.(e) end)
-
-    if at,
-      do: put_in(v, ["timeline", "entries"], List.update_at(entries, elem(at, 1), update)),
-      else: v
+    case Enum.find(entries(v), predicate) do
+      nil -> v
+      e -> update_entry(v, e["id"], update)
+    end
   end
 end

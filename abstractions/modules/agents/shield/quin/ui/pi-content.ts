@@ -69,14 +69,14 @@ export function imagesOf(content: string | readonly (TextContent | ImageContent)
 // Fenced block splitting
 // ---------------------------------------------------------------------------
 
-export type FencedBlock = TextRun | FencedCode;
+type FencedBlock = TextRun | FencedCode;
 
-export interface TextRun {
+interface TextRun {
   type: "text";
   text: string;
 }
 
-export interface FencedCode {
+interface FencedCode {
   type: "code";
   language: string;
   body: string;
@@ -88,6 +88,70 @@ export interface FencedCode {
 
 const FENCE_OPEN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
 const FENCE_CLOSE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/;
+
+interface FenceState {
+  blocks: FencedBlock[];
+  text: string;
+  textLines: number;
+  fence?: { marker: string; code: FencedCode; lines: number };
+}
+
+/** Reuse completed lines while a response grows; reparse only its unfinished last line. */
+export class StreamingFences {
+  #source = "";
+  #start = 0;
+  #state: FenceState = { blocks: [], text: "", textLines: 0 };
+
+  split(text: string): FencedBlock[] {
+    // Full replacement (including Pi's final message) is allowed, not just appends.
+    // ponytail: prefix validation still reads the prefix; text-range wire patches would remove that cost.
+    if (!text.startsWith(this.#source)) {
+      this.#source = ""; this.#start = 0;
+      this.#state = { blocks: [], text: "", textLines: 0 };
+    }
+    let end = text.indexOf("\n", this.#source.length);
+    while (end !== -1) {
+      this.#line(this.#state, text.slice(this.#start, end));
+      this.#start = end + 1;
+      end = text.indexOf("\n", this.#start);
+    }
+    this.#source = text;
+    const preview: FenceState = { ...this.#state, blocks: [...this.#state.blocks],
+      fence: this.#state.fence && { ...this.#state.fence, code: { ...this.#state.fence.code } } };
+    this.#line(preview, text.slice(this.#start));
+    if (preview.fence) preview.blocks.push(preview.fence.code);
+    else this.#flush(preview);
+    return preview.blocks;
+  }
+
+  #flush(state: FenceState): void {
+    if (state.text.length) state.blocks.push({ type: "text", text: state.text });
+    state.text = ""; state.textLines = 0;
+  }
+
+  #line(state: FenceState, line: string): void {
+    const fence = state.fence;
+    if (fence) {
+      fence.code.sourceText += `\n${line}`;
+      const close = FENCE_CLOSE.exec(line)?.[1];
+      if (close && close[0] === fence.marker[0] && close.length >= fence.marker.length) {
+        delete fence.code.open;
+        state.blocks.push(fence.code);
+        state.fence = undefined;
+      } else {
+        fence.code.body += (fence.lines++ ? "\n" : "") + line;
+      }
+      return;
+    }
+    const open = FENCE_OPEN.exec(line);
+    if (open) {
+      this.#flush(state);
+      state.fence = { marker: open[1]!, lines: 0, code: { type: "code", language: open[2]!.trim(), body: "", sourceText: line, open: true } };
+    } else {
+      state.text += (state.textLines++ ? "\n" : "") + line;
+    }
+  }
+}
 
 /**
  * Split text into plain runs and fenced code blocks. Only a line-start triple

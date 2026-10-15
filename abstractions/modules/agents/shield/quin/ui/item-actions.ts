@@ -26,9 +26,9 @@ import {
 import type { NoticeLevel } from "./pi-content";
 import type { ItemTypeRegistry } from "./controllers";
 
-export const ITEM_SCROLL_DURATION_MS = 120;
+const ITEM_SCROLL_DURATION_MS = 120;
 
-export type ItemScrollKind = "page-down" | "page-up" | "half-down" | "half-up";
+type ItemScrollKind = "page-down" | "page-up" | "half-down" | "half-up";
 
 /** The part of a ScrollBoxRenderable the actions need. */
 export interface ItemRow {
@@ -72,7 +72,7 @@ export interface ItemActions<Render = unknown> {
   dispose(): Promise<void>;
 }
 
-export interface ItemActionsOptions<Render = unknown> {
+interface ItemActionsOptions<Render = unknown> {
   timeline: ItemTypeRegistry<Render>;
   scrollbox: () => TimelineScrollBox | undefined;
   /** Rows the editor, stage, and indicator cover over the scrollbox's bottom edge. */
@@ -97,7 +97,7 @@ function asError(value: unknown): Error {
  * host has no native backend. "Attempted" OSC52 counts because the terminal
  * cannot confirm delivery; only both failing is a failure.
  */
-export function createNativeClipboard(renderer: RendererClipboardBoundary): ClipboardWriter {
+function createNativeClipboard(renderer: RendererClipboardBoundary): ClipboardWriter {
   let host: HostClipboardService | undefined;
   try {
     host = createHostClipboard();

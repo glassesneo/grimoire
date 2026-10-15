@@ -12,8 +12,8 @@
 #
 # Effects:
 #   {:write, record}                      a record for the process's stdin
-#   {:broadcast, record} | {:broadcast, record, observed_at}
-#                                         an event for every subscriber, in sequence
+#   {:broadcast, payload}                an engine-owned event payload for every subscriber,
+#                                         in sequence; the Agent does not interpret it
 #   {:subscribe, ref, request}            send the snapshot, then subscribe the client
 #   {:ok, ref, request, payload}          a successful response
 #   {:error, ref, request, code} | {:error, ref, request, code, payload}

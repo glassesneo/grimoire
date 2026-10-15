@@ -8,7 +8,6 @@ import { type JSX, useRenderer } from "@opentui/solid";
 import { createSignal, onCleanup, onMount, type Signal } from "solid-js";
 import { setupCommands } from "./contributions/commands";
 import { INTERRUPT_ACTION, setupDefaultActions, type QuinActions } from "./contributions/default";
-import type { HubClient } from "../client/protocol";
 import { Controller } from "./controller";
 import { bridgeDialogs } from "./dialogs";
 import { queuedPrompts, registerTimelineTypes } from "./timeline";
@@ -23,7 +22,7 @@ import { useVersion } from "./ui/state";
 import { TimelineView } from "./ui/timeline";
 import { formatContext, formatUsage } from "./usage";
 
-export interface QuinScreen {
+interface QuinScreen {
   ui: QuinUIInstance<JSX.Element>;
   controller: Controller;
   actions: QuinActions;
@@ -100,12 +99,9 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   const chord = (id: string) => { const first = keys.chords(id)[0]; return first ? formatChord(first) : undefined; };
   // The keymap is fixed for the screen's life, so the hint is too.
   statusline.contribute("bottom", { text: [chord("global.focus-next") && `${chord("global.focus-next")} focus`, chord("global.detach") && `${chord("global.detach")} detach`].filter(Boolean).join(" · ") });
-  let shown: unknown;
   const refresh = () => {
     const view = c.adapter.view;
-    // Records that leave the timeline as it was, such as a notice or the interrupt key, keep its items.
-    const items = projector.project(view.timeline.entries, view.stream);
-    if (items !== shown) timeline.replace(shown = items);
+    projector.sync(view.timeline.entries, view.stream, c.adapter.takeChanges());
     statusline.setFields({
       session: `${c.adapter.mode === "mock" ? "MOCK " : ""}${c.adapter.agent ?? ""}`,
       cwd: options.cwd ?? process.cwd(),
@@ -126,7 +122,12 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     runState.setMessage(c.armedUntil && interrupt ? `Press ${interrupt} again within 1s to interrupt` : undefined);
   };
   refresh();
-  const unsubscribe = c.subscribe(refresh);
+  let scheduled = false, disposed = false;
+  const unsubscribe = c.subscribe(() => {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => { scheduled = false; if (!disposed) refresh(); });
+  });
   const timer = setInterval(() => c.tick(), 100);
 
   return {
@@ -141,6 +142,7 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     setEditorReader: read => { readEditor = read; },
     queued: () => queuedPrompts(c.adapter.view.queue),
     dispose: () => {
+      disposed = true;
       clearInterval(timer);
       unsubscribe();
       unsubscribeRegions();
@@ -151,12 +153,6 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       void itemActions.dispose();
     },
   };
-}
-
-/** Rejects a keymap quin cannot use, without a hub or a terminal. */
-export function checkKeymap(keymap: Keymap | undefined): void {
-  const client = { onRecord: () => {}, onDisconnect: () => {}, close: () => {} } as unknown as HubClient;
-  setupScreen(new Controller(client), { keymap }).dispose();
 }
 
 export function Screen(props: { screen: QuinScreen; onTitle?(title: string): void }): JSX.Element {

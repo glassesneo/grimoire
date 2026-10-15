@@ -95,7 +95,7 @@
             self.packages.${system}.hjem
             self.packages.${system}.harness
           ]
-          ++ lib.optionals (system == "aarch64-darwin") [
+          ++ lib.optionals (self.packages.${system} ? shield) [
             self.packages.${system}.shield
             self.packages.${system}.quin
             pkgs.beamPackages.elixir

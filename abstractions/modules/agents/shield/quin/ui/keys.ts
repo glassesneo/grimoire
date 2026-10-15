@@ -6,17 +6,17 @@
  * action reachable from every region. The focused region's chords are tried
  * first, then the global ones. A chord that types a character is not resolved
  * while the focused region accepts text, so it reaches the native input;
- * binding one in a layer that always accepts text is an error. Space is a key,
- * not a typed character, so it may not be bound in such a layer or globally.
+ * binding one in a layer that always accepts text is an error. Space is text too;
+ * an action may explicitly capture text in a conditionally textual region.
  *
  * A key is a single character or one of the names OpenTUI reports, such as
  * `return`, `escape`, or `space`; a capital letter is `shift+<letter>`.
  */
 import { DuplicateRegistrationError, Emitter, type RegionId, type Registration } from "./controllers";
 
-export const GLOBAL_LAYER = "global";
+const GLOBAL_LAYER = "global";
 
-export interface KeyChord {
+interface KeyChord {
   name: string;
   ctrl?: boolean;
   shift?: boolean;
@@ -24,7 +24,7 @@ export interface KeyChord {
 }
 
 /** A key event as the renderer reports it. */
-export interface KeyInput extends KeyChord {
+interface KeyInput extends KeyChord {
   meta?: boolean;
   option?: boolean;
 }
@@ -37,6 +37,8 @@ export interface Action {
   keys?: readonly string[];
   /** Whether the action applies now; otherwise its chords fall through to the global layer and the native input. */
   when?(): boolean;
+  /** Handle text in a conditionally textual region, such as the palette's argument separator. */
+  captureText?: boolean;
 }
 
 /** Action id to chords. Listing an action replaces its default chords; an empty list unbinds it. */
@@ -92,20 +94,16 @@ function chordId(chord: KeyChord): string {
 
 /** A chord that types its own character: one visible character, without Ctrl or Alt. */
 function typesText(chord: KeyChord): boolean {
-  return !chord.ctrl && !chord.alt && [...chord.name].length === 1;
+  return !chord.ctrl && !chord.alt && (chord.name === "space" || [...chord.name].length === 1);
 }
 
 /** Why a chord cannot be bound in a layer, if it cannot. */
 function unusable(chord: KeyChord, layer: string, textLayers: ReadonlySet<string>): string | undefined {
   if (typesText(chord) && textLayers.has(layer)) return "types text there, so it could never run";
-  // Space is resolved as a key, as the palette's name input needs, so here it would take the editor's spaces.
-  if (chord.name === "space" && !chord.ctrl && !chord.alt && !chord.shift && (textLayers.has(layer) || layer === GLOBAL_LAYER)) {
-    return "would take the space key from the editor";
-  }
   return undefined;
 }
 
-export function layerOf(actionId: string): string {
+function layerOf(actionId: string): string {
   const index = actionId.indexOf(".");
   if (index < 1 || index === actionId.length - 1) throw new KeymapError(`action id must be <layer>.<name>: ${JSON.stringify(actionId)}`);
   return actionId.slice(0, index);
@@ -116,13 +114,11 @@ interface Entry {
   action: Action;
 }
 
-export interface KeyBindingsOptions {
+interface KeyBindingsOptions {
   /** Replaces default chords per action; validated against the registered actions. */
   keymap?: Keymap;
-  /** Whether the focused region takes typed characters now. */
-  acceptsText?(region: RegionId): boolean;
-  /** Layers whose region always takes typed characters, where such a chord could never run. */
-  textLayers?: readonly string[];
+  /** True for an always-textual region, a predicate for a conditionally textual one. */
+  textRegions?: Readonly<Record<RegionId, boolean | (() => boolean)>>;
 }
 
 /**
@@ -139,9 +135,11 @@ export class KeyBindings extends Emitter {
 
   constructor(options: KeyBindingsOptions = {}) {
     super();
+    if (options.keymap !== undefined && (typeof options.keymap !== "object" || options.keymap === null || Array.isArray(options.keymap))) throw new KeymapError("keymap must be an object of action ids");
     this.#keymap = options.keymap ?? {};
-    this.#acceptsText = options.acceptsText ?? (() => false);
-    this.#textLayers = new Set(options.textLayers ?? []);
+    const regions = options.textRegions ?? {};
+    this.#acceptsText = region => { const value = regions[region]; return typeof value === "function" ? value() : value === true; };
+    this.#textLayers = new Set(Object.keys(regions).filter(region => regions[region] === true));
     for (const [id, chords] of Object.entries(this.#keymap)) {
       layerOf(id);
       if (!Array.isArray(chords) || !chords.every((chord) => typeof chord === "string")) throw new KeymapError(`keys of ${id} must be a list of strings`);
@@ -195,12 +193,12 @@ export class KeyBindings extends Emitter {
   /** The action bound in the focused region, then the global one. */
   resolve(region: RegionId, key: KeyInput): Action | undefined {
     const chord: KeyChord = { name: key.name, ctrl: key.ctrl, shift: key.shift, alt: key.alt || key.meta || key.option };
-    if (typesText(chord) && this.#acceptsText(region)) return undefined;
+    const text = typesText(chord) && this.#acceptsText(region);
     const tables = this.#tables ?? new Map();
     const id = chordId(chord);
     const applies = (actionId: string | undefined) => {
       const action = actionId === undefined ? undefined : this.#actions.get(actionId)?.action;
-      return action && (action.when?.() ?? true) ? action : undefined;
+      return action && (!text || action.captureText) && (action.when?.() ?? true) ? action : undefined;
     };
     return applies(tables.get(region)?.get(id)) ?? applies(tables.get(GLOBAL_LAYER)?.get(id));
   }
