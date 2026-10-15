@@ -11,6 +11,6 @@
 ## Validation
 
 - quin, the clients, and the scripts in `tests/shield-process/` and `tests/shield-trace/`: in `quin/`, run `bun node_modules/typescript/bin/tsc --noEmit`, which type-checks all of them, and `bun test`. The package build runs only `bun test`; `nix build .#checks.aarch64-darwin.quin` runs the type check in the sandbox.
-- Hub logic: in `hub/`, run `MIX_ENV=test mix test --no-start` and `mix format --check-formatted`.
+- Hub logic: in `hub/`, run `MIX_ENV=test mix test --no-start`. `nix fmt` formats the hub with treefmt's `mix format`.
 - The view trace: `nix build .#checks.aarch64-darwin.shield-trace`. It needs only the hub, `quin/view.ts`, and its own script.
 - Process, socket, and real Pi behavior: `nix build .#checks.aarch64-darwin.shield-process`. It includes a 60-second startup-deadline case, so it is slow.

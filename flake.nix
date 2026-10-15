@@ -46,6 +46,11 @@
         settings.global.excludes = ["**/bun.nix"];
         programs = {
           alejandra.enable = true;
+          # The SHIELD hub builds with this Elixir, so both agree on mix format's style.
+          mix-format = {
+            enable = true;
+            package = pkgs.beamPackages.elixir;
+          };
           just = {
             enable = true;
             indentation = "  ";

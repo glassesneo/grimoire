@@ -54,7 +54,6 @@
     doCheck = true;
     checkPhase = ''
       MIX_ENV=test mix test --no-start
-      mix format --check-formatted
     '';
     nativeBuildInputs = [beamPackages.elixir];
     buildPhase = ''
