@@ -76,20 +76,21 @@
     export RELEASE_DISTRIBUTION=none
     exec ${hub}/bin/shield start
   '';
+  clientDeps = bun2nix.fetchBunDeps {bunNix = ./quin/bun.nix;};
   clients = bun2nix.mkDerivation {
     packageJson = ./quin/package.json;
     src = lib.fileset.toSource {
       root = ./.;
       fileset = lib.fileset.unions [./quin ./client];
     };
-    bunDeps = bun2nix.fetchBunDeps {bunNix = ./quin/bun.nix;};
+    bunDeps = clientDeps;
     postUnpack = ''
       cp "$sourceRoot/quin/package.json" "$sourceRoot/package.json"
       cp "$sourceRoot/quin/bun.lock" "$sourceRoot/bun.lock"
     '';
     doCheck = true;
+    # tests/quin type-checks the clients together with the scripts that import them.
     checkPhase = ''
-      bun ../node_modules/typescript/bin/tsc --noEmit
       bun test
     '';
     buildPhase = ''
@@ -134,6 +135,7 @@ in {
     installCheckPhase = ''
       HOME="$TMPDIR" "$out/bin/quin" --check-keymap
     '';
+    passthru.bunDeps = clientDeps;
     passthru.runtime = {
       env = runtimeEnv;
       node = "${nodejs}/bin/node";

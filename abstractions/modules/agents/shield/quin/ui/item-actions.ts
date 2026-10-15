@@ -50,7 +50,7 @@ export interface ClipboardWriter {
   dispose(): Promise<void>;
 }
 
-export interface ItemActions<Render = unknown> {
+export interface ItemActions {
   /** Move the cursor among visible items and center its first line in the usable rows. */
   move(delta: number): void;
   /** Put an off-screen cursor on the last visible item, as when the timeline gains focus. */
@@ -205,7 +205,7 @@ class SmoothScroll {
 
 export function createItemActions<Render>(
   options: ItemActionsOptions<Render>,
-): ItemActions<Render> {
+): ItemActions {
   const { timeline, scrollbox, overlayHeight } = options;
   const topInset = options.topInset ?? (() => 0);
   const notify = options.notify;

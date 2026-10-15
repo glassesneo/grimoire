@@ -10,6 +10,6 @@
 
 ## Validation
 
-- quin and the clients: in `quin/`, run `bun node_modules/typescript/bin/tsc --noEmit` and `bun test`; `nix build .#checks.aarch64-darwin.quin` covers them in the sandbox.
+- quin, the clients, and `tests/shield/*.ts`: in `quin/`, run `bun node_modules/typescript/bin/tsc --noEmit`, which type-checks all three, and `bun test`. The package build runs only `bun test`; `nix build .#checks.aarch64-darwin.quin` runs the type check in the sandbox.
 - Hub logic: in `hub/`, run `MIX_ENV=test mix test --no-start` and `mix format --check-formatted`.
 - Process, socket, and real Pi behavior, and the view trace: `nix build .#checks.aarch64-darwin.shield`. It includes a 60-second startup-deadline case, so it is slow.

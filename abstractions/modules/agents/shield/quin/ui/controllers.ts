@@ -181,14 +181,14 @@ export class RegionController extends Emitter {
 
 export interface StageContentType<T, Render = unknown> {
   kind: string;
-  render(props: StageRenderProps<T, Render>): Render;
+  render(props: StageRenderProps<T>): Render;
   /** Resolved value when the request is cancelled or its signal aborts. */
   defaultValue: T;
   actions?: Record<string, StageAction<T>>;
   acceptsText?(value: T): boolean;
 }
 
-export interface StageRenderProps<T, Render = unknown> {
+export interface StageRenderProps<T> {
   value: T;
   handle: StageHandle<T>;
   preferredHeight: number;
@@ -525,9 +525,9 @@ interface TimelineItemInput<T, Render = unknown> {
 export interface ItemType<T, Render = unknown> {
   kind: string;
   /** The item's own rows: what it shows collapsed, or its header when expanded. */
-  render(props: ItemRenderProps<T, Render>): Render;
+  render(props: ItemRenderProps<T>): Render;
   /** Expanded content drawn after the item's selectable children. */
-  renderDetails?(props: ItemRenderProps<T, Render>): Render;
+  renderDetails?(props: ItemRenderProps<T>): Render;
   /**
    * Whether the value has more to show expanded. Selectable children make an
    * item expandable regardless, so this answers only for the value's content.
@@ -550,7 +550,7 @@ export interface ItemType<T, Render = unknown> {
   actions: Record<string, ItemAction<T>>;
 }
 
-interface ItemRenderProps<T, Render = unknown> {
+interface ItemRenderProps<T> {
   value: T;
   id: string;
   version: number;

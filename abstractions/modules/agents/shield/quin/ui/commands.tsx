@@ -40,7 +40,7 @@ function CommandNameInput(props: { value: CommandValue; focused: boolean; contro
     }} />;
 }
 
-function CommandView(props: StageRenderProps<CommandValue, JSX.Element> & { controller: CommandController<JSX.Element> }) {
+function CommandView(props: StageRenderProps<CommandValue> & { controller: CommandController<JSX.Element> }) {
   const options = () => props.value.mode === "name"
     ? props.controller.names(props.value.query).map((command) => ({ name: command.name, description: command.description }))
     : props.value.filtered.map((candidate) => ({ name: `${candidate.current ? "* " : ""}${candidate.label}`, description: candidate.description ?? candidate.value }));
