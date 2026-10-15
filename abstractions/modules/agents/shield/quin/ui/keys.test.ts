@@ -10,26 +10,39 @@ const actions = (log: string[]) => [
 const key = (name: string, mods: { ctrl?: boolean; shift?: boolean } = {}) => ({ name, ...mods });
 
 test("every key name parses alone and under every modifier combination", () => {
-  const printable = Array.from({ length: 0x7f - 0x21 }, (_, i) => String.fromCharCode(0x21 + i)).filter((c) => !/[A-Z]/.test(c));
+  const printable = Array.from({ length: 0x7f - 0x21 }, (_, i) =>
+    String.fromCharCode(0x21 + i),
+  ).filter((c) => !/[A-Z]/.test(c));
   const names = [...printable, "space", "tab", "return", "kpenter", "escape", "up", "f12"];
-  const combos = [[], ["ctrl"], ["shift"], ["alt"], ["ctrl", "shift"], ["ctrl", "alt", "shift"]] as const;
+  const combos = [
+    [],
+    ["ctrl"],
+    ["shift"],
+    ["alt"],
+    ["ctrl", "shift"],
+    ["ctrl", "alt", "shift"],
+  ] as const;
   for (const name of names) {
     for (const mods of combos) {
       const expected = { name, ...Object.fromEntries(mods.map((mod) => [mod, true])) };
       expect(parseChord([...mods, name].join("+"))).toEqual(expected);
     }
   }
-  for (const text of ["", "ctrl+", "hyper+x", "x+ctrl", "ctrl++x"]) expect(() => parseChord(text)).toThrow(KeymapError);
+  for (const text of ["", "ctrl+", "hyper+x", "x+ctrl", "ctrl++x"])
+    expect(() => parseChord(text)).toThrow(KeymapError);
 });
 
 test("only names OpenTUI reports are keys, and a capital letter is shift and its letter", () => {
-  for (const text of ["enter", "esc", "ctrl+Q", "Q", "pgdn"]) expect(() => parseChord(text)).toThrow(KeymapError);
+  for (const text of ["enter", "esc", "ctrl+Q", "Q", "pgdn"])
+    expect(() => parseChord(text)).toThrow(KeymapError);
   expect(() => parseChord("ctrl+Q")).toThrow("use shift+q");
 });
 
 test("text bindings in an always-textual region are rejected", () => {
-  const bind = (id: string, chord: string) => new KeyBindings({ keymap: { [id]: [chord] }, textRegions: { editor: true } })
-    .register([{ id, run: () => {} }]);
+  const bind = (id: string, chord: string) =>
+    new KeyBindings({ keymap: { [id]: [chord] }, textRegions: { editor: true } }).register([
+      { id, run: () => {} },
+    ]);
   expect(() => bind("editor.x", ":")).toThrow("could never run");
   expect(() => bind("editor.x", "space")).toThrow("could never run");
   expect(() => bind("global.x", "space")).not.toThrow();
@@ -41,7 +54,10 @@ test("text bindings in an always-textual region are rejected", () => {
 test("the focused region wins, then the global layer", () => {
   const log: string[] = [];
   const keys = new KeyBindings();
-  keys.register([...actions(log), { id: "timeline.detach-here", keys: ["ctrl+q"], run: () => log.push("timeline") }]);
+  keys.register([
+    ...actions(log),
+    { id: "timeline.detach-here", keys: ["ctrl+q"], run: () => log.push("timeline") },
+  ]);
   keys.resolve("timeline", key("q", { ctrl: true }))?.run();
   keys.resolve("editor", key("q", { ctrl: true }))?.run();
   expect(log).toEqual(["timeline", "detach"]);
@@ -74,8 +90,12 @@ test("unknown actions, conflicts, and malformed keymaps are rejected", () => {
   // The same chord in another layer only shadows; within a layer it conflicts.
   const conflict = new KeyBindings({ keymap: { "timeline.down": ["ctrl+q", "x"] } });
   conflict.register(actions([]));
-  expect(() => conflict.register([{ id: "timeline.other", keys: ["x"], run: () => {} }])).toThrow("X is bound to both timeline.down and timeline.other");
+  expect(() => conflict.register([{ id: "timeline.other", keys: ["x"], run: () => {} }])).toThrow(
+    "X is bound to both timeline.down and timeline.other",
+  );
   expect(conflict.resolve("timeline", key("x"))?.id).toBe("timeline.down");
   expect(() => new KeyBindings({ keymap: { detach: ["x"] } })).toThrow(KeymapError);
-  expect(() => new KeyBindings({ keymap: { "global.detach": "ctrl+q" as any } })).toThrow(KeymapError);
+  expect(() => new KeyBindings({ keymap: { "global.detach": "ctrl+q" as any } })).toThrow(
+    KeymapError,
+  );
 });

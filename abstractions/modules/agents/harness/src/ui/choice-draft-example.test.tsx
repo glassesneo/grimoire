@@ -50,15 +50,18 @@ function ExampleTimeline(props: { ui: HarnessUIInstance<JSX.Element> }): JSX.Ele
 }
 
 async function render(f: ReturnType<typeof fixture>) {
-  const setup = await testRender(() => {
-    return (
-      <ScreenLayout
-        ui={f.ui}
-        timeline={<ExampleTimeline ui={f.ui} />}
-        stage={() => <StageView ui={f.ui} />}
-      />
-    );
-  }, { width: 120, height: 40 });
+  const setup = await testRender(
+    () => {
+      return (
+        <ScreenLayout
+          ui={f.ui}
+          timeline={<ExampleTimeline ui={f.ui} />}
+          stage={() => <StageView ui={f.ui} />}
+        />
+      );
+    },
+    { width: 120, height: 40 },
+  );
   await setup.flush();
   return setup;
 }
@@ -92,8 +95,11 @@ test("disposing the example cancels an active draft without appending a result",
   const f = fixture();
   f.example.open();
   const choosing = f.ui.controllers.stage.active()!.runAction("confirm");
-  await tick(); expect(f.ui.controllers.editor.activeDraft()).toBe(true);
-  f.dispose(); await choosing; await tick();
+  await tick();
+  expect(f.ui.controllers.editor.activeDraft()).toBe(true);
+  f.dispose();
+  await choosing;
+  await tick();
   expect(f.ui.controllers.editor.activeDraft()).toBe(false);
   expect(f.ui.controllers.timeline.items()).toHaveLength(0);
 });

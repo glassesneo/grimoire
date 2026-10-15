@@ -16,7 +16,9 @@ test("the compiled harness executes codemode from an unrelated cwd", async () =>
     expect(build.success, build.logs.join("\n")).toBe(true);
     const resultPath = join(directory, "result.json");
     const extensionPath = join(directory, "probe.js");
-    await writeFile(extensionPath, `
+    await writeFile(
+      extensionPath,
+      `
       import { writeFileSync } from "node:fs";
       export default function (pi) {
         let started = false;
@@ -38,13 +40,17 @@ test("the compiled harness executes codemode from an unrelated cwd", async () =>
           async execute() { return { content: [] }; }
         });
       }
-    `);
+    `,
+    );
     const configPath = join(directory, "settings.json");
-    await writeFile(configPath, JSON.stringify({
-      extensions: [extensionPath],
-      defaultTools: ["codemode", "compiled_probe", "read", "bash", "edit", "write"],
-      codemode: { mode: "only" },
-    }));
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        extensions: [extensionPath],
+        defaultTools: ["codemode", "compiled_probe", "read", "bash", "edit", "write"],
+        codemode: { mode: "only" },
+      }),
+    );
     const run = Bun.spawnSync([executable, "--config", configPath], {
       cwd: directory,
       env: { ...process.env, XDG_CONFIG_HOME: directory },

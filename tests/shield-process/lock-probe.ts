@@ -12,15 +12,30 @@ const socket = join(directory, "hub.sock");
 let client: HubClient | undefined;
 let beam: number | undefined;
 let child: number | undefined;
-const lock = () => spawnSync("/bin/sh", ["-c", 'exec 9<>"$1"; /usr/bin/lockf -s -t 0 9', "probe", `${socket}.lock`]).status;
+const lock = () =>
+  spawnSync("/bin/sh", ["-c", 'exec 9<>"$1"; /usr/bin/lockf -s -t 0 9', "probe", `${socket}.lock`])
+    .status;
 try {
   await Promise.all([startHub(socket), startHub(socket)]);
   assert.notEqual(lock(), 0, "foreground release lost its lock");
   client = new HubClient(socket);
   await client.connected;
   const fake = join(directory, "fake-rpc.mjs");
-  writeFileSync(fake, `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(join(directory, "child.pid"))}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`);
-  const r = client.hub("attach", { cwd: directory, harness: "quin", options: { mode: "mock", model: "fixture/fixed", launch: { executable: process.env.SHIELD_NODE || process.execPath, argv: [fake], env: {} } } }).catch(() => undefined);
+  writeFileSync(
+    fake,
+    `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(join(directory, "child.pid"))}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`,
+  );
+  const r = client
+    .hub("attach", {
+      cwd: directory,
+      harness: "quin",
+      options: {
+        mode: "mock",
+        model: "fixture/fixed",
+        launch: { executable: process.env.SHIELD_NODE || process.execPath, argv: [fake], env: {} },
+      },
+    })
+    .catch(() => undefined);
   await Bun.sleep(200);
   beam = Number((await client.hub("ping")).payload["hub-pid"]);
   child = Number(readFileSync(join(directory, "child.pid"), "utf8"));
@@ -37,9 +52,15 @@ try {
   await reopened.hub("shutdown");
   reopened.close();
   await r;
-  console.log("lock probe passed: concurrent start, foreground retention, Port exclusion, KILL/stale recovery");
+  console.log(
+    "lock probe passed: concurrent start, foreground retention, Port exclusion, KILL/stale recovery",
+  );
 } finally {
   client?.close();
-  if (child) { try { process.kill(child, "SIGKILL"); } catch {} }
+  if (child) {
+    try {
+      process.kill(child, "SIGKILL");
+    } catch {}
+  }
   rmSync(directory, { recursive: true, force: true });
 }

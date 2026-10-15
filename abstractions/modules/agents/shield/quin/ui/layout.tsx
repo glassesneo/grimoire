@@ -130,12 +130,31 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         </box>
       </box>
       {allocation().top > 0 ? (
-        <box id="quin-statusline-top" position="absolute" top={0} left={0} width="100%" height={1} zIndex={2}>
-          <StatuslineView segments={(version(), statuslineSegments(statusline, "top"))} width={dimensions().width} />
+        <box
+          id="quin-statusline-top"
+          position="absolute"
+          top={0}
+          left={0}
+          width="100%"
+          height={1}
+          zIndex={2}
+        >
+          <StatuslineView
+            segments={(version(), statuslineSegments(statusline, "top"))}
+            width={dimensions().width}
+          />
         </box>
       ) : null}
       {indicator() ? (
-        <box id="quin-run-state" position="absolute" left={2} right={0} bottom={below() + margin()} height={1} zIndex={2}>
+        <box
+          id="quin-run-state"
+          position="absolute"
+          left={2}
+          right={0}
+          bottom={below() + margin()}
+          height={1}
+          zIndex={2}
+        >
           <RunStateIndicator controller={runState} />
         </box>
       ) : null}
@@ -166,7 +185,11 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         height={allocation().editor}
         zIndex={2}
         // Only a draft is labelled; the prompt is marked by the border color and cursor.
-        title={allocation().chrome > 0 && snapshot().label ? `${focusedRegion() === "editor" ? "▶" : " "} ${snapshot().label}` : undefined}
+        title={
+          allocation().chrome > 0 && snapshot().label
+            ? `${focusedRegion() === "editor" ? "▶" : " "} ${snapshot().label}`
+            : undefined
+        }
         onMouseDown={() => regions.requestFocus("editor")}
         // Border color is constant while chrome is absent: the `borderColor`
         // setter re-enables a border when it changes, and the `border` prop is
@@ -189,11 +212,21 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         />
       </box>
       {allocation().bottom > 0 ? (
-        <box id="quin-statusline-bottom" position="absolute" bottom={0} left={0} width="100%" height={1} zIndex={2}>
-          <StatuslineView segments={(version(), statuslineSegments(statusline, "bottom"))} width={dimensions().width} />
+        <box
+          id="quin-statusline-bottom"
+          position="absolute"
+          bottom={0}
+          left={0}
+          width="100%"
+          height={1}
+          zIndex={2}
+        >
+          <StatuslineView
+            segments={(version(), statuslineSegments(statusline, "bottom"))}
+            width={dimensions().width}
+          />
         </box>
       ) : null}
     </box>
   );
 }
-

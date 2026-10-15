@@ -4,7 +4,18 @@
  * decided by the projection (quin/timeline.tsx), not here.
  */
 import type { Renderable, ScrollBoxRenderable } from "@opentui/core";
-import { type Accessor, createEffect, createMemo, createSelector, createSignal, For, type JSX, onCleanup, Show, untrack } from "solid-js";
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createSelector,
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  Show,
+  untrack,
+} from "solid-js";
 import type { ItemTypeRegistry } from "./controllers";
 import type { TimelineScrollBox } from "./item-actions";
 import { useVersion } from "./state";
@@ -61,20 +72,37 @@ function rowsOf<Render>(timeline: ItemTypeRegistry<Render>): Row[] {
   const close = (depth: number) => {
     while (open.length > 0 && open.at(-1)!.depth >= depth) {
       const top = open.pop()!;
-      rows.push({ type: "details", id: top.id, depth: top.depth, owners: top.owners, gap: false, shaded: true });
+      rows.push({
+        type: "details",
+        id: top.id,
+        depth: top.depth,
+        owners: top.owners,
+        gap: false,
+        shaded: true,
+      });
     }
   };
   // A parent comes before its children, so ancestries fill in as the walk goes.
   const owners = new Map<string, readonly string[]>();
   let first = true;
   for (const current of timeline.visibleItems()) {
-    const own = [current.id, ...(current.parentId === undefined ? [] : owners.get(current.parentId) ?? [])];
+    const own = [
+      current.id,
+      ...(current.parentId === undefined ? [] : (owners.get(current.parentId) ?? [])),
+    ];
     owners.set(current.id, own);
     const depth = own.length - 1;
     close(depth);
     const isOpen = timeline.isExpanded(current.id) && timeline.isExpandable(current.id);
     // A visible child means its ancestors are expanded.
-    rows.push({ type: "item", id: current.id, depth, owners: own, gap: depth === 0 && !first, shaded: depth > 0 || isOpen });
+    rows.push({
+      type: "item",
+      id: current.id,
+      depth,
+      owners: own,
+      gap: depth === 0 && !first,
+      shaded: depth > 0 || isOpen,
+    });
     if (depth === 0) first = false;
     if (isOpen && current.renderDetails) open.push({ id: current.id, depth, owners: own });
   }
@@ -88,7 +116,10 @@ function rowsOf<Render>(timeline: ItemTypeRegistry<Render>): Row[] {
  * before positions are applied, so a correction is painted in the same frame
  * as the change it corrects; renderable positions would still be last frame's.
  */
-function layoutScrollBox(box: ScrollBoxRenderable, rowBoxes: ReadonlyMap<string, Renderable>): TimelineScrollBox {
+function layoutScrollBox(
+  box: ScrollBoxRenderable,
+  rowBoxes: ReadonlyMap<string, Renderable>,
+): TimelineScrollBox {
   return {
     get scrollTop() {
       return box.scrollTop;
@@ -128,7 +159,12 @@ interface Selection {
  * half cell where its range starts and ends so it does not run into the rows
  * around it. A one-row range gets a short dashed rule.
  */
-function RangeBar(props: { left: number; bright: boolean; top: boolean; bottom: boolean }): JSX.Element {
+function RangeBar(props: {
+  left: number;
+  bright: boolean;
+  top: boolean;
+  bottom: boolean;
+}): JSX.Element {
   const [height, setHeight] = createSignal(1);
   const glyphs = () => {
     const rows = Math.max(1, height());
@@ -140,7 +176,16 @@ function RangeBar(props: { left: number; bright: boolean; top: boolean; bottom: 
   };
   // Absolute, so the bar follows the row's height without adding to it.
   return (
-    <box position="absolute" left={props.left} top={0} bottom={0} width={1} onSizeChange={function (this: { height: number }) { setHeight(this.height); }}>
+    <box
+      position="absolute"
+      left={props.left}
+      top={0}
+      bottom={0}
+      width={1}
+      onSizeChange={function (this: { height: number }) {
+        setHeight(this.height);
+      }}
+    >
       <text fg={props.bright ? palette.accent : palette.dim}>{glyphs()}</text>
     </box>
   );
@@ -151,16 +196,27 @@ function RangeBar(props: { left: number; bright: boolean; top: boolean; bottom: 
  * nested in, two cells apart, then the item's mark. Rows of every depth keep
  * their content right of the mark, so details align with their item.
  */
-function Gutter(props: { row: Row; selection: Selection; mark?: { glyph: string; color: string } }): JSX.Element {
+function Gutter(props: {
+  row: Row;
+  selection: Selection;
+  mark?: { glyph: string; color: string };
+}): JSX.Element {
   const { row } = props;
   return (
     <box flexShrink={0} width={2 * row.depth + 4}>
-      <text fg={props.mark?.color ?? palette.dim} flexShrink={0}>{`${" ".repeat(2 * row.depth + 2)}${props.mark?.glyph ?? " "} `}</text>
+      <text
+        fg={props.mark?.color ?? palette.dim}
+        flexShrink={0}
+      >{`${" ".repeat(2 * row.depth + 2)}${props.mark?.glyph ?? " "} `}</text>
       {/* Level 0 is the top-level ancestor; the row's own item is at its depth. A row's levels never change. */}
       {row.owners.toReversed().map((owner, level) => (
         <Show when={props.selection.marked(owner)}>
-          <RangeBar left={2 * level} bright={props.selection.selected(owner)}
-            top={row.type === "item" && row.id === owner} bottom={props.selection.ends(owner, row)} />
+          <RangeBar
+            left={2 * level}
+            bright={props.selection.selected(owner)}
+            top={row.type === "item" && row.id === owner}
+            bottom={props.selection.ends(owner, row)}
+          />
         </Show>
       ))}
     </box>
@@ -239,7 +295,13 @@ function DetailsRow(props: RowProps & { selection: Selection }): JSX.Element {
     return current?.renderDetails ? untrack(() => current.renderDetails!()) : null;
   });
   return (
-    <box id={`${id}::details`} ref={(box: Renderable) => props.register(`${id}::details`, box)} flexDirection="row" flexShrink={0} backgroundColor={EXPANDED_BACKGROUND}>
+    <box
+      id={`${id}::details`}
+      ref={(box: Renderable) => props.register(`${id}::details`, box)}
+      flexDirection="row"
+      flexShrink={0}
+      backgroundColor={EXPANDED_BACKGROUND}
+    >
       <Gutter row={props.row} selection={props.selection} />
       <box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
         {content()}
@@ -264,10 +326,14 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
   const cursor = createMemo(() => (changes(), props.focused ? props.timeline.cursor() : undefined));
   const selected = createSelector(cursor);
   // Equal chains keep the selector from asking every row again.
-  const chain = createMemo(() => {
-    const id = cursor();
-    return id === undefined ? [] : [id, ...props.timeline.ancestors(id)];
-  }, [], { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const chain = createMemo(
+    () => {
+      const id = cursor();
+      return id === undefined ? [] : [id, ...props.timeline.ancestors(id)];
+    },
+    [],
+    { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) },
+  );
   const marked = createSelector(chain, (id: string, ids: readonly string[]) => ids.includes(id));
   const rowBoxes = new Map<string, Renderable>();
   const register = (id: string, box: Renderable) => {
@@ -295,7 +361,11 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
     return { rows, ends };
   });
   const rows = () => layout().rows;
-  const selection: Selection = { selected, marked, ends: (id, row) => layout().ends.get(id) === row };
+  const selection: Selection = {
+    selected,
+    marked,
+    ends: (id, row) => layout().ends.get(id) === row,
+  };
   let scrollbox: ScrollBoxRenderable | undefined;
 
   createEffect(() => {
@@ -316,7 +386,10 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
         // OpenTUI 0.6.0 calls the protected `onUpdate` through its native scene
         // update hook with current layout; fail here if that hook goes.
         const hooked = element as unknown as { onUpdate?: (deltaTime: number) => void };
-        if (typeof hooked.onUpdate !== "function") throw new Error("OpenTUI's ScrollBoxRenderable no longer has onUpdate; the timeline cannot anchor its scrolling");
+        if (typeof hooked.onUpdate !== "function")
+          throw new Error(
+            "OpenTUI's ScrollBoxRenderable no longer has onUpdate; the timeline cannot anchor its scrolling",
+          );
         const update = hooked.onUpdate.bind(element);
         const layout = layoutScrollBox(element, rowBoxes);
         hooked.onUpdate = (deltaTime) => {
@@ -332,23 +405,50 @@ export function TimelineView(props: TimelineViewProps): JSX.Element {
       renderBefore={function (this: ScrollBoxRenderable) {
         // The native bar resets its thumb to the full viewport on resize, so
         // re-apply the visible height after layout and before the bar paints.
-        this.verticalScrollBar.slider.viewPortSize = Math.max(1, this.viewport.height - props.overlayHeight - (props.topInset ?? 0));
+        this.verticalScrollBar.slider.viewPortSize = Math.max(
+          1,
+          this.viewport.height - props.overlayHeight - (props.topInset ?? 0),
+        );
       }}
     >
-      {(props.topInset ?? 0) > 0 ? <box id="timeline-top-spacer" height={props.topInset} flexShrink={0} /> : null}
+      {(props.topInset ?? 0) > 0 ? (
+        <box id="timeline-top-spacer" height={props.topInset} flexShrink={0} />
+      ) : null}
       <For each={rows()}>
-        {(row) => row.type === "item"
-          ? <ItemRow row={row} timeline={props.timeline} version={version} register={register} selection={selection} />
-          : <DetailsRow row={row} timeline={props.timeline} version={version} register={register} selection={selection} />}
+        {(row) =>
+          row.type === "item" ? (
+            <ItemRow
+              row={row}
+              timeline={props.timeline}
+              version={version}
+              register={register}
+              selection={selection}
+            />
+          ) : (
+            <DetailsRow
+              row={row}
+              timeline={props.timeline}
+              version={version}
+              register={register}
+              selection={selection}
+            />
+          )
+        }
       </For>
       <For each={props.queued?.steering ?? []}>
-        {(text) => <text fg={palette.warning} paddingX={2} flexShrink={0}>{`steering: ${text}`}</text>}
+        {(text) => (
+          <text fg={palette.warning} paddingX={2} flexShrink={0}>{`steering: ${text}`}</text>
+        )}
       </For>
       <For each={props.queued?.followUp ?? []}>
         {(text) => <text fg={palette.dim} paddingX={2} flexShrink={0}>{`queued: ${text}`}</text>}
       </For>
       {props.overlayHeight + (props.slack ?? 0) > 0 ? (
-        <box id="timeline-spacer" height={props.overlayHeight + (props.slack ?? 0)} flexShrink={0} />
+        <box
+          id="timeline-spacer"
+          height={props.overlayHeight + (props.slack ?? 0)}
+          flexShrink={0}
+        />
       ) : null}
     </scrollbox>
   );

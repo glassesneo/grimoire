@@ -52,7 +52,11 @@ function splitFailure(rest: readonly Content[]): Failure | undefined {
   if (start === -1) return undefined;
   const section = text.slice(start + ERROR_PREFIX.length);
   const split = section.lastIndexOf("\n\n");
-  if (split === -1 || !CALL_SUMMARIES.some((summary) => section.slice(split + 2).startsWith(summary))) return undefined;
+  if (
+    split === -1 ||
+    !CALL_SUMMARIES.some((summary) => section.slice(split + 2).startsWith(summary))
+  )
+    return undefined;
   // pi separates the error from the output with a newline unless the output already ended with one.
   const output = text.slice(0, Math.max(0, start - 1));
   const body: Content[] = rest.slice(0, -1);
@@ -67,18 +71,22 @@ export function codemodeErrorLocation(
 ): ScriptErrorLocation | undefined {
   if (!result.isError) return undefined;
   const [header, ...rest] = result.content;
-  if (header?.type !== "text" || !header.text.startsWith("Script failed\n")) return { kind: "unrecognized" };
+  if (header?.type !== "text" || !header.text.startsWith("Script failed\n"))
+    return { kind: "unrecognized" };
   const failure = splitFailure(rest);
   if (!failure) return { kind: "unrecognized" };
   const { error } = failure;
-  if (NON_SCRIPT_FAILURES.some((prefix) => error.startsWith(prefix))) return { kind: "unlocated", error };
+  if (NON_SCRIPT_FAILURES.some((prefix) => error.startsWith(prefix)))
+    return { kind: "unlocated", error };
 
   for (const frame of error.split("\n").slice(1)) {
     const match = USER_FRAME.exec(frame);
     if (!match) continue;
     const line = Number(match[1]);
     const lines = code.split("\n").length;
-    return line >= 1 && line <= lines ? { kind: "located", line, error } : { kind: "unlocated", error };
+    return line >= 1 && line <= lines
+      ? { kind: "located", line, error }
+      : { kind: "unlocated", error };
   }
   return { kind: "unlocated", error };
 }
@@ -129,31 +137,34 @@ export function codemodeOutput(content: readonly Content[]): CodemodeOutput {
  * line as `key value`. A line with nothing to show stays as it was.
  */
 export function readableOutput(output: string): string {
-  return output.split("\n").map((line) => {
-    if (!/^\s*[[{]/.test(line)) return line;
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch {
-      return line;
-    }
-    const strings: string[] = [];
-    const scalars: string[] = [];
-    const visit = (field: unknown, key: string | undefined) => {
-      if (typeof field === "string") {
-        if (field !== "") strings.push(field.replace(/\n$/, ""));
-      } else if (Array.isArray(field)) {
-        for (const item of field) visit(item, undefined);
-      } else if (field !== null && typeof field === "object") {
-        for (const [name, item] of Object.entries(field)) visit(item, name);
-      } else if (key !== undefined) {
-        scalars.push(`${key} ${String(field)}`);
-      } else {
-        strings.push(String(field));
+  return output
+    .split("\n")
+    .map((line) => {
+      if (!/^\s*[[{]/.test(line)) return line;
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch {
+        return line;
       }
-    };
-    visit(value, undefined);
-    if (scalars.length > 0) strings.push(scalars.join(", "));
-    return strings.length > 0 ? strings.join("\n") : line;
-  }).join("\n");
+      const strings: string[] = [];
+      const scalars: string[] = [];
+      const visit = (field: unknown, key: string | undefined) => {
+        if (typeof field === "string") {
+          if (field !== "") strings.push(field.replace(/\n$/, ""));
+        } else if (Array.isArray(field)) {
+          for (const item of field) visit(item, undefined);
+        } else if (field !== null && typeof field === "object") {
+          for (const [name, item] of Object.entries(field)) visit(item, name);
+        } else if (key !== undefined) {
+          scalars.push(`${key} ${String(field)}`);
+        } else {
+          strings.push(String(field));
+        }
+      };
+      visit(value, undefined);
+      if (scalars.length > 0) strings.push(scalars.join(", "));
+      return strings.length > 0 ? strings.join("\n") : line;
+    })
+    .join("\n");
 }

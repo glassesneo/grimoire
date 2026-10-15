@@ -50,8 +50,11 @@ const defaults = {
 type ActionId = keyof typeof defaults;
 
 function definitions(handlers?: Record<ActionId, Pick<Action, "run" | "when">>): Action[] {
-  return (Object.keys(defaults) as ActionId[]).map(id => ({
-    id, keys: defaults[id], run: () => {}, ...handlers?.[id],
+  return (Object.keys(defaults) as ActionId[]).map((id) => ({
+    id,
+    keys: defaults[id],
+    run: () => {},
+    ...handlers?.[id],
     captureText: id === "stage.command-arguments",
   }));
 }
@@ -63,47 +66,69 @@ export function checkKeymap(keymap: Keymap | undefined): void {
   keys.checkKeymap();
 }
 
-export function setupDefaultActions(ui: QuinUIInstance<unknown>, actions: QuinActions): Registration {
+export function setupDefaultActions(
+  ui: QuinUIInstance<unknown>,
+  actions: QuinActions,
+): Registration {
   const { regions, stage, editor, commands } = ui.controllers;
   const cycle = (delta: number) => {
-    const available = FOCUS_ORDER.filter(region => regions.isAvailable(region));
+    const available = FOCUS_ORDER.filter((region) => regions.isAvailable(region));
     const index = available.indexOf(regions.current());
     const next = available[(index + delta + available.length) % available.length];
     if (next) regions.requestFocus(next);
   };
-  const runStage = (name: string) => { void stage.active()?.runAction(name); };
-  return ui.actions.register(definitions({
-    "global.detach": { run: actions.detach },
-    [INTERRUPT_ACTION]: { run: actions.interrupt },
-    "global.focus-next": { run: () => cycle(1) },
-    "global.focus-previous": { run: () => cycle(-1) },
-    "global.focus-editor": { run: () => regions.requestFocus("editor") },
-    "global.focus-timeline": { run: () => regions.requestFocus("timeline") },
-    "global.focus-stage": { run: () => regions.requestFocus("stage") },
-    "editor.submit": { run: actions.submit },
-    "editor.open-command": { run: actions.openCommand },
-    "editor.command-next": { run: () => commands.move(1, true), when: () => commands.ownsDraft() },
-    "editor.command-previous": { run: () => commands.move(-1, true), when: () => commands.ownsDraft() },
-    "editor.cancel-draft": { run: () => editor.cancelDraft() },
-    "timeline.open-command": { run: actions.openCommand },
-    "timeline.cursor-down": { run: () => actions.timeline.move(1) },
-    "timeline.cursor-up": { run: () => actions.timeline.move(-1) },
-    "timeline.toggle-item": { run: () => actions.timeline.toggle() },
-    "timeline.expand-item": { run: () => actions.timeline.expand() },
-    "timeline.collapse-item": { run: () => actions.timeline.collapse() },
-    "timeline.copy-item": { run: () => { void actions.timeline.copy(); } },
-    "timeline.scroll-page-down": { run: () => actions.timeline.scroll("page-down") },
-    "timeline.scroll-page-up": { run: () => actions.timeline.scroll("page-up") },
-    "timeline.scroll-half-down": { run: () => actions.timeline.scroll("half-down") },
-    "timeline.scroll-half-up": { run: () => actions.timeline.scroll("half-up") },
-    "timeline.focus-editor": { run: () => regions.requestFocus("editor") },
-    "stage.open-command": { run: actions.openCommand },
-    "stage.command-arguments": { run: () => runStage("arguments"), when: () => ["name", "candidates"].includes(commands.value()?.mode ?? "") && stage.active()?.id === commands.id() },
-    "stage.cursor-down": { run: () => runStage("next") },
-    "stage.cursor-up": { run: () => runStage("previous") },
-    "stage.confirm": { run: () => runStage("confirm") },
-    "stage.cancel": { run: () => runStage("cancel") },
-    "stage.next-request": { run: () => stage.moveRequest(1) },
-    "stage.previous-request": { run: () => stage.moveRequest(-1) },
-  }));
+  const runStage = (name: string) => {
+    void stage.active()?.runAction(name);
+  };
+  return ui.actions.register(
+    definitions({
+      "global.detach": { run: actions.detach },
+      [INTERRUPT_ACTION]: { run: actions.interrupt },
+      "global.focus-next": { run: () => cycle(1) },
+      "global.focus-previous": { run: () => cycle(-1) },
+      "global.focus-editor": { run: () => regions.requestFocus("editor") },
+      "global.focus-timeline": { run: () => regions.requestFocus("timeline") },
+      "global.focus-stage": { run: () => regions.requestFocus("stage") },
+      "editor.submit": { run: actions.submit },
+      "editor.open-command": { run: actions.openCommand },
+      "editor.command-next": {
+        run: () => commands.move(1, true),
+        when: () => commands.ownsDraft(),
+      },
+      "editor.command-previous": {
+        run: () => commands.move(-1, true),
+        when: () => commands.ownsDraft(),
+      },
+      "editor.cancel-draft": { run: () => editor.cancelDraft() },
+      "timeline.open-command": { run: actions.openCommand },
+      "timeline.cursor-down": { run: () => actions.timeline.move(1) },
+      "timeline.cursor-up": { run: () => actions.timeline.move(-1) },
+      "timeline.toggle-item": { run: () => actions.timeline.toggle() },
+      "timeline.expand-item": { run: () => actions.timeline.expand() },
+      "timeline.collapse-item": { run: () => actions.timeline.collapse() },
+      "timeline.copy-item": {
+        run: () => {
+          void actions.timeline.copy();
+        },
+      },
+      "timeline.scroll-page-down": { run: () => actions.timeline.scroll("page-down") },
+      "timeline.scroll-page-up": { run: () => actions.timeline.scroll("page-up") },
+      "timeline.scroll-half-down": { run: () => actions.timeline.scroll("half-down") },
+      "timeline.scroll-half-up": { run: () => actions.timeline.scroll("half-up") },
+      "timeline.focus-editor": { run: () => regions.requestFocus("editor") },
+      "stage.open-command": { run: actions.openCommand },
+      "stage.command-arguments": {
+        run: () => runStage("arguments"),
+        when: () =>
+          ["name", "candidates"].includes(commands.value()?.mode ?? "") &&
+          stage.active()?.id === commands.id(),
+      },
+      "stage.cursor-down": { run: () => runStage("next") },
+      "stage.cursor-up": { run: () => runStage("previous") },
+      "stage.confirm": { run: () => runStage("confirm") },
+      "stage.cancel": { run: () => runStage("cancel") },
+      "stage.next-request": { run: () => stage.moveRequest(1) },
+      "stage.previous-request": { run: () => stage.moveRequest(-1) },
+    }),
+  );
 }

@@ -12,7 +12,12 @@
  * A key is a single character or one of the names OpenTUI reports, such as
  * `return`, `escape`, or `space`; a capital letter is `shift+<letter>`.
  */
-import { DuplicateRegistrationError, Emitter, type RegionId, type Registration } from "./controllers";
+import {
+  DuplicateRegistrationError,
+  Emitter,
+  type RegionId,
+  type Registration,
+} from "./controllers";
 
 const GLOBAL_LAYER = "global";
 
@@ -55,13 +60,49 @@ const MODIFIERS = new Set(["ctrl", "shift", "alt"]);
 
 /** The names OpenTUI reports for keys that type no single character. */
 const NAMED_KEYS = new Set([
-  "return", "linefeed", "escape", "tab", "space", "backspace", "delete", "insert", "clear",
-  "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+  "return",
+  "linefeed",
+  "escape",
+  "tab",
+  "space",
+  "backspace",
+  "delete",
+  "insert",
+  "clear",
+  "up",
+  "down",
+  "left",
+  "right",
+  "home",
+  "end",
+  "pageup",
+  "pagedown",
   ...Array.from({ length: 35 }, (_, i) => `f${i + 1}`),
   ...Array.from({ length: 10 }, (_, i) => `kp${i}`),
-  "kpdecimal", "kpdivide", "kpmultiply", "kpminus", "kpplus", "kpenter", "kpequal", "kpseparator",
-  "kpleft", "kpright", "kpup", "kpdown", "kppageup", "kppagedown", "kphome", "kpend", "kpinsert", "kpdelete",
-  "capslock", "scrolllock", "numlock", "printscreen", "pause", "menu",
+  "kpdecimal",
+  "kpdivide",
+  "kpmultiply",
+  "kpminus",
+  "kpplus",
+  "kpenter",
+  "kpequal",
+  "kpseparator",
+  "kpleft",
+  "kpright",
+  "kpup",
+  "kpdown",
+  "kppageup",
+  "kppagedown",
+  "kphome",
+  "kpend",
+  "kpinsert",
+  "kpdelete",
+  "capslock",
+  "scrolllock",
+  "numlock",
+  "printscreen",
+  "pause",
+  "menu",
 ]);
 
 /** `ctrl+shift+f`, `escape`, `kpenter`, `:`, `+`. Modifiers come first; the last part is the key name. */
@@ -73,19 +114,31 @@ export function parseChord(text: string): KeyChord {
   const name = plus && last === "" ? "+" : last;
   if (!name) throw new KeymapError(`invalid key: ${JSON.stringify(text)}`);
   // OpenTUI reports a capital letter as its lowercase name with Shift.
-  if (/^[A-Z]$/.test(name)) throw new KeymapError(`${JSON.stringify(text)} names a capital letter; use shift+${name.toLowerCase()}`);
-  if ([...name].length !== 1 && !NAMED_KEYS.has(name)) throw new KeymapError(`unknown key name ${JSON.stringify(name)} in ${JSON.stringify(text)}`);
+  if (/^[A-Z]$/.test(name))
+    throw new KeymapError(
+      `${JSON.stringify(text)} names a capital letter; use shift+${name.toLowerCase()}`,
+    );
+  if ([...name].length !== 1 && !NAMED_KEYS.has(name))
+    throw new KeymapError(`unknown key name ${JSON.stringify(name)} in ${JSON.stringify(text)}`);
   const chord: KeyChord = { name };
   for (const modifier of parts) {
-    if (!MODIFIERS.has(modifier)) throw new KeymapError(`unknown modifier ${JSON.stringify(modifier)} in ${JSON.stringify(text)}`);
+    if (!MODIFIERS.has(modifier))
+      throw new KeymapError(
+        `unknown modifier ${JSON.stringify(modifier)} in ${JSON.stringify(text)}`,
+      );
     chord[modifier as "ctrl" | "shift" | "alt"] = true;
   }
   return chord;
 }
 
 export function formatChord(chord: KeyChord): string {
-  const label = chord.name.length === 1 ? chord.name.toUpperCase() : chord.name[0]!.toUpperCase() + chord.name.slice(1);
-  return [chord.ctrl && "Ctrl", chord.alt && "Alt", chord.shift && "Shift", label].filter(Boolean).join("+");
+  const label =
+    chord.name.length === 1
+      ? chord.name.toUpperCase()
+      : chord.name[0]!.toUpperCase() + chord.name.slice(1);
+  return [chord.ctrl && "Ctrl", chord.alt && "Alt", chord.shift && "Shift", label]
+    .filter(Boolean)
+    .join("+");
 }
 
 function chordId(chord: KeyChord): string {
@@ -98,14 +151,19 @@ function typesText(chord: KeyChord): boolean {
 }
 
 /** Why a chord cannot be bound in a layer, if it cannot. */
-function unusable(chord: KeyChord, layer: string, textLayers: ReadonlySet<string>): string | undefined {
+function unusable(
+  chord: KeyChord,
+  layer: string,
+  textLayers: ReadonlySet<string>,
+): string | undefined {
   if (typesText(chord) && textLayers.has(layer)) return "types text there, so it could never run";
   return undefined;
 }
 
 function layerOf(actionId: string): string {
   const index = actionId.indexOf(".");
-  if (index < 1 || index === actionId.length - 1) throw new KeymapError(`action id must be <layer>.<name>: ${JSON.stringify(actionId)}`);
+  if (index < 1 || index === actionId.length - 1)
+    throw new KeymapError(`action id must be <layer>.<name>: ${JSON.stringify(actionId)}`);
   return actionId.slice(0, index);
 }
 
@@ -135,14 +193,24 @@ export class KeyBindings extends Emitter {
 
   constructor(options: KeyBindingsOptions = {}) {
     super();
-    if (options.keymap !== undefined && (typeof options.keymap !== "object" || options.keymap === null || Array.isArray(options.keymap))) throw new KeymapError("keymap must be an object of action ids");
+    if (
+      options.keymap !== undefined &&
+      (typeof options.keymap !== "object" ||
+        options.keymap === null ||
+        Array.isArray(options.keymap))
+    )
+      throw new KeymapError("keymap must be an object of action ids");
     this.#keymap = options.keymap ?? {};
     const regions = options.textRegions ?? {};
-    this.#acceptsText = region => { const value = regions[region]; return typeof value === "function" ? value() : value === true; };
-    this.#textLayers = new Set(Object.keys(regions).filter(region => regions[region] === true));
+    this.#acceptsText = (region) => {
+      const value = regions[region];
+      return typeof value === "function" ? value() : value === true;
+    };
+    this.#textLayers = new Set(Object.keys(regions).filter((region) => regions[region] === true));
     for (const [id, chords] of Object.entries(this.#keymap)) {
       layerOf(id);
-      if (!Array.isArray(chords) || !chords.every((chord) => typeof chord === "string")) throw new KeymapError(`keys of ${id} must be a list of strings`);
+      if (!Array.isArray(chords) || !chords.every((chord) => typeof chord === "string"))
+        throw new KeymapError(`keys of ${id} must be a list of strings`);
       chords.forEach(parseChord);
     }
   }
@@ -151,7 +219,8 @@ export class KeyBindings extends Emitter {
     const batch = new Set<string>();
     for (const action of actions) {
       layerOf(action.id);
-      if (batch.has(action.id) || this.#actions.has(action.id)) throw new DuplicateRegistrationError("action", action.id);
+      if (batch.has(action.id) || this.#actions.has(action.id))
+        throw new DuplicateRegistrationError("action", action.id);
       batch.add(action.id);
     }
     const token = {};
@@ -180,7 +249,8 @@ export class KeyBindings extends Emitter {
   /** Reject keymap entries that name no registered action; call once the static contributions are in. */
   checkKeymap(): void {
     const unknown = Object.keys(this.#keymap).filter((id) => !this.#actions.has(id));
-    if (unknown.length > 0) throw new KeymapError(`unknown actions in keymap: ${unknown.join(", ")}`);
+    if (unknown.length > 0)
+      throw new KeymapError(`unknown actions in keymap: ${unknown.join(", ")}`);
   }
 
   /** The chords an action is bound to now, in keymap order. */
@@ -192,13 +262,20 @@ export class KeyBindings extends Emitter {
 
   /** The action bound in the focused region, then the global one. */
   resolve(region: RegionId, key: KeyInput): Action | undefined {
-    const chord: KeyChord = { name: key.name, ctrl: key.ctrl, shift: key.shift, alt: key.alt || key.meta || key.option };
+    const chord: KeyChord = {
+      name: key.name,
+      ctrl: key.ctrl,
+      shift: key.shift,
+      alt: key.alt || key.meta || key.option,
+    };
     const text = typesText(chord) && this.#acceptsText(region);
     const tables = this.#tables ?? new Map();
     const id = chordId(chord);
     const applies = (actionId: string | undefined) => {
       const action = actionId === undefined ? undefined : this.#actions.get(actionId)?.action;
-      return action && (!text || action.captureText) && (action.when?.() ?? true) ? action : undefined;
+      return action && (!text || action.captureText) && (action.when?.() ?? true)
+        ? action
+        : undefined;
     };
     return applies(tables.get(region)?.get(id)) ?? applies(tables.get(GLOBAL_LAYER)?.get(id));
   }
@@ -214,7 +291,10 @@ export class KeyBindings extends Emitter {
         if (reason) throw new KeymapError(`${formatChord(chord)} for ${action.id} ${reason}`);
         const id = chordId(chord);
         const existing = table.get(id);
-        if (existing !== undefined) throw new KeymapError(`${formatChord(chord)} is bound to both ${existing} and ${action.id}`);
+        if (existing !== undefined)
+          throw new KeymapError(
+            `${formatChord(chord)} is bound to both ${existing} and ${action.id}`,
+          );
         table.set(id, action.id);
       }
     }

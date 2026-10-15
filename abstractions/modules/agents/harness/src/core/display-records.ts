@@ -15,7 +15,11 @@
  * session JSONL, so a session grows with them. When that growth is measured
  * to matter, move payloads to external storage referenced from the records.
  */
-import type { AgentSessionEvent, SessionEntry as PiSessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentSessionEvent,
+  SessionEntry as PiSessionEntry,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
 import {
   type CompactionEntry,
   isContentBlock,
@@ -81,32 +85,46 @@ export interface NestedToolRecord extends NestedToolPayload {
 // ---------------------------------------------------------------------------
 
 const isText = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-const isCount = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
 const isOptionalString = (value: unknown) => value === undefined || typeof value === "string";
 
 function isAttempt(value: unknown): value is RetryAttempt {
-  return isRecord(value) && isCount(value.attempt) && isCount(value.maxAttempts) && isCount(value.delayMs) && typeof value.error === "string";
+  return (
+    isRecord(value) &&
+    isCount(value.attempt) &&
+    isCount(value.maxAttempts) &&
+    isCount(value.delayMs) &&
+    typeof value.error === "string"
+  );
 }
 
 function checkPayload(kind: unknown, payload: unknown): string | undefined {
   if (!isRecord(payload)) return "payload is not an object";
   switch (kind) {
     case "nested-tool-result":
-      if (![payload.callId, payload.parentCallId, payload.rootCallId, payload.name].every(isText)) return "nested call ids or name are missing";
+      if (![payload.callId, payload.parentCallId, payload.rootCallId, payload.name].every(isText))
+        return "nested call ids or name are missing";
       if (!isCount(payload.ordinal)) return "nested call ordinal is not a count";
       if (!isResultContent(payload.content)) return "nested call content is malformed";
-      if (payload.state !== "done" && payload.state !== "error" && payload.state !== "unfinished") return "nested call state is unknown";
+      if (payload.state !== "done" && payload.state !== "error" && payload.state !== "unfinished")
+        return "nested call state is unknown";
       if (!isOptionalString(payload.resultEntryId)) return "nested call result entry is malformed";
       return undefined;
     case "retry":
-      if (payload.category !== "response" && payload.category !== "summary") return "retry category is unknown";
-      if (payload.state !== "succeeded" && payload.state !== "failed" && payload.state !== "ended") return "retry state is unknown";
-      if (!Array.isArray(payload.attempts) || !payload.attempts.every(isAttempt)) return "retry attempts are malformed";
+      if (payload.category !== "response" && payload.category !== "summary")
+        return "retry category is unknown";
+      if (payload.state !== "succeeded" && payload.state !== "failed" && payload.state !== "ended")
+        return "retry state is unknown";
+      if (!Array.isArray(payload.attempts) || !payload.attempts.every(isAttempt))
+        return "retry attempts are malformed";
       if (!isOptionalString(payload.finalError)) return "retry error is malformed";
       return undefined;
     case "compaction-status":
-      if (payload.state !== "failed" && payload.state !== "aborted") return "compaction state is unknown";
-      if (!isOptionalString(payload.reason) || !isOptionalString(payload.errorMessage)) return "compaction fields are malformed";
+      if (payload.state !== "failed" && payload.state !== "aborted")
+        return "compaction state is unknown";
+      if (!isOptionalString(payload.reason) || !isOptionalString(payload.errorMessage))
+        return "compaction fields are malformed";
       return undefined;
     default:
       return `kind ${JSON.stringify(kind)} is not supported`;
@@ -114,9 +132,12 @@ function checkPayload(kind: unknown, payload: unknown): string | undefined {
 }
 
 /** Checks a record's shape; the result names what is wrong. Unknown versions are not interpreted. */
-export function parseDisplayRecord(data: unknown): { record: DisplayRecordData } | { error: string } {
+export function parseDisplayRecord(
+  data: unknown,
+): { record: DisplayRecordData } | { error: string } {
   if (!isRecord(data)) return { error: "record is not an object" };
-  if (data.version !== 1) return { error: `version ${JSON.stringify(data.version)} is not supported` };
+  if (data.version !== 1)
+    return { error: `version ${JSON.stringify(data.version)} is not supported` };
   if (!isText(data.recordId)) return { error: "record id is missing" };
   if (!isCount(data.revision)) return { error: "revision is not a count" };
   if (!isText(data.originEntryId)) return { error: "origin entry is missing" };
@@ -143,15 +164,26 @@ function operationEntry(record: DisplayRecordData): SessionEntry {
   if (record.kind === "retry") {
     const payload = record.payload as RetryPayload;
     const entry: RetryEntry = {
-      kind: "retry", id, version: record.revision, category: payload.category, state: payload.state,
-      attempts: payload.attempts, finalError: payload.finalError,
+      kind: "retry",
+      id,
+      version: record.revision,
+      category: payload.category,
+      state: payload.state,
+      attempts: payload.attempts,
+      finalError: payload.finalError,
     };
     return entry;
   }
   const payload = record.payload as CompactionPayload;
   const entry: CompactionEntry = {
-    kind: "compaction", id, version: record.revision, state: payload.state, reason: payload.reason,
-    summary: undefined, tokensBefore: undefined, errorMessage: payload.errorMessage,
+    kind: "compaction",
+    id,
+    version: record.revision,
+    state: payload.state,
+    reason: payload.reason,
+    summary: undefined,
+    tokensBefore: undefined,
+    errorMessage: payload.errorMessage,
   };
   return entry;
 }
@@ -201,10 +233,18 @@ export function readDisplayRecords(
       operations.set(record.originEntryId, list);
     }
   }
-  const diagnostics: NoticeEntry[] = problems.length === 0 ? [] : [{
-    kind: "notice", id: "display-records:diagnostics", version: 0, level: "warning",
-    text: `${problems.length} display record${problems.length === 1 ? "" : "s"} could not be used, so some details are unavailable: ${[...new Set(problems)].join("; ")}`,
-  }];
+  const diagnostics: NoticeEntry[] =
+    problems.length === 0
+      ? []
+      : [
+          {
+            kind: "notice",
+            id: "display-records:diagnostics",
+            version: 0,
+            level: "warning",
+            text: `${problems.length} display record${problems.length === 1 ? "" : "s"} could not be used, so some details are unavailable: ${[...new Set(problems)].join("; ")}`,
+          },
+        ];
   return {
     nested: (origin, root) => nested.get(`${origin}\u0000${root}`) ?? [],
     operationsAfter: (entryId) => operations.get(entryId) ?? [],
@@ -232,7 +272,10 @@ function resultParts(result: unknown): { content: ResultContent; details: unknow
     const content = Array.isArray(result.content) ? result.content.filter(isContentBlock) : [];
     return { content, details: result.details };
   }
-  return { content: typeof result === "string" ? [{ type: "text", text: result }] : [], details: undefined };
+  return {
+    content: typeof result === "string" ? [{ type: "text", text: result }] : [],
+    details: undefined,
+  };
 }
 
 interface CapturedCall {
@@ -259,7 +302,10 @@ interface CapturedOperation {
 }
 
 export interface DisplayRecorderSession {
-  readonly sessionManager: Pick<SessionManager, "getLeafId" | "getBranch" | "appendCustomEntry" | "branch" | "resetLeaf">;
+  readonly sessionManager: Pick<
+    SessionManager,
+    "getLeafId" | "getBranch" | "appendCustomEntry" | "branch" | "resetLeaf"
+  >;
 }
 
 export interface DisplayRecorderOptions {
@@ -326,14 +372,23 @@ export class DisplayRecorder {
         }
         const scope = this.#scopeOf.get(event.parentToolCallId) ?? this.#responses.length - 1;
         const key = `${scope}:${event.toolCallId}`;
-        const root = this.#rootOf.get(`${scope}:${event.parentToolCallId}`) ?? event.parentToolCallId;
+        const root =
+          this.#rootOf.get(`${scope}:${event.parentToolCallId}`) ?? event.parentToolCallId;
         this.#scopeOf.set(event.toolCallId, scope);
         this.#rootOf.set(key, root);
         const ordinal = this.#ordinals.get(`${scope}:${root}`) ?? 0;
         this.#ordinals.set(`${scope}:${root}`, ordinal + 1);
         this.#calls.set(key, {
-          scope, root, callId: event.toolCallId, parentCallId: event.parentToolCallId, name: event.toolName,
-          ordinal, args: event.args, content: [], details: undefined, state: "unfinished",
+          scope,
+          root,
+          callId: event.toolCallId,
+          parentCallId: event.parentToolCallId,
+          name: event.toolName,
+          ordinal,
+          args: event.args,
+          content: [],
+          details: undefined,
+          state: "unfinished",
         });
         return;
       }
@@ -344,27 +399,42 @@ export class DisplayRecorder {
       }
       case "tool_execution_end": {
         const call = this.#nested(event.toolCallId, event.parentToolCallId);
-        if (call) Object.assign(call, resultParts(event.result), { state: event.isError ? "error" : "done" });
+        if (call)
+          Object.assign(call, resultParts(event.result), {
+            state: event.isError ? "error" : "done",
+          });
         return;
       }
       case "auto_retry_start":
       case "summarization_retry_scheduled": {
         const category: RetryCategory = event.type === "auto_retry_start" ? "response" : "summary";
-        let operation = this.#openOperation("retry", (payload) => (payload as RetryPayload).category === category);
+        let operation = this.#openOperation(
+          "retry",
+          (payload) => (payload as RetryPayload).category === category,
+        );
         if (!operation) {
           operation = {
-            recordId: newRecordId("retry"), originEntryId: this.#session.sessionManager.getLeafId(),
-            kind: "retry", payload: { category, state: "ended", attempts: [] }, open: true,
+            recordId: newRecordId("retry"),
+            originEntryId: this.#session.sessionManager.getLeafId(),
+            kind: "retry",
+            payload: { category, state: "ended", attempts: [] },
+            open: true,
           };
           this.#operations.push(operation);
         }
         (operation.payload as RetryPayload).attempts.push({
-          attempt: event.attempt, maxAttempts: event.maxAttempts, delayMs: event.delayMs, error: event.errorMessage,
+          attempt: event.attempt,
+          maxAttempts: event.maxAttempts,
+          delayMs: event.delayMs,
+          error: event.errorMessage,
         });
         return;
       }
       case "auto_retry_end": {
-        const operation = this.#openOperation("retry", (payload) => (payload as RetryPayload).category === "response");
+        const operation = this.#openOperation(
+          "retry",
+          (payload) => (payload as RetryPayload).category === "response",
+        );
         if (!operation) return;
         const payload = operation.payload as RetryPayload;
         payload.state = event.success ? "succeeded" : "failed";
@@ -373,14 +443,20 @@ export class DisplayRecorder {
         return;
       }
       case "summarization_retry_finished": {
-        const operation = this.#openOperation("retry", (payload) => (payload as RetryPayload).category === "summary");
+        const operation = this.#openOperation(
+          "retry",
+          (payload) => (payload as RetryPayload).category === "summary",
+        );
         if (operation) operation.open = false;
         return;
       }
       case "compaction_start":
         this.#operations.push({
-          recordId: newRecordId("compaction"), originEntryId: this.#session.sessionManager.getLeafId(),
-          kind: "compaction-status", payload: undefined, open: true,
+          recordId: newRecordId("compaction"),
+          originEntryId: this.#session.sessionManager.getLeafId(),
+          kind: "compaction-status",
+          payload: undefined,
+          open: true,
         });
         return;
       case "compaction_end": {
@@ -402,8 +478,13 @@ export class DisplayRecorder {
     }
   }
 
-  #openOperation(kind: CapturedOperation["kind"], matches: (payload: CapturedOperation["payload"]) => boolean): CapturedOperation | undefined {
-    return this.#operations.findLast((operation) => operation.open && operation.kind === kind && matches(operation.payload));
+  #openOperation(
+    kind: CapturedOperation["kind"],
+    matches: (payload: CapturedOperation["payload"]) => boolean,
+  ): CapturedOperation | undefined {
+    return this.#operations.findLast(
+      (operation) => operation.open && operation.kind === kind && matches(operation.payload),
+    );
   }
 
   #resetCalls(): void {
@@ -444,32 +525,55 @@ export class DisplayRecorder {
     }
     const issues = (index: number, root: string) => {
       const entry = branch[index];
-      return entry?.type === "message" && entry.message.role === "assistant" &&
-        entry.message.content.some((block) => block.type === "toolCall" && block.id === root);
+      return (
+        entry?.type === "message" &&
+        entry.message.role === "assistant" &&
+        entry.message.content.some((block) => block.type === "toolCall" && block.id === root)
+      );
     };
     let dropped = 0;
     for (const calls of byRoot.values()) {
       const { scope, root } = calls[0]!;
       // A scope names one response even when call ids repeat; without it, the last issuer.
       const message = this.#responses[scope];
-      const scoped = message === undefined ? -1 : branch.findIndex((entry) => entry.type === "message" && entry.message === message);
-      const originIndex = scoped !== -1 && issues(scoped, root) ? scoped : branch.findLastIndex((_, index) => issues(index, root));
+      const scoped =
+        message === undefined
+          ? -1
+          : branch.findIndex((entry) => entry.type === "message" && entry.message === message);
+      const originIndex =
+        scoped !== -1 && issues(scoped, root)
+          ? scoped
+          : branch.findLastIndex((_, index) => issues(index, root));
       if (originIndex === -1) {
         dropped += calls.length;
         continue;
       }
       const origin = branch[originIndex]!;
-      const resultEntry = branch.slice(originIndex + 1).find((entry) =>
-        entry.type === "message" && entry.message.role === "toolResult" && entry.message.toolCallId === root);
+      const resultEntry = branch
+        .slice(originIndex + 1)
+        .find(
+          (entry) =>
+            entry.type === "message" &&
+            entry.message.role === "toolResult" &&
+            entry.message.toolCallId === root,
+        );
       for (const call of calls) {
         const args = asJson(call.args);
         const details = asJson(call.details);
         records.push({
-          version: 1, recordId: `${origin.id}:${call.callId}`, revision: 0, originEntryId: origin.id,
+          version: 1,
+          recordId: `${origin.id}:${call.callId}`,
+          revision: 0,
+          originEntryId: origin.id,
           kind: "nested-tool-result",
           payload: {
-            callId: call.callId, parentCallId: call.parentCallId, rootCallId: root, name: call.name,
-            ordinal: call.ordinal, content: call.content, state: call.state,
+            callId: call.callId,
+            parentCallId: call.parentCallId,
+            rootCallId: root,
+            name: call.name,
+            ordinal: call.ordinal,
+            content: call.content,
+            state: call.state,
             ...(args ? { args: args.value } : {}),
             ...(details && details.value !== undefined ? { details: details.value } : {}),
             ...(resultEntry ? { resultEntryId: resultEntry.id } : {}),
@@ -479,7 +583,10 @@ export class DisplayRecorder {
     }
     this.#resetCalls();
     if (dropped > 0) {
-      this.#options.notify("warning", `Results of ${dropped} nested tool call${dropped === 1 ? "" : "s"} were not saved: the call that made them is not on the current branch`);
+      this.#options.notify(
+        "warning",
+        `Results of ${dropped} nested tool call${dropped === 1 ? "" : "s"} were not saved: the call that made them is not on the current branch`,
+      );
     }
 
     const branchIds = new Set(branch.map((entry) => entry.id));
@@ -494,14 +601,25 @@ export class DisplayRecorder {
         continue;
       }
       records.push({
-        version: 1, recordId: operation.recordId, revision: 0, originEntryId: origin,
-        kind: operation.kind, payload: operation.payload,
+        version: 1,
+        recordId: operation.recordId,
+        revision: 0,
+        originEntryId: origin,
+        kind: operation.kind,
+        payload: operation.payload,
       });
     }
     if (orphans > 0) {
-      this.#options.notify("warning", `${orphans} retry or compaction record${orphans === 1 ? " was" : "s were"} not saved: ${orphans === 1 ? "it began" : "they began"} on another branch`);
+      this.#options.notify(
+        "warning",
+        `${orphans} retry or compaction record${orphans === 1 ? " was" : "s were"} not saved: ${orphans === 1 ? "it began" : "they began"} on another branch`,
+      );
     }
-    this.#operations.splice(0, this.#operations.length, ...this.#operations.filter((operation) => operation.open));
+    this.#operations.splice(
+      0,
+      this.#operations.length,
+      ...this.#operations.filter((operation) => operation.open),
+    );
 
     for (const record of records) {
       if (!this.#append(record)) return;
@@ -518,7 +636,10 @@ export class DisplayRecorder {
       if ("error" in checked) throw new Error(checked.error);
       data = JSON.parse(JSON.stringify(record));
     } catch (error) {
-      this.#options.notify("warning", `A display record was not saved: ${error instanceof Error ? error.message : String(error)}`);
+      this.#options.notify(
+        "warning",
+        `A display record was not saved: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return true;
     }
     // pi updates its in-memory tree and leaf before writing the file, so a

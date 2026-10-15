@@ -68,18 +68,26 @@ function substituteTools(session: AgentSession, results: Record<string, ToolResu
   type Tool = (typeof session.agent.state.tools)[number];
   const state = session.agent.state;
   const descriptor = Object.getOwnPropertyDescriptor(state, "tools");
-  if (!descriptor?.get || !descriptor.set) throw new Error("pi's agent state no longer exposes a tools accessor");
+  if (!descriptor?.get || !descriptor.set)
+    throw new Error("pi's agent state no longer exposes a tools accessor");
   const { get, set } = descriptor;
   const wrap = (tools: Tool[]): Tool[] =>
-    tools.map((tool) => ({
-      ...tool,
-      execute: async (toolCallId: string) => {
-        const result = results[toolCallId];
-        if (!result) throw new Error(`No result is given for tool call ${toolCallId} (${tool.name})`);
-        if (result.isError) throw new Error(result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n"));
-        return { content: result.content, details: result.details ?? {} };
-      },
-    }) as Tool);
+    tools.map(
+      (tool) =>
+        ({
+          ...tool,
+          execute: async (toolCallId: string) => {
+            const result = results[toolCallId];
+            if (!result)
+              throw new Error(`No result is given for tool call ${toolCallId} (${tool.name})`);
+            if (result.isError)
+              throw new Error(
+                result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n"),
+              );
+            return { content: result.content, details: result.details ?? {} };
+          },
+        }) as Tool,
+    );
   Object.defineProperty(state, "tools", {
     configurable: true,
     enumerable: true,

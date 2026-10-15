@@ -27,14 +27,21 @@ const noteType: ItemType<{ text: string }, string> = {
   render: ({ value }) => value.text,
   sourceText: (value) => value.text,
   actions: {},
-  validate: (value): value is { text: string } => typeof (value as { text?: unknown })?.text === "string",
+  validate: (value): value is { text: string } =>
+    typeof (value as { text?: unknown })?.text === "string",
 };
-const privateType: ItemType<string, string> = { kind: "private", render: (props) => props.value, sourceText: (value) => value, actions: {} };
+const privateType: ItemType<string, string> = {
+  kind: "private",
+  render: (props) => props.value,
+  sourceText: (value) => value,
+  actions: {},
+};
 const askType: StageContentType<{ question: string }, string> = {
   kind: "ask",
   defaultValue: { question: "" },
   render: ({ value }) => value.question,
-  validate: (value): value is { question: string } => typeof (value as { question?: unknown })?.question === "string",
+  validate: (value): value is { question: string } =>
+    typeof (value as { question?: unknown })?.question === "string",
 };
 
 function controllers() {
@@ -48,7 +55,14 @@ function controllers() {
     validate: (value): value is number => typeof value === "number",
   });
   const { timeline, items, bindings, stage, statusline, regions } = ui.controllers;
-  return { ui, timeline, stage, statusline, regions, host: createClientHost({ timeline, items, bindings, stage, statusline }) };
+  return {
+    ui,
+    timeline,
+    stage,
+    statusline,
+    regions,
+    host: createClientHost({ timeline, items, bindings, stage, statusline }),
+  };
 }
 
 describe("client operations", () => {
@@ -71,7 +85,9 @@ describe("client operations", () => {
     host.retire();
     expect(timeline.find(other.id)).toBeUndefined();
     expect(() => other.update({ text: "late" })).toThrow(StaleClientError);
-    expect(() => client.timeline.append({ kind: "note", value: { text: "late" } })).toThrow(StaleClientError);
+    expect(() => client.timeline.append({ kind: "note", value: { text: "late" } })).toThrow(
+      StaleClientError,
+    );
     other.dispose();
   });
 
@@ -109,7 +125,9 @@ describe("client operations", () => {
   test("a stage request names a compiled kind, takes focus, and is cancelled with its generation", async () => {
     const { stage, regions, host } = controllers();
     const client = host.prepare();
-    expect(() => client.stage.show({ kind: "ask", value: {}, preferredHeight: 2 })).toThrow(TypeError);
+    expect(() => client.stage.show({ kind: "ask", value: {}, preferredHeight: 2 })).toThrow(
+      TypeError,
+    );
     const handle = client.stage.show({ kind: "ask", value: { question: "?" }, preferredHeight: 2 });
     expect(stage.active()?.requester).toBe("extension");
     expect(regions.current()).toBe("stage");
@@ -129,27 +147,42 @@ test("extensions receive the client through pi, keep it across reload as a new g
   const cwd = await mkdtemp(join(tmpdir(), "harness-client-"));
   directories.push(cwd);
   const recorder = join(cwd, "recorder.js");
-  await writeFile(recorder, `
+  await writeFile(
+    recorder,
+    `
     export default function (pi) {
       pi.on("session_start", (_event, ctx) => { (globalThis.__harnessClients ??= []).push(ctx.ui.harness); });
     }
-  `);
+  `,
+  );
   const { customization } = createFauxSession({
     tokensPerSecond: 40,
     responses: [
-      fauxAssistantMessage([fauxToolCall("example_shell", { command: "ls -la" }, { id: "shell-1" })], { stopReason: "toolUse" }),
+      fauxAssistantMessage(
+        [fauxToolCall("example_shell", { command: "ls -la" }, { id: "shell-1" })],
+        { stopReason: "toolUse" },
+      ),
       fauxAssistantMessage("finished ".repeat(12)),
     ],
   });
   const host = await createSessionHost({
     cwd,
     agentDir: join(cwd, "agent"),
-    settingsManager: SettingsManager.inMemory({ extensions: [resolve(import.meta.dir, "../contributions/harness-client-example.ts"), recorder] }),
+    settingsManager: SettingsManager.inMemory({
+      extensions: [
+        resolve(import.meta.dir, "../contributions/harness-client-example.ts"),
+        recorder,
+      ],
+    }),
     sessionManager: SessionManager.inMemory(cwd),
     customization,
   });
-  const clients = () => (globalThis as { __harnessClients?: HarnessUIClient[] }).__harnessClients ?? [];
-  const setup = await testRender(() => <Screen host={host} startupNotices={[]} />, { width: 100, height: 30 });
+  const clients = () =>
+    (globalThis as { __harnessClients?: HarnessUIClient[] }).__harnessClients ?? [];
+  const setup = await testRender(() => <Screen host={host} startupNotices={[]} />, {
+    width: 100,
+    height: 30,
+  });
   const frames = async (count = 3) => {
     for (let frame = 0; frame < count; frame++) {
       await Bun.sleep(20);
@@ -168,7 +201,12 @@ test("extensions receive the client through pi, keep it across reload as a new g
     expect(setup.captureCharFrame()).toContain("faux/faux");
 
     let settled = false;
-    const run = host.runtime.session.prompt("go").then(() => host.runtime.session.waitForIdle()).then(() => { settled = true; });
+    const run = host.runtime.session
+      .prompt("go")
+      .then(() => host.runtime.session.waitForIdle())
+      .then(() => {
+        settled = true;
+      });
     // The indicator shows while the run streams, without taking focus.
     let sawIndicator = false;
     for (let frame = 0; frame < 150 && !settled; frame++) {
@@ -190,7 +228,9 @@ test("extensions receive the client through pi, keep it across reload as a new g
     const second = clients()[1]!;
     expect(second).not.toBe(first);
     verifyClientCopy(host.runtime.session, second);
-    expect(() => first.statusline.setText({ position: "bottom", key: "late", text: "late" })).toThrow(StaleClientError);
+    expect(() =>
+      first.statusline.setText({ position: "bottom", key: "late", text: "late" }),
+    ).toThrow(StaleClientError);
     // The old generation's segment is gone and the new one's is shown once.
     expect(setup.captureCharFrame().match(/example: idle/g)).toHaveLength(1);
   } finally {
@@ -203,7 +243,12 @@ test("extensions receive the client through pi, keep it across reload as a new g
 test("a status line keeps the model and context first when narrow", () => {
   const ui = createHarnessUI<JSX.Element>();
   const { statusline } = ui.controllers;
-  statusline.setFields({ model: "provider/model", thinking: "thinking high", context: "ctx 12% of 200k", totals: "↑1k ↓2k $0.010" });
+  statusline.setFields({
+    model: "provider/model",
+    thinking: "thinking high",
+    context: "ctx 12% of 200k",
+    totals: "↑1k ↓2k $0.010",
+  });
   statusline.contribute("bottom", { text: "extension status" });
   const segments = statuslineSegments(statusline, "bottom");
   const narrow = (width: number) => segmentsText(segments, width);
@@ -213,5 +258,7 @@ test("a status line keeps the model and context first when narrow", () => {
 });
 
 function segmentsText(segments: LineSegment[], width: number): string {
-  return composeLine(segments, width).map((segment) => segment.text).join(" · ");
+  return composeLine(segments, width)
+    .map((segment) => segment.text)
+    .join(" · ");
 }

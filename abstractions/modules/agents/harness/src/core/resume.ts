@@ -9,7 +9,10 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
  * user confirms, so its history continues where the harness now runs.
  * Returns undefined when nothing matches or the user declines.
  */
-export async function openSession(argument: string, cwd: string): Promise<SessionManager | undefined> {
+export async function openSession(
+  argument: string,
+  cwd: string,
+): Promise<SessionManager | undefined> {
   if (argument.includes("/") || argument.endsWith(".jsonl")) {
     const path = resolve(cwd, argument);
     if (!existsSync(path)) {
@@ -20,11 +23,15 @@ export async function openSession(argument: string, cwd: string): Promise<Sessio
   }
 
   const local = await SessionManager.list(cwd);
-  const localMatch = local.find((session) => session.id === argument) ?? local.find((session) => session.id.startsWith(argument));
+  const localMatch =
+    local.find((session) => session.id === argument) ??
+    local.find((session) => session.id.startsWith(argument));
   if (localMatch) return SessionManager.open(localMatch.path);
 
   const all = await SessionManager.listAll();
-  const match = all.find((session) => session.id === argument) ?? all.find((session) => session.id.startsWith(argument));
+  const match =
+    all.find((session) => session.id === argument) ??
+    all.find((session) => session.id.startsWith(argument));
   if (!match) {
     console.error(`No session found matching '${argument}'`);
     return undefined;

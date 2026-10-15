@@ -16,6 +16,9 @@ test("streamed fences match complete parsing at every prefix and after replaceme
       const prefix = source.slice(0, end);
       expect(stream.split(prefix)).toEqual(splitFencedBlocks(prefix, { openFences: true }));
     }
-    for (const replacement of sources) expect(stream.split(replacement)).toEqual(splitFencedBlocks(replacement, { openFences: true }));
+    for (const replacement of sources)
+      expect(stream.split(replacement)).toEqual(
+        splitFencedBlocks(replacement, { openFences: true }),
+      );
   }
 });

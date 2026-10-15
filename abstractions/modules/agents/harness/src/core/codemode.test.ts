@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AgentSession, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  type AgentSession,
+  SessionManager,
+  SettingsManager,
+} from "@earendil-works/pi-coding-agent";
 import { createSessionHost } from "./session";
 
 // The host owns extension wiring across runtime replacement. Builds cannot catch

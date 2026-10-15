@@ -74,19 +74,39 @@ function frameDriver(): (ms: number) => void {
 }
 
 const event = (value: unknown) => value as TimelineEvent;
-const assistant = (content: unknown[], stopReason = "stop") => ({ role: "assistant", content, stopReason });
+const assistant = (content: unknown[], stopReason = "stop") => ({
+  role: "assistant",
+  content,
+  stopReason,
+});
 function run(...events: unknown[]): TimelineState {
-  return events.reduce<TimelineState>((state, next) => reduceTimeline(state, event(next)), timelineState([]));
+  return events.reduce<TimelineState>(
+    (state, next) => reduceTimeline(state, event(next)),
+    timelineState([]),
+  );
 }
 
 function projectionFixture() {
   const timeline = new ItemTypeRegistry<JSX.Element>();
   const types = createTimelineTypes();
-  for (const type of Object.values(types)) timeline.registerType(type as ItemType<unknown, JSX.Element>);
+  for (const type of Object.values(types))
+    timeline.registerType(type as ItemType<unknown, JSX.Element>);
   const bindings = new TimelineBindings();
   const diagnostics: string[] = [];
-  const projector = new TimelineProjector({ types, registry: timeline, bindings, diagnose: (message) => diagnostics.push(message) });
-  return { timeline, types, bindings, projector, diagnostics, project: (entries: readonly SessionEntry[]) => projector.project(entries) };
+  const projector = new TimelineProjector({
+    types,
+    registry: timeline,
+    bindings,
+    diagnose: (message) => diagnostics.push(message),
+  });
+  return {
+    timeline,
+    types,
+    bindings,
+    projector,
+    diagnostics,
+    project: (entries: readonly SessionEntry[]) => projector.project(entries),
+  };
 }
 
 describe("live reducer", () => {
@@ -96,13 +116,28 @@ describe("live reducer", () => {
       { type: "message_update", message: assistant([{ type: "text", text: "first" }]) },
     );
     const id = state.entries[0]!.id;
-    state = reduceTimeline(state, event({ type: "message_update", message: assistant([{ type: "text", text: "first second" }]) }));
+    state = reduceTimeline(
+      state,
+      event({
+        type: "message_update",
+        message: assistant([{ type: "text", text: "first second" }]),
+      }),
+    );
     expect(state.entries[0]!.id).toBe(id);
     expect(state.entries[0]!.version).toBe(1);
-    state = reduceTimeline(state, event({
-      type: "message_end",
-      message: assistant([{ type: "text", text: "first second" }, { type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } }], "toolUse"),
-    }));
+    state = reduceTimeline(
+      state,
+      event({
+        type: "message_end",
+        message: assistant(
+          [
+            { type: "text", text: "first second" },
+            { type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } },
+          ],
+          "toolUse",
+        ),
+      }),
+    );
     expect(state.entries.map((entry) => entry.kind)).toEqual(["assistant", "tool"]);
     expect(state.entries[0]!.id).toBe(id);
   });
@@ -110,31 +145,79 @@ describe("live reducer", () => {
   test("a tool-only reply is no response item, and a failed reply keeps its error", () => {
     const toolOnly = run(
       { type: "message_start", message: assistant([]) },
-      { type: "message_end", message: assistant([{ type: "toolCall", id: "t1", name: "bash", arguments: {} }], "toolUse") },
+      {
+        type: "message_end",
+        message: assistant(
+          [{ type: "toolCall", id: "t1", name: "bash", arguments: {} }],
+          "toolUse",
+        ),
+      },
     );
     expect(toolOnly.entries.map((entry) => entry.kind)).toEqual(["tool"]);
     const failed = run(
       { type: "message_start", message: assistant([]) },
       { type: "message_end", message: { ...assistant([], "error"), errorMessage: "overloaded" } },
     );
-    expect(failed.entries).toMatchObject([{ kind: "assistant", stopReason: "error", errorMessage: "overloaded" }]);
+    expect(failed.entries).toMatchObject([
+      { kind: "assistant", stopReason: "error", errorMessage: "overloaded" },
+    ]);
   });
 
   test("nested calls follow their parent in start order, keep results, and settle as unfinished", () => {
     const state = run(
       { type: "message_start", message: assistant([]) },
-      { type: "message_end", message: assistant([{ type: "toolCall", id: "c", name: "codemode", arguments: { code: "x" } }], "toolUse") },
+      {
+        type: "message_end",
+        message: assistant(
+          [{ type: "toolCall", id: "c", name: "codemode", arguments: { code: "x" } }],
+          "toolUse",
+        ),
+      },
       { type: "tool_execution_start", toolCallId: "c", toolName: "codemode", args: { code: "x" } },
-      { type: "tool_execution_start", toolCallId: "c/1", toolName: "probe", args: { n: 1 }, parentToolCallId: "c" },
-      { type: "tool_execution_start", toolCallId: "c/2", toolName: "probe", args: { n: 2 }, parentToolCallId: "c" },
-      { type: "tool_execution_end", toolCallId: "c/2", toolName: "probe", result: { content: [{ type: "text", text: "two" }] }, isError: false, parentToolCallId: "c" },
-      { type: "tool_execution_update", toolCallId: "c/1", toolName: "probe", args: {}, partialResult: { content: [{ type: "text", text: "partial" }] }, parentToolCallId: "c" },
+      {
+        type: "tool_execution_start",
+        toolCallId: "c/1",
+        toolName: "probe",
+        args: { n: 1 },
+        parentToolCallId: "c",
+      },
+      {
+        type: "tool_execution_start",
+        toolCallId: "c/2",
+        toolName: "probe",
+        args: { n: 2 },
+        parentToolCallId: "c",
+      },
+      {
+        type: "tool_execution_end",
+        toolCallId: "c/2",
+        toolName: "probe",
+        result: { content: [{ type: "text", text: "two" }] },
+        isError: false,
+        parentToolCallId: "c",
+      },
+      {
+        type: "tool_execution_update",
+        toolCallId: "c/1",
+        toolName: "probe",
+        args: {},
+        partialResult: { content: [{ type: "text", text: "partial" }] },
+        parentToolCallId: "c",
+      },
       { type: "agent_settled" },
     );
     const tools = state.entries.filter((entry) => entry.kind === "tool");
     expect(tools.map((tool) => tool.callId)).toEqual(["c", "c/1", "c/2"]);
-    expect(tools[1]).toMatchObject({ parentId: tools[0]!.id, state: "unfinished", result: { partial: true } });
-    expect(tools[2]).toMatchObject({ parentId: tools[0]!.id, state: "done", result: { content: [{ type: "text", text: "two" }] } });
+    expect(tools[1]).toMatchObject({
+      parentId: tools[0]!.id,
+      state: "unfinished",
+      result: { partial: true },
+    });
+    expect(tools[2]).toMatchObject({
+      parentId: tools[0]!.id,
+      state: "done",
+      result: { content: [{ type: "text", text: "two" }] },
+    });
     expect(tools[0]!.state).toBe("unfinished");
   });
 
@@ -142,16 +225,37 @@ describe("live reducer", () => {
     const state = run(
       { type: "auto_retry_start", attempt: 1, maxAttempts: 3, delayMs: 100, errorMessage: "busy" },
       { type: "agent_start" },
-      { type: "auto_retry_start", attempt: 2, maxAttempts: 3, delayMs: 200, errorMessage: "busy again" },
+      {
+        type: "auto_retry_start",
+        attempt: 2,
+        maxAttempts: 3,
+        delayMs: 200,
+        errorMessage: "busy again",
+      },
       { type: "auto_retry_end", success: true, attempt: 2 },
       { type: "compaction_start", reason: "manual" },
-      { type: "compaction_end", reason: "manual", result: undefined, aborted: false, willRetry: false, errorMessage: "no model" },
+      {
+        type: "compaction_end",
+        reason: "manual",
+        result: undefined,
+        aborted: false,
+        willRetry: false,
+        errorMessage: "no model",
+      },
       { type: "thinking_level_changed", level: "high" },
       { type: "thinking_level_changed", level: "low" },
       { type: "model_changed", previous: "a/one", model: "b/two" },
     );
-    expect(state.entries.map((entry) => entry.kind)).toEqual(["retry", "compaction", "config", "config"]);
-    expect(state.entries[0]).toMatchObject({ state: "succeeded", attempts: [{ error: "busy" }, { error: "busy again" }] });
+    expect(state.entries.map((entry) => entry.kind)).toEqual([
+      "retry",
+      "compaction",
+      "config",
+      "config",
+    ]);
+    expect(state.entries[0]).toMatchObject({
+      state: "succeeded",
+      attempts: [{ error: "busy" }, { error: "busy again" }],
+    });
     expect(state.entries[1]).toMatchObject({ state: "failed", errorMessage: "no model" });
     // The first thinking level seen is the initial configuration, not a change.
     expect(state.entries[2]).toMatchObject({ setting: "thinking", from: "high", to: "low" });
@@ -163,13 +267,20 @@ describe("splitFencedBlocks", () => {
   test("keeps a backtick block raw, with its language and body separate", () => {
     expect(splitFencedBlocks("before\n```ts\nconst x = 1;\n```\nafter")).toEqual([
       { type: "text", text: "before" },
-      { type: "code", language: "ts", body: "const x = 1;", sourceText: "```ts\nconst x = 1;\n```" },
+      {
+        type: "code",
+        language: "ts",
+        body: "const x = 1;",
+        sourceText: "```ts\nconst x = 1;\n```",
+      },
       { type: "text", text: "after" },
     ]);
   });
 
   test("accepts tilde fences; an unclosed fence is text unless open fences are blocks", () => {
-    expect(splitFencedBlocks("~~~\nbody\n~~~")).toEqual([{ type: "code", language: "", body: "body", sourceText: "~~~\nbody\n~~~" }]);
+    expect(splitFencedBlocks("~~~\nbody\n~~~")).toEqual([
+      { type: "code", language: "", body: "body", sourceText: "~~~\nbody\n~~~" },
+    ]);
     expect(splitFencedBlocks("```sh\necho hi")).toEqual([{ type: "text", text: "```sh\necho hi" }]);
     expect(splitFencedBlocks("a\n```sh\necho hi", { openFences: true })).toEqual([
       { type: "text", text: "a" },
@@ -185,14 +296,33 @@ describe("splitFencedBlocks", () => {
 
 /** A finished tool entry with nothing recorded but what `overrides` gives. */
 const tool = (overrides: Partial<Extract<SessionEntry, { kind: "tool" }>>): SessionEntry => ({
-  kind: "tool", id: "s/t", version: 0, callId: "t", scope: "s", parentId: undefined, name: "generic", ordinal: 0,
-  args: { available: true, value: {} }, state: "done", result: undefined, errorSummary: undefined, nestedIncomplete: false,
+  kind: "tool",
+  id: "s/t",
+  version: 0,
+  callId: "t",
+  scope: "s",
+  parentId: undefined,
+  name: "generic",
+  ordinal: 0,
+  args: { available: true, value: {} },
+  state: "done",
+  result: undefined,
+  errorSummary: undefined,
+  nestedIncomplete: false,
   ...overrides,
 });
-const textResult = (...texts: string[]) => ({ content: texts.map((text) => ({ type: "text" as const, text })), details: undefined, partial: false });
+const textResult = (...texts: string[]) => ({
+  content: texts.map((text) => ({ type: "text" as const, text })),
+  details: undefined,
+  partial: false,
+});
 
 /** The foreground color of the cell at `line` and `column` of the rendered frame. */
-function colorAt(setup: { captureSpans(): { lines: { spans: { text: string; fg: RGBA }[] }[] } }, line: number, column: number) {
+function colorAt(
+  setup: { captureSpans(): { lines: { spans: { text: string; fg: RGBA }[] }[] } },
+  line: number,
+  column: number,
+) {
   let at = 0;
   for (const span of setup.captureSpans().lines[line]!.spans) {
     if (column < at + span.text.length) return span.fg.toInts();
@@ -202,15 +332,30 @@ function colorAt(setup: { captureSpans(): { lines: { spans: { text: string; fg: 
 }
 
 describe("projection", () => {
-  const response = (id: string, version: number, parts: unknown[], streaming = false): SessionEntry =>
-    ({ kind: "assistant", id, version, parts, streaming, stopReason: streaming ? undefined : "stop", errorMessage: undefined }) as SessionEntry;
+  const response = (
+    id: string,
+    version: number,
+    parts: unknown[],
+    streaming = false,
+  ): SessionEntry =>
+    ({
+      kind: "assistant",
+      id,
+      version,
+      parts,
+      streaming,
+      stopReason: streaming ? undefined : "stop",
+      errorMessage: undefined,
+    }) as SessionEntry;
 
   test("a response is one parent of its thinking, prose, and code, in source order", () => {
     const { project } = projectionFixture();
-    const items = project([response("r", 3, [
-      { type: "thinking", text: "plan", withheld: false },
-      { type: "text", text: "hello\n```ts\nconst x = 1;\n```\nbye" },
-    ])]);
+    const items = project([
+      response("r", 3, [
+        { type: "thinking", text: "plan", withheld: false },
+        { type: "text", text: "hello\n```ts\nconst x = 1;\n```\nbye" },
+      ]),
+    ]);
     expect(items.map((item) => [item.id, item.kind, item.parentId])).toEqual([
       ["r", "response", undefined],
       ["r:thinking:0", "thinking", "r"],
@@ -227,7 +372,9 @@ describe("projection", () => {
   test("a streamed open fence keeps its part id when the fence closes", () => {
     const { project } = projectionFixture();
     const before = project([response("r", 0, [{ type: "text", text: "a\n```ts\nlet" }], true)]);
-    const after = project([response("r", 1, [{ type: "text", text: "a\n```ts\nlet v = 1\n```\nb" }], true)]);
+    const after = project([
+      response("r", 1, [{ type: "text", text: "a\n```ts\nlet v = 1\n```\nb" }], true),
+    ]);
     expect(before.map((item) => item.id)).toEqual(["r", "r:text:0:part:0", "r:text:0:part:1"]);
     expect(after.map((item) => item.id).slice(0, 3)).toEqual(before.map((item) => item.id));
   });
@@ -242,8 +389,19 @@ describe("projection", () => {
 
   test("user images are selectable children that start expanded, copied as metadata", () => {
     const { project } = projectionFixture();
-    const items = project([{ kind: "user", id: "u", version: 0, text: "look", images: [{ type: "image", data: "AAAA", mimeType: "image/png" }] }]);
-    expect(items.map((item) => [item.kind, item.parentId, item.initiallyExpanded])).toEqual([["user", undefined, false], ["image", "u", true]]);
+    const items = project([
+      {
+        kind: "user",
+        id: "u",
+        version: 0,
+        text: "look",
+        images: [{ type: "image", data: "AAAA", mimeType: "image/png" }],
+      },
+    ]);
+    expect(items.map((item) => [item.kind, item.parentId, item.initiallyExpanded])).toEqual([
+      ["user", undefined, false],
+      ["image", "u", true],
+    ]);
     expect(items[1]!.sourceText()).toBe("image 1 (image/png, 3 B)");
   });
 
@@ -251,42 +409,128 @@ describe("projection", () => {
     const { project } = projectionFixture();
     const long = Array.from({ length: 8 }, (_, index) => `line ${index}`).join("\n");
     const cases: [SessionEntry, boolean][] = [
-      [tool({ name: "read", result: { content: [{ type: "text", text: long }], details: undefined, partial: false } }), false],
-      [tool({ name: "read", result: { content: [{ type: "image", data: "AAAA", mimeType: "image/png" }], details: undefined, partial: false } }), true],
-      [tool({ name: "read", state: "error", result: { content: [{ type: "text", text: "missing" }], details: undefined, partial: false } }), false],
-      [tool({ name: "read", state: "error", result: { content: [{ type: "text", text: long }], details: undefined, partial: false } }), true],
-      [tool({ name: "generic", result: { content: [], details: undefined, partial: false } }), false],
-      [tool({ name: "generic", result: { content: [{ type: "text", text: "out" }], details: undefined, partial: false } }), true],
+      [
+        tool({
+          name: "read",
+          result: { content: [{ type: "text", text: long }], details: undefined, partial: false },
+        }),
+        false,
+      ],
+      [
+        tool({
+          name: "read",
+          result: {
+            content: [{ type: "image", data: "AAAA", mimeType: "image/png" }],
+            details: undefined,
+            partial: false,
+          },
+        }),
+        true,
+      ],
+      [
+        tool({
+          name: "read",
+          state: "error",
+          result: {
+            content: [{ type: "text", text: "missing" }],
+            details: undefined,
+            partial: false,
+          },
+        }),
+        false,
+      ],
+      [
+        tool({
+          name: "read",
+          state: "error",
+          result: { content: [{ type: "text", text: long }], details: undefined, partial: false },
+        }),
+        true,
+      ],
+      [
+        tool({ name: "generic", result: { content: [], details: undefined, partial: false } }),
+        false,
+      ],
+      [
+        tool({
+          name: "generic",
+          result: { content: [{ type: "text", text: "out" }], details: undefined, partial: false },
+        }),
+        true,
+      ],
       // A missing result is not an empty successful one, and has nothing to expand.
       [tool({ name: "generic", state: "missing" }), false],
-      [tool({ name: "write", args: { available: true, value: { path: "f", content: "body" } } }), true],
-      [tool({ name: "edit", result: { content: [{ type: "text", text: "ok" }], details: { diff: "-a\n+b" }, partial: false } }), true],
-      [tool({ name: "edit", result: { content: [{ type: "text", text: "ok" }], details: undefined, partial: false } }), false],
+      [
+        tool({ name: "write", args: { available: true, value: { path: "f", content: "body" } } }),
+        true,
+      ],
+      [
+        tool({
+          name: "edit",
+          result: {
+            content: [{ type: "text", text: "ok" }],
+            details: { diff: "-a\n+b" },
+            partial: false,
+          },
+        }),
+        true,
+      ],
+      [
+        tool({
+          name: "edit",
+          result: { content: [{ type: "text", text: "ok" }], details: undefined, partial: false },
+        }),
+        false,
+      ],
     ];
     for (const [index, [base, expected]] of cases.entries()) {
       // Distinct ids: the projector reuses an unchanged entry's items.
       const entry = { ...base, id: `s/t${index}` } as SessionEntry;
-      expect([entry.kind === "tool" && entry.name, project([entry])[0]!.expandable]).toEqual([entry.kind === "tool" && entry.name, expected]);
+      expect([entry.kind === "tool" && entry.name, project([entry])[0]!.expandable]).toEqual([
+        entry.kind === "tool" && entry.name,
+        expected,
+      ]);
     }
   });
 
   test("nested calls are children of their parent tool and summarized on it", () => {
     const { project } = projectionFixture();
     const items = project([
-      tool({ id: "s/c", callId: "c", name: "codemode", args: { available: true, value: { code: "x" } } }),
-      tool({ id: "s/c/1", callId: "c/1", parentId: "s/c", name: "read", args: { available: false, bytes: 9000 }, state: "done" }),
+      tool({
+        id: "s/c",
+        callId: "c",
+        name: "codemode",
+        args: { available: true, value: { code: "x" } },
+      }),
+      tool({
+        id: "s/c/1",
+        callId: "c/1",
+        parentId: "s/c",
+        name: "read",
+        args: { available: false, bytes: 9000 },
+        state: "done",
+      }),
     ]);
-    expect(items.map((item) => [item.kind, item.parentId])).toEqual([["tool:codemode", undefined], ["tool:read", "s/c"]]);
+    expect(items.map((item) => [item.kind, item.parentId])).toEqual([
+      ["tool:codemode", undefined],
+      ["tool:read", "s/c"],
+    ]);
     // A tool copies its original result; without one there is nothing to copy.
     expect(items[1]!.sourceText()).toBeUndefined();
   });
 
   test("bindings choose a compiled kind, and a rejected value falls back with the same id", () => {
     const { project, bindings, diagnostics } = projectionFixture();
-    const entry = tool({ name: "mine", result: { content: [{ type: "text", text: "$ ok" }], details: undefined, partial: false } });
+    const entry = tool({
+      name: "mine",
+      result: { content: [{ type: "text", text: "$ ok" }], details: undefined, partial: false },
+    });
     const good = bindings.bindTool("mine", { kind: "tool:bash" });
     expect(project([entry])[0]!.kind).toBe("tool:bash");
-    const bad = bindings.bindTool("mine", { kind: "tool:bash", project: () => ({ nonsense: true }) });
+    const bad = bindings.bindTool("mine", {
+      kind: "tool:bash",
+      project: () => ({ nonsense: true }),
+    });
     const fallback = project([entry])[0]!;
     expect([fallback.kind, fallback.id]).toEqual(["tool", entry.id]);
     expect(diagnostics).toHaveLength(1);
@@ -298,7 +542,9 @@ describe("projection", () => {
 
   test("an unchanged entry keeps its item objects", () => {
     const { project } = projectionFixture();
-    const entries: SessionEntry[] = [{ kind: "notice", id: "n", version: 0, level: "info", text: "x" }];
+    const entries: SessionEntry[] = [
+      { kind: "notice", id: "n", version: 0, level: "info", text: "x" },
+    ];
     const first = project(entries);
     expect(project(entries)[0]).toBe(first[0]);
   });
@@ -315,7 +561,12 @@ describe("viewport", () => {
   test("navigation centers the selected item's first line, the last item included", () => {
     const timeline = timelineWithNotes("a", "b", "c", "d");
     const box = fakeBox({ rows, height: 9, scrollHeight: 20 });
-    const actions = createItemActions({ timeline, scrollbox: () => box, overlayHeight: () => 2, topInset: () => 1 });
+    const actions = createItemActions({
+      timeline,
+      scrollbox: () => box,
+      overlayHeight: () => 2,
+      topInset: () => 1,
+    });
     const frame = frameDriver();
     try {
       // Usable rows are 1..6 of the viewport; the first line goes to row 3.
@@ -337,7 +588,12 @@ describe("viewport", () => {
   test("a move finishes the scroll still in flight, so held keys keep the view at most one step behind", () => {
     const timeline = timelineWithNotes("a", "b", "c", "d");
     const box = fakeBox({ rows, height: 9, scrollHeight: 20 });
-    const actions = createItemActions({ timeline, scrollbox: () => box, overlayHeight: () => 2, topInset: () => 1 });
+    const actions = createItemActions({
+      timeline,
+      scrollbox: () => box,
+      overlayHeight: () => 2,
+      topInset: () => 1,
+    });
     const frame = frameDriver();
     try {
       // A held key: moves arrive faster than any frame.
@@ -429,17 +685,31 @@ describe("viewport", () => {
 
 describe("copy", () => {
   const writer = (written: string[], result = true) => ({
-    writeText: async (text: string) => { written.push(text); return result; },
+    writeText: async (text: string) => {
+      written.push(text);
+      return result;
+    },
     dispose: async () => {},
   });
 
   test("copies the source text, not the render, and reports neither success nor a notice", async () => {
     const timeline = new ItemTypeRegistry<string>();
-    const factory = timeline.registerType({ kind: "raw", render: ({ value }) => `rendered:${value}`, sourceText: (value: string) => `raw:${value}`, actions: {} });
+    const factory = timeline.registerType({
+      kind: "raw",
+      render: ({ value }) => `rendered:${value}`,
+      sourceText: (value: string) => `raw:${value}`,
+      actions: {},
+    });
     timeline.append(factory.create("alpha"));
     const written: string[] = [];
     const notices: string[] = [];
-    const actions = createItemActions({ timeline, scrollbox: () => undefined, overlayHeight: () => 0, clipboard: writer(written), notify: (level, text) => notices.push(`${level}:${text}`) });
+    const actions = createItemActions({
+      timeline,
+      scrollbox: () => undefined,
+      overlayHeight: () => 0,
+      clipboard: writer(written),
+      notify: (level, text) => notices.push(`${level}:${text}`),
+    });
     await expect(actions.copy()).resolves.toBe(true);
     expect(written).toEqual(["raw:alpha"]);
     expect(notices).toEqual([]);
@@ -447,11 +717,22 @@ describe("copy", () => {
 
   test("reports an item without source instead of writing anything", async () => {
     const timeline = new ItemTypeRegistry<string>();
-    const factory = timeline.registerType({ kind: "none", render: () => "x", sourceText: () => undefined, actions: {} });
+    const factory = timeline.registerType({
+      kind: "none",
+      render: () => "x",
+      sourceText: () => undefined,
+      actions: {},
+    });
     timeline.append(factory.create(undefined));
     const written: string[] = [];
     const notices: string[] = [];
-    const actions = createItemActions({ timeline, scrollbox: () => undefined, overlayHeight: () => 0, clipboard: writer(written), notify: (level, text) => notices.push(`${level}:${text}`) });
+    const actions = createItemActions({
+      timeline,
+      scrollbox: () => undefined,
+      overlayHeight: () => 0,
+      clipboard: writer(written),
+      notify: (level, text) => notices.push(`${level}:${text}`),
+    });
     await expect(actions.copy()).resolves.toBe(false);
     expect(written).toEqual([]);
     expect(notices).toHaveLength(1);
@@ -460,7 +741,13 @@ describe("copy", () => {
   test("emits an error notice when no backend takes the text", async () => {
     const timeline = timelineWithNotes("a", "b");
     const notices: string[] = [];
-    const actions = createItemActions({ timeline, scrollbox: () => undefined, overlayHeight: () => 0, clipboard: writer([], false), notify: (level, text) => notices.push(`${level}:${text}`) });
+    const actions = createItemActions({
+      timeline,
+      scrollbox: () => undefined,
+      overlayHeight: () => 0,
+      clipboard: writer([], false),
+      notify: (level, text) => notices.push(`${level}:${text}`),
+    });
     await expect(actions.copy()).resolves.toBe(false);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.startsWith("error:")).toBe(true);
@@ -468,15 +755,34 @@ describe("copy", () => {
 });
 
 /** A rendered timeline with real layout, driven through the item actions. */
-async function rendered(entries: readonly SessionEntry[], options: { width?: number; height?: number; overlay?: number } = {}) {
+async function rendered(
+  entries: readonly SessionEntry[],
+  options: { width?: number; height?: number; overlay?: number } = {},
+) {
   const fixture = projectionFixture();
   fixture.timeline.replace(fixture.project(entries));
   let box: TimelineScrollBox | undefined;
   const [slack, setSlack] = createSignal(0);
   const overlay = options.overlay ?? 2;
-  const actions = createItemActions({ timeline: fixture.timeline, scrollbox: () => box, overlayHeight: () => overlay, onSlackChange: setSlack });
+  const actions = createItemActions({
+    timeline: fixture.timeline,
+    scrollbox: () => box,
+    overlayHeight: () => overlay,
+    onSlackChange: setSlack,
+  });
   const setup = await testRender(
-    () => <TimelineView timeline={fixture.timeline} focused overlayHeight={overlay} slack={slack()} scrollRef={(element) => { box = element; }} onFrame={actions.frame} />,
+    () => (
+      <TimelineView
+        timeline={fixture.timeline}
+        focused
+        overlayHeight={overlay}
+        slack={slack()}
+        scrollRef={(element) => {
+          box = element;
+        }}
+        onFrame={actions.frame}
+      />
+    ),
     { width: options.width ?? 50, height: options.height ?? 16 },
   );
   const settle = async () => {
@@ -488,46 +794,105 @@ async function rendered(entries: readonly SessionEntry[], options: { width?: num
   };
   await settle();
   const top = (id: string) => {
-    const row = box!.getRenderable(id) as TimelineItem & { y: number } | undefined;
+    const row = box!.getRenderable(id) as (TimelineItem & { y: number }) | undefined;
     return row ? row.y - box!.y : undefined;
   };
   return {
-    ...fixture, actions, setup, settle, top, box: () => box!,
-    dispose: async () => { await actions.dispose(); setup.renderer.destroy(); },
+    ...fixture,
+    actions,
+    setup,
+    settle,
+    top,
+    box: () => box!,
+    dispose: async () => {
+      await actions.dispose();
+      setup.renderer.destroy();
+    },
   };
 }
 
-const lines = (count: number, prefix: string) => Array.from({ length: count }, (_, index) => `${prefix} ${index}`).join("\n");
+const lines = (count: number, prefix: string) =>
+  Array.from({ length: count }, (_, index) => `${prefix} ${index}`).join("\n");
 const bash = (id: string, output: string): SessionEntry =>
-  tool({ id, callId: id, name: "bash", args: { available: true, value: { command: `run ${id}` } }, result: textResult(output) });
-const note = (id: string, text: string): SessionEntry => ({ kind: "notice", id, version: 0, level: "info", text });
+  tool({
+    id,
+    callId: id,
+    name: "bash",
+    args: { available: true, value: { command: `run ${id}` } },
+    result: textResult(output),
+  });
+const note = (id: string, text: string): SessionEntry => ({
+  kind: "notice",
+  id,
+  version: 0,
+  level: "info",
+  text,
+});
 
-const codemode = (code: string, header: string, text: string, state: "done" | "error"): SessionEntry =>
-  tool({ id: "s/c", callId: "c", name: "codemode", args: { available: true, value: { code } }, state, result: textResult(header, text) });
+const codemode = (
+  code: string,
+  header: string,
+  text: string,
+  state: "done" | "error",
+): SessionEntry =>
+  tool({
+    id: "s/c",
+    callId: "c",
+    name: "codemode",
+    args: { available: true, value: { code } },
+    state,
+    result: textResult(header, text),
+  });
 /** A bash call the codemode item `s/c` made. */
 const call = (state: "done" | "error"): SessionEntry =>
-  tool({ id: "s/c/1", callId: "c/1", parentId: "s/c", name: "bash", ordinal: 1, args: { available: true, value: { command: "ls src" } }, state });
+  tool({
+    id: "s/c/1",
+    callId: "c/1",
+    parentId: "s/c",
+    name: "bash",
+    ordinal: 1,
+    args: { available: true, value: { command: "ls src" } },
+    state,
+  });
 const completed = "Script completed\nWall time 0.4 seconds\nOutput:\n";
 
 describe("codemode presentation", () => {
   test("collapsed, it leads with its calls and shows the strings the script returned, not their JSON", async () => {
-    const view = await rendered([codemode("x", completed, JSON.stringify({ output: "app.tsx\ncore\n", exit_code: 0 }), "done"), call("done")], { width: 60 });
+    const view = await rendered(
+      [
+        codemode(
+          "x",
+          completed,
+          JSON.stringify({ output: "app.tsx\ncore\n", exit_code: 0 }),
+          "done",
+        ),
+        call("done"),
+      ],
+      { width: 60 },
+    );
     try {
       const frame = view.setup.captureCharFrame();
       expect(frame).toContain("codemode 1 call · 0.4s · done");
       expect(frame).toContain("$ ls src · done");
       expect(frame).toMatch(/→ app\.tsx *\n[^\n]* core *\n/);
       expect(frame).toContain("exit_code 0");
-      expect(frame).not.toContain("{\"output\"");
+      expect(frame).not.toContain('{"output"');
     } finally {
       await view.dispose();
     }
   });
 
   test("expanding leaves each call's label in the column it had in the summary", async () => {
-    const view = await rendered([codemode("x", completed, "done", "done"), call("done")], { width: 60 });
+    const view = await rendered([codemode("x", completed, "done", "done"), call("done")], {
+      width: 60,
+    });
     try {
-      const column = () => view.setup.captureCharFrame().split("\n").find((line) => line.includes("$ ls src"))?.indexOf("$ ls src");
+      const column = () =>
+        view.setup
+          .captureCharFrame()
+          .split("\n")
+          .find((line) => line.includes("$ ls src"))
+          ?.indexOf("$ ls src");
       const collapsed = column();
       view.timeline.setCursor("s/c");
       view.actions.toggle();
@@ -540,10 +905,17 @@ describe("codemode presentation", () => {
   });
 
   test("failed, it names the failing line and shows the error's first line, not its stack", async () => {
-    const view = await rendered([
-      codemode("const a = 1;\nnull.x;", "Script failed\nWall time 0.1 seconds\nOutput:\n",
-        "Script error:\nTypeError: cannot read property 'x' of null\n    at <anonymous> (codemode.js:2:5)\n\nNo tool calls were made.", "error"),
-    ], { width: 60 });
+    const view = await rendered(
+      [
+        codemode(
+          "const a = 1;\nnull.x;",
+          "Script failed\nWall time 0.1 seconds\nOutput:\n",
+          "Script error:\nTypeError: cannot read property 'x' of null\n    at <anonymous> (codemode.js:2:5)\n\nNo tool calls were made.",
+          "error",
+        ),
+      ],
+      { width: 60 },
+    );
     try {
       const frame = view.setup.captureCharFrame();
       expect(frame).toContain("codemode · 0.1s · failed at line 2");
@@ -558,14 +930,19 @@ describe("codemode presentation", () => {
 describe("gutter", () => {
   type View = Awaited<ReturnType<typeof rendered>>;
   /** The cell in each screen line where the bar of an item `level` levels deep is drawn. */
-  const barColumn = (view: View, level: number) => view.setup.captureCharFrame().split("\n").map((line) => line[1 + 2 * level] ?? " ");
+  const barColumn = (view: View, level: number) =>
+    view.setup
+      .captureCharFrame()
+      .split("\n")
+      .map((line) => line[1 + 2 * level] ?? " ");
   /** The screen lines an item covers, from its own row through `last`, its last row. */
   const range = (view: View, id: string, last = id) => {
     const end = view.box().getRenderable(last)!;
     return { start: view.top(id)!, end: view.top(last)! + end.height };
   };
   /** A bar over `length` lines, cut short at both ends. */
-  const bar = (length: number) => length === 1 ? ["╏"] : ["╻", ...Array<string>(length - 2).fill("┃"), "╹"];
+  const bar = (length: number) =>
+    length === 1 ? ["╏"] : ["╻", ...Array<string>(length - 2).fill("┃"), "╹"];
   const isBar = (cell: string) => /[╻┃╹╏]/.test(cell);
   // A level's column also holds the marks of items one level up, outside any bar.
   const expectBar = (column: string[], { start, end }: { start: number; end: number }) => {
@@ -573,7 +950,10 @@ describe("gutter", () => {
     expect([...column.slice(0, start), ...column.slice(end)].some(isBar)).toBe(false);
   };
   const expanded = async (cursor: string) => {
-    const view = await rendered([codemode("x", completed, "done", "done"), call("error"), bash("b", lines(9, "out"))], { width: 60, height: 40 });
+    const view = await rendered(
+      [codemode("x", completed, "done", "done"), call("error"), bash("b", lines(9, "out"))],
+      { width: 60, height: 40 },
+    );
     view.timeline.setCursor("s/c");
     view.actions.toggle();
     view.timeline.setCursor(cursor);
@@ -609,7 +989,8 @@ describe("gutter", () => {
     const view = await expanded("s/c");
     try {
       // The mark sits right of the bars for every level the item is nested in.
-      const markOf = (id: string, depth: number) => view.setup.captureCharFrame().split("\n")[view.top(id)!]![3 + 2 * depth];
+      const markOf = (id: string, depth: number) =>
+        view.setup.captureCharFrame().split("\n")[view.top(id)!]![3 + 2 * depth];
       expect(markOf("s/c", 0)).toBe("⏷");
       expect(markOf("b", 0)).toBe("⏵");
       expect(markOf("s/c/1", 1)).toBe("⏺");
@@ -626,8 +1007,16 @@ describe("gutter", () => {
   ] as const)("a tool that is %s is marked in its outcome's color", (state, color) => {
     const { tool } = createTimelineTypes();
     const snapshot: ToolSnapshot = {
-      id: "t", callId: "t", name: "bash", parentCallId: undefined, args: { available: true, value: {} }, state,
-      result: undefined, errorSummary: undefined, calls: [], callsIncomplete: false,
+      id: "t",
+      callId: "t",
+      name: "bash",
+      parentCallId: undefined,
+      args: { available: true, value: {} },
+      state,
+      result: undefined,
+      errorSummary: undefined,
+      calls: [],
+      callsIncomplete: false,
     };
     expect(tool.marker!(snapshot)).toBe(color);
   });
@@ -635,7 +1024,11 @@ describe("gutter", () => {
 
 describe("rendered viewport", () => {
   test("opening and closing keep the item's first line and everything above it in place", async () => {
-    const view = await rendered([note("n0", lines(6, "above")), bash("b1", lines(12, "out")), note("n2", lines(6, "below"))]);
+    const view = await rendered([
+      note("n0", lines(6, "above")),
+      bash("b1", lines(12, "out")),
+      note("n2", lines(6, "below")),
+    ]);
     try {
       view.timeline.setCursor("b1");
       view.actions.move(0);
@@ -657,7 +1050,9 @@ describe("rendered viewport", () => {
   });
 
   test("closing at the end keeps the item in place with temporary blank rows, retired by navigation", async () => {
-    const view = await rendered([note("n0", lines(10, "above")), bash("b1", lines(30, "out"))], { height: 14 });
+    const view = await rendered([note("n0", lines(10, "above")), bash("b1", lines(30, "out"))], {
+      height: 14,
+    });
     try {
       view.timeline.setCursor("b1");
       view.actions.toggle();
@@ -689,11 +1084,22 @@ describe("rendered viewport", () => {
   });
 
   test("an off-screen item is revealed and toggled in one step, and h returns to an off-screen parent", async () => {
-    const view = await rendered([
-      note("n0", lines(4, "first")),
-      { kind: "assistant", id: "r", version: 0, streaming: false, stopReason: "stop", errorMessage: undefined, parts: [{ type: "text", text: `${lines(20, "para")}\n\n\`\`\`ts\nconst x = 1;\n\`\`\`` }] },
-      note("n2", lines(20, "later")),
-    ], { height: 14 });
+    const view = await rendered(
+      [
+        note("n0", lines(4, "first")),
+        {
+          kind: "assistant",
+          id: "r",
+          version: 0,
+          streaming: false,
+          stopReason: "stop",
+          errorMessage: undefined,
+          parts: [{ type: "text", text: `${lines(20, "para")}\n\n\`\`\`ts\nconst x = 1;\n\`\`\`` }],
+        },
+        note("n2", lines(20, "later")),
+      ],
+      { height: 14 },
+    );
     try {
       view.timeline.setCursor("r");
       view.actions.toggle();
@@ -725,7 +1131,17 @@ describe("TimelineView", () => {
     timeline.replace(project([{ kind: "user", id: "user-1", version: 0, text: "hi", images: [] }]));
     let box: TimelineScrollBox | undefined;
     const setup = await testRender(
-      () => <TimelineView timeline={timeline} overlayHeight={2} topInset={1} queued={{ steering: ["now"], followUp: ["next"] }} scrollRef={(element) => { box = element; }} />,
+      () => (
+        <TimelineView
+          timeline={timeline}
+          overlayHeight={2}
+          topInset={1}
+          queued={{ steering: ["now"], followUp: ["next"] }}
+          scrollRef={(element) => {
+            box = element;
+          }}
+        />
+      ),
       { width: 60, height: 20 },
     );
     await setup.flush();
@@ -739,7 +1155,11 @@ describe("TimelineView", () => {
 
   test("wraps rows left of the scrollbar, marks the cursor only when focused, and keeps the bar above the overlay", async () => {
     const { timeline, project } = projectionFixture();
-    timeline.replace(project(Array.from({ length: 6 }, (_, index): SessionEntry => note(`n${index}`, "x".repeat(60)))));
+    timeline.replace(
+      project(
+        Array.from({ length: 6 }, (_, index): SessionEntry => note(`n${index}`, "x".repeat(60))),
+      ),
+    );
     timeline.setCursor(timeline.items().at(-1)!.id);
     const [focused, setFocused] = createSignal(false);
     const setup = await testRender(
@@ -747,7 +1167,8 @@ describe("TimelineView", () => {
       { width: 40, height: 16 },
     );
     await setup.flush();
-    for (const line of setup.captureCharFrame().split("\n")) expect(/x/.test(line.slice(39))).toBe(false);
+    for (const line of setup.captureCharFrame().split("\n"))
+      expect(/x/.test(line.slice(39))).toBe(false);
     // The selection is a leading bar, not a background.
     expect(setup.captureCharFrame()).not.toMatch(/[╻┃╹╏]/);
     setFocused(true);
@@ -761,8 +1182,14 @@ describe("TimelineView", () => {
   test("previews show four rendered rows and say how many follow", async () => {
     const { timeline, project } = projectionFixture();
     timeline.replace(project([bash("b", lines(9, "row"))]));
-    const setup = await testRender(() => <TimelineView timeline={timeline} overlayHeight={0} />, { width: 40, height: 16 });
-    for (let index = 0; index < 3; index++) { await setup.flush(); await setup.renderOnce(); }
+    const setup = await testRender(() => <TimelineView timeline={timeline} overlayHeight={0} />, {
+      width: 40,
+      height: 16,
+    });
+    for (let index = 0; index < 3; index++) {
+      await setup.flush();
+      await setup.renderOnce();
+    }
     const frame = setup.captureCharFrame();
     expect(frame).toContain("row 3");
     expect(frame).not.toContain("row 4");
@@ -774,16 +1201,52 @@ describe("TimelineView", () => {
 test("snapshots handed to bindings are plain data", () => {
   const { project, bindings } = projectionFixture();
   let seen: ToolSnapshot | undefined;
-  bindings.bindTool("x", { kind: "tool", project: (snapshot) => { seen = snapshot; return snapshot; } });
-  project([{ kind: "tool", id: "s/t", version: 0, callId: "t", scope: "s", parentId: undefined, name: "x", ordinal: 0, args: { available: true, value: { a: 1 } }, state: "running", result: undefined, errorSummary: undefined, nestedIncomplete: false }]);
+  bindings.bindTool("x", {
+    kind: "tool",
+    project: (snapshot) => {
+      seen = snapshot;
+      return snapshot;
+    },
+  });
+  project([
+    {
+      kind: "tool",
+      id: "s/t",
+      version: 0,
+      callId: "t",
+      scope: "s",
+      parentId: undefined,
+      name: "x",
+      ordinal: 0,
+      args: { available: true, value: { a: 1 } },
+      state: "running",
+      result: undefined,
+      errorSummary: undefined,
+      nestedIncomplete: false,
+    },
+  ]);
   expect(JSON.parse(JSON.stringify(seen))).toEqual(seen as unknown as Record<string, unknown>);
   expect(seen).toMatchObject({ name: "x", state: "running", result: undefined, calls: [] });
 });
 
 describe("frame stability", () => {
-  const response = (id: string, version: number, text: string, streaming: boolean, thinking?: string): SessionEntry => ({
-    kind: "assistant", id, version, streaming, stopReason: streaming ? undefined : "stop", errorMessage: undefined,
-    parts: [...(thinking ? [{ type: "thinking" as const, text: thinking, withheld: false }] : []), { type: "text", text }],
+  const response = (
+    id: string,
+    version: number,
+    text: string,
+    streaming: boolean,
+    thinking?: string,
+  ): SessionEntry => ({
+    kind: "assistant",
+    id,
+    version,
+    streaming,
+    stopReason: streaming ? undefined : "stop",
+    errorMessage: undefined,
+    parts: [
+      ...(thinking ? [{ type: "thinking" as const, text: thinking, withheld: false }] : []),
+      { type: "text", text },
+    ],
   });
 
   /** Row tops and the frame text for each of `count` frames, with no settling between them. */
@@ -798,12 +1261,15 @@ describe("frame stability", () => {
   }
 
   test("moving the selection and toggling do not shift rows for a frame", async () => {
-    const view = await rendered([
-      response("r1", 0, lines(3, "first"), false, lines(2, "plan")),
-      bash("b1", lines(9, "out")),
-      response("r2", 0, lines(3, "second"), false, lines(6, "idea")),
-      note("n3", "end"),
-    ], { height: 40, overlay: 0 });
+    const view = await rendered(
+      [
+        response("r1", 0, lines(3, "first"), false, lines(2, "plan")),
+        bash("b1", lines(9, "out")),
+        response("r2", 0, lines(3, "second"), false, lines(6, "idea")),
+        note("n3", "end"),
+      ],
+      { height: 40, overlay: 0 },
+    );
     try {
       const ids = ["r1", "b1", "r2", "n3"];
       const before = (await frames(view, ids, 1))[0]!.tops;
@@ -825,11 +1291,24 @@ describe("frame stability", () => {
   });
 
   test("a streaming reply does not blank or move the finished history above it", async () => {
-    const finished = response("r1", 0, "finished answer stays visible", false, lines(6, "earlier thought"));
-    const view = await rendered([finished, response("r2", 0, "stream", true)], { height: 30, overlay: 0 });
+    const finished = response(
+      "r1",
+      0,
+      "finished answer stays visible",
+      false,
+      lines(6, "earlier thought"),
+    );
+    const view = await rendered([finished, response("r2", 0, "stream", true)], {
+      height: 30,
+      overlay: 0,
+    });
     try {
       // Markdown highlights asynchronously; start once the history is drawn.
-      for (let wait = 0; wait < 20 && !view.setup.captureCharFrame().includes("finished answer stays visible"); wait++) {
+      for (
+        let wait = 0;
+        wait < 20 && !view.setup.captureCharFrame().includes("finished answer stays visible");
+        wait++
+      ) {
         await Bun.sleep(20);
         await view.setup.renderOnce();
       }
@@ -852,7 +1331,10 @@ describe("frame stability", () => {
 
   test("streamed Markdown, once its markers are concealed, never shows them raw again", async () => {
     const full = "# Heading\n\nSome **bold** words in a paragraph.\n\n## Next\n\nMore text.";
-    const view = await rendered([response("r", 0, full.slice(0, 1), true)], { height: 20, overlay: 0 });
+    const view = await rendered([response("r", 0, full.slice(0, 1), true)], {
+      height: 20,
+      overlay: 0,
+    });
     try {
       let concealed = false;
       for (let end = 2; end <= full.length; end++) {
@@ -874,9 +1356,16 @@ describe("frame stability", () => {
   });
 
   test("thinking is drawn in the thinking color, not the body's", async () => {
-    const view = await rendered([response("r", 0, "the answer", false, "a quiet thought")], { height: 20, overlay: 0 });
+    const view = await rendered([response("r", 0, "the answer", false, "a quiet thought")], {
+      height: 20,
+      overlay: 0,
+    });
     try {
-      for (let wait = 0; wait < 20 && !view.setup.captureCharFrame().includes("a quiet thought"); wait++) {
+      for (
+        let wait = 0;
+        wait < 20 && !view.setup.captureCharFrame().includes("a quiet thought");
+        wait++
+      ) {
         await Bun.sleep(20);
         await view.setup.renderOnce();
       }

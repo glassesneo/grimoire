@@ -26,6 +26,7 @@ export function formatUsage(stats: SessionStats): string {
 /** Context use as Pi estimates it; unknown, as right after a compaction, is not zero. */
 export function formatContext(usage: SessionStats["contextUsage"]): string {
   if (!usage) return "";
-  if (usage.tokens === null || usage.percent === null) return `ctx ?/${compact(usage.contextWindow)}`;
+  if (usage.tokens === null || usage.percent === null)
+    return `ctx ?/${compact(usage.contextWindow)}`;
   return `ctx ${usage.percent.toFixed(0)}% of ${compact(usage.contextWindow)}`;
 }

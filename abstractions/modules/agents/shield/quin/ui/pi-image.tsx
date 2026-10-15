@@ -6,8 +6,11 @@ type PiImageProps = Omit<JSX.IntrinsicElements["image"], "source"> & { content: 
 
 export function PiImage(props: PiImageProps) {
   const [local, native] = splitProps(props, ["content"]);
-  const source = createMemo(() => new Blob([
-    Uint8Array.from(atob(local.content.data), (char) => char.charCodeAt(0)),
-  ], { type: local.content.mimeType }));
+  const source = createMemo(
+    () =>
+      new Blob([Uint8Array.from(atob(local.content.data), (char) => char.charCodeAt(0))], {
+        type: local.content.mimeType,
+      }),
+  );
   return <image {...native} source={source()} />;
 }

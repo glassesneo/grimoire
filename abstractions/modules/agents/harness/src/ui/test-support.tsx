@@ -5,10 +5,19 @@ import { setupStageUI } from "./stage";
 import { createExtensionUI } from "./extension-ui";
 import { createHarnessUI } from "./harness-ui";
 
-export const RESIZE_SEQUENCE: readonly (readonly [number, number])[] = [[120, 40], [80, 24], [40, 12], [20, 6], [120, 2]];
+export const RESIZE_SEQUENCE: readonly (readonly [number, number])[] = [
+  [120, 40],
+  [80, 24],
+  [40, 12],
+  [20, 6],
+  [120, 2],
+];
 export const tick = () => Bun.sleep(0);
 export function count(node: Renderable, matches: (node: Renderable) => boolean): number {
-  return Number(Boolean(matches(node))) + node.getChildren().reduce((sum, child) => sum + count(child, matches), 0);
+  return (
+    Number(Boolean(matches(node))) +
+    node.getChildren().reduce((sum, child) => sum + count(child, matches), 0)
+  );
 }
 
 export function fixture() {
@@ -16,17 +25,40 @@ export function fixture() {
   const notices: string[] = [];
   const stage = setupStageUI(ui);
   const editor = ui.controllers.editor;
-  const run = (name: string) => { void ui.controllers.stage.active()?.runAction(name); };
+  const run = (name: string) => {
+    void ui.controllers.stage.active()?.runAction(name);
+  };
   const registrations = setupDefaultUI(ui, {
-    quit: () => {}, submit: () => { if (editor.activeDraft()) editor.submitDraft(); else void editor.submitPrompt(); },
-    cancel: () => { editor.cancelDraft(); },
+    quit: () => {},
+    submit: () => {
+      if (editor.activeDraft()) editor.submitDraft();
+      else void editor.submitPrompt();
+    },
+    cancel: () => {
+      editor.cancelDraft();
+    },
     focusFromEditor: (target) => editor.requestFocus(target),
-    moveTimelineCursor: () => {}, scrollTimeline: () => {}, copyTimelineItem: () => {},
-    toggleTimelineItem: () => {}, expandTimelineItem: () => {}, collapseTimelineItem: () => {},
-    moveStageCursor: (delta) => run(delta > 0 ? "next" : "previous"), confirmStage: () => run("confirm"), cancelStage: () => run("cancel"),
+    moveTimelineCursor: () => {},
+    scrollTimeline: () => {},
+    copyTimelineItem: () => {},
+    toggleTimelineItem: () => {},
+    expandTimelineItem: () => {},
+    collapseTimelineItem: () => {},
+    moveStageCursor: (delta) => run(delta > 0 ? "next" : "previous"),
+    confirmStage: () => run("confirm"),
+    cancelStage: () => run("cancel"),
   });
   const extension = createExtensionUI({ ui, ...stage, notify: (_, text) => notices.push(text) });
-  return { ui, stage, extension, notices, registrations, dispose: () => {
-    extension.dispose(); for (const registration of registrations) registration.dispose(); stage.dispose();
-  } };
+  return {
+    ui,
+    stage,
+    extension,
+    notices,
+    registrations,
+    dispose: () => {
+      extension.dispose();
+      for (const registration of registrations) registration.dispose();
+      stage.dispose();
+    },
+  };
 }

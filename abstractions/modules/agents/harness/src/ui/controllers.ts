@@ -83,9 +83,7 @@ export class RegionController extends Emitter {
       this.#regions.push({ id, available: true, fallback: undefined });
     }
     const known = this.#regions.map((region) => region.id);
-    this.#focused = known.includes(this.#fallback)
-      ? this.#fallback
-      : (known[0] ?? this.#fallback);
+    this.#focused = known.includes(this.#fallback) ? this.#fallback : (known[0] ?? this.#fallback);
   }
 
   current(): RegionId {
@@ -127,7 +125,10 @@ export class RegionController extends Emitter {
   }
 
   /** Register an additional region. Not exposed through `HarnessUI`. */
-  register(region: RegionId, options: { fallback?: RegionId; available?: boolean } = {}): Registration {
+  register(
+    region: RegionId,
+    options: { fallback?: RegionId; available?: boolean } = {},
+  ): Registration {
     if (this.#regions.some((candidate) => candidate.id === region)) {
       throw new Error(`region already registered: ${region}`);
     }
@@ -392,10 +393,14 @@ export interface StageControllerOptions {
 
 /** Arrival order, foreground selection and focus exceptions have one owner. */
 const stageRequestPolicy = {
-  arrival: <R>(pending: readonly PendingStage<R>[], foregroundId: string | undefined, next: PendingStage<R>) =>
-    next.kind === "command" ? next.id : foregroundId ?? pending[0]?.id,
+  arrival: <R>(
+    pending: readonly PendingStage<R>[],
+    foregroundId: string | undefined,
+    next: PendingStage<R>,
+  ) => (next.kind === "command" ? next.id : (foregroundId ?? pending[0]?.id)),
   successor: <R>(pending: readonly PendingStage<R>[]) => pending[0],
-  restore: <R>(pending: PendingStage<R>, wasActive: boolean) => pending.kind === "command" || wasActive,
+  restore: <R>(pending: PendingStage<R>, wasActive: boolean) =>
+    pending.kind === "command" || wasActive,
   claim: <R>(pending: PendingStage<R>, explicit: boolean, canFocus: boolean, suppress: boolean) =>
     explicit || (!suppress && pending.returnFocus === undefined && canFocus),
 };
@@ -425,7 +430,10 @@ export class StageController<Render = unknown> extends Emitter {
       throw new DuplicateRegistrationError("stage", type.kind);
     }
     const token = {};
-    this.#kinds.set(type.kind, { token, type: type as unknown as StageContentType<unknown, Render> });
+    this.#kinds.set(type.kind, {
+      token,
+      type: type as unknown as StageContentType<unknown, Render>,
+    });
     this.changed();
     return {
       dispose: () => {
@@ -484,10 +492,16 @@ export class StageController<Render = unknown> extends Emitter {
       render: (track) => {
         const focused = () => this.focused();
         return request.type.render({
-          get value() { track?.(); return current; },
+          get value() {
+            track?.();
+            return current;
+          },
           handle: handle as StageHandle<T>,
           preferredHeight: request.preferredHeight,
-          get focused() { track?.(); return focused(); },
+          get focused() {
+            track?.();
+            return focused();
+          },
         });
       },
       runAction: (name) => {
@@ -559,7 +573,10 @@ export class StageController<Render = unknown> extends Emitter {
   }
 
   position(): { index: number; total: number } {
-    return { index: this.#pending.findIndex((entry) => entry.id === this.#foregroundId) + 1, total: this.#pending.length };
+    return {
+      index: this.#pending.findIndex((entry) => entry.id === this.#foregroundId) + 1,
+      total: this.#pending.length,
+    };
   }
 
   activate(id: string): boolean {
@@ -606,7 +623,12 @@ export class StageController<Render = unknown> extends Emitter {
   }
 
   #present(pending: PendingStage<Render>, explicit = false, suppress = false): void {
-    const claim = stageRequestPolicy.claim(pending, explicit, this.#canFocus(), suppress || this.#suppressSuccessorFocus);
+    const claim = stageRequestPolicy.claim(
+      pending,
+      explicit,
+      this.#canFocus(),
+      suppress || this.#suppressSuccessorFocus,
+    );
     this.#suppressSuccessorFocus = false;
     pending.returnFocus ??= this.#regions.current();
     this.#foregroundId = pending.id;
@@ -641,8 +663,12 @@ export class StageController<Render = unknown> extends Emitter {
       this.#suppressSuccessorFocus = pending.kind === "command";
     }
     pending.resolve(result);
-    if (stageRequestPolicy.restore(pending, wasActive) && (pending.kind === "command" || this.#canFocus())) {
-      if (!this.#regions.requestFocus(pending.returnFocus ?? EDITOR_REGION)) this.#regions.requestFocus(EDITOR_REGION);
+    if (
+      stageRequestPolicy.restore(pending, wasActive) &&
+      (pending.kind === "command" || this.#canFocus())
+    ) {
+      if (!this.#regions.requestFocus(pending.returnFocus ?? EDITOR_REGION))
+        this.#regions.requestFocus(EDITOR_REGION);
     }
     if (wasActive) queueMicrotask(() => this.#startNext(pending.kind === "command"));
     this.#syncAvailability();
@@ -724,7 +750,10 @@ export interface ItemActionEvent<T> {
 
 export interface ItemFactory<T, Render = unknown> extends Registration {
   readonly kind: string;
-  create(value: T, options?: { parentId?: string; initiallyExpanded?: boolean }): TimelineItemInput<T, Render>;
+  create(
+    value: T,
+    options?: { parentId?: string; initiallyExpanded?: boolean },
+  ): TimelineItemInput<T, Render>;
 }
 
 /**
@@ -752,7 +781,9 @@ export interface TimelineItem<Render = unknown> {
   runAction(name: string): void | Promise<void>;
 }
 
-export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>): TimelineItem<Render> {
+export function materializeItem<T, Render>(
+  input: TimelineItemInput<T, Render>,
+): TimelineItem<Render> {
   const { id, version, type, value } = input;
   const renderDetails = type.renderDetails;
   let expandable: boolean | undefined;
@@ -769,7 +800,9 @@ export function materializeItem<T, Render>(input: TimelineItemInput<T, Render>):
       return (expandable ??= type.expandable?.(value) ?? false);
     },
     render: (expanded = false) => type.render({ value, id, version, expanded }),
-    renderDetails: renderDetails ? () => renderDetails({ value, id, version, expanded: true }) : undefined,
+    renderDetails: renderDetails
+      ? () => renderDetails({ value, id, version, expanded: true })
+      : undefined,
     sourceText: () => type.sourceText(value),
     get marker() {
       return type.marker?.(value);
@@ -1109,7 +1142,9 @@ export class ItemTypeRegistry<Render = unknown> extends Emitter {
     if (this.#cursor !== undefined && this.#indexById.has(this.#cursor)) {
       if (!this.isVisible(this.#cursor)) {
         const ancestors = this.#ancestors(this.#cursor);
-        this.#cursor = ancestors.find((ancestor) => this.isVisible(ancestor)) ?? ancestors.findLast((ancestor) => this.#indexById.has(ancestor));
+        this.#cursor =
+          ancestors.find((ancestor) => this.isVisible(ancestor)) ??
+          ancestors.findLast((ancestor) => this.#indexById.has(ancestor));
       }
       return;
     }

@@ -11,17 +11,26 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { configDirectory, privateDirectory, stateDirectory } from "../client/paths";
 
-export function options(mock: boolean, explicitModel?: string, cwd = realpathSync(process.cwd()), runtime: { extension?: string; tools?: string; builtinTools?: boolean } = {}) {
+export function options(
+  mock: boolean,
+  explicitModel?: string,
+  cwd = realpathSync(process.cwd()),
+  runtime: { extension?: string; tools?: string; builtinTools?: boolean } = {},
+) {
   const config = mock ? join(stateDirectory(), "mock/pi") : configDirectory();
   let model = explicitModel;
   if (mock) {
-    if (model && model !== "shield-faux/fixed") throw new Error("--mock requires shield-faux/fixed");
+    if (model && model !== "shield-faux/fixed")
+      throw new Error("--mock requires shield-faux/fixed");
     model = "shield-faux/fixed";
   } else if (!model) {
     try {
       const settings = JSON.parse(readFileSync(join(config, "settings.json"), "utf8"));
-      if (typeof settings.defaultProvider === "string" && typeof settings.defaultModel === "string") model = `${settings.defaultProvider}/${settings.defaultModel}`;
-    } catch (e: any) { if (e.code !== "ENOENT") throw e; }
+      if (typeof settings.defaultProvider === "string" && typeof settings.defaultModel === "string")
+        model = `${settings.defaultProvider}/${settings.defaultModel}`;
+    } catch (e: any) {
+      if (e.code !== "ENOENT") throw e;
+    }
     // The package wrapper supplies the Nix module's default last.
     model ||= process.env.SHIELD_DEFAULT_MODEL || undefined;
   }
@@ -30,26 +39,49 @@ export function options(mock: boolean, explicitModel?: string, cwd = realpathSyn
   // the hub refuses creation and explains model_required. The model chooses only
   // a new root's model, since any client can change it later.
   privateDirectory(config);
-  const sessions = join(stateDirectory(), mock ? "mock/sessions" : "sessions", createHash("sha256").update(cwd).digest("hex"));
+  const sessions = join(
+    stateDirectory(),
+    mock ? "mock/sessions" : "sessions",
+    createHash("sha256").update(cwd).digest("hex"),
+  );
   privateDirectory(sessions);
   const executable = process.env.SHIELD_PI;
   const extension = runtime.extension ?? process.env[mock ? "SHIELD_FAUX" : "SHIELD_COMMANDCODE"];
   const codemode = process.env.SHIELD_CODEMODE;
-  if (!executable || !extension || !codemode) throw new Error("Pi runtime is missing; use packaged quin");
-  const argv = ["--mode", "rpc", "--no-approve", "--session-dir", sessions, "--extension", extension, "--extension", codemode];
+  if (!executable || !extension || !codemode)
+    throw new Error("Pi runtime is missing; use packaged quin");
+  const argv = [
+    "--mode",
+    "rpc",
+    "--no-approve",
+    "--session-dir",
+    sessions,
+    "--extension",
+    extension,
+    "--extension",
+    codemode,
+  ];
   if (model) argv.push("--model", model);
   argv.push("--tools", runtime.tools ?? (mock ? "shield_fixture,codemode" : "+codemode"));
   if (!(runtime.builtinTools ?? !mock)) argv.push("--no-builtin-tools");
   const env: Record<string, string> = {
     HOME: mock ? join(stateDirectory(), "mock/home") : homedir(),
-    PATH: process.env.PATH || "/usr/bin:/bin", LANG: "en_US.UTF-8",
+    PATH: process.env.PATH || "/usr/bin:/bin",
+    LANG: "en_US.UTF-8",
     PI_CODING_AGENT_DIR: config,
     PI_TELEMETRY: "off",
   };
   if (mock) {
     privateDirectory(env.HOME!);
     Object.assign(env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
-    argv.push("--no-extensions", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files");
+    argv.push(
+      "--no-extensions",
+      "--no-mcp",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+    );
   }
   return { mode: mock ? "mock" : "live", model, launch: { executable, argv, env } };
 }

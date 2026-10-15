@@ -21,33 +21,109 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
   }
 
   bind("editor", [
-    { actionId: "editor.open-command", name: "g", ctrl: true, action: () => actions.openCommand?.() },
-    { actionId: "editor.command-next", name: "n", ctrl: true, action: () => actions.moveCommandDraftCursor?.(1), when: () => actions.commandOwnsDraft?.() ?? false },
-    { actionId: "editor.command-previous", name: "p", ctrl: true, action: () => actions.moveCommandDraftCursor?.(-1), when: () => actions.commandOwnsDraft?.() ?? false },
+    {
+      actionId: "editor.open-command",
+      name: "g",
+      ctrl: true,
+      action: () => actions.openCommand?.(),
+    },
+    {
+      actionId: "editor.command-next",
+      name: "n",
+      ctrl: true,
+      action: () => actions.moveCommandDraftCursor?.(1),
+      when: () => actions.commandOwnsDraft?.() ?? false,
+    },
+    {
+      actionId: "editor.command-previous",
+      name: "p",
+      ctrl: true,
+      action: () => actions.moveCommandDraftCursor?.(-1),
+      when: () => actions.commandOwnsDraft?.() ?? false,
+    },
     { actionId: "editor.submit-prompt", name: "return", action: actions.submit },
     { actionId: "editor.submit-prompt", name: "kpenter", action: actions.submit },
     { actionId: "editor.cancel", name: "escape", action: actions.cancel },
-    { actionId: "editor.focus-timeline", name: "o", ctrl: true, action: () => actions.focusFromEditor("timeline") },
-    { actionId: "editor.focus-stage", name: "k", ctrl: true, action: () => actions.focusFromEditor("stage") },
+    {
+      actionId: "editor.focus-timeline",
+      name: "o",
+      ctrl: true,
+      action: () => actions.focusFromEditor("timeline"),
+    },
+    {
+      actionId: "editor.focus-stage",
+      name: "k",
+      ctrl: true,
+      action: () => actions.focusFromEditor("stage"),
+    },
   ]);
 
   const noText = () => !(actions.stageAcceptsText?.() ?? false);
   bind("stage", [
-    { actionId: "stage.open-command", name: ":", action: () => actions.openCommand?.(), when: noText },
-    { actionId: "stage.next-request", name: "f", ctrl: true, action: () => actions.moveStageRequest?.(1) },
-    { actionId: "stage.previous-request", name: "b", ctrl: true, action: () => actions.moveStageRequest?.(-1) },
-    { actionId: "stage.command-arguments", name: "space", action: () => actions.commandArguments?.() },
-    { actionId: "stage.cursor-down", name: "n", ctrl: true, action: () => actions.moveStageCursor(1) },
-    { actionId: "stage.cursor-up", name: "p", ctrl: true, action: () => actions.moveStageCursor(-1) },
-    { actionId: "stage.cursor-down", name: "j", action: () => actions.moveStageCursor(1), when: noText },
+    {
+      actionId: "stage.open-command",
+      name: ":",
+      action: () => actions.openCommand?.(),
+      when: noText,
+    },
+    {
+      actionId: "stage.next-request",
+      name: "f",
+      ctrl: true,
+      action: () => actions.moveStageRequest?.(1),
+    },
+    {
+      actionId: "stage.previous-request",
+      name: "b",
+      ctrl: true,
+      action: () => actions.moveStageRequest?.(-1),
+    },
+    {
+      actionId: "stage.command-arguments",
+      name: "space",
+      action: () => actions.commandArguments?.(),
+    },
+    {
+      actionId: "stage.cursor-down",
+      name: "n",
+      ctrl: true,
+      action: () => actions.moveStageCursor(1),
+    },
+    {
+      actionId: "stage.cursor-up",
+      name: "p",
+      ctrl: true,
+      action: () => actions.moveStageCursor(-1),
+    },
+    {
+      actionId: "stage.cursor-down",
+      name: "j",
+      action: () => actions.moveStageCursor(1),
+      when: noText,
+    },
     { actionId: "stage.cursor-down", name: "down", action: () => actions.moveStageCursor(1) },
-    { actionId: "stage.cursor-up", name: "k", action: () => actions.moveStageCursor(-1), when: noText },
+    {
+      actionId: "stage.cursor-up",
+      name: "k",
+      action: () => actions.moveStageCursor(-1),
+      when: noText,
+    },
     { actionId: "stage.cursor-up", name: "up", action: () => actions.moveStageCursor(-1) },
     { actionId: "stage.confirm", name: "return", action: actions.confirmStage },
     { actionId: "stage.confirm", name: "kpenter", action: actions.confirmStage },
     { actionId: "stage.cancel", name: "escape", action: actions.cancelStage },
-    { actionId: "stage.focus-editor", name: "e", ctrl: true, action: () => ui.regions.requestFocus("editor") },
-    { actionId: "stage.focus-timeline", name: "o", ctrl: true, action: () => ui.regions.requestFocus("timeline") },
+    {
+      actionId: "stage.focus-editor",
+      name: "e",
+      ctrl: true,
+      action: () => ui.regions.requestFocus("editor"),
+    },
+    {
+      actionId: "stage.focus-timeline",
+      name: "o",
+      ctrl: true,
+      action: () => ui.regions.requestFocus("timeline"),
+    },
   ]);
 
   bind("timeline", [
@@ -56,17 +132,47 @@ export function setupDefaultUI(ui: HarnessUI, actions: HarnessUIActions): Regist
     { actionId: "timeline.cursor-up", name: "k", action: () => actions.moveTimelineCursor(-1) },
     { actionId: "timeline.cursor-down", name: "down", action: () => actions.moveTimelineCursor(1) },
     { actionId: "timeline.cursor-up", name: "up", action: () => actions.moveTimelineCursor(-1) },
-    { actionId: "timeline.scroll-page-down", name: "f", ctrl: true, action: () => actions.scrollTimeline("page-down") },
-    { actionId: "timeline.scroll-page-up", name: "b", ctrl: true, action: () => actions.scrollTimeline("page-up") },
-    { actionId: "timeline.scroll-half-down", name: "d", ctrl: true, action: () => actions.scrollTimeline("half-down") },
-    { actionId: "timeline.scroll-half-up", name: "u", ctrl: true, action: () => actions.scrollTimeline("half-up") },
+    {
+      actionId: "timeline.scroll-page-down",
+      name: "f",
+      ctrl: true,
+      action: () => actions.scrollTimeline("page-down"),
+    },
+    {
+      actionId: "timeline.scroll-page-up",
+      name: "b",
+      ctrl: true,
+      action: () => actions.scrollTimeline("page-up"),
+    },
+    {
+      actionId: "timeline.scroll-half-down",
+      name: "d",
+      ctrl: true,
+      action: () => actions.scrollTimeline("half-down"),
+    },
+    {
+      actionId: "timeline.scroll-half-up",
+      name: "u",
+      ctrl: true,
+      action: () => actions.scrollTimeline("half-up"),
+    },
     { actionId: "timeline.copy-item", name: "y", action: actions.copyTimelineItem },
     { actionId: "timeline.toggle-item", name: "return", action: actions.toggleTimelineItem },
     { actionId: "timeline.toggle-item", name: "kpenter", action: actions.toggleTimelineItem },
     { actionId: "timeline.expand-item", name: "l", action: actions.expandTimelineItem },
     { actionId: "timeline.collapse-item", name: "h", action: actions.collapseTimelineItem },
-    { actionId: "timeline.focus-editor", name: "e", ctrl: true, action: () => ui.regions.requestFocus("editor") },
-    { actionId: "timeline.focus-stage", name: "k", ctrl: true, action: () => ui.regions.requestFocus("stage") },
+    {
+      actionId: "timeline.focus-editor",
+      name: "e",
+      ctrl: true,
+      action: () => ui.regions.requestFocus("editor"),
+    },
+    {
+      actionId: "timeline.focus-stage",
+      name: "k",
+      ctrl: true,
+      action: () => ui.regions.requestFocus("stage"),
+    },
   ]);
 
   return registrations;

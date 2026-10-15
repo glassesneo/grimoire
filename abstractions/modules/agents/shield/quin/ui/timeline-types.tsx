@@ -5,10 +5,23 @@
  * reruns tools, or derives text the session did not supply.
  */
 import { contentText, type ImageContent, type StopReason } from "./pi-content";
-import { type CliRenderer, fg, type ImageRenderable, RGBA, StyledText, SyntaxStyle, type TextRenderable } from "@opentui/core";
+import {
+  type CliRenderer,
+  fg,
+  type ImageRenderable,
+  RGBA,
+  StyledText,
+  SyntaxStyle,
+  type TextRenderable,
+} from "@opentui/core";
 import { useRenderer } from "@opentui/solid";
 import { createEffect, createMemo, createSignal, For, type JSX } from "solid-js";
-import { codemodeErrorLocation, codemodeOutput, codemodeWallTime, readableOutput } from "./codemode-result";
+import {
+  codemodeErrorLocation,
+  codemodeOutput,
+  codemodeWallTime,
+  readableOutput,
+} from "./codemode-result";
 import {
   type CompactionState,
   imagesOf,
@@ -52,31 +65,34 @@ const syntaxStyles = new WeakMap<CliRenderer["nativeScene"], Map<string, SyntaxS
 function syntaxStyle(text: string = palette.text): SyntaxStyle {
   const scene = useRenderer().nativeScene;
   let styles = syntaxStyles.get(scene);
-  if (!styles) syntaxStyles.set(scene, styles = new Map());
+  if (!styles) syntaxStyles.set(scene, (styles = new Map()));
   const existing = styles.get(text);
   if (existing) return existing;
-  const syntax = SyntaxStyle.fromStyles({
-    default: { fg: RGBA.fromHex(text) },
-    keyword: { fg: RGBA.fromHex("#cba6f7") },
-    string: { fg: RGBA.fromHex("#a6e3a1") },
-    comment: { fg: RGBA.fromHex(palette.dim), italic: true },
-    number: { fg: RGBA.fromHex("#fab387") },
-    constant: { fg: RGBA.fromHex("#fab387") },
-    function: { fg: RGBA.fromHex("#89b4fa") },
-    type: { fg: RGBA.fromHex("#f9e2af") },
-    operator: { fg: RGBA.fromHex("#89dceb") },
-    variable: { fg: RGBA.fromHex(text) },
-    property: { fg: RGBA.fromHex("#b4befe") },
-    punctuation: { fg: RGBA.fromHex("#9399b2") },
-    "markup.heading": { fg: RGBA.fromHex("#89b4fa"), bold: true },
-    "markup.strong": { bold: true },
-    "markup.italic": { italic: true },
-    "markup.raw": { fg: RGBA.fromHex("#f5c2e7") },
-    "markup.link": { fg: RGBA.fromHex("#89dceb"), underline: true },
-    "markup.list": { fg: RGBA.fromHex("#fab387") },
-    "markup.quote": { fg: RGBA.fromHex("#9399b2"), italic: true },
-    conceal: { fg: RGBA.fromHex(palette.dim) },
-  }, scene);
+  const syntax = SyntaxStyle.fromStyles(
+    {
+      default: { fg: RGBA.fromHex(text) },
+      keyword: { fg: RGBA.fromHex("#cba6f7") },
+      string: { fg: RGBA.fromHex("#a6e3a1") },
+      comment: { fg: RGBA.fromHex(palette.dim), italic: true },
+      number: { fg: RGBA.fromHex("#fab387") },
+      constant: { fg: RGBA.fromHex("#fab387") },
+      function: { fg: RGBA.fromHex("#89b4fa") },
+      type: { fg: RGBA.fromHex("#f9e2af") },
+      operator: { fg: RGBA.fromHex("#89dceb") },
+      variable: { fg: RGBA.fromHex(text) },
+      property: { fg: RGBA.fromHex("#b4befe") },
+      punctuation: { fg: RGBA.fromHex("#9399b2") },
+      "markup.heading": { fg: RGBA.fromHex("#89b4fa"), bold: true },
+      "markup.strong": { bold: true },
+      "markup.italic": { italic: true },
+      "markup.raw": { fg: RGBA.fromHex("#f5c2e7") },
+      "markup.link": { fg: RGBA.fromHex("#89dceb"), underline: true },
+      "markup.list": { fg: RGBA.fromHex("#fab387") },
+      "markup.quote": { fg: RGBA.fromHex("#9399b2"), italic: true },
+      conceal: { fg: RGBA.fromHex(palette.dim) },
+    },
+    scene,
+  );
   styles.set(text, syntax);
   return syntax;
 }
@@ -86,8 +102,12 @@ function syntaxStyle(text: string = palette.text): SyntaxStyle {
 // ---------------------------------------------------------------------------
 
 /** One line of differently colored segments, wrapped as a whole. */
-function styled(...parts: (readonly [text: string, color?: string] | false | undefined)[]): StyledText {
-  return new StyledText(parts.flatMap((part) => (part ? [fg(part[1] ?? palette.text)(part[0])] : [])));
+function styled(
+  ...parts: (readonly [text: string, color?: string] | false | undefined)[]
+): StyledText {
+  return new StyledText(
+    parts.flatMap((part) => (part ? [fg(part[1] ?? palette.text)(part[0])] : [])),
+  );
 }
 
 /**
@@ -95,7 +115,12 @@ function styled(...parts: (readonly [text: string, color?: string] | false | und
  * how many rows follow. The rows are measured from the rendered content, so
  * the count matches what expanding shows at this width.
  */
-function Preview(props: { text: string; fg?: string; rows?: number; markdown?: boolean }): JSX.Element {
+function Preview(props: {
+  text: string;
+  fg?: string;
+  rows?: number;
+  markdown?: boolean;
+}): JSX.Element {
   const [height, setHeight] = createSignal(0);
   const rows = () => props.rows ?? PREVIEW_ROWS;
   // The limit is a layout constraint, so the first frame already has the
@@ -103,20 +128,46 @@ function Preview(props: { text: string; fg?: string; rows?: number; markdown?: b
   return (
     <box flexDirection="column" flexShrink={0}>
       <box maxHeight={rows()} overflow="hidden" flexShrink={0}>
-        <box flexDirection="column" flexShrink={0} onSizeChange={function (this: { height: number }) { setHeight(this.height); }}>
-          {props.markdown ? <Markdown text={props.text} fg={props.fg} /> : <text fg={props.fg} wrapMode="word">{props.text}</text>}
+        <box
+          flexDirection="column"
+          flexShrink={0}
+          onSizeChange={function (this: { height: number }) {
+            setHeight(this.height);
+          }}
+        >
+          {props.markdown ? (
+            <Markdown text={props.text} fg={props.fg} />
+          ) : (
+            <text fg={props.fg} wrapMode="word">
+              {props.text}
+            </text>
+          )}
         </box>
       </box>
-      {height() > rows() ? <text fg={palette.dim}>{`… ${height() - rows()} more rows`}</text> : null}
+      {height() > rows() ? (
+        <text fg={palette.dim}>{`… ${height() - rows()} more rows`}</text>
+      ) : null}
     </box>
   );
 }
 
 /** A line of colored segments; see `styled`. */
-export function Line(props: { parts: Parameters<typeof styled>; wrap?: "none" | "word" }): JSX.Element {
+export function Line(props: {
+  parts: Parameters<typeof styled>;
+  wrap?: "none" | "word";
+}): JSX.Element {
   // Styled text is assigned to the renderable: the JSX `content` prop
   // stringifies it, and as a child each update would be appended.
-  return <text wrapMode={props.wrap ?? "word"} ref={(element: TextRenderable) => createEffect(() => { element.content = styled(...props.parts); })} />;
+  return (
+    <text
+      wrapMode={props.wrap ?? "word"}
+      ref={(element: TextRenderable) =>
+        createEffect(() => {
+          element.content = styled(...props.parts);
+        })
+      }
+    />
+  );
 }
 
 /**
@@ -130,8 +181,15 @@ export function Line(props: { parts: Parameters<typeof styled>; wrap?: "none" | 
  */
 export function Markdown(props: { text: string; streaming?: boolean; fg?: string }): JSX.Element {
   return (
-    <markdown content={props.text} syntaxStyle={syntaxStyle(props.fg)} streaming={props.streaming ?? false}
-      internalBlockMode="top-level" tableOptions={{ style: "grid" }} conceal fg={props.fg} />
+    <markdown
+      content={props.text}
+      syntaxStyle={syntaxStyle(props.fg)}
+      streaming={props.streaming ?? false}
+      internalBlockMode="top-level"
+      tableOptions={{ style: "grid" }}
+      conceal
+      fg={props.fg}
+    />
   );
 }
 
@@ -139,7 +197,12 @@ function CodeBlock(props: { body: string; language: string }): JSX.Element {
   return (
     <box border borderColor="#45475a" flexDirection="column" paddingX={1}>
       {props.language ? <text fg={palette.accent}>{props.language}</text> : null}
-      <code content={props.body} filetype={filetypeOf(props.language)} syntaxStyle={syntaxStyle()} wrapMode="word" />
+      <code
+        content={props.body}
+        filetype={filetypeOf(props.language)}
+        syntaxStyle={syntaxStyle()}
+        wrapMode="word"
+      />
     </box>
   );
 }
@@ -237,10 +300,24 @@ function FittedImage(props: { content: ImageContent; label: string }): JSX.Eleme
   };
   return (
     <box flexDirection="column" flexShrink={0}>
-      {error()
-        ? <text fg={palette.error}>{`${props.label}: could not be shown: ${error()}`}</text>
-        : <PiImage content={props.content} ref={(element: ImageRenderable) => { node = element; }} width="100%" height={height()} fit="fit"
-            onLoad={fit} onSizeChange={fit} onError={(cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause))} />}
+      {error() ? (
+        <text fg={palette.error}>{`${props.label}: could not be shown: ${error()}`}</text>
+      ) : (
+        <PiImage
+          content={props.content}
+          ref={(element: ImageRenderable) => {
+            node = element;
+          }}
+          width="100%"
+          height={height()}
+          fit="fit"
+          onLoad={fit}
+          onSizeChange={fit}
+          onError={(cause: unknown) =>
+            setError(cause instanceof Error ? cause.message : String(cause))
+          }
+        />
+      )}
     </box>
   );
 }
@@ -384,10 +461,18 @@ function singleLine(text: string, joiner = " "): string {
 
 /** Arguments as `key=value` pairs, strings unquoted, on one line. */
 function argsText(args: ToolArguments, limit = 80): string {
-  if (!args.available) return args.bytes === undefined ? "(arguments unavailable)" : `(arguments not saved: ${formatBytes(args.bytes)})`;
+  if (!args.available)
+    return args.bytes === undefined
+      ? "(arguments unavailable)"
+      : `(arguments not saved: ${formatBytes(args.bytes)})`;
   const record = argsRecord(args);
   const text = record
-    ? Object.entries(record).map(([key, field]) => `${key}=${typeof field === "string" ? field : compactJson(field, Number.POSITIVE_INFINITY)}`).join(" ")
+    ? Object.entries(record)
+        .map(
+          ([key, field]) =>
+            `${key}=${typeof field === "string" ? field : compactJson(field, Number.POSITIVE_INFINITY)}`,
+        )
+        .join(" ")
     : compactJson(args.value, Number.POSITIVE_INFINITY);
   const line = singleLine(text, " ⏎ ");
   return line.length > limit ? `${line.slice(0, limit - 1)}…` : line;
@@ -413,28 +498,55 @@ function toolSource(snapshot: ToolSnapshot): string | undefined {
 // The pieces below are mounted once per row and read `props.snapshot` inside
 // JSX, so a running tool's updates change them in place.
 
-function ToolHeader(props: { label: string; detail: string; status?: string; snapshot: ToolSnapshot }): JSX.Element {
-  const state = () => props.status ?? (props.snapshot.result?.partial && props.snapshot.state === "running" ? "running…" : stateText[props.snapshot.state]);
+function ToolHeader(props: {
+  label: string;
+  detail: string;
+  status?: string;
+  snapshot: ToolSnapshot;
+}): JSX.Element {
+  const state = () =>
+    props.status ??
+    (props.snapshot.result?.partial && props.snapshot.state === "running"
+      ? "running…"
+      : stateText[props.snapshot.state]);
   return (
-    <Line parts={[[props.label, palette.accent],
-      props.detail ? [` ${props.detail}`] : undefined,
-      [` · ${state()}`, stateColor[props.snapshot.state]]]} />
+    <Line
+      parts={[
+        [props.label, palette.accent],
+        props.detail ? [` ${props.detail}`] : undefined,
+        [` · ${state()}`, stateColor[props.snapshot.state]],
+      ]}
+    />
   );
 }
 
 function ErrorPreview(props: { snapshot: ToolSnapshot }): JSX.Element {
-  return <>{toolError(props.snapshot) ? <Preview text={toolError(props.snapshot) ?? ""} fg={palette.error} /> : null}</>;
+  return (
+    <>
+      {toolError(props.snapshot) ? (
+        <Preview text={toolError(props.snapshot) ?? ""} fg={palette.error} />
+      ) : null}
+    </>
+  );
 }
 
 /** States that are not an outcome yet, or never became one. */
 function ResultUnavailable(props: { snapshot: ToolSnapshot }): JSX.Element {
   const unavailable = () =>
-    (props.snapshot.state === "done" || props.snapshot.state === "error") && !props.snapshot.result && !props.snapshot.errorSummary;
+    (props.snapshot.state === "done" || props.snapshot.state === "error") &&
+    !props.snapshot.result &&
+    !props.snapshot.errorSummary;
   return <>{unavailable() ? <text fg={palette.warning}>result not recorded</text> : null}</>;
 }
 
 function ErrorLine(props: { snapshot: ToolSnapshot }): JSX.Element {
-  return <>{toolError(props.snapshot) ? <text fg={palette.error}>{toolError(props.snapshot)}</text> : null}</>;
+  return (
+    <>
+      {toolError(props.snapshot) ? (
+        <text fg={palette.error}>{toolError(props.snapshot)}</text>
+      ) : null}
+    </>
+  );
 }
 
 function ImagesDetail(props: { images: ImageContent[]; label: string }): JSX.Element {
@@ -470,7 +582,12 @@ function toolType(kind: string, spec: ToolSpec): ItemType<ToolSnapshot, JSX.Elem
     live: true,
     render: (props) => (
       <box flexDirection="column">
-        <ToolHeader label={spec.label ?? props.value.name} detail={spec.summary(props.value)} status={spec.status?.(props.value)} snapshot={props.value} />
+        <ToolHeader
+          label={spec.label ?? props.value.name}
+          detail={spec.summary(props.value)}
+          status={spec.status?.(props.value)}
+          snapshot={props.value}
+        />
         {props.expanded ? null : <Collapsed snapshot={props.value} />}
         <ResultUnavailable snapshot={props.value} />
       </box>
@@ -489,13 +606,19 @@ const genericSpec: ToolSpec = {
   details: (snapshot) => (
     <box flexDirection="column">
       <text fg={palette.dim}>arguments</text>
-      <text>{snapshot.args.available ? prettyJson(snapshot.args.value) : argsText(snapshot.args)}</text>
+      <text>
+        {snapshot.args.available ? prettyJson(snapshot.args.value) : argsText(snapshot.args)}
+      </text>
       {snapshot.result ? (
         <box flexDirection="column">
           <text fg={palette.dim}>{snapshot.state === "error" ? "error" : "result"}</text>
-          <text fg={snapshot.state === "error" ? palette.error : undefined}>{textOf(snapshot.result.content) || "(no text)"}</text>
+          <text fg={snapshot.state === "error" ? palette.error : undefined}>
+            {textOf(snapshot.result.content) || "(no text)"}
+          </text>
           {snapshot.result.details !== undefined ? <text fg={palette.dim}>details</text> : null}
-          {snapshot.result.details !== undefined ? <text>{prettyJson(snapshot.result.details)}</text> : null}
+          {snapshot.result.details !== undefined ? (
+            <text>{prettyJson(snapshot.result.details)}</text>
+          ) : null}
           <ImagesDetail images={imagesOf(snapshot.result.content)} label="image" />
         </box>
       ) : null}
@@ -503,7 +626,8 @@ const genericSpec: ToolSpec = {
   ),
   expandable: (snapshot) =>
     argsText(snapshot.args, Number.POSITIVE_INFINITY).length > 80 ||
-    (snapshot.result !== undefined && (snapshot.result.content.length > 0 || snapshot.result.details !== undefined)) ||
+    (snapshot.result !== undefined &&
+      (snapshot.result.content.length > 0 || snapshot.result.details !== undefined)) ||
     longError(snapshot),
 };
 
@@ -518,25 +642,38 @@ const readSpec: ToolSpec = {
   Preview: (props) => (
     <>
       <ErrorPreview snapshot={props.snapshot} />
-      <For each={imagesOf(props.snapshot.result?.content)}>{(image) => <text fg={palette.dim}>{`image: ${imageMetadata(image)}`}</text>}</For>
+      <For each={imagesOf(props.snapshot.result?.content)}>
+        {(image) => <text fg={palette.dim}>{`image: ${imageMetadata(image)}`}</text>}
+      </For>
     </>
   ),
   details: (snapshot) => (
     <box flexDirection="column">
       <ErrorLine snapshot={snapshot} />
-      <ImagesDetail images={imagesOf(snapshot.result?.content)} label={argField(snapshot, "path") ?? "image"} />
+      <ImagesDetail
+        images={imagesOf(snapshot.result?.content)}
+        label={argField(snapshot, "path") ?? "image"}
+      />
     </box>
   ),
   // Read text is the model's to see; only images and long errors add to the row.
   expandable: (snapshot) => imagesOf(snapshot.result?.content).length > 0 || longError(snapshot),
 };
 
-function bashDetails(snapshot: ToolSnapshot): { exitCode?: number; fullOutputPath?: string; truncated?: string; cancelled?: boolean } {
+function bashDetails(snapshot: ToolSnapshot): {
+  exitCode?: number;
+  fullOutputPath?: string;
+  truncated?: string;
+  cancelled?: boolean;
+} {
   const details = snapshot.result?.details;
   if (!isRecord(details)) return {};
-  const truncation = isRecord(details.truncation) && details.truncation.truncated === true
-    ? `truncated by ${String(details.truncation.truncatedBy)}: ${String(details.truncation.outputLines)} of ${String(details.truncation.totalLines)} lines`
-    : details.truncated === true ? "truncated" : undefined;
+  const truncation =
+    isRecord(details.truncation) && details.truncation.truncated === true
+      ? `truncated by ${String(details.truncation.truncatedBy)}: ${String(details.truncation.outputLines)} of ${String(details.truncation.totalLines)} lines`
+      : details.truncated === true
+        ? "truncated"
+        : undefined;
   return {
     exitCode: typeof details.exitCode === "number" ? details.exitCode : undefined,
     fullOutputPath: typeof details.fullOutputPath === "string" ? details.fullOutputPath : undefined,
@@ -555,9 +692,14 @@ const bashSpec: ToolSpec = {
     const output = () => textOf(props.snapshot.result?.content);
     return (
       <>
-        {output()
-          ? <Preview text={output()} fg={props.snapshot.state === "error" ? palette.error : palette.dim} />
-          : <ErrorPreview snapshot={props.snapshot} />}
+        {output() ? (
+          <Preview
+            text={output()}
+            fg={props.snapshot.state === "error" ? palette.error : palette.dim}
+          />
+        ) : (
+          <ErrorPreview snapshot={props.snapshot} />
+        )}
       </>
     );
   },
@@ -565,24 +707,37 @@ const bashSpec: ToolSpec = {
     const extra = bashDetails(snapshot);
     return (
       <box flexDirection="column">
-        <text fg={snapshot.state === "error" ? palette.error : undefined}>{textOf(snapshot.result?.content) || snapshot.errorSummary || "(no output)"}</text>
-        {extra.exitCode !== undefined ? <text fg={palette.dim}>{`exit code ${extra.exitCode}`}</text> : null}
+        <text fg={snapshot.state === "error" ? palette.error : undefined}>
+          {textOf(snapshot.result?.content) || snapshot.errorSummary || "(no output)"}
+        </text>
+        {extra.exitCode !== undefined ? (
+          <text fg={palette.dim}>{`exit code ${extra.exitCode}`}</text>
+        ) : null}
         {extra.cancelled ? <text fg={palette.warning}>cancelled</text> : null}
         {extra.truncated ? <text fg={palette.dim}>{extra.truncated}</text> : null}
-        {extra.fullOutputPath ? <text fg={palette.dim}>{`full output: ${extra.fullOutputPath}`}</text> : null}
+        {extra.fullOutputPath ? (
+          <text fg={palette.dim}>{`full output: ${extra.fullOutputPath}`}</text>
+        ) : null}
       </box>
     );
   },
   expandable: (snapshot) => {
     const extra = bashDetails(snapshot);
-    return exceedsPreview(textOf(snapshot.result?.content)) || longError(snapshot) ||
-      extra.exitCode !== undefined || extra.fullOutputPath !== undefined || extra.truncated !== undefined;
+    return (
+      exceedsPreview(textOf(snapshot.result?.content)) ||
+      longError(snapshot) ||
+      extra.exitCode !== undefined ||
+      extra.fullOutputPath !== undefined ||
+      extra.truncated !== undefined
+    );
   },
 };
 
 function editDiff(snapshot: ToolSnapshot): string | undefined {
   const details = snapshot.result?.details;
-  return isRecord(details) && typeof details.diff === "string" && details.diff !== "" ? details.diff : undefined;
+  return isRecord(details) && typeof details.diff === "string" && details.diff !== ""
+    ? details.diff
+    : undefined;
 }
 
 const pathSummary: ToolSpec["summary"] = ({ args }) => {
@@ -596,7 +751,14 @@ const editSpec: ToolSpec = {
   details: (snapshot) => (
     <box flexDirection="column">
       <ErrorLine snapshot={snapshot} />
-      {editDiff(snapshot) ? <code content={editDiff(snapshot)} filetype="diff" syntaxStyle={syntaxStyle()} wrapMode="word" /> : null}
+      {editDiff(snapshot) ? (
+        <code
+          content={editDiff(snapshot)}
+          filetype="diff"
+          syntaxStyle={syntaxStyle()}
+          wrapMode="word"
+        />
+      ) : null}
     </box>
   ),
   expandable: (snapshot) => editDiff(snapshot) !== undefined || longError(snapshot),
@@ -608,7 +770,9 @@ const writeSpec: ToolSpec = {
   details: (snapshot) => (
     <box flexDirection="column">
       <ErrorLine snapshot={snapshot} />
-      {argField(snapshot, "content") !== undefined ? <text>{argField(snapshot, "content")}</text> : null}
+      {argField(snapshot, "content") !== undefined ? (
+        <text>{argField(snapshot, "content")}</text>
+      ) : null}
     </box>
   ),
   expandable: (snapshot) => argField(snapshot, "content") !== undefined || longError(snapshot),
@@ -622,10 +786,15 @@ const writeSpec: ToolSpec = {
 function CallOverview(props: { call: NestedCallSummary }): JSX.Element {
   const spec = () => builtInTools[props.call.name]?.spec ?? genericSpec;
   return (
-    <Line wrap="none" parts={[["· ", palette.dim],
-      [spec().label ?? props.call.name, palette.accent],
-      [` ${spec().summary(props.call)}`],
-      [` · ${stateText[props.call.state]}`, stateColor[props.call.state]]]} />
+    <Line
+      wrap="none"
+      parts={[
+        ["· ", palette.dim],
+        [spec().label ?? props.call.name, palette.accent],
+        [` ${spec().summary(props.call)}`],
+        [` · ${stateText[props.call.state]}`, stateColor[props.call.state]],
+      ]}
+    />
   );
 }
 
@@ -644,9 +813,16 @@ function ScriptSource(props: { code: string; errorLine: number | undefined }): J
         {(line, index) => {
           const marked = () => props.errorLine === index() + 1;
           return (
-            <Line parts={[[`${marked() ? "▶" : " "}${String(index() + 1).padStart(width())} `, marked() ? palette.error : palette.dim],
-              [line, marked() ? palette.error : palette.text],
-              marked() && ["  ← error", palette.error]]} />
+            <Line
+              parts={[
+                [
+                  `${marked() ? "▶" : " "}${String(index() + 1).padStart(width())} `,
+                  marked() ? palette.error : palette.dim,
+                ],
+                [line, marked() ? palette.error : palette.text],
+                marked() && ["  ← error", palette.error],
+              ]}
+            />
           );
         }}
       </For>
@@ -656,25 +832,36 @@ function ScriptSource(props: { code: string; errorLine: number | undefined }): J
 
 function codemodeLocation(snapshot: ToolSnapshot) {
   const code = codemodeSource(snapshot);
-  return code === undefined ? undefined : codemodeErrorLocation(code, { content: snapshot.result?.content ?? [], isError: snapshot.state === "error" });
+  return code === undefined
+    ? undefined
+    : codemodeErrorLocation(code, {
+        content: snapshot.result?.content ?? [],
+        isError: snapshot.state === "error",
+      });
 }
 
 /** What a collapsed codemode item ended with, under its calls. */
 function Outcome(props: { children: JSX.Element }): JSX.Element {
   return (
     <box flexDirection="row" flexShrink={0}>
-      <text fg={palette.dim} flexShrink={0}>{"→ "}</text>
-      <box flexDirection="column" flexGrow={1} flexShrink={1}>{props.children}</box>
+      <text fg={palette.dim} flexShrink={0}>
+        {"→ "}
+      </text>
+      <box flexDirection="column" flexGrow={1} flexShrink={1}>
+        {props.children}
+      </box>
     </box>
   );
 }
 
 const codemodeSpec: ToolSpec = {
   label: "codemode",
-  summary: ({ calls = [] }) => (calls.length > 0 ? `${calls.length} call${calls.length === 1 ? "" : "s"}` : ""),
+  summary: ({ calls = [] }) =>
+    calls.length > 0 ? `${calls.length} call${calls.length === 1 ? "" : "s"}` : "",
   status: (snapshot) => {
     const location = codemodeLocation(snapshot);
-    const state = location?.kind === "located" ? `failed at line ${location.line}` : stateText[snapshot.state];
+    const state =
+      location?.kind === "located" ? `failed at line ${location.line}` : stateText[snapshot.state];
     return [codemodeWallTime(snapshot.result?.content ?? []), state].filter(Boolean).join(" · ");
   },
   // The calls lead; the output and the error's first line follow them.
@@ -685,10 +872,22 @@ const codemodeSpec: ToolSpec = {
     const readable = createMemo(() => readableOutput(text()));
     return (
       <>
-        {props.snapshot.callsIncomplete ? <text fg={palette.warning}>the saved call list is incomplete</text> : null}
+        {props.snapshot.callsIncomplete ? (
+          <text fg={palette.warning}>the saved call list is incomplete</text>
+        ) : null}
         <For each={props.snapshot.calls}>{(call) => <CallOverview call={call} />}</For>
-        {text() ? <Outcome><Preview text={readable()} /></Outcome> : null}
-        {output().error ? <Outcome><text fg={palette.error} wrapMode="word">{output().error?.split("\n")[0] ?? ""}</text></Outcome> : null}
+        {text() ? (
+          <Outcome>
+            <Preview text={readable()} />
+          </Outcome>
+        ) : null}
+        {output().error ? (
+          <Outcome>
+            <text fg={palette.error} wrapMode="word">
+              {output().error?.split("\n")[0] ?? ""}
+            </text>
+          </Outcome>
+        ) : null}
         {!props.snapshot.result ? <ErrorPreview snapshot={props.snapshot} /> : null}
       </>
     );
@@ -699,10 +898,25 @@ const codemodeSpec: ToolSpec = {
     const location = codemodeLocation(snapshot);
     return (
       <box flexDirection="column">
-        {snapshot.callsIncomplete ? <text fg={palette.warning}>the saved call list is incomplete</text> : null}
-        {code !== undefined ? <ScriptSource code={code} errorLine={location?.kind === "located" ? location.line : undefined} /> : <text fg={palette.warning}>script source unavailable</text>}
-        {location?.kind === "located" ? <text fg={palette.error}>{`error at line ${location.line}`}</text> : null}
-        {location?.kind === "unrecognized" ? <text fg={palette.warning}>the error's format is not recognized, so no line is marked</text> : null}
+        {snapshot.callsIncomplete ? (
+          <text fg={palette.warning}>the saved call list is incomplete</text>
+        ) : null}
+        {code !== undefined ? (
+          <ScriptSource
+            code={code}
+            errorLine={location?.kind === "located" ? location.line : undefined}
+          />
+        ) : (
+          <text fg={palette.warning}>script source unavailable</text>
+        )}
+        {location?.kind === "located" ? (
+          <text fg={palette.error}>{`error at line ${location.line}`}</text>
+        ) : null}
+        {location?.kind === "unrecognized" ? (
+          <text fg={palette.warning}>
+            the error's format is not recognized, so no line is marked
+          </text>
+        ) : null}
         {output.header ? <text fg={palette.dim}>{output.header}</text> : null}
         {output.output ? <text>{readableOutput(output.output)}</text> : null}
         <ImagesDetail images={output.images} label="output image" />
@@ -710,7 +924,10 @@ const codemodeSpec: ToolSpec = {
       </box>
     );
   },
-  expandable: (snapshot) => snapshot.calls.length > 0 || codemodeSource(snapshot) !== undefined || snapshot.result !== undefined,
+  expandable: (snapshot) =>
+    snapshot.calls.length > 0 ||
+    codemodeSource(snapshot) !== undefined ||
+    snapshot.result !== undefined,
 };
 
 /** Tools with a dedicated presentation, by tool name; any other tool uses the generic one. */
@@ -727,13 +944,21 @@ const builtInTools: Readonly<Record<string, { kind: string; spec: ToolSpec }>> =
 // ---------------------------------------------------------------------------
 
 /** Stop reasons a response reports, with their color; any other stop is unremarkable. */
-const stopColor: Partial<Record<StopReason, string>> = { error: palette.error, aborted: palette.warning, length: palette.warning };
+const stopColor: Partial<Record<StopReason, string>> = {
+  error: palette.error,
+  aborted: palette.warning,
+  length: palette.warning,
+};
 
 function stopLine(value: ResponseValue): JSX.Element {
   if (value.streaming) return null;
   const color = value.stopReason && stopColor[value.stopReason];
-  if (value.stopReason === "error") return <text fg={color}>{`error: ${value.errorMessage ?? "the response failed"}`}</text>;
-  if (value.stopReason === "aborted") return <text fg={color}>{value.errorMessage ? `aborted: ${value.errorMessage}` : "aborted"}</text>;
+  if (value.stopReason === "error")
+    return <text fg={color}>{`error: ${value.errorMessage ?? "the response failed"}`}</text>;
+  if (value.stopReason === "aborted")
+    return (
+      <text fg={color}>{value.errorMessage ? `aborted: ${value.errorMessage}` : "aborted"}</text>
+    );
   if (value.stopReason === "length") return <text fg={color}>stopped at the output limit</text>;
   return null;
 }
@@ -760,15 +985,18 @@ const compactionColor: Record<CompactionState, string> = {
   aborted: palette.warning,
 };
 
-
-export function createTimelineTypes(options: { hiddenThinkingLabel?: () => string | undefined } = {}) {
+export function createTimelineTypes(
+  options: { hiddenThinkingLabel?: () => string | undefined } = {},
+) {
   const withheld = () => options.hiddenThinkingLabel?.() ?? "thinking withheld";
   const user: ItemType<UserValue, JSX.Element> = {
     kind: "user",
     render: ({ value }) => (
       <box flexDirection="column">
         <text fg={palette.user}>{`> ${value.text}`}</text>
-        {value.images.length > 0 ? <text fg={palette.dim}>{`attachments: ${value.images.join("; ")}`}</text> : null}
+        {value.images.length > 0 ? (
+          <text fg={palette.dim}>{`attachments: ${value.images.join("; ")}`}</text>
+        ) : null}
       </box>
     ),
     sourceText: (value) => value.text || undefined,
@@ -793,21 +1021,29 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     live: true,
     render: (props) => (
       <box flexDirection="column">
-        {props.expanded ? <text fg={palette.dim}>{`response${props.value.streaming ? " · streaming…" : ""}`}</text> : null}
+        {props.expanded ? (
+          <text fg={palette.dim}>{`response${props.value.streaming ? " · streaming…" : ""}`}</text>
+        ) : null}
         {!props.expanded && props.value.hasThinking ? <text fg={palette.dim}>thinking</text> : null}
-        {!props.expanded && props.value.hasThinking
-          ? props.value.thinkingWithheld || props.value.thinking === ""
-            ? <text fg={palette.thinking}>{withheld()}</text>
-            : <Preview text={props.value.thinking} fg={palette.thinking} markdown />
-          : null}
-        {!props.expanded && props.value.body ? <Markdown text={props.value.body} streaming={props.value.streaming} /> : null}
+        {!props.expanded && props.value.hasThinking ? (
+          props.value.thinkingWithheld || props.value.thinking === "" ? (
+            <text fg={palette.thinking}>{withheld()}</text>
+          ) : (
+            <Preview text={props.value.thinking} fg={palette.thinking} markdown />
+          )
+        ) : null}
+        {!props.expanded && props.value.body ? (
+          <Markdown text={props.value.body} streaming={props.value.streaming} />
+        ) : null}
         {stopLine(props.value)}
       </box>
     ),
     // The prose and code as written, without thinking.
     sourceText: (value) => value.body || undefined,
-    marker: (value) => value.streaming ? palette.accent
-      : (value.stopReason && stopColor[value.stopReason]) ?? palette.text,
+    marker: (value) =>
+      value.streaming
+        ? palette.accent
+        : ((value.stopReason && stopColor[value.stopReason]) ?? palette.text),
     actions: {},
   };
   const thinking: ItemType<ThinkingValue, JSX.Element> = {
@@ -816,9 +1052,11 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     render: (props) => (
       <box flexDirection="column">
         <text fg={palette.dim}>thinking</text>
-        {props.value.withheld || props.value.text === ""
-          ? <text fg={palette.thinking}>{withheld()}</text>
-          : <Markdown text={props.value.text} fg={palette.thinking} />}
+        {props.value.withheld || props.value.text === "" ? (
+          <text fg={palette.thinking}>{withheld()}</text>
+        ) : (
+          <Markdown text={props.value.text} fg={palette.thinking} />
+        )}
       </box>
     ),
     // Withheld thinking has no text to copy, and its signature is never copied.
@@ -828,7 +1066,12 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
   const prose: ItemType<ProseValue, JSX.Element> = {
     kind: "prose",
     live: true,
-    render: (props) => <Markdown text={props.value.text.replace(/^\s*\n/, "").replace(/\n\s*$/, "")} streaming={props.value.streaming} />,
+    render: (props) => (
+      <Markdown
+        text={props.value.text.replace(/^\s*\n/, "").replace(/\n\s*$/, "")}
+        streaming={props.value.streaming}
+      />
+    ),
     sourceText: (value) => value.text,
     actions: {},
   };
@@ -871,12 +1114,21 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     },
     renderDetails: ({ value }) => (
       <For each={value.attempts}>
-        {(attempt) => <text fg={palette.dim}>{`attempt ${attempt.attempt}/${attempt.maxAttempts}: ${attempt.error}`}</text>}
+        {(attempt) => (
+          <text
+            fg={palette.dim}
+          >{`attempt ${attempt.attempt}/${attempt.maxAttempts}: ${attempt.error}`}</text>
+        )}
       </For>
     ),
     expandable: (value) => value.attempts.length > 0,
     sourceText: (value) => value.attempts.map((attempt) => attempt.error).join("\n") || undefined,
-    marker: (value) => value.state === "failed" ? palette.error : value.state === "succeeded" ? palette.success : palette.warning,
+    marker: (value) =>
+      value.state === "failed"
+        ? palette.error
+        : value.state === "succeeded"
+          ? palette.success
+          : palette.warning,
     actions: {},
   };
   const branchSummary: ItemType<SummaryValue, JSX.Element> = {
@@ -903,11 +1155,18 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     renderDetails: ({ value }) => (
       <box flexDirection="column">
         <text>{contentText(value.content)}</text>
-        {value.details !== undefined ? <text fg={palette.dim}>{prettyJson(value.details)}</text> : null}
-        <ImagesDetail images={typeof value.content === "string" ? [] : imagesOf(value.content)} label="image" />
+        {value.details !== undefined ? (
+          <text fg={palette.dim}>{prettyJson(value.details)}</text>
+        ) : null}
+        <ImagesDetail
+          images={typeof value.content === "string" ? [] : imagesOf(value.content)}
+          label="image"
+        />
       </box>
     ),
-    expandable: (value) => exceedsPreview(contentText(value.content)) || value.details !== undefined ||
+    expandable: (value) =>
+      exceedsPreview(contentText(value.content)) ||
+      value.details !== undefined ||
       (typeof value.content !== "string" && imagesOf(value.content).length > 0),
     sourceText: (value) => contentText(value.content),
     marker: () => palette.accent,
@@ -915,7 +1174,9 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
   };
   const config: ItemType<ConfigValue, JSX.Element> = {
     kind: "config",
-    render: ({ value }) => <text fg={palette.dim}>{`── ${value.setting}: ${value.from} → ${value.to}`}</text>,
+    render: ({ value }) => (
+      <text fg={palette.dim}>{`── ${value.setting}: ${value.from} → ${value.to}`}</text>
+    ),
     sourceText: (value) => `${value.setting}: ${value.from} → ${value.to}`,
     actions: {},
   };
@@ -927,9 +1188,22 @@ export function createTimelineTypes(options: { hiddenThinkingLabel?: () => strin
     actions: {},
   };
   return {
-    user, image, response, thinking, prose, code, compaction, retry, branchSummary, custom, config, notice,
+    user,
+    image,
+    response,
+    thinking,
+    prose,
+    code,
+    compaction,
+    retry,
+    branchSummary,
+    custom,
+    config,
+    notice,
     tool: toolType("tool", genericSpec),
-    ...Object.fromEntries(Object.entries(builtInTools).map(([name, { kind, spec }]) => [name, toolType(kind, spec)])),
+    ...Object.fromEntries(
+      Object.entries(builtInTools).map(([name, { kind, spec }]) => [name, toolType(kind, spec)]),
+    ),
   };
 }
 

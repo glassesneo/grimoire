@@ -24,24 +24,47 @@ export function bridgeDialogs(options: {
   const { controller, ui } = options;
   const open = new Map<string, AbortController>();
 
-  const present = async (id: string, d: any, signal: AbortSignal): Promise<Record<string, unknown> | undefined> => {
+  const present = async (
+    id: string,
+    d: any,
+    signal: AbortSignal,
+  ): Promise<Record<string, unknown> | undefined> => {
     if (d.method === "select" || d.method === "confirm") {
       const confirm = d.method === "confirm";
       // The hub accepts only a listed choice, so a select without a list offers none.
-      const choices = confirm ? ["Yes", "No"] : Array.isArray(d.options) ? d.options.map(String) : [];
-      const value: ChoiceValue = { title: d.title, message: d.message, choices, cursor: 0, expiresAt: d.expiresAt };
+      const choices = confirm
+        ? ["Yes", "No"]
+        : Array.isArray(d.options)
+          ? d.options.map(String)
+          : [];
+      const value: ChoiceValue = {
+        title: d.title,
+        message: d.message,
+        choices,
+        cursor: 0,
+        expiresAt: d.expiresAt,
+      };
       const handle = ui.stage.show({
-        requester: "pi", type: confirm ? options.confirmType : options.choiceType, value, signal,
+        requester: "pi",
+        type: confirm ? options.confirmType : options.choiceType,
+        value,
+        signal,
         preferredHeight: choices.length + 1 + (d.message ? 1 : 0) + (d.expiresAt ? 1 : 0),
       });
       const result = await handle.closed;
       if (result.status !== "closed") return { cancelled: true };
-      return confirm ? { confirmed: result.value.result === "Yes" } : { value: result.value.result };
+      return confirm
+        ? { confirmed: result.value.result === "Yes" }
+        : { value: result.value.result };
     }
     const title = d.placeholder ? `${d.title} (${d.placeholder})` : d.title;
     const result = await ui.editor.openDraft({
-      destination: `dialog:${id}`, label: `${d.method}: ${title}`, requester: ui.controllers.regions.current(),
-      initialText: d.prefill, fresh: true, signal,
+      destination: `dialog:${id}`,
+      label: `${d.method}: ${title}`,
+      requester: ui.controllers.regions.current(),
+      initialText: d.prefill,
+      fresh: true,
+      signal,
     });
     return result.status === "submitted" ? { value: result.text } : { cancelled: true };
   };
@@ -58,7 +81,7 @@ export function bridgeDialogs(options: {
       if (open.has(id) || !["select", "confirm", "input", "editor"].includes(d.method)) continue;
       const abort = new AbortController();
       open.set(id, abort);
-      void present(id, d, abort.signal).then(reply => {
+      void present(id, d, abort.signal).then((reply) => {
         // Closed by the hub: another UI answered, it timed out, or Pi went away.
         if (abort.signal.aborted || !reply) return;
         return controller.replyDialog(id, reply);

@@ -40,7 +40,12 @@ export class StatuslineController extends Emitter {
 
   setFields(fields: StatuslineFields): void {
     const next = { ...this.#fields, ...fields };
-    if ((Object.keys(next) as (keyof StatuslineFields)[]).every((key) => next[key] === this.#fields[key])) return;
+    if (
+      (Object.keys(next) as (keyof StatuslineFields)[]).every(
+        (key) => next[key] === this.#fields[key],
+      )
+    )
+      return;
     this.#fields = next;
     this.changed();
   }
@@ -57,7 +62,8 @@ export class StatuslineController extends Emitter {
     return {
       update: (next) => {
         if (!this.#contributions.includes(contribution)) return;
-        if (next.text === contribution.segment.text && next.color === contribution.segment.color) return;
+        if (next.text === contribution.segment.text && next.color === contribution.segment.color)
+          return;
         contribution.segment = next;
         this.changed();
       },
@@ -71,7 +77,9 @@ export class StatuslineController extends Emitter {
   }
 
   contributions(position: StatuslinePosition): readonly StatuslineSegment[] {
-    return this.#contributions.filter((contribution) => contribution.position === position).map((contribution) => contribution.segment);
+    return this.#contributions
+      .filter((contribution) => contribution.position === position)
+      .map((contribution) => contribution.segment);
   }
 }
 
@@ -110,10 +118,14 @@ const SEPARATOR = " · ";
 
 /** Segments that fit `width`, in their original order, dropping or shortening the lowest priorities first. */
 function composeLine(segments: readonly LineSegment[], width: number): StatuslineSegment[] {
-  const present = segments.map((segment, index) => ({ segment, index })).filter(({ segment }) => segment.text !== "");
+  const present = segments
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => segment.text !== "");
   const fitted = new Map<number, string>();
   let used = 0;
-  for (const { segment, index } of [...present].sort((a, b) => a.segment.priority - b.segment.priority)) {
+  for (const { segment, index } of [...present].sort(
+    (a, b) => a.segment.priority - b.segment.priority,
+  )) {
     const separator = fitted.size > 0 ? displayWidth(SEPARATOR) : 0;
     const textWidth = displayWidth(segment.text);
     if (used + separator + textWidth <= width) {
@@ -132,22 +144,33 @@ function composeLine(segments: readonly LineSegment[], width: number): Statuslin
   });
 }
 
-export function StatuslineView(props: { segments: readonly LineSegment[]; width: number }): JSX.Element {
+export function StatuslineView(props: {
+  segments: readonly LineSegment[];
+  width: number;
+}): JSX.Element {
   const line = () => composeLine(props.segments, Math.max(0, props.width - 2));
   return (
     <box height={1} width="100%" paddingX={1} flexShrink={0}>
-      <Line wrap="none" parts={line().flatMap((segment, index) => [
-        index > 0 ? ([SEPARATOR, palette.dim] as const) : undefined,
-        [segment.text, segment.color ?? palette.dim] as const,
-      ])} />
+      <Line
+        wrap="none"
+        parts={line().flatMap((segment, index) => [
+          index > 0 ? ([SEPARATOR, palette.dim] as const) : undefined,
+          [segment.text, segment.color ?? palette.dim] as const,
+        ])}
+      />
     </box>
   );
 }
 
 /** The built-in fields and contributions of one line, with their width priorities. */
-export function statuslineSegments(controller: StatuslineController, position: StatuslinePosition): LineSegment[] {
+export function statuslineSegments(
+  controller: StatuslineController,
+  position: StatuslinePosition,
+): LineSegment[] {
   const fields = controller.fields();
-  const extra = controller.contributions(position).map((segment, index) => ({ ...segment, priority: 10 + index }));
+  const extra = controller
+    .contributions(position)
+    .map((segment, index) => ({ ...segment, priority: 10 + index }));
   if (position === "top") {
     return [
       { text: fields.session ?? "", color: palette.text, priority: 1, shrink: "start" },
@@ -210,13 +233,19 @@ export function RunStateIndicator(props: { controller: RunStateController }): JS
   createEffect(() => {
     setFrame(0);
     if (!running()) return;
-    const timer = setInterval(() => setFrame((value) => (value + 1) % WORKING_FRAMES.length), WORKING_INTERVAL_MS);
+    const timer = setInterval(
+      () => setFrame((value) => (value + 1) % WORKING_FRAMES.length),
+      WORKING_INTERVAL_MS,
+    );
     onCleanup(() => clearInterval(timer));
   });
   return (
-    <Line wrap="none" parts={[
-      running() ? [`${WORKING_FRAMES[frame()]} `, palette.accent] : undefined,
-      [message() ?? "", palette.dim],
-    ]} />
+    <Line
+      wrap="none"
+      parts={[
+        running() ? [`${WORKING_FRAMES[frame()]} `, palette.accent] : undefined,
+        [message() ?? "", palette.dim],
+      ]}
+    />
   );
 }

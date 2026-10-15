@@ -47,6 +47,12 @@
         programs = {
           alejandra.enable = true;
           # The SHIELD hub builds with this Elixir, so both agree on mix format's style.
+          # JSON and Markdown stay out: Bun rewrites package.json, and
+          # docs/generated is compared with `just docs` output.
+          oxfmt = {
+            enable = true;
+            includes = ["*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs"];
+          };
           mix-format = {
             enable = true;
             package = pkgs.beamPackages.elixir;
@@ -94,6 +100,7 @@
             pkgs.just
             pkgs.nushell
             pkgs.bun
+            pkgs.oxfmt
             inputs.bun2nix.packages.${system}.default
             pkgs.emmylua-ls
             pkgs.emmylua-check

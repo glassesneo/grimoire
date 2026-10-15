@@ -16,7 +16,11 @@ export default function harnessClientExample(pi: ExtensionAPI): void {
     name: "example_shell",
     label: "Example shell",
     description: "Echoes a command instead of running it",
-    parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } as never,
+    parameters: {
+      type: "object",
+      properties: { command: { type: "string" } },
+      required: ["command"],
+    } as never,
     async execute(_id, args: { command: string }) {
       return { content: [{ type: "text", text: `would run: ${args.command}` }], details: {} };
     },
@@ -27,7 +31,11 @@ export default function harnessClientExample(pi: ExtensionAPI): void {
     if (harness?.version !== 1) return;
     // The snapshot already has the shape the bash presentation reads.
     harness.timeline.bindTool("example_shell", "tool:bash");
-    status = harness.statusline.setText({ position: "bottom", key: "example", text: "example: idle" });
+    status = harness.statusline.setText({
+      position: "bottom",
+      key: "example",
+      text: "example: idle",
+    });
   });
   pi.on("agent_start", () => status?.update("example: working"));
   pi.on("agent_settled", () => status?.update("example: idle"));

@@ -35,48 +35,110 @@ test("stage switches retained requests, guards stale actions and restores comman
   const { stage, regions } = createHarnessControllers<string>();
   regions.requestFocus("timeline");
   const notified: string[] = [];
-  const first = stage.show({ requester: "first", type: textType, value: "one", preferredHeight: 2, onPromptSubmitted: () => { notified.push("first"); } });
+  const first = stage.show({
+    requester: "first",
+    type: textType,
+    value: "one",
+    preferredHeight: 2,
+    onPromptSubmitted: () => {
+      notified.push("first");
+    },
+  });
   const stale = stage.active()!;
-  const second = stage.show({ requester: "second", type: textType, value: "two", preferredHeight: 2, onPromptSubmitted: () => { notified.push("second"); } });
+  const second = stage.show({
+    requester: "second",
+    type: textType,
+    value: "two",
+    preferredHeight: 2,
+    onPromptSubmitted: () => {
+      notified.push("second");
+    },
+  });
   expect(stage.active()?.id).toBe(first.id);
-  stage.moveRequest(1); second.update("updated");
+  stage.moveRequest(1);
+  second.update("updated");
   expect(stage.position()).toEqual({ index: 2, total: 2 });
-  stage.moveRequest(1); expect(stage.active()?.id).toBe(second.id);
-  await stale.runAction("pick");
-  await stage.notifyPromptSubmitted("prompt"); expect(notified).toEqual(["second"]);
-  stage.moveRequest(-1); expect(stage.active()?.render()).toBe("text:one");
-  stage.moveRequest(1); expect(stage.active()?.render()).toBe("text:updated");
-  regions.requestFocus("editor");
-  const command = stage.show({ requester: "native", type: { ...textType, kind: "command" }, value: "command", preferredHeight: 2 });
-  expect(stage.active()?.id).toBe(command.id); expect(regions.current()).toBe("stage");
-  stage.activate(second.id);
-  command.close(); await command.closed;
-  expect(regions.current()).toBe("editor"); expect(stage.active()?.id).toBe(second.id);
-  stage.activate(first.id); first.close(); await first.closed; await Promise.resolve();
+  stage.moveRequest(1);
   expect(stage.active()?.id).toBe(second.id);
-  second.cancel(); expect((await second.closed).status).toBe("cancelled");
+  await stale.runAction("pick");
+  await stage.notifyPromptSubmitted("prompt");
+  expect(notified).toEqual(["second"]);
+  stage.moveRequest(-1);
+  expect(stage.active()?.render()).toBe("text:one");
+  stage.moveRequest(1);
+  expect(stage.active()?.render()).toBe("text:updated");
+  regions.requestFocus("editor");
+  const command = stage.show({
+    requester: "native",
+    type: { ...textType, kind: "command" },
+    value: "command",
+    preferredHeight: 2,
+  });
+  expect(stage.active()?.id).toBe(command.id);
+  expect(regions.current()).toBe("stage");
+  stage.activate(second.id);
+  command.close();
+  await command.closed;
+  expect(regions.current()).toBe("editor");
+  expect(stage.active()?.id).toBe(second.id);
+  stage.activate(first.id);
+  first.close();
+  await first.closed;
+  await Promise.resolve();
+  expect(stage.active()?.id).toBe(second.id);
+  second.cancel();
+  expect((await second.closed).status).toBe("cancelled");
   expect(stage.hasActive()).toBe(false);
 });
 
 test("command exit preserves a usable stage return region and suppresses arrivals in its completion gap", async () => {
   for (const returnRegion of ["stage", "timeline"]) {
     const { stage, regions } = createHarnessControllers<string>();
-    const normal = stage.show({ requester: "normal", type: textType, value: "normal", preferredHeight: 2 });
+    const normal = stage.show({
+      requester: "normal",
+      type: textType,
+      value: "normal",
+      preferredHeight: 2,
+    });
     regions.requestFocus(returnRegion);
-    const command = stage.show({ requester: "command", type: { ...textType, kind: "command" }, value: "command", preferredHeight: 2 });
-    void command.closed.then(() => stage.show({ requester: "arrival", type: textType, value: "new", preferredHeight: 2 }));
-    command.close(); await command.closed; await Promise.resolve();
-    expect(stage.active()?.id).toBe(normal.id); expect(regions.current()).toBe(returnRegion);
+    const command = stage.show({
+      requester: "command",
+      type: { ...textType, kind: "command" },
+      value: "command",
+      preferredHeight: 2,
+    });
+    void command.closed.then(() =>
+      stage.show({ requester: "arrival", type: textType, value: "new", preferredHeight: 2 }),
+    );
+    command.close();
+    await command.closed;
+    await Promise.resolve();
+    expect(stage.active()?.id).toBe(normal.id);
+    expect(regions.current()).toBe(returnRegion);
   }
 });
 
 test("queued fresh cancellation cannot release another request's retained text", async () => {
   const { editor } = createHarnessControllers();
-  const active = editor.openDraft({ destination: "same", label: "active", requester: "editor", initialText: "keep me" });
+  const active = editor.openDraft({
+    destination: "same",
+    label: "active",
+    requester: "editor",
+    initialText: "keep me",
+  });
   const abort = new AbortController();
-  const queued = editor.openDraft({ destination: "same", label: "queued", requester: "editor", fresh: true, signal: abort.signal });
-  abort.abort(); expect((await queued).status).toBe("cancelled"); expect(editor.text()).toBe("keep me");
-  editor.submitDraft(); expect(await active).toEqual({ status: "submitted", text: "keep me" });
+  const queued = editor.openDraft({
+    destination: "same",
+    label: "queued",
+    requester: "editor",
+    fresh: true,
+    signal: abort.signal,
+  });
+  abort.abort();
+  expect((await queued).status).toBe("cancelled");
+  expect(editor.text()).toBe("keep me");
+  editor.submitDraft();
+  expect(await active).toEqual({ status: "submitted", text: "keep me" });
 });
 
 describe("RegionController and KeyRegistry", () => {
@@ -130,8 +192,12 @@ describe("RegionController and KeyRegistry", () => {
     const regions = new RegionController({ keys });
     let promptHits = 0;
     let outputHits = 0;
-    keys.register("test", "editor", [{ actionId: "editor.test", name: "c", ctrl: true, action: () => promptHits++ }]);
-    keys.register("test", "timeline", [{ actionId: "timeline.test", name: "c", ctrl: true, action: () => outputHits++ }]);
+    keys.register("test", "editor", [
+      { actionId: "editor.test", name: "c", ctrl: true, action: () => promptHits++ },
+    ]);
+    keys.register("test", "timeline", [
+      { actionId: "timeline.test", name: "c", ctrl: true, action: () => outputHits++ },
+    ]);
 
     const promptAction = regions.resolve({ name: "c", ctrl: true });
     expect(promptAction).toBeFunction();
@@ -151,7 +217,9 @@ describe("RegionController and KeyRegistry", () => {
 
   test("rejects a colliding batch atomically and allows cross-region reuse", () => {
     const keys = new KeyRegistry();
-    const first = keys.register("a", "editor", [{ actionId: "editor.first", name: "j", action: () => {} }]);
+    const first = keys.register("a", "editor", [
+      { actionId: "editor.first", name: "j", action: () => {} },
+    ]);
     expect(() =>
       keys.register("b", "editor", [
         { actionId: "editor.second", name: "k", action: () => {} },
@@ -169,11 +237,17 @@ describe("RegionController and KeyRegistry", () => {
       ]),
     ).not.toThrow();
     expect(keys.resolve("stage", { name: "j" })).toBeUndefined();
-    expect(() => keys.register("b", "stage", [{ actionId: "stage.j", name: "j", action: () => {} }])).not.toThrow();
+    expect(() =>
+      keys.register("b", "stage", [{ actionId: "stage.j", name: "j", action: () => {} }]),
+    ).not.toThrow();
 
     first.dispose();
     expect(keys.resolve("editor", { name: "j" })).toBeUndefined();
-    expect(() => keys.register("c", "editor", [{ actionId: "editor.replacement", name: "j", action: () => {} }])).not.toThrow();
+    expect(() =>
+      keys.register("c", "editor", [
+        { actionId: "editor.replacement", name: "j", action: () => {} },
+      ]),
+    ).not.toThrow();
   });
 });
 
@@ -201,7 +275,12 @@ describe("StageController", () => {
   test("cancels by signal while queued and updates render values", async () => {
     const regions = new RegionController();
     const stage = new StageController<string>({ regions });
-    const blocker = stage.show({ requester: "one", type: textType, value: "a", preferredHeight: 3 });
+    const blocker = stage.show({
+      requester: "one",
+      type: textType,
+      value: "a",
+      preferredHeight: 3,
+    });
     const controller = new AbortController();
     const queued = stage.show({
       requester: "two",
@@ -443,7 +522,12 @@ describe("ItemTypeRegistry", () => {
 });
 
 describe("item tree", () => {
-  const leaf: ItemType<string> = { kind: "leaf", render: ({ value }) => value, sourceText: (value) => value, actions: {} };
+  const leaf: ItemType<string> = {
+    kind: "leaf",
+    render: ({ value }) => value,
+    sourceText: (value) => value,
+    actions: {},
+  };
   const rich: ItemType<string> = { ...leaf, kind: "rich", expandable: () => true };
 
   /** a ─ a1 ─ a1x, a2; b (expandable on its own); c (plain) */
@@ -451,8 +535,16 @@ describe("item tree", () => {
     const timeline = new ItemTypeRegistry();
     timeline.registerType(leaf);
     timeline.registerType(rich);
-    const item = (id: string, type: ItemType<string>, parentId?: string) => materializeItem({ id, version: 0, type, value: id, parentId });
-    timeline.replace([item("a", leaf), item("a1", leaf, "a"), item("a1x", leaf, "a1"), item("a2", leaf, "a"), item("b", rich), item("c", leaf)]);
+    const item = (id: string, type: ItemType<string>, parentId?: string) =>
+      materializeItem({ id, version: 0, type, value: id, parentId });
+    timeline.replace([
+      item("a", leaf),
+      item("a1", leaf, "a"),
+      item("a1x", leaf, "a1"),
+      item("a2", leaf, "a"),
+      item("b", rich),
+      item("c", leaf),
+    ]);
     return timeline;
   }
   const visible = (timeline: ItemTypeRegistry) => timeline.visibleItems().map((item) => item.id);
@@ -521,7 +613,14 @@ describe("item tree", () => {
     timeline.registerType(leaf);
     timeline.replace([
       materializeItem({ id: "p", version: 0, type: leaf, value: "p" }),
-      materializeItem({ id: "img", version: 0, type: rich, value: "img", parentId: "p", initiallyExpanded: true }),
+      materializeItem({
+        id: "img",
+        version: 0,
+        type: rich,
+        value: "img",
+        parentId: "p",
+        initiallyExpanded: true,
+      }),
     ]);
     timeline.setCursor("p");
     timeline.expand();
@@ -540,7 +639,13 @@ describe("item tree", () => {
     timeline.setCursor("a2");
     // Collapsing from elsewhere hides the cursor; it moves to the visible ancestor.
     const parent = timeline.find("a")!;
-    timeline.replace(timeline.items().map((item) => (item.id === "a" ? materializeItem({ id: "a", version: 1, type: leaf, value: "a" }) : item)));
+    timeline.replace(
+      timeline
+        .items()
+        .map((item) =>
+          item.id === "a" ? materializeItem({ id: "a", version: 1, type: leaf, value: "a" }) : item,
+        ),
+    );
     expect(parent.id).toBe("a");
     timeline.resetDisclosure();
     expect(timeline.cursor()).toBe("a");
@@ -579,13 +684,21 @@ describe("EditorController", () => {
 
     expect(editor.text()).toBe("prompt");
 
-    void editor.openDraft({ destination: "b", label: "B", requester: "stage", initialText: "prefill" });
+    void editor.openDraft({
+      destination: "b",
+      label: "B",
+      requester: "stage",
+      initialText: "prefill",
+    });
     expect(editor.text()).toBe("prefill");
     editor.setText("draft b");
     editor.submitDraft();
 
     expect(editor.text()).toBe("prompt");
-    for (const [destination, text] of [["a", "draft a"], ["b", "draft b"]]) {
+    for (const [destination, text] of [
+      ["a", "draft a"],
+      ["b", "draft b"],
+    ]) {
       void editor.openDraft({ destination, label: destination, requester: "stage" });
       expect(editor.text()).toBe(text);
       editor.cancelDraft();
@@ -642,7 +755,12 @@ describe("EditorController", () => {
       void editor.openDraft({ destination: "a", label: "A", requester: "stage" });
       editor.setText(text);
       editor.cancelDraft();
-      void editor.openDraft({ destination: "a", label: "A", requester: "stage", initialText: "ignored" });
+      void editor.openDraft({
+        destination: "a",
+        label: "A",
+        requester: "stage",
+        initialText: "ignored",
+      });
       expect(editor.text()).toBe(text);
       editor.cancelDraft();
     }

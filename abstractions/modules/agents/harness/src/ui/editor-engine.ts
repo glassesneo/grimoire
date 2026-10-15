@@ -9,10 +9,7 @@ import { Emitter, EDITOR_REGION, type RegionId } from "./controllers";
 export const minHeight = 2;
 export const maxHeight = 8;
 
-function sameAssist(
-  a: EditorAssist | undefined,
-  b: EditorAssist | undefined,
-): boolean {
+function sameAssist(a: EditorAssist | undefined, b: EditorAssist | undefined): boolean {
   if (a === b) {
     return true;
   }
@@ -43,9 +40,7 @@ export interface DraftRequestOptions {
   signal?: AbortSignal;
 }
 
-export type DraftResult =
-  | { status: "submitted"; text: string }
-  | { status: "cancelled" };
+export type DraftResult = { status: "submitted"; text: string } | { status: "cancelled" };
 
 /** Transient assist overlay owned by the active editor; not a blocking request. */
 export interface EditorAssist {

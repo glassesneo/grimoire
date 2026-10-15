@@ -45,8 +45,16 @@ export interface HarnessUIClient {
   readonly version: 1;
   timeline: {
     /** Show calls of `toolName` with the compiled `kind`; `project` maps each call's snapshot to that kind's value. */
-    bindTool(toolName: string, kind: string, project?: (snapshot: ToolSnapshot) => unknown): Registration;
-    bindCustomMessage(customType: string, kind: string, project?: (snapshot: CustomMessageSnapshot) => unknown): Registration;
+    bindTool(
+      toolName: string,
+      kind: string,
+      project?: (snapshot: ToolSnapshot) => unknown,
+    ): Registration;
+    bindCustomMessage(
+      customType: string,
+      kind: string,
+      project?: (snapshot: CustomMessageSnapshot) => unknown,
+    ): Registration;
     /** An item that lasts while this client does; durable messages go through pi's `sendMessage()`. */
     append(item: { kind: string; value: unknown }): TimelineItemHandle;
   };
@@ -60,8 +68,17 @@ export interface HarnessUIClient {
     }): StageHandle<unknown>;
   };
   statusline: {
-    setText(input: { position: StatuslinePosition; key: string; text: string }): StatuslineHandle<string>;
-    setItem(input: { position: StatuslinePosition; key: string; kind: string; value: unknown }): StatuslineHandle<unknown>;
+    setText(input: {
+      position: StatuslinePosition;
+      key: string;
+      text: string;
+    }): StatuslineHandle<string>;
+    setItem(input: {
+      position: StatuslinePosition;
+      key: string;
+      kind: string;
+      value: unknown;
+    }): StatuslineHandle<unknown>;
   };
 }
 
@@ -95,7 +112,10 @@ export class TimelineBindings extends Emitter {
     return this.#add(this.#tools, { name: toolName, binding });
   }
 
-  bindCustomMessage(customType: string, binding: TimelineBinding<CustomMessageSnapshot>): Registration {
+  bindCustomMessage(
+    customType: string,
+    binding: TimelineBinding<CustomMessageSnapshot>,
+  ): Registration {
     return this.#add(this.#custom, { name: customType, binding });
   }
 
@@ -162,14 +182,23 @@ export function createClientHost<Render>(dependencies: ClientDependencies<Render
 }
 
 /** A registered kind that extensions may use; with `value`, also a valid value of it. */
-function requireType<Type extends { validate?: (value: unknown) => boolean }>(type: Type | undefined, kind: string, ...value: [unknown?]): Type {
+function requireType<Type extends { validate?: (value: unknown) => boolean }>(
+  type: Type | undefined,
+  kind: string,
+  ...value: [unknown?]
+): Type {
   if (!type) throw new Error(`No harness type is registered as ${JSON.stringify(kind)}`);
-  if (!type.validate) throw new Error(`The harness type ${JSON.stringify(kind)} is not available to extensions`);
-  if (value.length > 0 && !type.validate(value[0])) throw new TypeError(`The value is not valid for the harness type ${JSON.stringify(kind)}`);
+  if (!type.validate)
+    throw new Error(`The harness type ${JSON.stringify(kind)} is not available to extensions`);
+  if (value.length > 0 && !type.validate(value[0]))
+    throw new TypeError(`The value is not valid for the harness type ${JSON.stringify(kind)}`);
   return type;
 }
 
-function createGeneration<Render>(dependencies: ClientDependencies<Render>): { client: HarnessUIClient; retire(): void } {
+function createGeneration<Render>(dependencies: ClientDependencies<Render>): {
+  client: HarnessUIClient;
+  retire(): void;
+} {
   const generation = nextGeneration++;
   const disposers = new Set<() => void>();
   let live = true;
@@ -191,8 +220,14 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): { c
   };
 
   const statuslineKeys = new Map<string, () => void>();
-  const contribute = <T>(position: StatuslinePosition, key: string, toSegment: (value: T) => StatuslineSegment, value: T): StatuslineHandle<T> => {
-    if (position !== "top" && position !== "bottom") throw new TypeError("position must be top or bottom");
+  const contribute = <T>(
+    position: StatuslinePosition,
+    key: string,
+    toSegment: (value: T) => StatuslineSegment,
+    value: T,
+  ): StatuslineHandle<T> => {
+    if (position !== "top" && position !== "bottom")
+      throw new TypeError("position must be top or bottom");
     const slot = `${position}\u0000${key}`;
     // A key names one contribution of this client; setting it again replaces it.
     statuslineKeys.get(slot)?.();
@@ -215,7 +250,8 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): { c
   const bind = (kind: string, project: unknown, register: () => Registration): Registration => {
     assertLive();
     requireType(dependencies.timeline.lookup(kind), kind);
-    if (project !== undefined && typeof project !== "function") throw new TypeError("project must be a function");
+    if (project !== undefined && typeof project !== "function")
+      throw new TypeError("project must be a function");
     const registration = register();
     return { dispose: own(() => registration.dispose()).once };
   };
@@ -226,7 +262,9 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): { c
       bindTool: (toolName, kind, project) =>
         bind(kind, project, () => dependencies.bindings.bindTool(toolName, { kind, project })),
       bindCustomMessage: (customType, kind, project) =>
-        bind(kind, project, () => dependencies.bindings.bindCustomMessage(customType, { kind, project })),
+        bind(kind, project, () =>
+          dependencies.bindings.bindCustomMessage(customType, { kind, project }),
+        ),
       append({ kind, value }) {
         assertLive();
         requireType(dependencies.timeline.lookup(kind), kind, value);
@@ -249,9 +287,15 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): { c
       show({ kind, value, preferredHeight, signal, onPromptSubmitted }) {
         assertLive();
         const type = requireType(dependencies.stage.lookup(kind), kind, value);
-        if (!Number.isFinite(preferredHeight)) throw new TypeError("preferredHeight must be a number");
+        if (!Number.isFinite(preferredHeight))
+          throw new TypeError("preferredHeight must be a number");
         const handle = dependencies.stage.show({
-          requester: "extension", type, value, preferredHeight, signal, onPromptSubmitted,
+          requester: "extension",
+          type,
+          value,
+          preferredHeight,
+          signal,
+          onPromptSubmitted,
         });
         const owned = own(() => handle.cancel("extensions reloaded"));
         void handle.closed.then(() => owned.once());
@@ -278,17 +322,28 @@ function createGeneration<Render>(dependencies: ClientDependencies<Render>): { c
     statusline: {
       setText({ position, key, text }) {
         assertLive();
-        if (typeof key !== "string" || typeof text !== "string") throw new TypeError("key and text must be strings");
-        return contribute(position, key, (value: string) => {
-          if (typeof value !== "string") throw new TypeError("text must be a string");
-          return { text: singleLine(value) };
-        }, text);
+        if (typeof key !== "string" || typeof text !== "string")
+          throw new TypeError("key and text must be strings");
+        return contribute(
+          position,
+          key,
+          (value: string) => {
+            if (typeof value !== "string") throw new TypeError("text must be a string");
+            return { text: singleLine(value) };
+          },
+          text,
+        );
       },
       setItem({ position, key, kind, value }) {
         assertLive();
         if (typeof key !== "string") throw new TypeError("key must be a string");
         const type = requireType(dependencies.statusline.lookup(kind), kind, value);
-        return contribute(position, key, (next: unknown) => requireType(type, kind, next).segment(next), value);
+        return contribute(
+          position,
+          key,
+          (next: unknown) => requireType(type, kind, next).segment(next),
+          value,
+        );
       },
     },
   };

@@ -16,7 +16,13 @@ import {
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { DisplayRecorder, readDisplayRecords } from "./display-records";
-import { modelName, type NoticeLevel, restoreTimeline, type SessionEntry, type TimelineEvent } from "./session-entries";
+import {
+  modelName,
+  type NoticeLevel,
+  restoreTimeline,
+  type SessionEntry,
+  type TimelineEvent,
+} from "./session-entries";
 
 export interface SessionHost {
   readonly runtime: AgentSessionRuntime;
@@ -30,7 +36,9 @@ export interface SessionHost {
   history(): SessionEntry[];
   /** True once a session write failed; the session must be reopened from disk to be trusted again. */
   readonly storageFailed: boolean;
-  newSession(options?: Parameters<AgentSessionRuntime["newSession"]>[0]): Promise<{ cancelled: boolean }>;
+  newSession(
+    options?: Parameters<AgentSessionRuntime["newSession"]>[0],
+  ): Promise<{ cancelled: boolean }>;
   reload(): Promise<void>;
   /** Finish or abort active work, write what is pending, and release the runtime. */
   dispose(): Promise<void>;
@@ -92,9 +100,12 @@ function announceBash(session: AgentSession, emit: (event: TimelineEvent) => voi
  */
 export function verifyClientCopy(session: AgentSession, expected: unknown): void {
   if (expected === undefined) return;
-  const copied = (session.extensionRunner.getUIContext() as unknown as { harness?: unknown }).harness;
+  const copied = (session.extensionRunner.getUIContext() as unknown as { harness?: unknown })
+    .harness;
   if (copied !== expected) {
-    throw new Error("pi no longer passes ctx.ui.harness to extensions as the harness bound it; the harness extension client is unavailable");
+    throw new Error(
+      "pi no longer passes ctx.ui.harness to extensions as the harness bound it; the harness extension client is unavailable",
+    );
   }
 }
 
@@ -110,7 +121,9 @@ export interface SessionCustomization {
 }
 
 /** Applies each customization in order; the first model returned wins. */
-export function combineCustomizations(...customizations: SessionCustomization[]): SessionCustomization {
+export function combineCustomizations(
+  ...customizations: SessionCustomization[]
+): SessionCustomization {
   return {
     prepare: (services) => {
       let model: Model<Api> | undefined;
@@ -168,7 +181,12 @@ export async function createSessionHost(options: {
       resourceLoaderOptions: { extensionFactories: [createCodemodeExtension(), observer] },
     });
     const model = customization?.prepare?.(services);
-    const created = await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent, model });
+    const created = await createAgentSessionFromServices({
+      services,
+      sessionManager,
+      sessionStartEvent,
+      model,
+    });
     customization?.onSession?.(created.session);
     return {
       ...created,
@@ -188,12 +206,17 @@ export async function createSessionHost(options: {
     recorder?.flush();
     return !storageFailed;
   };
-  const newSession: SessionHost["newSession"] = async (options) => writable() ? runtime.newSession(options) : { cancelled: true };
+  const newSession: SessionHost["newSession"] = async (options) =>
+    writable() ? runtime.newSession(options) : { cancelled: true };
   const reload = async () => {
     const session = runtime.session;
-    if (session.isStreaming || session.isCompacting) throw new Error("Cannot reload while streaming or compacting");
-    if (!writable()) throw new Error("The session could not be saved; reopen it before reloading extensions");
-    await session.reload({ beforeSessionStart: () => verifyClientCopy(session, bound?.prepareClient?.()) });
+    if (session.isStreaming || session.isCompacting)
+      throw new Error("Cannot reload while streaming or compacting");
+    if (!writable())
+      throw new Error("The session could not be saved; reopen it before reloading extensions");
+    await session.reload({
+      beforeSessionStart: () => verifyClientCopy(session, bound?.prepareClient?.()),
+    });
   };
 
   return {
@@ -205,7 +228,10 @@ export async function createSessionHost(options: {
     },
     history() {
       const branch = runtime.session.sessionManager.getBranch();
-      return restoreTimeline(branch, readDisplayRecords(branch, { unconfirmed: recorder?.unconfirmed }));
+      return restoreTimeline(
+        branch,
+        readDisplayRecords(branch, { unconfirmed: recorder?.unconfirmed }),
+      );
     },
     async bind(bindings) {
       bound = bindings;
@@ -228,16 +254,24 @@ export async function createSessionHost(options: {
           try {
             run();
           } catch (error) {
-            bindings.notify?.("error", `The harness failed while ${step}: ${error instanceof Error ? error.message : String(error)}`);
+            bindings.notify?.(
+              "error",
+              `The harness failed while ${step}: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
         };
-        announceBash(session, (event) => guarded("showing a shell command", () => bindings.onEvent(event)));
+        announceBash(session, (event) =>
+          guarded("showing a shell command", () => bindings.onEvent(event)),
+        );
         // Subscribed before extensions bind, so nothing they start goes unrecorded.
         unsubscribe = session.subscribe((event) => {
           guarded("recording an event", () => sessionRecorder.observe(event));
           guarded("showing an event", () => bindings.onEvent(event));
           // Idle boundaries: native messages are persisted and no run is active.
-          if (event.type === "agent_settled" || (event.type === "compaction_end" && session.isIdle)) {
+          if (
+            event.type === "agent_settled" ||
+            (event.type === "compaction_end" && session.isIdle)
+          ) {
             guarded("saving display records", () => sessionRecorder.flush());
           }
         });
@@ -270,7 +304,8 @@ export async function createSessionHost(options: {
               }
               return { cancelled };
             },
-            switchSession: async (sessionPath, options) => (writable() ? runtime.switchSession(sessionPath, options) : { cancelled: true }),
+            switchSession: async (sessionPath, options) =>
+              writable() ? runtime.switchSession(sessionPath, options) : { cancelled: true },
             // The client of the reloaded generation is prepared while the old
             // one shuts down, before pi copies the context again.
             reload,

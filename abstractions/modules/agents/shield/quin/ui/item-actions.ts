@@ -108,8 +108,12 @@ function createNativeClipboard(renderer: RendererClipboardBoundary): ClipboardWr
   return {
     async writeText(text: string): Promise<boolean> {
       if (host) {
-        try { if ((await host.writeText(text, { selection: "clipboard" })).status === "written") return true; }
-        catch { /* The terminal backend is still available after host failure. */ }
+        try {
+          if ((await host.writeText(text, { selection: "clipboard" })).status === "written")
+            return true;
+        } catch {
+          /* The terminal backend is still available after host failure. */
+        }
       }
       return terminal.writeText(text, "clipboard").status === "attempted";
     },
@@ -203,9 +207,7 @@ class SmoothScroll {
   }
 }
 
-export function createItemActions<Render>(
-  options: ItemActionsOptions<Render>,
-): ItemActions {
+export function createItemActions<Render>(options: ItemActionsOptions<Render>): ItemActions {
   const { timeline, scrollbox, overlayHeight } = options;
   const topInset = options.topInset ?? (() => 0);
   const notify = options.notify;
@@ -229,8 +231,10 @@ export function createItemActions<Render>(
   const usableRows = (box: TimelineScrollBox): number =>
     Math.max(1, box.height - Math.max(0, topInset()) - Math.max(0, overlayHeight()));
   /** The last scroll position with real content, not counting slack. */
-  const contentEnd = (box: TimelineScrollBox): number => Math.max(0, box.scrollHeight - slack - box.height);
-  const clamp = (box: TimelineScrollBox, value: number): number => Math.max(0, Math.min(contentEnd(box), value));
+  const contentEnd = (box: TimelineScrollBox): number =>
+    Math.max(0, box.scrollHeight - slack - box.height);
+  const clamp = (box: TimelineScrollBox, value: number): number =>
+    Math.max(0, Math.min(contentEnd(box), value));
   // Renderable coordinates include the current scroll translation.
   const rowTop = (box: TimelineScrollBox, row: ItemRow): number => row.y - box.y + box.scrollTop;
   /** The position that puts a row's first line in the middle of the usable rows. */
@@ -317,9 +321,14 @@ export function createItemActions<Render>(
       // the blank rows that keeps the scroll range from pulling the item up
       // now, so they are laid out in the same frame as the shrink.
       if (closing) {
-        const inside = timeline.visibleItems().filter((item) => timeline.ancestors(item.id).includes(target)).map((item) => item.id);
-        const shown = [...inside, ...[target, ...inside].map((id) => `${id}::details`)]
-          .reduce((sum, id) => sum + (box.getRenderable(id)?.height ?? 0), 0);
+        const inside = timeline
+          .visibleItems()
+          .filter((item) => timeline.ancestors(item.id).includes(target))
+          .map((item) => item.id);
+        const shown = [...inside, ...[target, ...inside].map((id) => `${id}::details`)].reduce(
+          (sum, id) => sum + (box.getRenderable(id)?.height ?? 0),
+          0,
+        );
         const needed = box.scrollTop - (contentEnd(box) - shown);
         if (needed > slack) setSlack(needed);
       }
@@ -336,7 +345,14 @@ export function createItemActions<Render>(
     const top = rowTop(box, row);
     const first = box.scrollTop + topInset();
     const end = top + Math.min(row.height, usableRows(box));
-    const desired = Math.max(0, top < first ? top - topInset() : end > first + usableRows(box) ? end - topInset() - usableRows(box) : box.scrollTop);
+    const desired = Math.max(
+      0,
+      top < first
+        ? top - topInset()
+        : end > first + usableRows(box)
+          ? end - topInset() - usableRows(box)
+          : box.scrollTop,
+    );
     anchor = { id, offset: top - desired };
     box.scrollTop = desired;
     return true;
@@ -380,17 +396,27 @@ export function createItemActions<Render>(
       const visible = usableRows(box);
       const amount =
         kind === "page-down" || kind === "page-up" ? visible : Math.max(1, Math.floor(visible / 2));
-      scroll.scrollTo(base + (kind === "page-down" || kind === "half-down" ? amount : -amount), settleManual);
+      scroll.scrollTo(
+        base + (kind === "page-down" || kind === "half-down" ? amount : -amount),
+        settleManual,
+      );
     },
 
     toggle(): void {
       const id = timeline.cursor();
-      disclose(id !== undefined && timeline.isExpandable(id) ? id : undefined, () => timeline.toggle(), id !== undefined && timeline.isExpanded(id));
+      disclose(
+        id !== undefined && timeline.isExpandable(id) ? id : undefined,
+        () => timeline.toggle(),
+        id !== undefined && timeline.isExpanded(id),
+      );
     },
 
     expand(): void {
       const id = timeline.cursor();
-      disclose(id !== undefined && timeline.isExpandable(id) && !timeline.isExpanded(id) ? id : undefined, () => timeline.expand());
+      disclose(
+        id !== undefined && timeline.isExpandable(id) && !timeline.isExpanded(id) ? id : undefined,
+        () => timeline.expand(),
+      );
     },
 
     collapse(): void {
@@ -431,7 +457,11 @@ export function createItemActions<Render>(
           box.scrollTop = desired;
         }
       }
-      if (revealing !== undefined && (follow || timeline.cursor() !== revealing || showRow(box, revealing))) revealing = undefined;
+      if (
+        revealing !== undefined &&
+        (follow || timeline.cursor() !== revealing || showRow(box, revealing))
+      )
+        revealing = undefined;
       expected = box.scrollTop;
     },
 

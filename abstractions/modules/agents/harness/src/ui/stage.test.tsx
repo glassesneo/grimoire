@@ -9,13 +9,23 @@ import { Screen, ScreenLayout } from "./screen";
 import { count, fixture, tick } from "./test-support";
 
 async function renderFixture(f: ReturnType<typeof fixture>) {
-  return testRender(() => <ScreenLayout ui={f.ui} timeline={<text>timeline</text>} stage={() => <StageView ui={f.ui} />} />, { width: 80, height: 24 });
+  return testRender(
+    () => (
+      <ScreenLayout
+        ui={f.ui}
+        timeline={<text>timeline</text>}
+        stage={() => <StageView ui={f.ui} />}
+      />
+    ),
+    { width: 80, height: 24 },
+  );
 }
 
 test("registers stage dialogs immediately while editor drafts retain their own FIFO", async () => {
   const f = fixture();
   const { editor, regions, stage } = f.ui.controllers;
-  regions.requestFocus("timeline"); editor.setText("prompt draft");
+  regions.requestFocus("timeline");
+  editor.setText("prompt draft");
   const cursor = f.extension.context.select("Pick", ["first", "second"]);
   const edited = f.extension.context.editor("Notes", "prefill\nsecond line");
   const confirmed = f.extension.context.confirm("Confirm", "Continue?");
@@ -24,13 +34,23 @@ test("registers stage dialogs immediately while editor drafts retain their own F
   expect(stage.queued()).toBe(1);
   expect(editor.activeDraft()).toBe(true);
   regions.requestFocus("stage");
-  await stage.active()?.runAction("next"); await stage.active()?.runAction("confirm");
-  expect(await cursor).toBe("second"); await tick();
-  expect(editor.activeDraft()).toBe(true); expect(editor.text()).toBe("prefill\nsecond line");
-  regions.requestFocus("editor"); editor.setText("edited\nnotes"); editor.submitDraft();
-  expect(await edited).toBe("edited\nnotes"); await tick();
-  expect(stage.active()?.kind).toBe("confirm"); regions.requestFocus("stage"); await stage.active()?.runAction("confirm");
-  expect(await confirmed).toBe(true); expect(editor.text()).toBe("prompt draft"); expect(regions.current()).toBe("editor");
+  await stage.active()?.runAction("next");
+  await stage.active()?.runAction("confirm");
+  expect(await cursor).toBe("second");
+  await tick();
+  expect(editor.activeDraft()).toBe(true);
+  expect(editor.text()).toBe("prefill\nsecond line");
+  regions.requestFocus("editor");
+  editor.setText("edited\nnotes");
+  editor.submitDraft();
+  expect(await edited).toBe("edited\nnotes");
+  await tick();
+  expect(stage.active()?.kind).toBe("confirm");
+  regions.requestFocus("stage");
+  await stage.active()?.runAction("confirm");
+  expect(await confirmed).toBe(true);
+  expect(editor.text()).toBe("prompt draft");
+  expect(regions.current()).toBe("editor");
   f.dispose();
 });
 
@@ -44,11 +64,16 @@ test("a hidden stage dialog times out from arrival and generation teardown drain
   expect(f.ui.controllers.stage.position().total).toBe(1);
   const draft = f.extension.context.input("Active");
   const queued = f.extension.context.editor("Queued", "old");
-  await tick(); f.extension.resetGeneration();
-  expect(await first).toBeUndefined(); expect(await draft).toBeUndefined(); expect(await queued).toBeUndefined();
-  const next = f.extension.context.editor("New", "fresh"); await tick();
+  await tick();
+  f.extension.resetGeneration();
+  expect(await first).toBeUndefined();
+  expect(await draft).toBeUndefined();
+  expect(await queued).toBeUndefined();
+  const next = f.extension.context.editor("New", "fresh");
+  await tick();
   expect(f.ui.controllers.editor.text()).toBe("fresh");
-  f.ui.controllers.editor.submitDraft(); expect(await next).toBe("fresh");
+  f.ui.controllers.editor.submitDraft();
+  expect(await next).toBe("fresh");
   f.dispose();
 });
 
@@ -57,65 +82,150 @@ test("completes queued and active extension abort, timeout and disposal with def
   const first = f.extension.context.select("First", ["x"]);
   const abort = new AbortController();
   const queued = f.extension.context.input("Cancelled", undefined, { signal: abort.signal });
-  abort.abort(); expect(await queued).toBeUndefined();
-  await tick(); f.ui.controllers.stage.active()?.runAction("cancel"); expect(await first).toBeUndefined();
+  abort.abort();
+  expect(await queued).toBeUndefined();
+  await tick();
+  f.ui.controllers.stage.active()?.runAction("cancel");
+  expect(await first).toBeUndefined();
   const timeout = f.extension.context.input("Timed", undefined, { timeout: 5 });
-  expect(await timeout).toBeUndefined(); expect(f.ui.controllers.editor.activeDraft()).toBe(false);
+  expect(await timeout).toBeUndefined();
+  expect(f.ui.controllers.editor.activeDraft()).toBe(false);
   const activeAbort = new AbortController();
-  const active = f.extension.context.confirm("Active", "?", { signal: activeAbort.signal }); await tick();
-  activeAbort.abort(); expect(await active).toBe(false);
-  const editor = f.extension.context.editor("Dispose"); await tick(); f.extension.dispose(); expect(await editor).toBeUndefined();
-  expect(f.ui.controllers.stage.hasActive()).toBe(false); f.stage.dispose();
+  const active = f.extension.context.confirm("Active", "?", { signal: activeAbort.signal });
+  await tick();
+  activeAbort.abort();
+  expect(await active).toBe(false);
+  const editor = f.extension.context.editor("Dispose");
+  await tick();
+  f.extension.dispose();
+  expect(await editor).toBeUndefined();
+  expect(f.ui.controllers.stage.hasActive()).toBe(false);
+  f.stage.dispose();
 });
 
 test("uses one multiline textarea for extension input and editor", async () => {
-  const f = fixture(); const setup = await renderFixture(f); await setup.flush();
-  f.extension.context.setEditorText("draft"); f.ui.controllers.editor.setCursor(2); f.extension.context.pasteToEditor("!");
+  const f = fixture();
+  const setup = await renderFixture(f);
+  await setup.flush();
+  f.extension.context.setEditorText("draft");
+  f.ui.controllers.editor.setCursor(2);
+  f.extension.context.pasteToEditor("!");
   expect(f.extension.context.getEditorText()).toBe("dr!aft");
-  const input = f.extension.context.input("Input", "hint"); await tick(); await setup.flush();
-  expect(count(setup.renderer.root, (node) => node instanceof TextareaRenderable && !(node instanceof InputRenderable))).toBe(1);
-  f.extension.context.setEditorText("response\nmore"); f.ui.controllers.editor.submitDraft();
-  expect(await input).toBe("response\nmore"); expect(f.extension.context.getEditorText()).toBe("dr!aft");
-  f.dispose(); setup.renderer.destroy();
+  const input = f.extension.context.input("Input", "hint");
+  await tick();
+  await setup.flush();
+  expect(
+    count(
+      setup.renderer.root,
+      (node) => node instanceof TextareaRenderable && !(node instanceof InputRenderable),
+    ),
+  ).toBe(1);
+  f.extension.context.setEditorText("response\nmore");
+  f.ui.controllers.editor.submitDraft();
+  expect(await input).toBe("response\nmore");
+  expect(f.extension.context.getEditorText()).toBe("dr!aft");
+  f.dispose();
+  setup.renderer.destroy();
 });
 
 test("Screen preserves acceptance, streaming follow-up, abort, queue, history replacement and quit", async () => {
   let bindings: SessionBindings | undefined;
-  let accepted = false; let streaming = true; let aborts = 0; let disposals = 0;
+  let accepted = false;
+  let streaming = true;
+  let aborts = 0;
+  let disposals = 0;
   const sends: Array<{ text: string; behavior: string }> = [];
   let history: SessionEntry[] = [];
   const session = {
-    get isIdle() { return !streaming; }, extensionRunner: undefined,
-    model: undefined, thinkingLevel: "off", supportsThinking: () => false, getContextUsage: () => undefined,
-    sessionManager: { getSessionName: () => undefined, getSessionId: () => "fake-session", getCwd: () => "/fake", getBranch: () => [] },
+    get isIdle() {
+      return !streaming;
+    },
+    extensionRunner: undefined,
+    model: undefined,
+    thinkingLevel: "off",
+    supportsThinking: () => false,
+    getContextUsage: () => undefined,
+    sessionManager: {
+      getSessionName: () => undefined,
+      getSessionId: () => "fake-session",
+      getCwd: () => "/fake",
+      getBranch: () => [],
+    },
     prompt: (text: string, options: { streamingBehavior: string; preflightResult(): void }) => {
       sends.push({ text, behavior: options.streamingBehavior });
       if (!accepted) return Promise.reject(new Error("rejected"));
-      options.preflightResult(); return new Promise<void>(() => {});
+      options.preflightResult();
+      return new Promise<void>(() => {});
     },
-    abort: async () => { aborts++; }, messages: [], getSteeringMessages: () => [], getFollowUpMessages: () => [],
+    abort: async () => {
+      aborts++;
+    },
+    messages: [],
+    getSteeringMessages: () => [],
+    getFollowUpMessages: () => [],
   };
-  const host = { runtime: { session }, history: () => history, bind: async (value: SessionBindings) => { bindings = value; }, dispose: async () => { disposals++; } } as unknown as SessionHost;
-  const setup = await testRender(() => <Screen host={host} startupNotices={[notice("info", "startup-marker")]} />, { width: 80, height: 24 });
-  await setup.flush(); expect(setup.captureCharFrame()).toContain("startup-marker");
-  await setup.mockInput.typeText("request"); setup.mockInput.pressEnter(); await setup.flush();
-  expect(bindings!.uiContext.getEditorText()).toBe("request"); accepted = true;
-  setup.mockInput.pressEnter(); await setup.flush(); expect(bindings!.uiContext.getEditorText()).toBe("");
-  expect(sends).toEqual([{ text: "request", behavior: "followUp" }, { text: "request", behavior: "followUp" }]);
-  setup.mockInput.pressEscape(); await Bun.sleep(100); await setup.flush(); expect(aborts).toBe(1); streaming = false;
-  bindings!.onEvent({ type: "queue_update", steering: ["queued-marker"], followUp: [] } as Parameters<SessionBindings["onEvent"]>[0]); await setup.flush();
+  const host = {
+    runtime: { session },
+    history: () => history,
+    bind: async (value: SessionBindings) => {
+      bindings = value;
+    },
+    dispose: async () => {
+      disposals++;
+    },
+  } as unknown as SessionHost;
+  const setup = await testRender(
+    () => <Screen host={host} startupNotices={[notice("info", "startup-marker")]} />,
+    { width: 80, height: 24 },
+  );
+  await setup.flush();
+  expect(setup.captureCharFrame()).toContain("startup-marker");
+  await setup.mockInput.typeText("request");
+  setup.mockInput.pressEnter();
+  await setup.flush();
+  expect(bindings!.uiContext.getEditorText()).toBe("request");
+  accepted = true;
+  setup.mockInput.pressEnter();
+  await setup.flush();
+  expect(bindings!.uiContext.getEditorText()).toBe("");
+  expect(sends).toEqual([
+    { text: "request", behavior: "followUp" },
+    { text: "request", behavior: "followUp" },
+  ]);
+  setup.mockInput.pressEscape();
+  await Bun.sleep(100);
+  await setup.flush();
+  expect(aborts).toBe(1);
+  streaming = false;
+  bindings!.onEvent({
+    type: "queue_update",
+    steering: ["queued-marker"],
+    followUp: [],
+  } as Parameters<SessionBindings["onEvent"]>[0]);
+  await setup.flush();
   expect(setup.captureCharFrame()).toContain("queued-marker");
   history = [{ kind: "user", id: "replaced", version: 0, text: "replacement-marker", images: [] }];
-  bindings!.onHistoryReplaced(session as unknown as AgentSession); await setup.flush();
-  expect(setup.captureCharFrame()).toContain("replacement-marker"); expect(setup.captureCharFrame()).not.toContain("startup-marker");
+  bindings!.onHistoryReplaced(session as unknown as AgentSession);
+  await setup.flush();
+  expect(setup.captureCharFrame()).toContain("replacement-marker");
+  expect(setup.captureCharFrame()).not.toContain("startup-marker");
   for (const text of ["cached-before", "cached-after\n```ts\nlet v = 1\n```\n"]) {
-    bindings!.onEvent({ type: "message_update", message: { role: "assistant", content: [{ type: "text", text }] } } as Parameters<SessionBindings["onEvent"]>[0]);
+    bindings!.onEvent({
+      type: "message_update",
+      message: { role: "assistant", content: [{ type: "text", text }] },
+    } as Parameters<SessionBindings["onEvent"]>[0]);
     await setup.flush();
     expect(setup.captureCharFrame()).toContain(text.split("\n")[0]);
   }
   expect(setup.captureCharFrame()).not.toContain("cached-before");
   // Code inside Markdown is drawn once its highlighting settles.
-  for (let frame = 0; frame < 5; frame++) { await Bun.sleep(20); await setup.flush(); await setup.renderOnce(); }
+  for (let frame = 0; frame < 5; frame++) {
+    await Bun.sleep(20);
+    await setup.flush();
+    await setup.renderOnce();
+  }
   expect(setup.captureCharFrame()).toContain("let v = 1");
-  setup.mockInput.pressCtrlC(); await Bun.sleep(100); expect(disposals).toBe(1);
+  setup.mockInput.pressCtrlC();
+  await Bun.sleep(100);
+  expect(disposals).toBe(1);
 });

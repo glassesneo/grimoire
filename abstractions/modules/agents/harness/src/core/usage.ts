@@ -27,8 +27,13 @@ export function branchUsage(branch: readonly SessionEntry[]): UsageTotals {
     totals.cost += usage.cost.total;
   };
   for (const entry of branch) {
-    if (entry.type === "usage" || entry.type === "compaction" || entry.type === "branch_summary") add(entry.usage);
-    else if (entry.type === "message" && (entry.message.role === "assistant" || entry.message.role === "toolResult")) add(entry.message.usage);
+    if (entry.type === "usage" || entry.type === "compaction" || entry.type === "branch_summary")
+      add(entry.usage);
+    else if (
+      entry.type === "message" &&
+      (entry.message.role === "assistant" || entry.message.role === "toolResult")
+    )
+      add(entry.message.usage);
   }
   return totals;
 }
@@ -46,8 +51,11 @@ export function formatUsage(totals: UsageTotals): string {
 }
 
 /** Context use as pi estimates it; unknown, as right after a compaction, is not zero. */
-export function formatContext(usage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined): string {
+export function formatContext(
+  usage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined,
+): string {
   if (!usage) return "";
-  if (usage.tokens === null || usage.percent === null) return `ctx ?/${compact(usage.contextWindow)}`;
+  if (usage.tokens === null || usage.percent === null)
+    return `ctx ?/${compact(usage.contextWindow)}`;
   return `ctx ${usage.percent.toFixed(0)}% of ${compact(usage.contextWindow)}`;
 }

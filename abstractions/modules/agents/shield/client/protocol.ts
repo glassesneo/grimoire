@@ -34,10 +34,12 @@ export class JsonLines {
       this.chunks.push(chunk);
       if (end === -1) break;
       const line = Buffer.concat(this.chunks, this.size);
-      this.chunks = []; this.size = 0;
+      this.chunks = [];
+      this.size = 0;
       const text = this.decoder.decode(line);
       const value = JSON.parse(text.endsWith("\r") ? text.slice(0, -1) : text);
-      if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid_record");
+      if (value === null || typeof value !== "object" || Array.isArray(value))
+        throw new Error("invalid_record");
       records.push(value);
       start = end + 1;
     }
@@ -47,7 +49,14 @@ export class JsonLines {
 
 export class HubClient {
   private next = 0;
-  private pending = new Map<string, { resolve: (r: Envelope) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  private pending = new Map<
+    string,
+    {
+      resolve: (r: Envelope) => void;
+      reject: (e: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
   private socket: Socket;
   private decoder = new JsonLines();
   onRecord: (r: Envelope) => void = () => {};
@@ -55,31 +64,49 @@ export class HubClient {
   private closed = false;
   readonly connected: Promise<void>;
   /** `engineName` names the engine of every request; null means the hub's default. */
-  constructor(path: string, private readonly engineName: string | null = null) {
+  constructor(
+    path: string,
+    private readonly engineName: string | null = null,
+  ) {
     this.socket = createConnection({ path });
     this.connected = new Promise((resolve, reject) => {
       this.socket.once("connect", resolve);
       this.socket.once("error", reject);
     });
-    this.socket.on("data", bytes => {
+    this.socket.on("data", (bytes) => {
       try {
-        for (const value of this.decoder.feed(typeof bytes === "string" ? Buffer.from(bytes) : bytes)) {
+        for (const value of this.decoder.feed(
+          typeof bytes === "string" ? Buffer.from(bytes) : bytes,
+        )) {
           const r = value as Envelope;
-          if (r.v !== 1 || !("agent-id" in r) || !("engine" in r)) throw new Error("invalid_protocol");
+          if (r.v !== 1 || !("agent-id" in r) || !("engine" in r))
+            throw new Error("invalid_protocol");
           if (r.type === "response" && r.id) {
             const pending = this.pending.get(r.id);
-            if (pending) { clearTimeout(pending.timer); this.pending.delete(r.id); pending.resolve(r); }
+            if (pending) {
+              clearTimeout(pending.timer);
+              this.pending.delete(r.id);
+              pending.resolve(r);
+            }
           } else this.onRecord(r);
         }
-      } catch (e) { this.fail(e instanceof Error ? e : new Error(String(e))); this.socket.destroy(); }
+      } catch (e) {
+        this.fail(e instanceof Error ? e : new Error(String(e)));
+        this.socket.destroy();
+      }
     });
-    this.socket.on("error", e => this.fail(e));
-    this.socket.on("close", () => this.fail(new Error("disconnected; pending requests have unknown acceptance (not resent)")));
+    this.socket.on("error", (e) => this.fail(e));
+    this.socket.on("close", () =>
+      this.fail(new Error("disconnected; pending requests have unknown acceptance (not resent)")),
+    );
   }
   private fail(error: Error) {
     if (this.closed) return;
     this.closed = true;
-    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(error); }
+    for (const p of this.pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(error);
+    }
     this.pending.clear();
     this.onDisconnect(error);
   }
@@ -87,20 +114,43 @@ export class HubClient {
    * Resolves with the hub's response. The hub answers every request within its own
    * deadline, so `timeout` is that deadline plus a margin, never a shorter one.
    */
-  async request(type: "hub_request" | "engine_request", agent: string | null, payload: unknown, method?: string, timeout = 65_000, id = `c${this.next++}`): Promise<Envelope> {
+  async request(
+    type: "hub_request" | "engine_request",
+    agent: string | null,
+    payload: unknown,
+    method?: string,
+    timeout = 65_000,
+    id = `c${this.next++}`,
+  ): Promise<Envelope> {
     await this.connected;
     if (this.closed) throw new Error("disconnected");
-    if (this.pending.has(id) || this.pending.size >= 64) throw new Error("request_limit_or_duplicate");
+    if (this.pending.has(id) || this.pending.size >= 64)
+      throw new Error("request_limit_or_duplicate");
     const record = { v: 1, type, id, "agent-id": agent, engine: this.engineName, method, payload };
     const frame = JSON.stringify(record) + "\n";
-    if (Buffer.byteLength(frame) > RECORD_LIMIT || this.socket.writableLength + Buffer.byteLength(frame) > LIVE_LIMIT) throw new Error("outgoing_frame_or_queue_limit");
+    if (
+      Buffer.byteLength(frame) > RECORD_LIMIT ||
+      this.socket.writableLength + Buffer.byteLength(frame) > LIVE_LIMIT
+    )
+      throw new Error("outgoing_frame_or_queue_limit");
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("request_timeout; acceptance unknown (not resent)")); }, timeout);
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error("request_timeout; acceptance unknown (not resent)"));
+      }, timeout);
       this.pending.set(id, { resolve, reject, timer });
-      this.socket.write(frame, e => { if (e) this.fail(e); });
+      this.socket.write(frame, (e) => {
+        if (e) this.fail(e);
+      });
     });
   }
-  hub(method: string, payload: unknown = {}) { return this.request("hub_request", null, payload, method); }
-  engine(agent: string, payload: unknown, timeout?: number) { return this.request("engine_request", agent, payload, undefined, timeout); }
-  close() { this.socket.destroy(); }
+  hub(method: string, payload: unknown = {}) {
+    return this.request("hub_request", null, payload, method);
+  }
+  engine(agent: string, payload: unknown, timeout?: number) {
+    return this.request("engine_request", agent, payload, undefined, timeout);
+  }
+  close() {
+    this.socket.destroy();
+  }
 }

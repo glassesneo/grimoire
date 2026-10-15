@@ -15,14 +15,27 @@ export interface ImageContent {
   mimeType: string;
 }
 
-export type StopReason = "pending" | "stop" | "length" | "toolUse" | "error" | "aborted" | "deferred";
+export type StopReason =
+  | "pending"
+  | "stop"
+  | "length"
+  | "toolUse"
+  | "error"
+  | "aborted"
+  | "deferred";
 
 export type ResultContent = (TextContent | ImageContent)[];
 
 /** pi-ai's `contentText`: the text blocks joined. */
-export function contentText(content: string | readonly { type: string; text?: string }[], separator = "\n"): string {
+export function contentText(
+  content: string | readonly { type: string; text?: string }[],
+  separator = "\n",
+): string {
   if (typeof content === "string") return content;
-  return content.filter((block): block is TextContent => block.type === "text").map((block) => block.text).join(separator);
+  return content
+    .filter((block): block is TextContent => block.type === "text")
+    .map((block) => block.text)
+    .join(separator);
 }
 
 /**
@@ -55,14 +68,21 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** A text or image block, the content tool results and user messages carry. */
 export function isContentBlock(value: unknown): value is TextContent | ImageContent {
-  return isRecord(value) && (
-    (value.type === "text" && typeof value.text === "string") ||
-    (value.type === "image" && typeof value.data === "string" && typeof value.mimeType === "string"));
+  return (
+    isRecord(value) &&
+    ((value.type === "text" && typeof value.text === "string") ||
+      (value.type === "image" &&
+        typeof value.data === "string" &&
+        typeof value.mimeType === "string"))
+  );
 }
 
-
-export function imagesOf(content: string | readonly (TextContent | ImageContent)[] | undefined): ImageContent[] {
-  return typeof content === "string" || !content ? [] : content.filter((block): block is ImageContent => block.type === "image");
+export function imagesOf(
+  content: string | readonly (TextContent | ImageContent)[] | undefined,
+): ImageContent[] {
+  return typeof content === "string" || !content
+    ? []
+    : content.filter((block): block is ImageContent => block.type === "image");
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +126,8 @@ export class StreamingFences {
     // Full replacement (including Pi's final message) is allowed, not just appends.
     // ponytail: prefix validation still reads the prefix; text-range wire patches would remove that cost.
     if (!text.startsWith(this.#source)) {
-      this.#source = ""; this.#start = 0;
+      this.#source = "";
+      this.#start = 0;
       this.#state = { blocks: [], text: "", textLines: 0 };
     }
     let end = text.indexOf("\n", this.#source.length);
@@ -116,8 +137,11 @@ export class StreamingFences {
       end = text.indexOf("\n", this.#start);
     }
     this.#source = text;
-    const preview: FenceState = { ...this.#state, blocks: [...this.#state.blocks],
-      fence: this.#state.fence && { ...this.#state.fence, code: { ...this.#state.fence.code } } };
+    const preview: FenceState = {
+      ...this.#state,
+      blocks: [...this.#state.blocks],
+      fence: this.#state.fence && { ...this.#state.fence, code: { ...this.#state.fence.code } },
+    };
     this.#line(preview, text.slice(this.#start));
     if (preview.fence) preview.blocks.push(preview.fence.code);
     else this.#flush(preview);
@@ -126,7 +150,8 @@ export class StreamingFences {
 
   #flush(state: FenceState): void {
     if (state.text.length) state.blocks.push({ type: "text", text: state.text });
-    state.text = ""; state.textLines = 0;
+    state.text = "";
+    state.textLines = 0;
   }
 
   #line(state: FenceState, line: string): void {
@@ -146,7 +171,11 @@ export class StreamingFences {
     const open = FENCE_OPEN.exec(line);
     if (open) {
       this.#flush(state);
-      state.fence = { marker: open[1]!, lines: 0, code: { type: "code", language: open[2]!.trim(), body: "", sourceText: line, open: true } };
+      state.fence = {
+        marker: open[1]!,
+        lines: 0,
+        code: { type: "code", language: open[2]!.trim(), body: "", sourceText: line, open: true },
+      };
     } else {
       state.text += (state.textLines++ ? "\n" : "") + line;
     }
@@ -161,7 +190,10 @@ export class StreamingFences {
  * runs to the end, which keeps a streamed block's part ids from shifting when
  * its closing fence arrives.
  */
-export function splitFencedBlocks(text: string, options: { openFences?: boolean } = {}): FencedBlock[] {
+export function splitFencedBlocks(
+  text: string,
+  options: { openFences?: boolean } = {},
+): FencedBlock[] {
   const lines = text.split("\n");
   const blocks: FencedBlock[] = [];
   let pending: string[] = [];

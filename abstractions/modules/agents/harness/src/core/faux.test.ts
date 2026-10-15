@@ -2,7 +2,13 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, type ToolResultMessage } from "@earendil-works/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+  type ToolResultMessage,
+} from "@earendil-works/pi-ai";
 import { SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createFauxSession, type FauxSessionOptions } from "./faux";
 import { createSessionHost } from "./session";
@@ -26,7 +32,9 @@ async function runPrompt(options: FauxSessionOptions) {
   try {
     await host.runtime.session.prompt("go");
     await host.runtime.session.waitForIdle();
-    const toolResults = host.runtime.session.messages.filter((message): message is ToolResultMessage => message.role === "toolResult");
+    const toolResults = host.runtime.session.messages.filter(
+      (message): message is ToolResultMessage => message.role === "toolResult",
+    );
     return { cwd, faux, toolResults, files: await readdir(cwd) };
   } finally {
     await host.dispose();
@@ -34,7 +42,10 @@ async function runPrompt(options: FauxSessionOptions) {
 }
 
 const touch = fauxAssistantMessage(
-  [fauxThinking("make the file"), fauxToolCall("bash", { command: "touch made-by-bash" }, { id: "call-1" })],
+  [
+    fauxThinking("make the file"),
+    fauxToolCall("bash", { command: "touch made-by-bash" }, { id: "call-1" }),
+  ],
   { stopReason: "toolUse" },
 );
 
@@ -44,7 +55,9 @@ test("faux replies drive the real session, and given tool results replace runnin
     toolResults: { "call-1": { content: [{ type: "text", text: "pretended" }] } },
   });
   expect(faux.getPendingResponseCount()).toBe(0);
-  expect(toolResults.map((message) => message.content)).toEqual([[{ type: "text", text: "pretended" }]]);
+  expect(toolResults.map((message) => message.content)).toEqual([
+    [{ type: "text", text: "pretended" }],
+  ]);
   expect(files).not.toContain("made-by-bash");
 });
 
@@ -58,7 +71,9 @@ test("a call without a given result fails as a tool error instead of running", a
 });
 
 test("without tool results, tools run for real", async () => {
-  const { toolResults, files } = await runPrompt({ responses: [touch, fauxAssistantMessage([fauxText("done")])] });
+  const { toolResults, files } = await runPrompt({
+    responses: [touch, fauxAssistantMessage([fauxText("done")])],
+  });
   expect(toolResults[0]?.isError).toBe(false);
   expect(files).toContain("made-by-bash");
 });

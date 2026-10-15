@@ -157,7 +157,8 @@ export function createHarnessUI<Render = unknown>(
       append: (item) => controllers.items.put(item.id, item.type.kind, item.value),
     },
     keys: {
-      register: (contribution, region, bindings) => controllers.keys.register(contribution, region, bindings),
+      register: (contribution, region, bindings) =>
+        controllers.keys.register(contribution, region, bindings),
     },
     regions: {
       requestFocus: (region) => controllers.regions.requestFocus(region),
@@ -193,7 +194,11 @@ export function createHarnessControllers<Render = unknown>(
     onAssistChange: (hasAssist) => stage.setAssistAvailable(hasAssist),
   });
   return {
-    regions, keys, stage, timeline, editor,
+    regions,
+    keys,
+    stage,
+    timeline,
+    editor,
     commands: new CommandController(stage, editor, options.notify ?? (() => {})),
     bindings: new TimelineBindings(),
     statusline: new StatuslineController(),

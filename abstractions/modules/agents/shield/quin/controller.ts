@@ -15,7 +15,8 @@ import { PiAdapter } from "./view";
 const TERMINAL = new Set(["exited", "failed", "disconnected"]);
 
 /** Shield.Pi's deadline for each command, so a request waits for the hub's answer. */
-const timeout = (payload: any) => (payload?.op === "rpc" && payload.record?.type === "compact" ? 600_000 : 60_000) + 5_000;
+const timeout = (payload: any) =>
+  (payload?.op === "rpc" && payload.record?.type === "compact" ? 600_000 : 60_000) + 5_000;
 
 export class Controller extends Emitter {
   readonly adapter = new PiAdapter();
@@ -33,12 +34,15 @@ export class Controller extends Emitter {
 
   constructor(readonly client: HubClient) {
     super();
-    client.onRecord = r => this.record(r);
-    client.onDisconnect = e => {
+    client.onRecord = (r) => this.record(r);
+    client.onDisconnect = (e) => {
       if (this.detached) return;
       this.armedUntil = 0;
       // The hub closes the socket after reporting a failure; the end it reported stays.
-      if (TERMINAL.has(this.adapter.lifecycle)) { this.changed(); return; }
+      if (TERMINAL.has(this.adapter.lifecycle)) {
+        this.changed();
+        return;
+      }
       this.notice = e.message;
       this.adapter.lifecycle = "disconnected";
       this.changed();
@@ -50,7 +54,8 @@ export class Controller extends Emitter {
       this.adapter.apply(r);
       if (!this.active) this.armedUntil = 0;
       const record = r.payload?.record;
-      if (record?.type === "extension_ui_request" && record.method === "set_editor_text") this.onEditorText(record.text || "");
+      if (record?.type === "extension_ui_request" && record.method === "set_editor_text")
+        this.onEditorText(record.text || "");
       this.notice = undefined;
       if (r.type === "snapshot" || STATS_EVENTS.has(record?.type)) this.refreshStats();
     } catch (e) {
@@ -63,12 +68,17 @@ export class Controller extends Emitter {
 
   get active() {
     const run = this.adapter.view.run;
-    return this.adapter.lifecycle === "ready" && (run.active || run.accepting > 0 || run.compaction || run.retry || run.interrupting);
+    return (
+      this.adapter.lifecycle === "ready" &&
+      (run.active || run.accepting > 0 || run.compaction || run.retry || run.interrupting)
+    );
   }
 
   /** Lifecycle and the latest notice, for the status line; empty while ready and quiet. */
   get status(): string {
-    return [this.adapter.lifecycle === "ready" ? undefined : this.adapter.lifecycle, this.notice].filter(Boolean).join(" · ");
+    return [this.adapter.lifecycle === "ready" ? undefined : this.adapter.lifecycle, this.notice]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   fail(message: string) {
@@ -81,7 +91,11 @@ export class Controller extends Emitter {
     const r = await this.client.engine(this.adapter.agent, payload, timeout(payload));
     if (!r.success) {
       const pi = (r as any).payload?.error;
-      throw new Error(r.error?.code === "engine_rejected" && typeof pi === "string" ? pi : r.error?.code || "request rejected");
+      throw new Error(
+        r.error?.code === "engine_rejected" && typeof pi === "string"
+          ? pi
+          : r.error?.code || "request rejected",
+      );
     }
     return r;
   }
@@ -102,7 +116,10 @@ export class Controller extends Emitter {
   /** Resolves whether Pi accepted the prompt; the hub makes it a follow-up while a run is active. */
   async sendPrompt(text: string): Promise<boolean> {
     const unavailable = this.unavailable;
-    if (unavailable) { this.fail(unavailable); return false; }
+    if (unavailable) {
+      this.fail(unavailable);
+      return false;
+    }
     try {
       await this.rpc({ type: "prompt", message: text });
       return true;
@@ -113,8 +130,11 @@ export class Controller extends Emitter {
   }
 
   async replyDialog(id: string, reply: Record<string, unknown>) {
-    try { await this.send({ op: "dialog_reply", id, ...reply }); }
-    catch (e) { this.fail((e as Error).message); }
+    try {
+      await this.send({ op: "dialog_reply", id, ...reply });
+    } catch (e) {
+      this.fail((e as Error).message);
+    }
   }
 
   /**
@@ -128,7 +148,7 @@ export class Controller extends Emitter {
     }
     if (this.armedUntil && now <= this.armedUntil) {
       this.armedUntil = 0;
-      void this.send({ op: "interrupt" }).catch(e => this.fail(e.message));
+      void this.send({ op: "interrupt" }).catch((e) => this.fail(e.message));
       this.changed();
       return "sent";
     }
@@ -158,11 +178,23 @@ export class Controller extends Emitter {
   /** Reads Pi's totals again; requests never overlap, and a refresh asked for meanwhile runs once afterwards. */
   refreshStats() {
     if (this.adapter.lifecycle !== "ready" || !this.adapter.agent) return;
-    if (this.statsPending) { this.statsStale = true; return; }
+    if (this.statsPending) {
+      this.statsStale = true;
+      return;
+    }
     this.statsPending = true;
     this.rpc({ type: "get_session_stats" })
-      .then(data => { this.stats = data; this.changed(); })
+      .then((data) => {
+        this.stats = data;
+        this.changed();
+      })
       .catch(() => {})
-      .finally(() => { this.statsPending = false; if (this.statsStale) { this.statsStale = false; this.refreshStats(); } });
+      .finally(() => {
+        this.statsPending = false;
+        if (this.statsStale) {
+          this.statsStale = false;
+          this.refreshStats();
+        }
+      });
   }
 }

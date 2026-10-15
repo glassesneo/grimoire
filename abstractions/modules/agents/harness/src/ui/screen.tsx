@@ -21,7 +21,13 @@ import type { ItemType } from "./controllers";
 import { createClientHost } from "./harness-client";
 import { createItemActions, type TimelineScrollBox } from "./item-actions";
 import { createExtensionUI } from "./extension-ui";
-import { allocateHeights, createHarnessUI, type HarnessUIActions, type HarnessUIInstance, type TimelineItemSink } from "./harness-ui";
+import {
+  allocateHeights,
+  createHarnessUI,
+  type HarnessUIActions,
+  type HarnessUIInstance,
+  type TimelineItemSink,
+} from "./harness-ui";
 import { EditorView } from "./editor";
 import { RunStateIndicator, StatuslineView, statuslineSegments } from "./statusline";
 import { type QueuedPrompts, TimelineProjector, TimelineView } from "./timeline";
@@ -57,11 +63,14 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
   const snapshot = () => (version(), editor.snapshot());
   const stageActive = () => (version(), stage.hasActive());
 
-  const hasStage = () => stageActive() ? Boolean(props.stage) : Boolean(snapshot().assist?.items.length);
+  const hasStage = () =>
+    stageActive() ? Boolean(props.stage) : Boolean(snapshot().assist?.items.length);
   const assistView = () => (
     <box flexDirection="column">
       <For each={snapshot().assist?.items ?? []}>
-        {(item, index) => <text>{`${index() === snapshot().assist?.cursor ? "▶ " : "  "}${item}`}</text>}
+        {(item, index) => (
+          <text>{`${index() === snapshot().assist?.cursor ? "▶ " : "  "}${item}`}</text>
+        )}
       </For>
     </box>
   );
@@ -156,12 +165,31 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         </box>
       </box>
       {allocation().top > 0 ? (
-        <box id="harness-statusline-top" position="absolute" top={0} left={0} width="100%" height={1} zIndex={2}>
-          <StatuslineView segments={(version(), statuslineSegments(statusline, "top"))} width={dimensions().width} />
+        <box
+          id="harness-statusline-top"
+          position="absolute"
+          top={0}
+          left={0}
+          width="100%"
+          height={1}
+          zIndex={2}
+        >
+          <StatuslineView
+            segments={(version(), statuslineSegments(statusline, "top"))}
+            width={dimensions().width}
+          />
         </box>
       ) : null}
       {indicator() ? (
-        <box id="harness-run-state" position="absolute" left={2} right={0} bottom={below() + margin()} height={1} zIndex={2}>
+        <box
+          id="harness-run-state"
+          position="absolute"
+          left={2}
+          right={0}
+          bottom={below() + margin()}
+          height={1}
+          zIndex={2}
+        >
           <RunStateIndicator controller={runState} />
         </box>
       ) : null}
@@ -191,7 +219,11 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         width="100%"
         height={allocation().editor}
         zIndex={2}
-        title={allocation().chrome > 0 ? `${focusedRegion() === "editor" ? "▶" : " "} ${snapshot().label ?? "prompt"} [${focusedRegion()}]` : undefined}
+        title={
+          allocation().chrome > 0
+            ? `${focusedRegion() === "editor" ? "▶" : " "} ${snapshot().label ?? "prompt"} [${focusedRegion()}]`
+            : undefined
+        }
         onMouseDown={() => regions.requestFocus("editor")}
         // Border color is constant while chrome is absent: the `borderColor`
         // setter re-enables a border when it changes, and the `border` prop is
@@ -213,8 +245,19 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
         />
       </box>
       {allocation().bottom > 0 ? (
-        <box id="harness-statusline-bottom" position="absolute" bottom={0} left={0} width="100%" height={1} zIndex={2}>
-          <StatuslineView segments={(version(), statuslineSegments(statusline, "bottom"))} width={dimensions().width} />
+        <box
+          id="harness-statusline-bottom"
+          position="absolute"
+          bottom={0}
+          left={0}
+          width="100%"
+          height={1}
+          zIndex={2}
+        >
+          <StatuslineView
+            segments={(version(), statuslineSegments(statusline, "bottom"))}
+            width={dimensions().width}
+          />
         </box>
       ) : null}
     </box>
@@ -223,7 +266,13 @@ export function ScreenLayout<Render>(props: ScreenLayoutProps<Render>): JSX.Elem
 
 /** Events that change what the status lines report; streaming deltas do not. */
 const STATUS_EVENTS = new Set<TimelineEvent["type"]>([
-  "agent_settled", "message_end", "compaction_end", "thinking_level_changed", "model_changed", "session_info_changed", "entry_appended",
+  "agent_settled",
+  "message_end",
+  "compaction_end",
+  "thinking_level_changed",
+  "model_changed",
+  "session_info_changed",
+  "entry_appended",
 ]);
 
 /** Session events and contributions meet at the screen, not in its views. */
@@ -254,7 +303,10 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
   const submit = (text: string) =>
     new Promise<boolean>((resolve) => {
       if (storageUncertain()) {
-        addNotice("error", "The session could not be saved, so nothing more is sent. Quit, fix the storage, and reopen the session with --session.");
+        addNotice(
+          "error",
+          "The session could not be saved, so nothing more is sent. Quit, fix the storage, and reopen the session with --session.",
+        );
         resolve(false);
         return;
       }
@@ -270,46 +322,64 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
           // never for a rejected one; pi's RPC mode answers its client from it.
           preflightResult: accept,
         })
-        .then(
-          accept,
-          (error) => {
-            addNotice("error", error instanceof Error ? error.message : String(error));
-            resolve(false);
-          },
-        );
+        .then(accept, (error) => {
+          addNotice("error", error instanceof Error ? error.message : String(error));
+          resolve(false);
+        });
     });
 
   // Contributed items live with the session's entries, so one projection orders both.
   const items: TimelineItemSink = {
-    put: (id, kind, value) => setState((current) => {
-      const index = current.entries.findIndex((entry) => entry.id === id);
-      const version = index === -1 ? 0 : current.entries[index]!.version + 1;
-      const entry: SessionEntry = { kind: "contribution", id, version, type: kind, value };
-      const entries = [...current.entries];
-      if (index === -1) entries.push(entry);
-      else entries[index] = entry;
-      return { ...current, entries };
-    }),
-    remove: (id) => setState((current) => ({ ...current, entries: current.entries.filter((entry) => entry.id !== id) })),
+    put: (id, kind, value) =>
+      setState((current) => {
+        const index = current.entries.findIndex((entry) => entry.id === id);
+        const version = index === -1 ? 0 : current.entries[index]!.version + 1;
+        const entry: SessionEntry = { kind: "contribution", id, version, type: kind, value };
+        const entries = [...current.entries];
+        if (index === -1) entries.push(entry);
+        else entries[index] = entry;
+        return { ...current, entries };
+      }),
+    remove: (id) =>
+      setState((current) => ({
+        ...current,
+        entries: current.entries.filter((entry) => entry.id !== id),
+      })),
   };
-  const ui = createHarnessUI<JSX.Element>({ sendPrompt: submit, items, notify: (text) => addNotice("error", text) });
+  const ui = createHarnessUI<JSX.Element>({
+    sendPrompt: submit,
+    items,
+    notify: (text) => addNotice("error", text),
+  });
   const { timeline, bindings, statusline, runState } = ui.controllers;
   const editor = ui.controllers.editor;
   const stageUI = setupStageUI(ui);
   const commandUI = setupCommandUI(ui);
   const commands = ui.controllers.commands;
-  const clientHost = createClientHost({ timeline, items, bindings, stage: ui.controllers.stage, statusline });
+  const clientHost = createClientHost({
+    timeline,
+    items,
+    bindings,
+    stage: ui.controllers.stage,
+    statusline,
+  });
   const extensionUI = createExtensionUI({
-    ui, ...stageUI, notify: addNotice,
+    ui,
+    ...stageUI,
+    notify: addNotice,
     client: () => clientHost.current(),
     setTitle: (title) => renderer.setTerminalTitle(title),
     setHiddenThinkingLabel,
   });
   const types = createTimelineTypes({ hiddenThinkingLabel });
-  const itemTypeRegistrations = Object.values(types).map((type) => timeline.registerType(type as ItemType<unknown, JSX.Element>));
+  const itemTypeRegistrations = Object.values(types).map((type) =>
+    timeline.registerType(type as ItemType<unknown, JSX.Element>),
+  );
   const reported = new Set<string>();
   const projector = new TimelineProjector({
-    types, registry: timeline, bindings,
+    types,
+    registry: timeline,
+    bindings,
     // Each problem once, so a streaming item does not repeat it.
     diagnose: (message) => {
       if (reported.has(message)) return;
@@ -318,7 +388,13 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     },
   });
   const itemActions = createItemActions({
-    timeline, scrollbox: () => scrollbox, overlayHeight, topInset, renderer, notify: addNotice, onSlackChange: setSlack,
+    timeline,
+    scrollbox: () => scrollbox,
+    overlayHeight,
+    topInset,
+    renderer,
+    notify: addNotice,
+    onSlackChange: setSlack,
   });
 
   const bindingsVersion = useVersion(bindings);
@@ -344,17 +420,37 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
   const regionVersion = useVersion(ui.controllers.regions);
   const timelineFocused = () => (regionVersion(), ui.controllers.regions.current() === "timeline");
   // Entering the timeline puts an off-screen cursor on the latest item.
-  createEffect(on(timelineFocused, (focused) => { if (focused) itemActions.reveal(); }, { defer: true }));
+  createEffect(
+    on(
+      timelineFocused,
+      (focused) => {
+        if (focused) itemActions.reveal();
+      },
+      { defer: true },
+    ),
+  );
 
   const runStage = (action: string) => {
     const active = ui.controllers.stage.active();
-    if (active) { void Promise.resolve().then(() => active.runAction(action)).catch((error) => addNotice("error", String(error))); return; }
+    if (active) {
+      void Promise.resolve()
+        .then(() => active.runAction(action))
+        .catch((error) => addNotice("error", String(error)));
+      return;
+    }
     const assist = editor.snapshot().assist;
     if (!assist) return;
     if (action === "next" || action === "previous") {
-      editor.setAssist({ ...assist, cursor: Math.max(0, Math.min(assist.items.length - 1, assist.cursor + (action === "next" ? 1 : -1))) });
+      editor.setAssist({
+        ...assist,
+        cursor: Math.max(
+          0,
+          Math.min(assist.items.length - 1, assist.cursor + (action === "next" ? 1 : -1)),
+        ),
+      });
     } else {
-      if (action === "confirm" && assist.items[assist.cursor] !== undefined) editor.setText(assist.items[assist.cursor]!);
+      if (action === "confirm" && assist.items[assist.cursor] !== undefined)
+        editor.setText(assist.items[assist.cursor]!);
       editor.setAssist(undefined);
       ui.regions.requestFocus("editor");
     }
@@ -378,7 +474,9 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
       }
     },
     quit: () => {
-      void disposeUI().then(() => props.host.dispose()).finally(() => renderer.destroy());
+      void disposeUI()
+        .then(() => props.host.dispose())
+        .finally(() => renderer.destroy());
     },
     focusFromEditor: (target) => editor.requestFocus(target),
     moveTimelineCursor: itemActions.move,
@@ -386,27 +484,40 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     toggleTimelineItem: itemActions.toggle,
     expandTimelineItem: itemActions.expand,
     collapseTimelineItem: itemActions.collapse,
-    copyTimelineItem: () => { void itemActions.copy(); },
+    copyTimelineItem: () => {
+      void itemActions.copy();
+    },
     moveStageCursor: (delta) => runStage(delta > 0 ? "next" : "previous"),
     confirmStage: () => runStage("confirm"),
     cancelStage: () => runStage("cancel"),
     openCommand: () => commands.open(),
     moveStageRequest: (delta) => ui.controllers.stage.moveRequest(delta),
     stageAcceptsText: () => commands.acceptsText(),
-    commandArguments: () => { void commands.arguments(); },
+    commandArguments: () => {
+      void commands.arguments();
+    },
     commandOwnsDraft: () => commands.ownsDraft(),
     moveCommandDraftCursor: (delta) => commands.move(delta, true),
   };
 
-  const registrations = [...itemTypeRegistrations, ...setupCommands(ui, props.host, (text) => addNotice("info", text)), ...setupDefaultUI(ui, actions)];
+  const registrations = [
+    ...itemTypeRegistrations,
+    ...setupCommands(ui, props.host, (text) => addNotice("info", text)),
+    ...setupDefaultUI(ui, actions),
+  ];
   let disposing: Promise<void> | undefined;
-  const disposeUI = () => disposing ??= (async () => {
-    clientHost.retire();
-    commandUI.dispose(); extensionUI.dispose(); stageUI.dispose();
-    for (const registration of registrations) registration.dispose();
-    await itemActions.dispose();
-  })();
-  onCleanup(() => { void disposeUI(); });
+  const disposeUI = () =>
+    (disposing ??= (async () => {
+      clientHost.retire();
+      commandUI.dispose();
+      extensionUI.dispose();
+      stageUI.dispose();
+      for (const registration of registrations) registration.dispose();
+      await itemActions.dispose();
+    })());
+  onCleanup(() => {
+    void disposeUI();
+  });
 
   const onEvent = (event: TimelineEvent) => {
     if (event.type === "queue_update") {
@@ -414,7 +525,8 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
     }
     // Accepted work, including automatic continuation, until the session settles.
     if (event.type === "agent_start" || event.type === "compaction_start") runState.setActive(true);
-    if (event.type === "agent_settled" || (event.type === "compaction_end" && session().isIdle)) runState.setActive(false);
+    if (event.type === "agent_settled" || (event.type === "compaction_end" && session().isIdle))
+      runState.setActive(false);
     setState((current) => reduceTimeline(current, event));
     // pi saves a message after its listeners return, so totals that include it are read a moment later.
     if (STATUS_EVENTS.has(event.type)) queueMicrotask(refreshStatus);
@@ -434,11 +546,19 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
           projector.reset();
           timeline.resetDisclosure();
           // Contributed items are not part of a history, so they stay.
-          setState((current) => timelineState([
-            ...props.host.history(),
-            ...current.entries.filter((entry) => entry.kind === "contribution"),
-          ], settings()));
-          setQueued({ steering: replacement.getSteeringMessages(), followUp: replacement.getFollowUpMessages() });
+          setState((current) =>
+            timelineState(
+              [
+                ...props.host.history(),
+                ...current.entries.filter((entry) => entry.kind === "contribution"),
+              ],
+              settings(),
+            ),
+          );
+          setQueued({
+            steering: replacement.getSteeringMessages(),
+            followUp: replacement.getFollowUpMessages(),
+          });
           runState.setActive(!replacement.isIdle);
           itemActions.follow();
           refreshStatus();
@@ -455,7 +575,10 @@ export function Screen(props: { host: SessionHost; startupNotices: readonly Sess
           setStorageUncertain(true);
           clientHost.retire();
           runState.setActive(false);
-          addNotice("error", `The session could not be saved (${error.message}). Its file may be incomplete; the run was stopped and nothing more is written. Quit, fix the storage, and reopen the session with --session.`);
+          addNotice(
+            "error",
+            `The session could not be saved (${error.message}). Its file may be incomplete; the run was stopped and nothing more is written. Quit, fix the storage, and reopen the session with --session.`,
+          );
         },
         notify: addNotice,
       })

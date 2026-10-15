@@ -41,10 +41,26 @@ interface QuinScreen {
   dispose(): void;
 }
 
-export function setupScreen(controller: Controller, options: { keymap?: Keymap; renderer?: CliRenderer; clipboard?: ClipboardWriter; cwd?: string } = {}): QuinScreen {
+export function setupScreen(
+  controller: Controller,
+  options: {
+    keymap?: Keymap;
+    renderer?: CliRenderer;
+    clipboard?: ClipboardWriter;
+    cwd?: string;
+  } = {},
+): QuinScreen {
   const c = controller;
   // An accepted prompt follows the latest output again, as in the harness.
-  const ui = createQuinUI<JSX.Element>({ sendPrompt: async text => { const accepted = await c.sendPrompt(text); if (accepted) itemActions.follow(); return accepted; }, keymap: options.keymap, notify: text => c.fail(text) });
+  const ui = createQuinUI<JSX.Element>({
+    sendPrompt: async (text) => {
+      const accepted = await c.sendPrompt(text);
+      if (accepted) itemActions.follow();
+      return accepted;
+    },
+    keymap: options.keymap,
+    notify: (text) => c.fail(text),
+  });
   const { timeline, editor, statusline, runState, keys, regions } = ui.controllers;
   let scroll: TimelineScrollBox | undefined;
   let readEditor: (() => { text: string; cursor: number }) | undefined;
@@ -52,8 +68,13 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   const topInset = createSignal(0);
   const [slack, setSlack] = createSignal(0);
   const itemActions = createItemActions({
-    timeline, scrollbox: () => scroll, overlayHeight: overlay[0], topInset: topInset[0],
-    renderer: options.renderer, clipboard: options.clipboard, onSlackChange: setSlack,
+    timeline,
+    scrollbox: () => scroll,
+    overlayHeight: overlay[0],
+    topInset: topInset[0],
+    renderer: options.renderer,
+    clipboard: options.clipboard,
+    onSlackChange: setSlack,
     notify: (_level, text) => c.fail(text),
   });
 
@@ -66,7 +87,9 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       else void editor.submitPrompt();
     },
     detach: () => c.detach(),
-    interrupt: () => { if (c.interrupt() === "idle") editor.setText(""); },
+    interrupt: () => {
+      if (c.interrupt() === "idle") editor.setText("");
+    },
     timeline: itemActions,
     openCommand: () => ui.controllers.commands.open(),
   };
@@ -74,7 +97,11 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   const stageUI = setupStageUI(ui);
   const commandUI = setupCommandUI(ui);
   const { registrations: typeRegistrations, projector } = registerTimelineTypes(timeline);
-  const registrations = [...typeRegistrations, ...setupCommands(ui, c), setupDefaultActions(ui, actions)];
+  const registrations = [
+    ...typeRegistrations,
+    ...setupCommands(ui, c),
+    setupDefaultActions(ui, actions),
+  ];
   try {
     keys.checkKeymap();
   } catch (error) {
@@ -85,7 +112,7 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   }
   const stopDialogs = bridgeDialogs({ controller: c, ui, ...stageUI });
   // Pi's text replaces the prompt, never a dialog's or the palette's draft.
-  c.onEditorText = text => editor.setPromptText(text);
+  c.onEditorText = (text) => editor.setPromptText(text);
 
   // Entering the timeline puts an off-screen cursor on the latest item.
   let lastRegion = regions.current();
@@ -96,9 +123,19 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
   });
   const statuses = new Map<string, StatuslineContribution>();
   const notice = statusline.contribute("top", { text: "" });
-  const chord = (id: string) => { const first = keys.chords(id)[0]; return first ? formatChord(first) : undefined; };
+  const chord = (id: string) => {
+    const first = keys.chords(id)[0];
+    return first ? formatChord(first) : undefined;
+  };
   // The keymap is fixed for the screen's life, so the hint is too.
-  statusline.contribute("bottom", { text: [chord("global.focus-next") && `${chord("global.focus-next")} focus`, chord("global.detach") && `${chord("global.detach")} detach`].filter(Boolean).join(" · ") });
+  statusline.contribute("bottom", {
+    text: [
+      chord("global.focus-next") && `${chord("global.focus-next")} focus`,
+      chord("global.detach") && `${chord("global.detach")} detach`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  });
   const refresh = () => {
     const view = c.adapter.view;
     projector.sync(view.timeline.entries, view.stream, c.adapter.takeChanges());
@@ -111,7 +148,11 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       totals: c.stats ? formatUsage(c.stats) : "",
     });
     notice.update({ text: c.status });
-    for (const [key, contribution] of statuses) if (!(key in view.presentation.status)) { contribution.dispose(); statuses.delete(key); }
+    for (const [key, contribution] of statuses)
+      if (!(key in view.presentation.status)) {
+        contribution.dispose();
+        statuses.delete(key);
+      }
     for (const [key, text] of Object.entries(view.presentation.status)) {
       const existing = statuses.get(key);
       if (existing) existing.update({ text });
@@ -119,14 +160,20 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     }
     runState.setActive(c.active);
     const interrupt = chord(INTERRUPT_ACTION);
-    runState.setMessage(c.armedUntil && interrupt ? `Press ${interrupt} again within 1s to interrupt` : undefined);
+    runState.setMessage(
+      c.armedUntil && interrupt ? `Press ${interrupt} again within 1s to interrupt` : undefined,
+    );
   };
   refresh();
-  let scheduled = false, disposed = false;
+  let scheduled = false,
+    disposed = false;
   const unsubscribe = c.subscribe(() => {
     if (scheduled) return;
     scheduled = true;
-    queueMicrotask(() => { scheduled = false; if (!disposed) refresh(); });
+    queueMicrotask(() => {
+      scheduled = false;
+      if (!disposed) refresh();
+    });
   });
   const timer = setInterval(() => c.tick(), 100);
 
@@ -134,12 +181,16 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
     ui,
     controller: c,
     actions,
-    setScroll: element => { scroll = element; },
+    setScroll: (element) => {
+      scroll = element;
+    },
     frame: () => itemActions.frame(),
     overlay,
     topInset,
     slack,
-    setEditorReader: read => { readEditor = read; },
+    setEditorReader: (read) => {
+      readEditor = read;
+    },
     queued: () => queuedPrompts(c.adapter.view.queue),
     dispose: () => {
       disposed = true;
@@ -149,7 +200,7 @@ export function setupScreen(controller: Controller, options: { keymap?: Keymap; 
       stopDialogs();
       for (const registration of registrations) registration.dispose();
       commandUI.dispose();
-    stageUI.dispose();
+      stageUI.dispose();
       void itemActions.dispose();
     },
   };
@@ -163,12 +214,18 @@ export function Screen(props: { screen: QuinScreen; onTitle?(title: string): voi
   // Item scrolling animates on OpenTUI's timeline engine, driven by this renderer.
   const renderer = useRenderer();
   onMount(() => engine.attach(renderer));
-  onCleanup(() => { engine.detach(); props.screen.dispose(); });
+  onCleanup(() => {
+    engine.detach();
+    props.screen.dispose();
+  });
   let lastTitle: string | null = null;
   const title = () => {
     version();
     const next = controller.adapter.view.presentation.title;
-    if (next && next !== lastTitle) { lastTitle = next; props.onTitle?.(next); }
+    if (next && next !== lastTitle) {
+      lastTitle = next;
+      props.onTitle?.(next);
+    }
     return null;
   };
   return (
@@ -179,7 +236,9 @@ export function Screen(props: { screen: QuinScreen; onTitle?(title: string): voi
         statuslines
         onOverlayHeight={setOverlay}
         onTopInset={setTopInset}
-        onKey={action => { if (action?.id !== INTERRUPT_ACTION) controller.disarm(); }}
+        onKey={(action) => {
+          if (action?.id !== INTERRUPT_ACTION) controller.disarm();
+        }}
         onEditorReader={props.screen.setEditorReader}
         stage={() => <StageView ui={ui} />}
         timeline={

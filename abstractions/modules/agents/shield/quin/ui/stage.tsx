@@ -19,14 +19,22 @@ export interface ChoiceValue {
 
 export function StageView(props: { ui: QuinUIInstance<JSX.Element> }) {
   const version = useVersion(props.ui.controllers.stage, props.ui.controllers.regions);
-  const ids = () => { version(); const active = props.ui.controllers.stage.active(); return active ? [active.id] : []; };
+  const ids = () => {
+    version();
+    const active = props.ui.controllers.stage.active();
+    return active ? [active.id] : [];
+  };
   const position = () => (version(), props.ui.controllers.stage.position());
-  return <box height="100%" flexDirection="column" overflow="hidden">
-    {position().total > 1 ? <text height={1} flexShrink={0}>{`${position().index}/${position().total}`}</text> : null}
-    <box flexGrow={1} minHeight={0} overflow="hidden">
-      <For each={ids()}>{() => props.ui.controllers.stage.active()?.render(version)}</For>
+  return (
+    <box height="100%" flexDirection="column" overflow="hidden">
+      {position().total > 1 ? (
+        <text height={1} flexShrink={0}>{`${position().index}/${position().total}`}</text>
+      ) : null}
+      <box flexGrow={1} minHeight={0} overflow="hidden">
+        <For each={ids()}>{() => props.ui.controllers.stage.active()?.render(version)}</For>
+      </box>
     </box>
-  </box>;
+  );
 }
 
 /** Seconds left until `expiresAt`, ticking while it is shown. */
@@ -34,7 +42,12 @@ function Countdown(props: { expiresAt: number }): JSX.Element {
   const [now, setNow] = createSignal(Date.now());
   const timer = setInterval(() => setNow(Date.now()), 250);
   onCleanup(() => clearInterval(timer));
-  return <text height={1} flexShrink={0}>{`${Math.max(0, Math.ceil((props.expiresAt - now()) / 1000))}s left`}</text>;
+  return (
+    <text
+      height={1}
+      flexShrink={0}
+    >{`${Math.max(0, Math.ceil((props.expiresAt - now()) / 1000))}s left`}</text>
+  );
 }
 
 /**
@@ -48,7 +61,10 @@ function createChoiceType(kind: string): StageContentType<ChoiceValue, JSX.Eleme
     defaultValue: { title: "", choices: [], cursor: 0 },
     render: (props) => (
       <box height="100%" flexDirection="column" backgroundColor="#1e1e2e">
-        <text height={1} flexShrink={0}>{`${props.focused ? "▶ " : ""}stage: ${props.value.title}`}</text>
+        <text
+          height={1}
+          flexShrink={0}
+        >{`${props.focused ? "▶ " : ""}stage: ${props.value.title}`}</text>
         {props.value.message ? <text flexShrink={0}>{props.value.message}</text> : null}
         {props.value.expiresAt ? <Countdown expiresAt={props.value.expiresAt} /> : null}
         <select
@@ -61,15 +77,23 @@ function createChoiceType(kind: string): StageContentType<ChoiceValue, JSX.Eleme
       </box>
     ),
     actions: {
-      next: ({ value, handle }) => handle.update({ ...value, cursor: Math.min(value.choices.length - 1, value.cursor + 1) }),
-      previous: ({ value, handle }) => handle.update({ ...value, cursor: Math.max(0, value.cursor - 1) }),
+      next: ({ value, handle }) =>
+        handle.update({ ...value, cursor: Math.min(value.choices.length - 1, value.cursor + 1) }),
+      previous: ({ value, handle }) =>
+        handle.update({ ...value, cursor: Math.max(0, value.cursor - 1) }),
       confirm: async ({ value, handle }) => {
         const choice = value.choices[value.cursor];
         if (choice === undefined || value.busy) return;
-        if (!value.onChoose) { handle.close({ ...value, result: choice }); return; }
+        if (!value.onChoose) {
+          handle.close({ ...value, result: choice });
+          return;
+        }
         handle.update({ ...value, busy: true });
-        try { await value.onChoose(choice, handle); }
-        finally { handle.update({ ...handle.value(), busy: false }); }
+        try {
+          await value.onChoose(choice, handle);
+        } finally {
+          handle.update({ ...handle.value(), busy: false });
+        }
       },
       cancel: ({ handle }) => handle.cancel(),
     },
@@ -83,6 +107,8 @@ export function setupStageUI(ui: QuinUIInstance<JSX.Element>) {
   return {
     choiceType,
     confirmType,
-    dispose: () => { for (const registration of registrations) registration.dispose(); },
+    dispose: () => {
+      for (const registration of registrations) registration.dispose();
+    },
   };
 }

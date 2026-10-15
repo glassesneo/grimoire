@@ -27,9 +27,7 @@ export interface DraftRequestOptions {
   signal?: AbortSignal;
 }
 
-export type DraftResult =
-  | { status: "submitted"; text: string }
-  | { status: "cancelled" };
+export type DraftResult = { status: "submitted"; text: string } | { status: "cancelled" };
 
 interface EditorSnapshot {
   text: string;

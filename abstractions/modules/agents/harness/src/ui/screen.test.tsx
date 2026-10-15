@@ -56,7 +56,13 @@ describe("ScreenLayout layout", () => {
   test("keeps timeline full-size and clamps overlays through the resize sequence", async () => {
     const harness = createHarness();
     const setup = await testRender(
-      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} stage={() => <text>stage</text>} />,
+      () => (
+        <ScreenLayout
+          ui={harness.ui}
+          timeline={<text>timeline</text>}
+          stage={() => <text>stage</text>}
+        />
+      ),
       { width: 120, height: 40 },
     );
     harness.ui.controllers.stage.show({
@@ -106,10 +112,13 @@ describe("ScreenLayout layout", () => {
 
   test("prefers 2 body rows for short text and 8 with internal scroll for long text", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 120,
-      height: 40,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 120,
+        height: 40,
+      },
+    );
     await setup.flush();
 
     const { editor } = harness.ui.controllers;
@@ -118,7 +127,9 @@ describe("ScreenLayout layout", () => {
     editor.setText("word ".repeat(200));
     await setup.flush();
     expect(editor.snapshot().preferredHeight).toBe(8);
-    const textarea = setup.renderer.root.findDescendantById("harness-textarea") as TextareaRenderable;
+    const textarea = setup.renderer.root.findDescendantById(
+      "harness-textarea",
+    ) as TextareaRenderable;
     expect(textarea.height).toBe(8);
     // Content taller than the viewport stays inside the textarea.
     expect(textarea.editorView.getTotalVirtualLineCount()).toBeGreaterThan(8);
@@ -134,13 +145,18 @@ describe("ScreenLayout layout", () => {
 
   test("follows native deletes one row at a time after the eight-row clamp", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 80,
-      height: 24,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 80,
+        height: 24,
+      },
+    );
     await setup.flush();
 
-    const textarea = setup.renderer.root.findDescendantById("harness-textarea") as TextareaRenderable;
+    const textarea = setup.renderer.root.findDescendantById(
+      "harness-textarea",
+    ) as TextareaRenderable;
     const { editor } = harness.ui.controllers;
     // Ten lines arrive through the native paste path, so the shrink below is
     // measured on native edits rather than a replacement `editor.setText`.
@@ -187,7 +203,9 @@ describe("ScreenLayout layout", () => {
           ui={harness.ui}
           timeline={
             <scrollbox height="100%" stickyScroll stickyStart="bottom">
-              {lines.map((line) => <text>{line}</text>)}
+              {lines.map((line) => (
+                <text>{line}</text>
+              ))}
             </scrollbox>
           }
         />
@@ -199,7 +217,9 @@ describe("ScreenLayout layout", () => {
     const editorBox = setup.renderer.root.findDescendantById("harness-editor") as unknown as {
       backgroundColor: { a: number };
     };
-    const textarea = setup.renderer.root.findDescendantById("harness-textarea") as TextareaRenderable;
+    const textarea = setup.renderer.root.findDescendantById(
+      "harness-textarea",
+    ) as TextareaRenderable;
     expect(editorBox.backgroundColor.a).toBe(0);
     expect((textarea.backgroundColor as unknown as { a: number }).a).toBe(0);
 
@@ -218,10 +238,13 @@ describe("ScreenLayout layout", () => {
 
   test("draws only full-width top and bottom editor rules with no side border", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 40,
-      height: 24,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 40,
+        height: 24,
+      },
+    );
     await setup.flush();
 
     const frame = setup.captureCharFrame().split("\n");
@@ -233,7 +256,9 @@ describe("ScreenLayout layout", () => {
     expect(editorRows[3]).toBe("─".repeat(40));
     for (const row of editorRows) expect(row).not.toContain("│");
 
-    const textarea = setup.renderer.root.findDescendantById("harness-textarea") as TextareaRenderable;
+    const textarea = setup.renderer.root.findDescendantById(
+      "harness-textarea",
+    ) as TextareaRenderable;
     expect(textarea.width).toBe(40);
 
     setup.renderer.destroy();
@@ -247,7 +272,14 @@ describe("ScreenLayout overlays", () => {
     statusline.setFields({ session: "session", cwd: "/work", model: "provider/model" });
     runState.setActive(true);
     const setup = await testRender(
-      () => <ScreenLayout ui={harness.ui} statuslines timeline={<text>timeline</text>} stage={() => <text>stage</text>} />,
+      () => (
+        <ScreenLayout
+          ui={harness.ui}
+          statuslines
+          timeline={<text>timeline</text>}
+          stage={() => <text>stage</text>}
+        />
+      ),
       { width: 120, height: 40 },
     );
     stage.show({ requester: "test", type: stubStage, value: "x", preferredHeight: 4 });
@@ -265,7 +297,12 @@ describe("ScreenLayout overlays", () => {
       const indicator = find("harness-run-state");
       const stageBox = find("harness-stage");
       // Auxiliary rows appear only while the timeline keeps rows of its own.
-      const timelineRows = height - (top ? 1 : 0) - (height - editorBox.y) - (stageBox?.height ?? 0) - (indicator ? 1 : 0);
+      const timelineRows =
+        height -
+        (top ? 1 : 0) -
+        (height - editorBox.y) -
+        (stageBox?.height ?? 0) -
+        (indicator ? 1 : 0);
       if (top || bottom || indicator) expect(timelineRows).toBeGreaterThanOrEqual(1);
       // Directly above the stage or editor, or one blank row above it.
       if (indicator) expect((stageBox ? stageBox.y : editorBox.y) - indicator.y).toBeOneOf([1, 2]);
@@ -284,7 +321,13 @@ describe("ScreenLayout overlays", () => {
   test("draws editor assist only while no blocking stage request is active", async () => {
     const harness = createHarness();
     const setup = await testRender(
-      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} stage={() => <text>blocking</text>} />,
+      () => (
+        <ScreenLayout
+          ui={harness.ui}
+          timeline={<text>timeline</text>}
+          stage={() => <text>blocking</text>}
+        />
+      ),
       { width: 80, height: 24 },
     );
     await setup.flush();
@@ -332,7 +375,13 @@ describe("ScreenLayout overlays", () => {
 
     const short = createHarness();
     const shortSetup = await testRender(
-      () => <ScreenLayout ui={short.ui} timeline={<text>timeline</text>} stage={() => <text>stage</text>} />,
+      () => (
+        <ScreenLayout
+          ui={short.ui}
+          timeline={<text>timeline</text>}
+          stage={() => <text>stage</text>}
+        />
+      ),
       { width: 40, height: 2 },
     );
     await shortSetup.flush();
@@ -351,10 +400,15 @@ describe("ScreenLayout overlays", () => {
 describe("ScreenLayout with the editor controller", () => {
   test("continues editing at the caret after positional paste and controller insertion", async () => {
     const f = fixture();
-    const setup = await testRender(() => <ScreenLayout ui={f.ui} timeline={<text>timeline</text>} />, { width: 80, height: 24 });
+    const setup = await testRender(
+      () => <ScreenLayout ui={f.ui} timeline={<text>timeline</text>} />,
+      { width: 80, height: 24 },
+    );
     try {
       await setup.flush();
-      const textarea = setup.renderer.root.findDescendantById("harness-textarea") as TextareaRenderable;
+      const textarea = setup.renderer.root.findDescendantById(
+        "harness-textarea",
+      ) as TextareaRenderable;
       const editor = f.ui.controllers.editor;
       f.extension.context.setEditorText("abcd");
       await setup.flush();
@@ -378,11 +432,19 @@ describe("ScreenLayout with the editor controller", () => {
       expect(textarea.plainText).toBe("ab!X?Ycd");
       expect(editor.snapshot().text).toBe("ab!X?Ycd");
       expect(editor.snapshot().cursor).toBe(6);
-      const draft = editor.openDraft({ destination: "caret", label: "Caret", requester: "editor", initialText: "a longer borrowed draft" });
+      const draft = editor.openDraft({
+        destination: "caret",
+        label: "Caret",
+        requester: "editor",
+        initialText: "a longer borrowed draft",
+      });
       await setup.flush();
-      editor.cancelDraft(); await draft; await setup.flush();
+      editor.cancelDraft();
+      await draft;
+      await setup.flush();
       expect(editor.snapshot().cursor).toBe(textarea.cursorOffset);
-      await setup.mockInput.typeText("Z"); await setup.flush();
+      await setup.mockInput.typeText("Z");
+      await setup.flush();
       expect(editor.snapshot().text).toBe("ab!X?YcdZ");
     } finally {
       setup.renderer.destroy();
@@ -391,10 +453,13 @@ describe("ScreenLayout with the editor controller", () => {
   });
   test("retains a draft, assist, and timeline cursor across resizes", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 120,
-      height: 40,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 120,
+        height: 40,
+      },
+    );
     await setup.flush();
 
     const { editor, timeline } = harness.ui.controllers;
@@ -427,10 +492,13 @@ describe("ScreenLayout with the editor controller", () => {
 
   test("runs a registered key once, suppresses the native key, and honors a declining predicate", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 80,
-      height: 24,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 80,
+        height: 24,
+      },
+    );
     await setup.flush();
 
     const { editor } = harness.ui.controllers;
@@ -451,7 +519,12 @@ describe("ScreenLayout with the editor controller", () => {
     let declined = 0;
     let accepted = 0;
     harness.ui.keys.register("test", "editor", [
-      { actionId: "editor.declined-test", name: "x", when: () => false, action: () => (declined += 1) },
+      {
+        actionId: "editor.declined-test",
+        name: "x",
+        when: () => false,
+        action: () => (declined += 1),
+      },
       { actionId: "editor.accepted-test", name: "z", action: () => (accepted += 1) },
     ]);
 
@@ -470,10 +543,13 @@ describe("ScreenLayout with the editor controller", () => {
 
   test("retains a destination draft across a draft and restores focus", async () => {
     const harness = createHarness();
-    const setup = await testRender(() => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />, {
-      width: 80,
-      height: 24,
-    });
+    const setup = await testRender(
+      () => <ScreenLayout ui={harness.ui} timeline={<text>timeline</text>} />,
+      {
+        width: 80,
+        height: 24,
+      },
+    );
     await setup.flush();
 
     const { regions, editor } = harness.ui.controllers;

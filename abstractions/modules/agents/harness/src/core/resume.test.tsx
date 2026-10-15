@@ -53,7 +53,10 @@ test("a session that has written its file can be found again by id, prefix, or p
   expect(await openSession("no-such-session", root)).toBeUndefined();
 
   const resumed = await host(opened!);
-  const setup = await testRender(() => <Screen host={resumed} startupNotices={[]} />, { width: 60, height: 30 });
+  const setup = await testRender(() => <Screen host={resumed} startupNotices={[]} />, {
+    width: 60,
+    height: 30,
+  });
   try {
     // The timeline lays out its items over several frames.
     for (let frame = 0; frame < 3; frame++) {

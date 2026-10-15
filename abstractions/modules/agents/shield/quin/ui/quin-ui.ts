@@ -15,7 +15,13 @@ import {
   type StageRequest,
 } from "./controllers";
 import { CommandController, type QuinCommand } from "./command-controller";
-import { EditorController, maxHeight, minHeight, type DraftRequestOptions, type DraftResult } from "./editor-engine";
+import {
+  EditorController,
+  maxHeight,
+  minHeight,
+  type DraftRequestOptions,
+  type DraftResult,
+} from "./editor-engine";
 import { type Action, KeyBindings, type Keymap } from "./keys";
 import { RunStateController, StatuslineController } from "./statusline";
 
@@ -59,7 +65,9 @@ interface QuinUIOptions {
   notify?: (text: string) => void;
 }
 
-export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): QuinUIInstance<Render> {
+export function createQuinUI<Render = unknown>(
+  options: QuinUIOptions = {},
+): QuinUIInstance<Render> {
   const controllers = createQuinControllers<Render>(options);
   return {
     controllers,
@@ -78,7 +86,9 @@ export function createQuinUI<Render = unknown>(options: QuinUIOptions = {}): Qui
  * region's availability, and typed characters reach the editor and any stage
  * content that accepts text.
  */
-function createQuinControllers<Render = unknown>(options: QuinUIOptions = {}): QuinControllers<Render> {
+function createQuinControllers<Render = unknown>(
+  options: QuinUIOptions = {},
+): QuinControllers<Render> {
   const regions = new RegionController();
   const timeline = new ItemTypeRegistry<Render>();
   let editor: EditorController | undefined;
@@ -93,7 +103,13 @@ function createQuinControllers<Render = unknown>(options: QuinUIOptions = {}): Q
     textRegions: regionText(() => stage.active()?.acceptsText ?? false),
   });
   return {
-    regions, keys, stage, timeline, editor, statusline: new StatuslineController(), runState: new RunStateController(),
+    regions,
+    keys,
+    stage,
+    timeline,
+    editor,
+    statusline: new StatuslineController(),
+    runState: new RunStateController(),
     commands: new CommandController(stage, editor, options.notify ?? (() => {})),
   };
 }
