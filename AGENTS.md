@@ -24,7 +24,7 @@ For repository changes:
 
 1. Stage new files before flake evaluation; flakes read Git-tracked files.
 2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `tests/<name>`, or the `module-<name>` check for a module's tests.
-3. Before completion, run `nix flake check`.
+3. Before completion, run `nix flake check`, unless you are committing: the commit hook runs it on the committed snapshot (`docs/operations.md`).
 
 For read-only work, report what was inspected and which behavior remains unverified; do not run a formatter as part of the inspection.
 
