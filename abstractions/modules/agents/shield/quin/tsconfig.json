@@ -5,5 +5,5 @@
     "noUnusedLocals": true, "noUnusedParameters": true,
     "noEmit": true, "skipLibCheck": true, "types": ["bun"]
   },
-  "include": ["*.ts", "*.tsx", "ui/*.ts", "ui/*.tsx", "contributions/*.ts", "../client/*.ts", "../../../../../tests/shield/*.ts"]
+  "include": ["*.ts", "*.tsx", "ui/*.ts", "ui/*.tsx", "contributions/*.ts", "../client/*.ts", "../../../../../tests/shield-process/*.ts", "../../../../../tests/shield-trace/*.ts"]
 }

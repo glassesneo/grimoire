@@ -1,4 +1,4 @@
-# Type-checks quin, the clients, and tests/shield against quin's tsconfig, then
+# Type-checks quin, the clients, and the SHIELD test scripts against quin's tsconfig, then
 # runs the published quin. The package build runs only quin's Bun tests.
 {
   inputs,
@@ -14,7 +14,7 @@ in
     version = "0.1.0";
     src = pkgs.lib.fileset.toSource {
       root = ../..;
-      fileset = pkgs.lib.fileset.unions [(shield + "/quin") (shield + "/client") ../shield];
+      fileset = pkgs.lib.fileset.unions [(shield + "/quin") (shield + "/client") ../shield-process ../shield-trace];
     };
     bunDeps = quin.bunDeps;
     postUnpack = ''
