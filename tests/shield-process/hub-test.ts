@@ -18,14 +18,14 @@ import {
 } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 import { PiAdapter } from "../../abstractions/modules/agents/shield/quin/view";
-import { alive, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
+import { alive, attachPayload, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
 
 const dir = mkdtempSync(join(tmpdir(), "shield-hub-"));
 const socket = join(dir, "hub.sock");
 const { clients, connect } = clientsOf(socket);
 const fakeOptions = (mode = "normal") => fakeLaunch(dir, mode, { PATH: "/usr/bin:/bin" });
 const attach = (c: HubClient, cwd = dir, opts = fakeOptions()) =>
-  c.hub("attach", { cwd, harness: "quin", options: opts });
+  c.hub("attach", attachPayload(cwd, opts));
 try {
   const decoder = new JsonLines();
   const unicode = Buffer.from('{"text":"日本\u2028語\u2029"}\r\n');
@@ -86,7 +86,7 @@ try {
       id: requestId,
       "agent-id": null,
       method: "attach",
-      payload: { cwd, harness, options: fakeOptions() },
+      payload: { ...attachPayload(cwd, fakeOptions()), harness },
       ...envelope,
     });
     await wait(() => bareRecords.some((r) => r.id === requestId));

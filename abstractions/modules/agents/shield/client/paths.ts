@@ -21,6 +21,8 @@ export const stateDirectory = () =>
   join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "shield");
 export const configDirectory = () =>
   join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "shield/pi");
+export const sessionsDirectory = (mock: boolean) =>
+  join(stateDirectory(), mock ? "mock/sessions" : "sessions");
 const defaultSocket = () => join(stateDirectory(), "hub.sock");
 export function socketPath(value = defaultSocket()) {
   if (!isAbsolute(value)) throw new Error("--socket requires an absolute path");

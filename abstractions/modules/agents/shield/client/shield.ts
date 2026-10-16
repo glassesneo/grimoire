@@ -66,7 +66,7 @@ export async function main(args = process.argv.slice(2)) {
     console.log(`shield [--socket /absolute/hub.sock] start|list|stop <id>|shutdown
 Starts and manages the SHIELD hub that runs Pi agents for quin. Pass the same --socket to quin.
 Agents end with the hub; Pi's session files remain. After shutdown, wait for the hub to exit before starting another.
-CommandCode keys come from CMD_API_KEY or COMMAND_CODE_API_KEY in the environment of shield start.`);
+New agents inherit the requesting quin's environment, including CMD_API_KEY or COMMAND_CODE_API_KEY for CommandCode.`);
     return;
   }
   const path = socketPath(values.socket);

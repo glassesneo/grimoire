@@ -11,15 +11,27 @@
   defaultModel ? null,
   # Action id to chords, replacing quin's defaults; see quin/ui/keys.ts.
   keys ? {},
+  # Packages whose bin directories quin puts at the front of a new agent's PATH.
+  extraPackages ? [],
+  # Pi settings.json and models.json content; Hjem deploys them, so they are only
+  # exposed as passthru.piConfig and never read by the package.
+  settings ? {},
+  models ? {providers = {};},
   writeText,
 }: let
   platforms = ["aarch64-darwin"];
   runtimeEnv = {
     SHIELD_PI = "${runtime}/bin/shield-pi";
+    SHIELD_SESSION_RESOLVER = "${runtime}/bin/shield-session";
     SHIELD_FAUX = "${runtime}/libexec/pi/faux.ts";
     SHIELD_CODEMODE = "${runtime}/libexec/pi/codemode.ts";
     SHIELD_COMMANDCODE = "${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts";
     SHIELD_PI_VERSION = piVersion;
+  };
+  toolsPath = lib.makeBinPath extraPackages;
+  piConfig = {
+    settings = writeText "shield-pi-settings.json" (builtins.toJSON settings);
+    models = writeText "shield-pi-models.json" (builtins.toJSON models);
   };
   keymap = writeText "quin-keymap.json" (builtins.toJSON keys);
   piVersion = (lib.importJSON ./runtime/package.json).dependencies."@earendil-works/pi-coding-agent";
@@ -27,20 +39,26 @@
     packageJson = ./runtime/package.json;
     src = lib.fileset.toSource {
       root = ./runtime;
-      fileset = lib.fileset.unions [./runtime/package.json ./runtime/bun.lock ./runtime/faux.ts ./runtime/bash-fixture.ts ./runtime/codemode.ts];
+      fileset = lib.fileset.unions [./runtime/package.json ./runtime/bun.lock ./runtime/faux.ts ./runtime/bash-fixture.ts ./runtime/codemode.ts ./runtime/session-resolver.mjs];
     };
     bunDeps = bun2nix.fetchBunDeps {bunNix = ./runtime/bun.nix;};
     buildPhase = "true";
     installPhase = ''
       mkdir -p "$out/libexec/pi"
       cp -r node_modules "$out/libexec/pi/"
-      cp faux.ts bash-fixture.ts codemode.ts "$out/libexec/pi/"
+      cp faux.ts bash-fixture.ts codemode.ts session-resolver.mjs "$out/libexec/pi/"
       mkdir -p "$out/bin"
       cat > "$out/bin/shield-pi" <<EOF
       #!${stdenvNoCC.shell}
       exec ${nodejs}/bin/node "$out/libexec/pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js" "\$@"
       EOF
       chmod +x "$out/bin/shield-pi"
+      # Beside node_modules so it imports the same Pi package as shield-pi.
+      cat > "$out/bin/shield-session" <<EOF
+      #!${stdenvNoCC.shell}
+      exec ${nodejs}/bin/node "$out/libexec/pi/session-resolver.mjs" "\$@"
+      EOF
+      chmod +x "$out/bin/shield-session"
     '';
     dontFixup = true;
   };
@@ -90,7 +108,7 @@
     doCheck = true;
     # tests/quin type-checks the clients together with the scripts that import them.
     checkPhase = ''
-      bun test
+      SHIELD_SESSION_RESOLVER=${runtimeEnv.SHIELD_SESSION_RESOLVER} bun test
     '';
     buildPhase = ''
       cd quin
@@ -112,7 +130,7 @@ in {
     installPhase = ''
       makeWrapper ${clients}/libexec/shield/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
     '';
-    passthru = {inherit launcher;};
+    passthru = {inherit launcher piConfig;};
     meta = {
       mainProgram = "shield";
       inherit platforms;
@@ -126,6 +144,7 @@ in {
     installPhase = ''
       makeWrapper ${clients}/libexec/shield/quin "$out/bin/quin" \
         ${lib.concatStringsSep " " (lib.mapAttrsToList (name: value: "--set ${name} ${lib.escapeShellArg value}") runtimeEnv)} \
+        ${lib.optionalString (extraPackages != []) "--set SHIELD_TOOLS_PATH ${lib.escapeShellArg toolsPath}"} \
         ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
         ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}
     '';
@@ -135,6 +154,7 @@ in {
       HOME="$TMPDIR" "$out/bin/quin" --check-keymap
     '';
     passthru.bunDeps = clientDeps;
+    passthru.piConfig = piConfig;
     passthru.runtime = {
       env = runtimeEnv;
       node = "${nodejs}/bin/node";

@@ -89,6 +89,43 @@ function fixture(options: { keymap?: Keymap; engine?: (payload: any) => Promise<
   };
 }
 
+// Model changes affect context immediately, including while an earlier stats read is outstanding.
+test("model broadcasts refresh context stats and coalesce outstanding reads through the final model", async () => {
+  const pending: ((value: any) => void)[] = [];
+  const client = {
+    onRecord: () => {},
+    onDisconnect: () => {},
+    close: () => {},
+    engine: () => new Promise((resolve) => pending.push(resolve)),
+  } as unknown as HubClient;
+  const c = new Controller(client);
+  c.record({
+    v: 1,
+    type: "snapshot",
+    "agent-id": "a",
+    engine: "pi",
+    "hub-instance": "h",
+    seq: 0,
+    payload: { view: emptyView(), lifecycle: "ready", mode: "live" },
+  } as Envelope);
+  expect(pending).toHaveLength(1);
+  c.record(event({ type: "shield_model" }));
+  c.record(event({ type: "shield_model" }));
+  expect(pending).toHaveLength(1);
+  pending[0]!({ success: true, payload: { data: STATS } });
+  await Bun.sleep(0);
+  expect(pending).toHaveLength(2);
+  const final = { ...STATS, contextUsage: { tokens: 50_000, contextWindow: 100_000, percent: 50 } };
+  pending[1]!({ success: true, payload: { data: final } });
+  await Bun.sleep(0);
+  expect(c.stats?.contextUsage).toEqual(final.contextUsage);
+  c.record(event({ type: "shield_model" }));
+  expect(pending).toHaveLength(3);
+  pending[2]!({ success: true, payload: { data: STATS } });
+  await Bun.sleep(0);
+  expect(c.stats?.contextUsage).toEqual(STATS.contextUsage);
+});
+
 test("the interrupt key is timed twice, idle clears input, and another operation disarms", () => {
   const f = fixture();
   f.editor.setText("draft");

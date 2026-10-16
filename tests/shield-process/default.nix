@@ -13,7 +13,7 @@
   };
 in
   pkgs.runCommand "shield-process-check" {
-    nativeBuildInputs = [pkgs.bun shield];
+    nativeBuildInputs = [pkgs.bun shield quin];
     meta.platforms =
       if quin == null
       then []

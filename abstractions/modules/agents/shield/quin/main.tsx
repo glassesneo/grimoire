@@ -1,7 +1,7 @@
 import { createCliRenderer } from "@opentui/core";
 import { render } from "@opentui/solid";
 import { readFileSync, realpathSync } from "node:fs";
-import { parseArgs } from "node:util";
+import { cli, startup } from "./startup";
 import { HubClient } from "../client/protocol";
 import { socketPath } from "../client/paths";
 import { options } from "./launch";
@@ -18,16 +18,7 @@ function keymap(): Keymap | undefined {
 }
 
 async function main() {
-  const { values: args } = parseArgs({
-    options: {
-      version: { type: "boolean" },
-      help: { type: "boolean" },
-      "check-keymap": { type: "boolean" },
-      mock: { type: "boolean", default: false },
-      model: { type: "string" },
-      socket: { type: "string" },
-    },
-  });
+  const args = cli();
   if (args.version) {
     console.log(`quin 0.1.0 (Pi ${process.env.SHIELD_PI_VERSION ?? "unknown"})`);
     return;
@@ -39,13 +30,16 @@ async function main() {
   }
   if (args.help) {
     console.log(
-      `quin [--mock] [--model provider/id] [--socket /absolute/hub.sock]\nAttaches to the agent of this directory, creating it if needed; start SHIELD first with shield start.\nBy default Ctrl+Q detaches and Ctrl+C twice interrupts (shield.keys rebinds them).\nPi runs with codemode only: the model writes scripts that call the other tools.\nA new agent's model: --model, then $XDG_CONFIG_HOME/shield/pi/settings.json (defaultProvider/defaultModel), then ${process.env.SHIELD_DEFAULT_MODEL || "none"}.\n--model only chooses a new agent's model; open the command palette (: in the timeline, Ctrl+G in the editor) for /model, /thinking, or /compact. Pi reads credentials such as a ChatGPT login from $XDG_CONFIG_HOME/shield/pi/auth.json.\n--mock uses an isolated agent with a fixed provider; try /fixture-tool, /fixture-codemode, /fixture-dialog, or /fixture-timeout.`,
+      `quin [--mock] [--model provider/id] [--session ID|PREFIX|PATH | --fork ID|PREFIX|PATH] [--socket /absolute/hub.sock]\n--session resumes saved contents; --fork copies them. Another cwd requires confirmation. Use only one hub/writer per saved file.\nAttaches to the agent of this directory, creating it if needed; start SHIELD first with shield start.\nBy default Ctrl+Q detaches and Ctrl+C twice interrupts (shield.keys rebinds them).\nPi runs with codemode only: the model writes scripts that call the other tools.\nA new agent's model: --model, saved session model, then $XDG_CONFIG_HOME/shield/pi/settings.json (defaultProvider/defaultModel), then ${process.env.SHIELD_DEFAULT_MODEL || "none"}.\n--model only chooses a new agent's model; open the command palette (: in the timeline, Ctrl+G in the editor) for /model, /thinking, or /compact. Pi reads credentials such as a ChatGPT login from $XDG_CONFIG_HOME/shield/pi/auth.json.\n--mock uses an isolated agent with a fixed provider; try /fixture-tool, /fixture-codemode, /fixture-dialog, or /fixture-timeout.`,
     );
     return;
   }
   const { model, socket, mock } = args;
   const keys = keymap();
   checkKeymap(keys);
+  const cwd = realpathSync(process.cwd());
+  const resolved = await startup(args, cwd);
+  const launchOptions = options(mock, model, cwd, {}, resolved.session, resolved.savedModel);
   const client = new HubClient(socketPath(socket), "pi");
   try {
     await client.connected;
@@ -74,13 +68,16 @@ async function main() {
     renderer,
   );
   try {
-    const cwd = realpathSync(process.cwd());
     const r = await client.hub("attach", {
       cwd,
       harness: "quin",
-      options: options(mock, model, cwd),
+      selection: resolved.selection,
+      options: launchOptions,
     });
-    if (!r.success) throw new Error(attachFailure(r.error?.code, mock));
+    if (!r.success)
+      throw new Error(
+        `${attachFailure(r.error?.code, mock)}${resolved.savedModel ? `; saved model ${resolved.savedModel} must be available, or use --model provider/id` : ""}`,
+      );
   } catch (e: any) {
     controller.adapter.lifecycle = "failed";
     controller.fail(`Startup failed: ${e.message}; detach and run quin again`);

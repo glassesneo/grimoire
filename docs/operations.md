@@ -42,6 +42,6 @@ The live check creates temporary dummy keys, encrypted input, a user LaunchAgent
 
 ## SHIELD live verification
 
-The `shield-process` and `quin` checks use the faux provider and no credentials. A live provider is verified by hand. Run `shield start` with `CMD_API_KEY` or `COMMAND_CODE_API_KEY` in its environment, or give the key as a runtime command reference in `$XDG_CONFIG_HOME/shield/pi/models.json`; restart the hub after changing its environment. Keep keys out of Nix expressions, command arguments, the store, and logs.
+The `shield-process` and `quin` checks use the faux provider and no credentials. A live provider is verified by hand. Start the hub with `shield start`, then run quin with `CMD_API_KEY` or `COMMAND_CODE_API_KEY` in its environment, or give the key as a runtime command reference in `$XDG_CONFIG_HOME/shield/pi/models.json`. New agents inherit the requesting quin's environment; reattaching does not change a running agent's environment. Keep keys out of Nix expressions, command arguments, the store, and logs.
 
 To verify, use an isolated `--socket` on both commands and an exact available model: open `quin --model command-code/<model-id>`, send a short prompt, detach during streaming, and reopen quin in the same directory. The same agent ID, the continued output, and the completed response establish the result; shut the hub down afterwards. This does not verify other providers.

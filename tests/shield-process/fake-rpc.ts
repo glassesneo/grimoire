@@ -48,7 +48,7 @@ async function command(r: any) {
         isCompacting: false,
         pendingMessageCount: 0,
         thinkingLevel: "off",
-        sessionId: "fixture",
+        sessionId: process.argv[process.argv.indexOf("--session-id") + 1],
       });
       break;
     case "get_messages":

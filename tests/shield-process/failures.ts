@@ -9,7 +9,7 @@ import {
 } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 import { PiAdapter } from "../../abstractions/modules/agents/shield/quin/view";
-import { alive, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
+import { alive, attachPayload, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
 const dir = mkdtempSync(join(tmpdir(), "shield-fail-")),
   socket = join(dir, "hub.sock");
 const { clients, connect } = clientsOf(socket);
@@ -20,7 +20,7 @@ const cwd = (name: string) => {
   return p;
 };
 const attach = (c: HubClient, path: string, mode = "normal") =>
-  c.hub("attach", { cwd: path, harness: "quin", options: fake(mode) });
+  c.hub("attach", attachPayload(path, fake(mode)));
 try {
   await startHub(socket);
   const bootCwd = cwd("boot"),
@@ -83,7 +83,7 @@ try {
     "agent-id": null,
     engine: "pi",
     method: "attach",
-    payload: { cwd: healthyCwd, harness: "quin", options: fake("normal") },
+    payload: attachPayload(healthyCwd, fake("normal")),
   });
   await wait(() => subscribed);
   await healthy

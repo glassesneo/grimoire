@@ -107,6 +107,26 @@ export default function (pi: ExtensionAPI) {
       pi.sendUserMessage("Report tools", { deliverAs: "followUp" });
     },
   });
+  // Only synthetic fixture values are reported, never the process environment.
+  pi.registerCommand("fixture-environment", {
+    description: "Report isolated process-check environment and tool precedence",
+    handler: async (_, ctx) => {
+      const runtimeKey = await ctx.modelRegistry.getApiKeyForProvider("anthropic");
+      const probe = await pi.exec("shield-env-probe", []);
+      fixture = [
+        fauxAssistantMessage(
+          JSON.stringify({
+            creator: process.env.SHIELD_TEST_CREATOR ?? null,
+            hubOnly: process.env.SHIELD_TEST_HUB_ONLY ?? null,
+            creatorKey: process.env.CMD_API_KEY === "shield-test-creator-key",
+            runtimeKey: runtimeKey === "shield-test-runtime-key",
+            probe: probe.stdout.trim(),
+          }),
+        ),
+      ];
+      pi.sendUserMessage("Report fixture environment", { deliverAs: "followUp" });
+    },
+  });
   pi.registerCommand("fixture-timeout", {
     description: "A short standard dialog timeout",
     handler: async (_, ctx) => {

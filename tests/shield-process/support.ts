@@ -1,5 +1,6 @@
 // What every SHIELD process script needs: polling, a fake Pi launch, raw socket peers, and teardown.
 import { rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { createConnection, type Socket } from "node:net";
 import { HubClient, JsonLines } from "../../abstractions/modules/agents/shield/client/protocol";
@@ -25,11 +26,23 @@ export const alive = (pid: number) => {
 export const fakeLaunch = (dir: string, mode = "normal", env: Record<string, string> = {}) => ({
   mode: "mock",
   model: "fixture/fixed",
+  session: { kind: "new", id: randomUUID() },
   launch: {
     executable: process.execPath,
     argv: [join(import.meta.dir, "fake-rpc.ts"), mode],
     env: { FIXTURE_PID: join(dir, `${mode}.pid`), ...env },
   },
+});
+
+export const attachPayload = <T extends { session: { id: string } }>(
+  cwd: string,
+  options: T,
+  kind = "cwd",
+) => ({
+  cwd,
+  harness: "quin",
+  options,
+  selection: { kind, key: options.session.id },
 });
 
 /** HubClients that `finish` closes. */

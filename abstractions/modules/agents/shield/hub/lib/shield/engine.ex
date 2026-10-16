@@ -32,10 +32,11 @@ defmodule Shield.Engine do
   @doc "The client harnesses that may attach to this engine's agents."
   @callback harnesses() :: [String.t()]
   @doc """
-  Validates attach options for a new agent. The launch holds `descriptor` and `cwd` for the
-  Agent, and whatever else `init/1` needs.
+  Validates attach options for a new agent, including their consistency with the opaque
+  identity reserved by Manager. The launch holds `descriptor` and `cwd` for the Agent,
+  and whatever else `init/1` needs.
   """
-  @callback launch(options :: map(), cwd :: String.t()) ::
+  @callback launch(options :: map(), cwd :: String.t(), identity :: String.t()) ::
               {:ok, launch :: %{descriptor: map(), cwd: String.t()}} | {:error, String.t()}
   @callback init(launch :: map()) :: {state(), [effect()]}
   @doc "The snapshot payload a new subscriber starts from, beside the Agent's `lifecycle`."

@@ -1,5 +1,6 @@
-# Agents live only as long as the hub: attach joins the newest live root for a directory,
-# and a restarted hub starts fresh agents while the engine's session files remain.
+# Agents live only as long as the hub. Ordinary attach joins the newest live root for a
+# directory; explicit selection reserves an opaque identity within its engine and mode.
+# Manager serializes selection and creation, including while an Agent initializes.
 #
 # Every request forwarded to an agent is answered once. An Agent that ends reports its final
 # lifecycle and stops only when released, after the requests forwarded before that report.
@@ -44,7 +45,12 @@ defmodule Shield.Manager do
   end
 
   def handle_cast({:state, id, state, alive}, s) do
-    a = %{s.agents[id] | state: state, alive: alive}
+    a = s.agents[id]
+
+    state =
+      if a.state == "stopping" and state in ["starting", "ready"], do: "stopping", else: state
+
+    a = %{a | state: state, alive: alive}
     if state in ["exited", "failed"] and is_pid(a.pid), do: GenServer.cast(a.pid, :release)
     {:noreply, put_agent(s, a)}
   end
@@ -73,15 +79,15 @@ defmodule Shield.Manager do
 
       "stop" ->
         case s.agents[r["payload"]["id"]] do
-          %{pid: pid} when is_pid(pid) ->
+          %{pid: pid} = a when is_pid(pid) ->
             GenServer.cast(pid, :stop)
             reply(ref, r, %{})
+            {:noreply, put_agent(s, %{a | state: "stopping"})}
 
           _ ->
             error(ref, r, "unknown_agent")
+            {:noreply, s}
         end
-
-        {:noreply, s}
 
       "shutdown" ->
         Enum.each(s.agents, fn {_, a} ->
@@ -102,6 +108,7 @@ defmodule Shield.Manager do
     p = r["payload"]
     cwd = p["cwd"]
     options = p["options"]
+    selection = p["selection"]
     # The envelope may omit the engine; it then means the default one, at creation and join alike.
     name = r["engine"] || Shield.Engine.default()
 
@@ -113,23 +120,34 @@ defmodule Shield.Manager do
 
     valid =
       is_binary(cwd) and Path.type(cwd) == :absolute and File.dir?(cwd) and engine != nil and
-        p["harness"] in engine.harnesses() and is_map(options)
+        p["harness"] in engine.harnesses() and is_map(options) and
+        is_map(selection) and selection["kind"] in ["cwd", "identity"] and
+        is_binary(selection["key"]) and selection["key"] != ""
 
     if not valid do
       error(ref, r, "invalid_attach")
       {:noreply, s}
     else
+      identity =
+        Enum.find(Map.values(s.agents), fn a ->
+          a.engine == name and a.mode == options["mode"] and a.key == selection["key"] and
+            a.state in ["starting", "ready", "stopping"]
+        end)
+
       live =
-        s.agents
-        |> Map.values()
-        |> Enum.filter(&(&1.cwd == cwd and &1.state in ["starting", "ready"]))
-        |> Enum.max_by(& &1.order, fn -> nil end)
+        identity ||
+          if selection["kind"] == "cwd" do
+            s.agents
+            |> Map.values()
+            |> Enum.filter(&(&1.cwd == cwd and &1.state in ["starting", "ready"]))
+            |> Enum.max_by(& &1.order, fn -> nil end)
+          end
 
       case live do
         nil ->
           id = s.instance <> "-" <> Integer.to_string(s.next)
 
-          case engine.launch(options, cwd) do
+          case engine.launch(options, cwd, selection["key"]) do
             {:error, code} ->
               error(ref, r, code)
               {:noreply, s}
@@ -140,6 +158,8 @@ defmodule Shield.Manager do
                 cwd: cwd,
                 harness: p["harness"],
                 engine: name,
+                mode: options["mode"],
+                key: selection["key"],
                 module: engine,
                 state: "starting",
                 alive: true,
@@ -161,12 +181,18 @@ defmodule Shield.Manager do
           end
 
         a ->
-          if a.harness != p["harness"] or a.engine != name do
-            error(ref, r, "harness_engine_mismatch")
-            {:noreply, s}
-          else
-            forward_attach(a, ref, r, options)
-            {:noreply, put_agent(s, peer(a, ref))}
+          cond do
+            a.harness != p["harness"] or a.engine != name or a.cwd != cwd ->
+              error(ref, r, "harness_engine_mismatch")
+              {:noreply, s}
+
+            a.state == "stopping" ->
+              error(ref, r, "agent_stopping")
+              {:noreply, s}
+
+            true ->
+              forward_attach(a, ref, r, options)
+              {:noreply, put_agent(s, peer(a, ref))}
           end
       end
     end

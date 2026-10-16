@@ -6,7 +6,7 @@ defmodule Shield.PiTest do
   defp request(id, payload), do: %{"id" => id, "payload" => payload}
 
   defp ready do
-    {s, _} = Pi.init(%{model: "fixture/fixed", mode: "mock"})
+    {s, _} = Pi.init(%{model: "fixture/fixed", mode: "mock", session_id: "requested"})
     model = %{"provider" => "fixture", "id" => "fixed"}
 
     records = [
@@ -22,6 +22,7 @@ defmodule Shield.PiTest do
         "success" => true,
         "data" => %{
           "model" => model,
+          "sessionId" => "requested",
           "isStreaming" => false,
           "isCompacting" => false,
           "pendingMessageCount" => 0

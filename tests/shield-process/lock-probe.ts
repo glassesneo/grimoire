@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { randomUUID } from "node:crypto";
 import { HubClient } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 
@@ -25,11 +26,14 @@ try {
     fake,
     `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(join(directory, "child.pid"))}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`,
   );
+  const sessionId = randomUUID();
   const r = client
     .hub("attach", {
       cwd: directory,
       harness: "quin",
+      selection: { kind: "cwd", key: sessionId },
       options: {
+        session: { kind: "new", id: sessionId },
         mode: "mock",
         model: "fixture/fixed",
         launch: { executable: process.env.SHIELD_NODE || process.execPath, argv: [fake], env: {} },

@@ -6,19 +6,27 @@
  * built-in tools.
  */
 import { readFileSync, realpathSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { configDirectory, privateDirectory, stateDirectory } from "../client/paths";
+import {
+  configDirectory,
+  privateDirectory,
+  sessionsDirectory,
+  stateDirectory,
+} from "../client/paths";
+import type { SessionRequest } from "./startup";
 
 export function options(
   mock: boolean,
   explicitModel?: string,
   cwd = realpathSync(process.cwd()),
   runtime: { extension?: string; tools?: string; builtinTools?: boolean } = {},
+  session: SessionRequest = { kind: "new", id: randomUUID() },
+  savedModel?: string,
 ) {
   const config = mock ? join(stateDirectory(), "mock/pi") : configDirectory();
-  let model = explicitModel;
+  let model = explicitModel || savedModel;
   if (mock) {
     if (model && model !== "shield-faux/fixed")
       throw new Error("--mock requires shield-faux/fixed");
@@ -39,11 +47,7 @@ export function options(
   // the hub refuses creation and explains model_required. The model chooses only
   // a new root's model, since any client can change it later.
   privateDirectory(config);
-  const sessions = join(
-    stateDirectory(),
-    mock ? "mock/sessions" : "sessions",
-    createHash("sha256").update(cwd).digest("hex"),
-  );
+  const sessions = join(sessionsDirectory(mock), createHash("sha256").update(cwd).digest("hex"));
   privateDirectory(sessions);
   const executable = process.env.SHIELD_PI;
   const extension = runtime.extension ?? process.env[mock ? "SHIELD_FAUX" : "SHIELD_COMMANDCODE"];
@@ -64,10 +68,20 @@ export function options(
   if (model) argv.push("--model", model);
   argv.push("--tools", runtime.tools ?? (mock ? "shield_fixture,codemode" : "+codemode"));
   if (!(runtime.builtinTools ?? !mock)) argv.push("--no-builtin-tools");
+  const inherited = mock
+    ? {}
+    : Object.fromEntries(
+        Object.entries(process.env).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      );
+  const path = process.env.PATH || "/usr/bin:/bin";
+  const prefix = !mock && process.env.SHIELD_TOOLS_PATH;
   const env: Record<string, string> = {
+    ...inherited,
     HOME: mock ? join(stateDirectory(), "mock/home") : homedir(),
-    PATH: process.env.PATH || "/usr/bin:/bin",
-    LANG: "en_US.UTF-8",
+    PATH: prefix ? `${prefix}:${path}` : path,
+    LANG: (!mock && process.env.LANG) || "en_US.UTF-8",
     PI_CODING_AGENT_DIR: config,
     PI_TELEMETRY: "off",
   };
@@ -83,5 +97,5 @@ export function options(
       "--no-context-files",
     );
   }
-  return { mode: mock ? "mock" : "live", model, launch: { executable, argv, env } };
+  return { mode: mock ? "mock" : "live", model, session, launch: { executable, argv, env } };
 }

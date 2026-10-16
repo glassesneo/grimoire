@@ -1,18 +1,29 @@
 // Real Pi compatibility: mock/fixtures stream, persist and restore without provider auth.
 import { strict as assert } from "node:assert";
-import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  existsSync,
+  writeFileSync,
+  chmodSync,
+  readdirSync,
+} from "node:fs";
+import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HubClient, type Envelope } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
 import { options } from "../../abstractions/modules/agents/shield/quin/launch";
+import { resolveSession } from "../../abstractions/modules/agents/shield/quin/startup";
 import { PiAdapter, type View } from "../../abstractions/modules/agents/shield/quin/view";
 import {
   codemodeErrorLocation,
   codemodeOutput,
   codemodeWallTime,
 } from "../../abstractions/modules/agents/shield/quin/ui/codemode-result";
-import { alive, finish, wait } from "./support";
+import { alive, attachPayload, finish, wait } from "./support";
 const dir = mkdtempSync(join(tmpdir(), "shield-pi-"));
 const socket = join(dir, "hub.sock");
 Object.assign(process.env, {
@@ -35,12 +46,16 @@ function connect() {
   return { client, adapter, events, views };
 }
 const attach = (c: HubClient, cwd = dir, opts = options(true, undefined, cwd)) =>
-  c.hub("attach", { cwd, harness: "quin", options: opts });
+  c.hub("attach", attachPayload(cwd, opts));
 const prompt = (c: HubClient, id: string, message: string) =>
   c.engine(id, { op: "rpc", record: { type: "prompt", message } });
 try {
   console.log("Pi: initial stream and reattach");
+  process.env.SHIELD_TEST_HUB_ONLY = "hub-only";
+  process.env.CMD_API_KEY = "shield-test-hub-key";
   await startHub(socket);
+  delete process.env.SHIELD_TEST_HUB_ONLY;
+  delete process.env.CMD_API_KEY;
   const a = connect();
   const first = await attach(a.client);
   assert(first.success, JSON.stringify(first));
@@ -198,6 +213,101 @@ try {
   assert((await g.client.hub("stop", { id })).success);
   await wait(() => ["exited", "failed"].includes(g.adapter.lifecycle));
   assert.equal(g.adapter.lifecycle, "exited");
+  const savedId = state.payload.data.sessionId;
+  const savedHistory = g.adapter.view.timeline.entries.filter((e) => e.kind === "user").length;
+  console.log("Pi: noninteractive cross-cwd selection has no side effects");
+  const otherCwd = join(dir, "other-cwd");
+  mkdirSync(otherCwd);
+  const mockSessions = join(dir, "state/shield/mock/sessions");
+  const beforeFiles = readdirSync(mockSessions, { recursive: true }).sort();
+  const beforeAgents = (await g.client.hub("list")).payload;
+  const refused = spawnSync("quin", ["--mock", "--session", file, "--socket", socket], {
+    cwd: otherCwd,
+    env: process.env,
+    encoding: "utf8",
+    input: "yes\n",
+  });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /confirmation_required/);
+  assert.deepEqual(readdirSync(mockSessions, { recursive: true }).sort(), beforeFiles);
+  assert.deepEqual((await g.client.hub("list")).payload, beforeAgents);
+  console.log("Pi: explicit resume and fork");
+  const saved = resolveSession(mockSessions, file, dir);
+  assert.equal(saved.model, "shield-faux/fixed");
+  const resumedOptions = {
+    ...options(true, undefined, dir, {}, undefined, saved.model),
+    session: { kind: "resume", id: savedId, path: file },
+  };
+  const resumed = connect(),
+    concurrent = connect();
+  const [resumedRoot, concurrentRoot] = await Promise.all([
+    resumed.client.hub("attach", attachPayload(dir, resumedOptions, "identity")),
+    concurrent.client.hub("attach", attachPayload(dir, resumedOptions, "identity")),
+  ]);
+  assert(resumedRoot.success, JSON.stringify(resumedRoot));
+  const resumedId = resumedRoot.payload["agent-id"];
+  assert.equal(concurrentRoot.payload["agent-id"], resumedId);
+  const restored = await resumed.client.engine(resumedId, {
+    op: "rpc",
+    record: { type: "get_state" },
+  });
+  assert.equal(restored.payload.data.sessionId, savedId);
+  assert.equal(restored.payload.data.sessionFile, file);
+  assert.equal(restored.payload.data.thinkingLevel, "high");
+  assert.equal(
+    resumed.adapter.view.timeline.entries.filter((e) => e.kind === "user").length,
+    savedHistory,
+  );
+  const sourceBefore = readFileSync(file, "utf8");
+  const forkId = randomUUID();
+  const forkOptions = {
+    ...options(true, undefined, dir),
+    session: { kind: "fork", id: forkId, path: file },
+  };
+  const forked = connect();
+  const forkRoot = await forked.client.hub("attach", attachPayload(dir, forkOptions, "identity"));
+  assert(forkRoot.success, JSON.stringify(forkRoot));
+  assert.notEqual(forkRoot.payload["agent-id"], resumedId);
+  const forkState = await forked.client.engine(forkRoot.payload["agent-id"], {
+    op: "rpc",
+    record: { type: "get_state" },
+  });
+  assert.equal(forkState.payload.data.sessionId, forkId);
+  assert.equal(forkState.payload.data.thinkingLevel, "high");
+  assert.notEqual(forkState.payload.data.sessionFile, file);
+  assert.equal(
+    JSON.parse(readFileSync(forkState.payload.data.sessionFile, "utf8").split("\n")[0])
+      .parentSession,
+    file,
+  );
+  assert.equal(readFileSync(file, "utf8"), sourceBefore);
+  const unavailable = connect();
+  const unavailableRoot = await unavailable.client.hub(
+    "attach",
+    attachPayload(
+      dir,
+      {
+        ...forkOptions,
+        model: "shield-faux/unavailable",
+        session: { ...forkOptions.session, id: randomUUID() },
+      },
+      "identity",
+    ),
+  );
+  assert.equal(
+    unavailableRoot.success,
+    false,
+    "an unavailable saved/selected model must not silently fall back",
+  );
+  assert.equal(unavailableRoot.error?.code, "model_unavailable_or_initialization_not_idle");
+  assert.equal(readFileSync(file, "utf8"), sourceBefore);
+  assert.equal(
+    forked.adapter.view.timeline.entries.filter((e) => e.kind === "user").length,
+    savedHistory,
+  );
+  await resumed.client.hub("stop", { id: resumedId });
+  await forked.client.hub("stop", { id: forkRoot.payload["agent-id"] });
+  await wait(() => resumed.adapter.lifecycle === "exited" && forked.adapter.lifecycle === "exited");
   assert.equal(
     g.events.findLast((r) => r.payload?.op === "lifecycle")!.payload.detail.exitCode,
     143,
@@ -228,9 +338,48 @@ try {
   console.log("Pi: live codemode-only launch");
   const liveCwd = join(dir, "live");
   mkdirSync(liveCwd);
-  const liveOptions = options(false, "shield-faux/fixed", liveCwd, {
+  const config = join(dir, "config/shield/pi");
+  mkdirSync(config, { recursive: true });
+  const settingsFile = join(config, "settings.json"),
+    modelsFile = join(config, "models.json");
+  const settingsText = JSON.stringify({ defaultProvider: "shield-faux", defaultModel: "fixed" });
+  const keyFile = join(dir, "synthetic-secret");
+  writeFileSync(keyFile, "shield-test-runtime-key");
+  const modelsText = JSON.stringify({
+    providers: { anthropic: { apiKey: `!/bin/cat '${keyFile}'` } },
+  });
+  writeFileSync(settingsFile, settingsText);
+  writeFileSync(modelsFile, modelsText);
+  chmodSync(settingsFile, 0o444);
+  chmodSync(modelsFile, 0o444);
+  const userBin = join(dir, "user-bin"),
+    agentBin = join(dir, "agent-bin");
+  for (const [bin, value] of [
+    [userBin, "ordinary"],
+    [agentBin, "dedicated"],
+  ]) {
+    mkdirSync(bin);
+    writeFileSync(join(bin, "shield-env-probe"), `#!/bin/sh\nprintf '%s' '${value}'\n`, {
+      mode: 0o755,
+    });
+  }
+  const originalPath = process.env.PATH;
+  Object.assign(process.env, {
+    SHIELD_TEST_CREATOR: "creator",
+    CMD_API_KEY: "shield-test-creator-key",
+    SHIELD_TOOLS_PATH: agentBin,
+    PATH: `${userBin}:${originalPath || "/usr/bin:/bin"}`,
+  });
+  const liveOptions = options(false, undefined, liveCwd, {
     extension: process.env.SHIELD_FAUX,
   });
+  assert.equal(liveOptions.model, "shield-faux/fixed");
+  assert.equal(options(true, undefined, liveCwd).launch.env.SHIELD_TEST_CREATOR, undefined);
+  assert.equal(options(true, undefined, liveCwd).launch.env.CMD_API_KEY, undefined);
+  delete process.env.SHIELD_TEST_CREATOR;
+  delete process.env.CMD_API_KEY;
+  delete process.env.SHIELD_TOOLS_PATH;
+  process.env.PATH = originalPath;
   Object.assign(liveOptions.launch.env, { PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1" });
   const live = connect();
   const liveRoot = await attach(live.client, liveCwd, liveOptions);
@@ -247,6 +396,63 @@ try {
     declared: ["codemode"],
     codemode: 1,
   });
+  console.log("Pi: creator environment, dedicated PATH and immutable configuration");
+  assert((await prompt(live.client, liveId, "/fixture-environment")).success);
+  const environmentReport = () =>
+    live.adapter.view.timeline.entries
+      .filter((e) => e.kind === "assistant" && !e.streaming)
+      .find((e) => e.parts.some((p: any) => p.text?.includes('"creator"')));
+  await wait(() => !!environmentReport() && !live.adapter.view.run.active);
+  assert.deepEqual(
+    JSON.parse(environmentReport()!.parts.find((p: any) => p.text?.includes('"creator"')).text),
+    {
+      creator: "creator",
+      hubOnly: null,
+      creatorKey: true,
+      runtimeKey: true,
+      probe: "dedicated",
+    },
+  );
+  const changedEnv = options(false, "shield-faux/fixed", liveCwd, {
+    extension: process.env.SHIELD_FAUX,
+  });
+  changedEnv.launch.env.SHIELD_TEST_CREATOR = "replacement";
+  assert.equal((await attach(connect().client, liveCwd, changedEnv)).payload["agent-id"], liveId);
+  const environmentReports = () =>
+    live.adapter.view.timeline.entries.filter(
+      (e) =>
+        e.kind === "assistant" &&
+        !e.streaming &&
+        e.parts.some((p: any) => p.text?.includes('"creator"')),
+    );
+  assert((await prompt(live.client, liveId, "/fixture-environment")).success);
+  await wait(() => environmentReports().length === 2 && !live.adapter.view.run.active);
+  assert.equal(
+    JSON.parse(
+      environmentReports()
+        .at(-1)!
+        .parts.find((p: any) => p.text?.includes('"creator"')).text,
+    ).creator,
+    "creator",
+  );
+  assert(
+    (
+      await live.client.engine(liveId, {
+        op: "rpc",
+        record: { type: "set_model", provider: "shield-faux", modelId: "fixed" },
+      })
+    ).success,
+  );
+  assert(
+    (
+      await live.client.engine(liveId, {
+        op: "rpc",
+        record: { type: "set_thinking_level", level: "high" },
+      })
+    ).success,
+  );
+  assert.equal(readFileSync(settingsFile, "utf8"), settingsText);
+  assert.equal(readFileSync(modelsFile, "utf8"), modelsText);
   await live.client.hub("stop", { id: liveId });
   await wait(() => live.adapter.lifecycle === "exited");
   const oldHubPid = Number((await g.client.hub("ping")).payload["hub-pid"]);
@@ -265,6 +471,17 @@ try {
   });
   assert.notEqual(newState.payload.data.sessionFile, file);
   assert(existsSync(file));
+  const afterReboot = connect();
+  const restoredRoot = await afterReboot.client.hub(
+    "attach",
+    attachPayload(dir, resumedOptions, "identity"),
+  );
+  assert(restoredRoot.success, JSON.stringify(restoredRoot));
+  assert.notEqual(restoredRoot.payload["agent-id"], fresh.payload["agent-id"]);
+  assert.equal(
+    afterReboot.adapter.view.timeline.entries.filter((e) => e.kind === "user").length,
+    savedHistory,
+  );
   await reboot.client.hub("shutdown");
   console.log(
     "Pi compatibility passed: streaming/tool reattach, repeated text, queue/interrupt, codemode scripts, palette commands, four dialogs/first winner/timeout, history/reboot, real bash TERM, live codemode-only tools",

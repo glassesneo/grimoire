@@ -1,10 +1,14 @@
 /**
  * Pi's session stats as the harness's src/core/usage.ts formats them. Pi's
- * totals cover the whole session file, which is the current branch here
- * because quin does not branch.
+ * totals cover the whole session file; context uses Pi's current estimate.
  */
 // Pi saves usage with each message; these events can change the totals or the context estimate.
-export const STATS_EVENTS = new Set(["message_end", "agent_settled", "compaction_end"]);
+export const STATS_EVENTS = new Set([
+  "message_end",
+  "agent_settled",
+  "compaction_end",
+  "shield_model",
+]);
 
 /** The part of Pi's get_session_stats response the statusline shows. */
 export interface SessionStats {

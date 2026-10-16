@@ -10,16 +10,23 @@ defmodule Shield.Pi do
   @request_limit 4096
   def harnesses, do: ["quin"]
 
-  def launch(options, cwd) do
+  def launch(options, cwd, identity) do
     d = options["launch"]
     model = options["model"]
+    session = options["session"]
 
     cond do
       options["mode"] not in ["live", "mock"] ->
         {:error, "invalid_mode"}
 
-      not is_binary(model) or not String.contains?(model, "/") ->
+      not is_binary(model) or not Regex.match?(~r/^[^\/]+\/.+$/, model) ->
         {:error, "model_required"}
+
+      not valid_session?(session) ->
+        {:error, "invalid_session"}
+
+      identity != session["id"] ->
+        {:error, "session_identity_mismatch"}
 
       not is_map(d) or not is_binary(d["executable"]) or Path.type(d["executable"]) != :absolute or
           not File.regular?(d["executable"]) ->
@@ -34,17 +41,36 @@ defmodule Shield.Pi do
       true ->
         env = Map.new(System.get_env(), fn {key, _} -> {key, false} end) |> Map.merge(d["env"])
 
-        env =
-          if options["mode"] == "live",
-            do: Map.merge(env, Map.take(System.get_env(), ~w(CMD_API_KEY COMMAND_CODE_API_KEY))),
-            else: env
+        argv = d["argv"] ++ session_args(session)
 
         {:ok,
-         %{descriptor: Map.put(d, "env", env), cwd: cwd, model: model, mode: options["mode"]}}
+         %{
+           descriptor: d |> Map.put("env", env) |> Map.put("argv", argv),
+           cwd: cwd,
+           model: model,
+           mode: options["mode"],
+           session_id: session["id"]
+         }}
     end
   end
 
   defp safe_string(s), do: is_binary(s) and not String.contains?(s, <<0>>)
+
+  defp valid_session?(s) when is_map(s) do
+    is_binary(s["id"]) and
+      Regex.match?(~r/\A[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\z/, s["id"]) and
+      (s["kind"] == "new" or
+         (s["kind"] in ["resume", "fork"] and safe_string(s["path"]) and
+            Path.type(s["path"]) == :absolute and File.regular?(s["path"])))
+  end
+
+  defp valid_session?(_), do: false
+
+  defp session_args(%{"kind" => "new", "id" => id}), do: ["--session-id", id]
+  defp session_args(%{"kind" => "resume", "path" => path}), do: ["--session", path]
+
+  defp session_args(%{"kind" => "fork", "id" => id, "path" => path}),
+    do: ["--fork", path, "--session-id", id]
 
   def init(launch) do
     s = %{
@@ -55,6 +81,7 @@ defmodule Shield.Pi do
       seed: %{},
       model: launch.model,
       mode: launch.mode,
+      session_id: launch.session_id,
       attaches: [],
       interrupt: nil
     }
@@ -217,24 +244,29 @@ defmodule Shield.Pi do
           is_map(data["model"]) and name(data["model"]) == s.model and
             Enum.any?(available, &(name(&1) == s.model))
 
-        if exact and data["isStreaming"] == false and data["isCompacting"] == false and
-             data["pendingMessageCount"] == 0 do
-          s = %{
-            s
-            | view: s.view |> View.state(data) |> View.seed(s.seed["get_entries"]),
-              initializing: false,
-              seed: %{}
-          }
+        cond do
+          data["sessionId"] != s.session_id ->
+            {s, [{:fail, "session_id_mismatch"}]}
 
-          waiting = s.attaches
-          s = %{s | attaches: []}
+          exact and data["isStreaming"] == false and data["isCompacting"] == false and
+              data["pendingMessageCount"] == 0 ->
+            s = %{
+              s
+              | view: s.view |> View.state(data) |> View.seed(s.seed["get_entries"]),
+                initializing: false,
+                seed: %{}
+            }
 
-          Enum.reduce(waiting, {s, [{:ready}]}, fn {ref, r, o}, {s, effects} ->
-            {s, next} = attach(s, ref, r, o)
-            {s, effects ++ next}
-          end)
-        else
-          {s, [{:fail, "model_unavailable_or_initialization_not_idle"}]}
+            waiting = s.attaches
+            s = %{s | attaches: []}
+
+            Enum.reduce(waiting, {s, [{:ready}]}, fn {ref, r, o}, {s, effects} ->
+              {s, next} = attach(s, ref, r, o)
+              {s, effects ++ next}
+            end)
+
+          true ->
+            {s, [{:fail, "model_unavailable_or_initialization_not_idle"}]}
         end
       else
         {s, []}
