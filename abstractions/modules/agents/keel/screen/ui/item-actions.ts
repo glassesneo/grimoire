@@ -294,7 +294,11 @@ export function createItemActions<Render>(options: ItemActionsOptions<Render>): 
     scroll.scrollTo(centered(box, rowTop(box, row)), () => {
       const current = scrollbox();
       const settled = current?.getRenderable(id);
-      if (current && settled) anchor = { id, offset: rowTop(current, settled) - current.scrollTop };
+      if (current && current.scrollTop >= contentEnd(current)) {
+        settleManual();
+      } else if (current && settled) {
+        anchor = { id, offset: rowTop(current, settled) - current.scrollTop };
+      }
     });
   };
 
