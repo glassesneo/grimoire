@@ -2,6 +2,7 @@
 // faux provider: keys, focus, the stage, drafts, and the write right.
 import { afterEach, expect, test } from "bun:test";
 import { testRender } from "@opentui/solid";
+import { createSignal } from "solid-js";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -10,6 +11,7 @@ import { Connection } from "./connection";
 import { type KeelScreen, Screen, setupScreen } from "./screen";
 import { call, until } from "../runtime/test-support";
 import { linked } from "./test-support";
+import { createRenderers } from "./ui/renderers";
 
 const cleanup: (() => unknown)[] = [];
 afterEach(async () => {
@@ -354,6 +356,54 @@ test("Markdown, tool, and codemode renderers show what their items carry", async
   expect(frame).toContain("TypeError: cannot read property 'missing' of null");
   expect(frame).toContain("mystery as text");
   expect(frame).toContain("queued: later");
+});
+
+test("expanded scripts keep their source, line numbers, and error marker when the source changes", async () => {
+  const [script, setScript] = createSignal({
+    code: Array.from({ length: 9 }, (_, i) => `source_${i + 1}`).join("\n"),
+    line: 9,
+  });
+  const value = {
+    id: "script",
+    version: 1,
+    kind: "tool",
+    text: "script",
+    data: {
+      callId: "s",
+      name: "codemode",
+      args: { available: false },
+      state: "error",
+      calls: [],
+      extra: {
+        codemode: {
+          get code() {
+            return script().code;
+          },
+          output: "",
+          location: {
+            kind: "located",
+            get line() {
+              return script().line;
+            },
+          },
+        },
+      },
+    },
+  };
+  const renderer = createRenderers()["tool.codemode"]!;
+  const setup = await testRender(
+    () => renderer.renderDetails!({ value, id: value.id, version: 1, expanded: true }),
+    { width: 60, height: 20 },
+  );
+  cleanup.push(() => setup.renderer.destroy());
+  await setup.flush();
+  expect(setup.captureCharFrame()).toMatch(/9 source_9\s+← error/);
+  setScript({ code: `${script().code}\nsource_10`, line: 10 });
+  await setup.flush();
+  const frame = setup.captureCharFrame();
+  expect(frame).toContain("1 source_1");
+  expect(frame).toMatch(/10 source_10\s+← error/);
+  expect(frame).not.toMatch(/9 source_9\s+← error/);
 });
 
 test("a viewer's typing does not stay in its editor", async () => {

@@ -13,7 +13,7 @@ import {
   type TextRenderable,
 } from "@opentui/core";
 import { useRenderer } from "@opentui/solid";
-import { createEffect, createSignal, For, type JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For, type JSX } from "solid-js";
 import type {
   CodeData,
   NestedCallSummary,
@@ -465,9 +465,7 @@ const genericSpec: ToolSpec = {
     </box>
   ),
   expandable: (tool) =>
-    argsLine(tool.args, Number.POSITIVE_INFINITY).length > 80 ||
-    tool.result !== undefined ||
-    toolError(tool) !== undefined,
+    argsLine(tool.args, Number.POSITIVE_INFINITY).length > 80 || tool.result !== undefined,
 };
 
 function bashDetails(tool: ToolData) {
@@ -496,9 +494,7 @@ const bashSpec: ToolSpec = {
           text={props.tool.result.text}
           fg={props.tool.state === "error" ? palette.error : palette.dim}
         />
-      ) : (
-        <ErrorPreview tool={props.tool} />
-      )}
+      ) : null}
     </>
   ),
   details: (tool) => {
@@ -551,7 +547,7 @@ function CallOverview(props: { call: NestedCallSummary }): JSX.Element {
 
 /** The submitted script with the line the error names marked in text, not color alone. */
 function ScriptSource(props: { code: string; errorLine: number | undefined }): JSX.Element {
-  const lines = () => props.code.split("\n");
+  const lines = createMemo(() => props.code.split("\n"));
   const width = () => String(lines().length).length;
   return (
     <box flexDirection="column" border borderColor="#45475a" paddingX={1}>
@@ -625,7 +621,6 @@ const codemodeSpec: ToolSpec = {
             </text>
           </Outcome>
         ) : null}
-        {!props.tool.result ? <ErrorPreview tool={props.tool} /> : null}
       </>
     );
   },

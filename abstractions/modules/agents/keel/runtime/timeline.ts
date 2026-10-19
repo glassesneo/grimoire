@@ -586,11 +586,9 @@ export class Timeline {
    * keeps its version.
    */
   publish(): { items: Item[]; changed: Item[]; order: string[] | undefined } {
-    const tools = new Map<string, ToolEntry>();
     const children = new Map<string, ToolEntry[]>();
     for (const entry of this.#entries) {
       if (entry.kind !== "tool") continue;
-      tools.set(entry.id, entry);
       if (entry.parentId !== undefined) {
         const list = children.get(entry.parentId) ?? [];
         list.push(entry);
@@ -605,9 +603,7 @@ export class Timeline {
       return into;
     };
     const items: Item[] = [];
-    const live = new Set<string>();
     for (const entry of this.#entries) {
-      live.add(entry.id);
       const calls = entry.kind === "tool" ? descendants(entry.id) : [];
       const key = `${entry.version}#${calls.map((call) => `${call.id}@${call.version}`).join(",")}`;
       let cached = this.#cache.get(entry.id);
@@ -617,7 +613,6 @@ export class Timeline {
       }
       items.push(...cached.items);
     }
-    for (const id of this.#cache.keys()) if (!live.has(id)) this.#cache.delete(id);
     const changed: Item[] = [];
     const ids = items.map((item) => item.id);
     for (const item of items) {
