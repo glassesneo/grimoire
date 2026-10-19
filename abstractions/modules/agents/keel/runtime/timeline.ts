@@ -1,7 +1,7 @@
 /**
  * Pi's session events as timeline items. `reduce` follows the events into
- * entries, after the harness's live timeline; `items` splits the entries into
- * the items screens show: a response into its thinking, prose, and fenced
+ * entries; `items` splits the entries into the items screens show:
+ * a response into its thinking, prose, and fenced
  * code, and a nested tool call under the tool that made it. Nothing is
  * invented: what the session did not supply is marked unavailable.
  *

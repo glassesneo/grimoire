@@ -18,7 +18,6 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>git</code> | Provide Git and configure the user's Git environment. | [<code>abstractions/modules/git/default.nix</code>](../../abstractions/modules/git/default.nix) |
 | <code>git.include</code> | Configure Git settings through includes. | [<code>abstractions/modules/git/include/default.nix</code>](../../abstractions/modules/git/include/default.nix) |
 | <code>gomi</code> | Provide gomi and integrate it into Zsh. | [<code>abstractions/modules/gomi/default.nix</code>](../../abstractions/modules/gomi/default.nix) |
-| <code>harness</code> | Provide and configure the repository's own LLM agent harness. | [<code>abstractions/modules/agents/harness/default.nix</code>](../../abstractions/modules/agents/harness/default.nix) |
 | <code>host</code> | Expose the selected host's information to modules and reflect its identity in OS host names. | [<code>abstractions/modules/host/default.nix</code>](../../abstractions/modules/host/default.nix) |
 | <code>identity</code> | Expose the fixed identity of the person who uses these hosts. | [<code>abstractions/modules/identity/default.nix</code>](../../abstractions/modules/identity/default.nix) |
 | <code>neovim</code> | Provide and configure neovim | [<code>abstractions/modules/neovim/default.nix</code>](../../abstractions/modules/neovim/default.nix) |

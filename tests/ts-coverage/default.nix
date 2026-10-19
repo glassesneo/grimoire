@@ -10,7 +10,7 @@
 }: let
   inherit (pkgs) lib;
   root = ../..;
-  covering = ["keel" "harness"];
+  covering = ["keel"];
   unchecked = {};
   roots =
     # Read from the definitions, so a check omitted on this platform still counts.

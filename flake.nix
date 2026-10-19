@@ -107,7 +107,6 @@
             pkgs.emmylua-ls
             pkgs.emmylua-check
             self.packages.${system}.hjem
-            self.packages.${system}.harness
           ]
           ++ lib.optionals (self.packages.${system} ? shield) [
             self.packages.${system}.shield

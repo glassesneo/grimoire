@@ -290,8 +290,8 @@ export class TimelineTree<Render = unknown> extends Emitter {
   }
 
   /**
-   * Whether the cursor may rest on a visible item. Unlike the harness, an
-   * expanded item whose children show is not selectable: its children are,
+   * Whether the cursor may rest on a visible item. An expanded item whose
+   * children show is not selectable: its children are,
    * and collapsing returns the cursor to it.
    */
   isSelectable(id: string): boolean {

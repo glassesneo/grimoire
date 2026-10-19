@@ -13,7 +13,6 @@ delib.module {
     config,
     ...
   }: {
-    harness.publish = true;
     neovim.publish = true;
     skills.publish = true;
     shield.publish = (config.myconfig.shield.enable or false) && lib.meta.availableOn pkgs.stdenv.hostPlatform config.bundles.shield.package;

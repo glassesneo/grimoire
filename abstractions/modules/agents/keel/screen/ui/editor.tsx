@@ -90,7 +90,7 @@ function TextareaEngine(props: EditorViewProps): JSX.Element {
 
   return (
     <textarea
-      id="harness-textarea"
+      id="keel-textarea"
       ref={(view: TextareaRenderable) => {
         textarea = view;
         props.onReader?.(() => ({ text: view.plainText, cursor: view.cursorOffset }));

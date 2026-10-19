@@ -1,4 +1,3 @@
-// keel departs from the harness here: an expanded item that shows children is not selectable.
 import { expect, test } from "bun:test";
 import { engine } from "@opentui/core";
 import { TimelineTree, materializeItem, type ItemType } from "./controllers";

@@ -3,8 +3,8 @@
  * live in $XDG_STATE_HOME/shield. keel's configuration directory, which also
  * holds Pi's auth.json, models.json and settings.json, defaults to
  * $XDG_CONFIG_HOME/keel; a screen may name another. Managed directories are
- * 0700 and files and the socket 0600. Existing Pi and harness directories are
- * never read or copied.
+ * 0700 and files and the socket 0600. Existing Pi directories are never read
+ * or copied.
  */
 import {
   lstatSync,
