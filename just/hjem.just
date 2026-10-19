@@ -15,7 +15,7 @@ build $host=`hostname -s`:
   failure can leave partial changes. See docs/operations.md for service ownership
   and retry behavior. Hjem uses $USER locally and the SSH user remotely.
   Remote application builds locally, copies closures and flake source over ssh-ng
-  (closure copying skips signature checks), then activates over SSH.
+  without signature checks, then activates over SSH.
 ''')]
 switch $host=`hostname -s` $target='':
   use {{ quote(apply) }} *; hjem $env.host --target $env.target

@@ -52,7 +52,7 @@ def apply-hjem [host: string, target: any, roots: string] {
 
   if $target != null {
     push "Hjem closure copy" $target $preflight $hjem $services
-    step "flake source copy" { ^nix flake archive --to $'ssh-ng://($target)' $root }
+    step "flake source copy" { ^nix flake archive --no-check-sigs --to $'ssh-ng://($target)' $root }
   }
 
   run-on "Hjem activation" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($services)/bin/apply"
