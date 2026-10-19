@@ -1,9 +1,10 @@
 /**
- * SHIELD's owned locations. Pi config and credentials (auth.json, models.json,
- * settings.json) live in $XDG_CONFIG_HOME/shield/pi; the socket, its lock and
- * log, and Pi session files live in $XDG_STATE_HOME/shield, with mock agents
- * under shield/mock/. Managed directories are 0700 and files and the socket
- * 0600. Existing Pi and harness directories are never read or copied.
+ * SHIELD's owned locations. The socket, its lock and log, and Pi session files
+ * live in $XDG_STATE_HOME/shield. keel's configuration directory, which also
+ * holds Pi's auth.json, models.json and settings.json, defaults to
+ * $XDG_CONFIG_HOME/keel; a screen may name another. Managed directories are
+ * 0700 and files and the socket 0600. Existing Pi and harness directories are
+ * never read or copied.
  */
 import {
   lstatSync,
@@ -20,9 +21,8 @@ import { dirname, isAbsolute, join, resolve, parse } from "node:path";
 export const stateDirectory = () =>
   join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "shield");
 export const configDirectory = () =>
-  join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "shield/pi");
-export const sessionsDirectory = (mock: boolean) =>
-  join(stateDirectory(), mock ? "mock/sessions" : "sessions");
+  join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "keel");
+export const sessionsDirectory = () => join(stateDirectory(), "sessions");
 const defaultSocket = () => join(stateDirectory(), "hub.sock");
 export function socketPath(value = defaultSocket()) {
   if (!isAbsolute(value)) throw new Error("--socket requires an absolute path");

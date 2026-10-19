@@ -1,6 +1,6 @@
-# These tests cover Manager's writer-selection boundary: duplicate writers can corrupt
-# history, and cwd-only selection can silently attach the wrong conversation. Types cannot
-# prove selection or stop ordering; fake idle processes avoid duplicating Pi protocol tests.
+# These tests cover Manager's selection boundary: cwd-only selection must join the newest
+# live agent, an explicit identity must not start a second agent, and stop must keep the
+# identity reserved until the agent ended. Fake idle processes stand in for the runtime.
 defmodule Shield.ManagerTest do
   use ExUnit.Case
   alias Shield.{Manager, Protocol}
@@ -12,7 +12,12 @@ defmodule Shield.ManagerTest do
     File.write!(path, "while IFS= read -r line; do :; done\n")
     on_exit(fn -> File.rm(path) end)
     {:ok, state} = Manager.init([])
-    %{state: state, path: path, ref: %{pid: self(), writer: self(), counter: :atomics.new(2, [])}}
+
+    %{
+      state: state,
+      path: path,
+      ref: %{pid: self(), id: "c0", writer: self(), counter: :atomics.new(2, [])}
+    }
   end
 
   defp request(key, path, kind \\ "identity", cwd \\ System.tmp_dir!()) do
@@ -22,12 +27,10 @@ defmodule Shield.ManagerTest do
       "method" => "attach",
       "payload" => %{
         "cwd" => cwd,
-        "harness" => "quin",
+        "harness" => "keel",
         "selection" => %{"kind" => kind, "key" => key},
         "options" => %{
-          "mode" => "mock",
-          "model" => "fixture/fixed",
-          "session" => %{"kind" => "new", "id" => key},
+          "configDir" => System.tmp_dir!(),
           "launch" => %{"executable" => "/bin/sh", "argv" => [path], "env" => %{}}
         }
       }
@@ -41,13 +44,6 @@ defmodule Shield.ManagerTest do
        c do
     first = request(@one, c.path)
 
-    first =
-      put_in(first, ["payload", "options", "session"], %{
-        "kind" => "resume",
-        "id" => @one,
-        "path" => c.path
-      })
-
     {:noreply, s} = Manager.handle_cast({:request, c.ref, first}, c.state)
     [a] = Map.values(s.agents)
     assert a.state == "starting"
@@ -56,13 +52,6 @@ defmodule Shield.ManagerTest do
     assert s.agents[a.id].pid == a.pid
 
     second = request(@two, c.path)
-
-    second =
-      put_in(second, ["payload", "options", "session"], %{
-        "kind" => "fork",
-        "id" => @two,
-        "path" => c.path
-      })
 
     {:noreply, s} = Manager.handle_cast({:request, c.ref, second}, s)
     assert map_size(s.agents) == 2
@@ -95,26 +84,6 @@ defmodule Shield.ManagerTest do
     {:noreply, s} = Manager.handle_cast({:state, a.id, "exited", false}, s)
     {:noreply, s} = Manager.handle_cast({:request, c.ref, r}, s)
     assert s.next == 2
-  end
-
-  test "a different opaque key cannot start another writer for the same requested session", c do
-    r = request(@one, c.path)
-    {:noreply, s} = Manager.handle_cast({:request, c.ref, r}, c.state)
-    forged = put_in(r, ["payload", "selection", "key"], @two)
-    {:noreply, same} = Manager.handle_cast({:request, c.ref, forged}, s)
-    assert same == s
-    assert DynamicSupervisor.count_children(Shield.Agents).active == 1
-    assert_receive {:frame, frame, _}
-    assert Protocol.decode(frame)["error"]["code"] == "session_identity_mismatch"
-  end
-
-  test "the same opaque identity is separate in different execution modes", c do
-    r = request(@one, c.path)
-    {:noreply, s} = Manager.handle_cast({:request, c.ref, r}, c.state)
-    live = put_in(r, ["payload", "options", "mode"], "live")
-    {:noreply, s} = Manager.handle_cast({:request, c.ref, live}, s)
-    assert map_size(s.agents) == 2
-    assert MapSet.new(Map.values(s.agents), & &1.mode) == MapSet.new(["live", "mock"])
   end
 
   test "an identity cannot be reused with another cwd", c do

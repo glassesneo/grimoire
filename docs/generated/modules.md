@@ -34,7 +34,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>ripgrep</code> | Provide ripgrep for searching file contents. | [<code>abstractions/modules/ripgrep/default.nix</code>](../../abstractions/modules/ripgrep/default.nix) |
 | <code>secrets</code> | Manage the selected encrypted secrets with nix-secrets. | [<code>abstractions/modules/secrets/default.nix</code>](../../abstractions/modules/secrets/default.nix) |
 | <code>shell</code> | Define a shared configuration interface for shells and configure the selected login shell. | [<code>abstractions/modules/shell/default.nix</code>](../../abstractions/modules/shell/default.nix) |
-| <code>shield</code> | Provide the SHIELD process hub and quin attachable Pi client. | [<code>abstractions/modules/agents/shield/default.nix</code>](../../abstractions/modules/agents/shield/default.nix) |
+| <code>shield</code> | Provide the SHIELD process hub and the keel agent screens it attaches. | [<code>abstractions/modules/agents/shield/default.nix</code>](../../abstractions/modules/agents/shield/default.nix) |
 | <code>skills</code> | Declare harness-independent skills and deploy them for agent use. | [<code>abstractions/modules/agents/skills/default.nix</code>](../../abstractions/modules/agents/skills/default.nix) |
 | <code>ssh</code> | Configure the OpenSSH client and the user's personal key. | [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix) |
 | <code>users</code> | Apply the host's declared user information to OS user configuration. | [<code>abstractions/modules/users/default.nix</code>](../../abstractions/modules/users/default.nix) |

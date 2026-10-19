@@ -111,7 +111,7 @@
           ]
           ++ lib.optionals (self.packages.${system} ? shield) [
             self.packages.${system}.shield
-            self.packages.${system}.quin
+            self.packages.${system}.keel
             pkgs.beamPackages.elixir
           ];
         inherit (commitHooks) shellHook;

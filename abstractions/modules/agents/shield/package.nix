@@ -1,4 +1,4 @@
-# OTP owns process lifetime; Node executes the published Pi CLI unchanged.
+# OTP owns process lifetime; Node runs the keel runtime, which hosts Pi through its SDK.
 {
   lib,
   stdenvNoCC,
@@ -7,11 +7,9 @@
   nodejs,
   writeShellScript,
   makeWrapper,
-  # provider/id used when neither --model nor the dedicated Pi settings name a model.
+  # provider/id that keel's Pi uses when the declared settings name no model.
   defaultModel ? null,
-  # Action id to chords, replacing quin's defaults; see quin/ui/keys.ts.
-  keys ? {},
-  # Packages whose bin directories quin puts at the front of a new agent's PATH.
+  # Packages whose bin directories keel puts at the front of a new agent's PATH.
   extraPackages ? [],
   # Pi settings.json and models.json content; Hjem deploys them, so they are only
   # exposed as passthru.piConfig and never read by the package.
@@ -20,47 +18,23 @@
   writeText,
 }: let
   platforms = ["aarch64-darwin"];
-  runtimeEnv = {
-    SHIELD_PI = "${runtime}/bin/shield-pi";
-    SHIELD_SESSION_RESOLVER = "${runtime}/bin/shield-session";
-    SHIELD_FAUX = "${runtime}/libexec/pi/faux.ts";
-    SHIELD_CODEMODE = "${runtime}/libexec/pi/codemode.ts";
-    SHIELD_COMMANDCODE = "${runtime}/libexec/pi/node_modules/@commandcode/pi-commandcode-provider/index.ts";
-    SHIELD_PI_VERSION = piVersion;
-  };
+  keelDir = ../keel;
+  piVersion = (lib.importJSON (keelDir + "/package.json")).dependencies."@earendil-works/pi-coding-agent";
   toolsPath = lib.makeBinPath extraPackages;
+  # The declared default model applies only when the declared settings choose none.
+  piSettings =
+    settings
+    // lib.optionalAttrs (defaultModel != null && !(settings ? defaultProvider) && !(settings ? defaultModel)) (
+      let
+        parts = lib.splitString "/" defaultModel;
+      in {
+        defaultProvider = lib.head parts;
+        defaultModel = lib.concatStringsSep "/" (lib.tail parts);
+      }
+    );
   piConfig = {
-    settings = writeText "shield-pi-settings.json" (builtins.toJSON settings);
-    models = writeText "shield-pi-models.json" (builtins.toJSON models);
-  };
-  keymap = writeText "quin-keymap.json" (builtins.toJSON keys);
-  piVersion = (lib.importJSON ./runtime/package.json).dependencies."@earendil-works/pi-coding-agent";
-  runtime = bun2nix.mkDerivation {
-    packageJson = ./runtime/package.json;
-    src = lib.fileset.toSource {
-      root = ./runtime;
-      fileset = lib.fileset.unions [./runtime/package.json ./runtime/bun.lock ./runtime/faux.ts ./runtime/bash-fixture.ts ./runtime/codemode.ts ./runtime/session-resolver.mjs];
-    };
-    bunDeps = bun2nix.fetchBunDeps {bunNix = ./runtime/bun.nix;};
-    buildPhase = "true";
-    installPhase = ''
-      mkdir -p "$out/libexec/pi"
-      cp -r node_modules "$out/libexec/pi/"
-      cp faux.ts bash-fixture.ts codemode.ts session-resolver.mjs "$out/libexec/pi/"
-      mkdir -p "$out/bin"
-      cat > "$out/bin/shield-pi" <<EOF
-      #!${stdenvNoCC.shell}
-      exec ${nodejs}/bin/node "$out/libexec/pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js" "\$@"
-      EOF
-      chmod +x "$out/bin/shield-pi"
-      # Beside node_modules so it imports the same Pi package as shield-pi.
-      cat > "$out/bin/shield-session" <<EOF
-      #!${stdenvNoCC.shell}
-      exec ${nodejs}/bin/node "$out/libexec/pi/session-resolver.mjs" "\$@"
-      EOF
-      chmod +x "$out/bin/shield-session"
-    '';
-    dontFixup = true;
+    settings = writeText "keel-pi-settings.json" (builtins.toJSON piSettings);
+    models = writeText "keel-pi-models.json" (builtins.toJSON models);
   };
   hub = stdenvNoCC.mkDerivation {
     pname = "shield-hub";
@@ -93,42 +67,62 @@
     export RELEASE_DISTRIBUTION=none
     exec ${hub}/bin/shield start
   '';
-  clientDeps = bun2nix.fetchBunDeps {bunNix = ./quin/bun.nix;};
-  clients = bun2nix.mkDerivation {
-    packageJson = ./quin/package.json;
+  bunDeps = bun2nix.fetchBunDeps {bunNix = keelDir + "/bun.nix";};
+  # The screen and the shield client as Bun executables, and the runtime as a Node module
+  # beside the node_modules Pi and its extensions load from.
+  build = bun2nix.mkDerivation {
+    packageJson = keelDir + "/package.json";
     src = lib.fileset.toSource {
-      root = ./.;
-      fileset = lib.fileset.unions [./quin ./client];
+      root = ./..;
+      fileset = lib.fileset.unions [
+        (lib.fileset.difference keelDir (keelDir + "/bun.nix"))
+        ./client
+      ];
     };
-    bunDeps = clientDeps;
+    inherit bunDeps;
     postUnpack = ''
-      cp "$sourceRoot/quin/package.json" "$sourceRoot/package.json"
-      cp "$sourceRoot/quin/bun.lock" "$sourceRoot/bun.lock"
+      cp "$sourceRoot/keel/package.json" "$sourceRoot/package.json"
+      cp "$sourceRoot/keel/bun.lock" "$sourceRoot/bun.lock"
     '';
     doCheck = true;
-    # tests/quin type-checks the clients together with the scripts that import them.
+    # tests/keel type-checks and lints keel with the scripts that import it.
     checkPhase = ''
-      SHIELD_SESSION_RESOLVER=${runtimeEnv.SHIELD_SESSION_RESOLVER} bun test
+      cd keel
+      HOME="$TMPDIR" PI_TELEMETRY=off PI_OFFLINE=1 bun test
+      cd ..
     '';
     buildPhase = ''
-      cd quin
+      cd keel
       bun run build.ts
+      cd ..
     '';
     installPhase = ''
-      mkdir -p "$out/libexec/shield"
-      cp quin shield "$out/libexec/shield/"
+      dir="$out/libexec/keel"
+      mkdir -p "$dir/runtime/protocol" "$dir/runtime/runtime" "$dir/runtime/fixtures"
+      cp keel/keel keel/shield "$dir/"
+      cp keel/dist/runtime.mjs "$dir/runtime/"
+      cp -r node_modules "$dir/runtime/"
+      echo '{"type": "module"}' > "$dir/runtime/package.json"
+      # What an extension written for keel imports, and the checks' fixtures.
+      cp keel/api.ts "$dir/runtime/"
+      cp keel/protocol/*.ts "$dir/runtime/protocol/"
+      cp keel/runtime/content.ts "$dir/runtime/runtime/"
+      cp keel/fixtures/*.ts "$dir/runtime/fixtures/"
     '';
     dontFixup = true;
   };
+  runtime = writeShellScript "keel-runtime" ''
+    exec ${nodejs}/bin/node ${build}/libexec/keel/runtime/runtime.mjs "$@"
+  '';
 in {
-  inherit runtime hub launcher clients;
+  inherit hub launcher build;
   shield = stdenvNoCC.mkDerivation {
     pname = "shield";
     version = "0.1.0";
     dontUnpack = true;
     nativeBuildInputs = [makeWrapper];
     installPhase = ''
-      makeWrapper ${clients}/libexec/shield/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
+      makeWrapper ${build}/libexec/keel/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
     '';
     passthru = {inherit launcher piConfig;};
     meta = {
@@ -136,32 +130,28 @@ in {
       inherit platforms;
     };
   };
-  quin = stdenvNoCC.mkDerivation {
-    pname = "quin";
+  keel = stdenvNoCC.mkDerivation {
+    pname = "keel";
     version = "0.1.0";
     dontUnpack = true;
     nativeBuildInputs = [makeWrapper];
     installPhase = ''
-      makeWrapper ${clients}/libexec/shield/quin "$out/bin/quin" \
-        ${lib.concatStringsSep " " (lib.mapAttrsToList (name: value: "--set ${name} ${lib.escapeShellArg value}") runtimeEnv)} \
-        ${lib.optionalString (extraPackages != []) "--set SHIELD_TOOLS_PATH ${lib.escapeShellArg toolsPath}"} \
-        ${lib.optionalString (defaultModel != null) "--set SHIELD_DEFAULT_MODEL ${lib.escapeShellArg defaultModel}"} \
-        ${lib.optionalString (keys != {}) "--set SHIELD_KEYMAP ${keymap}"}
+      makeWrapper ${build}/libexec/keel/keel "$out/bin/keel" \
+        --set KEEL_RUNTIME ${runtime} \
+        --set KEEL_PI_VERSION ${lib.escapeShellArg piVersion} \
+        ${lib.optionalString (extraPackages != []) "--set SHIELD_TOOLS_PATH ${lib.escapeShellArg toolsPath}"}
     '';
-    # quin's action ids live in its code, so only quin can reject a configured keymap.
-    doInstallCheck = keys != {};
-    installCheckPhase = ''
-      HOME="$TMPDIR" "$out/bin/quin" --check-keymap
-    '';
-    passthru.bunDeps = clientDeps;
-    passthru.piConfig = piConfig;
-    passthru.runtime = {
-      env = runtimeEnv;
-      node = "${nodejs}/bin/node";
-      bashFixture = "${runtime}/libexec/pi/bash-fixture.ts";
+    passthru = {
+      inherit bunDeps piConfig;
+      runtime = {
+        executable = runtime;
+        node = "${nodejs}/bin/node";
+        faux = "${build}/libexec/keel/runtime/fixtures/faux.ts";
+        bashFixture = "${build}/libexec/keel/runtime/fixtures/bash-fixture.ts";
+      };
     };
     meta = {
-      mainProgram = "quin";
+      mainProgram = "keel";
       inherit platforms;
     };
   };

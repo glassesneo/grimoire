@@ -8,10 +8,13 @@ defmodule Shield.Connection do
     reader = self()
     writer = spawn_link(fn -> write_loop(socket, counter, reader) end)
 
+    # The id names this connection to engines, which use it to tell writers apart.
+    id = "c" <> Integer.to_string(System.unique_integer([:positive, :monotonic]))
+
     {:ok,
      %{
        socket: socket,
-       ref: %{pid: reader, writer: writer, counter: counter},
+       ref: %{pid: reader, id: id, writer: writer, counter: counter},
        buffer: P.buffer(),
        # Unresolved request ids, each with the agent that answers it once one is known.
        pending: %{}
@@ -113,7 +116,11 @@ defmodule Shield.Connection do
 
       true ->
         GenServer.cast(Shield.Manager, {:request, s.ref, r})
-        agent = if r["type"] == "engine_request", do: r["agent-id"]
+
+        agent =
+          if r["type"] == "engine_request" or r["method"] == "take_write",
+            do: r["agent-id"]
+
         %{s | pending: Map.put(s.pending, r["id"], agent)}
     end
   end

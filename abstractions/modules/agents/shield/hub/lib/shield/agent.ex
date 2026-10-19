@@ -1,3 +1,7 @@
+# One agent: its OS process, its subscribers, and who may write. State events from the
+# process reach live subscribers as `event` records carrying the process's own payload; the
+# hub assigns them no sequence. The hub's own news (lifecycle, writer) reaches every
+# subscriber, live or pending, as `management` records, outside the process's sequence.
 defmodule Shield.Agent do
   use GenServer
   alias Shield.{Protocol, Connection}
@@ -42,9 +46,12 @@ defmodule Shield.Agent do
       os_pid: os_pid,
       writer: writer,
       queued: queued,
-      seq: 0,
+      # Connection pid to %{ref:, live:, attaching:}; `attaching` until a first snapshot.
       subscribers: %{},
       clients: %{},
+      # The connection that may write, and the number of writer changes so far.
+      holder: nil,
+      epoch: 0,
       buffer: Protocol.buffer(),
       state: "starting",
       stopping: false,
@@ -79,6 +86,21 @@ defmodule Shield.Agent do
         s = watch(s, ref)
         {engine, next} = s.info.module.input(s.engine, ref, r, now())
         {:noreply, effects(%{s | engine: engine}, next)}
+    end
+  end
+
+  # Any subscriber, a viewer included, may take the write right.
+  def handle_cast({:take_write, ref, r}, s) do
+    cond do
+      not live?(s) ->
+        unavailable(s, ref, r, "agent_unavailable")
+
+      not Map.has_key?(s.subscribers, ref.pid) ->
+        unavailable(s, ref, r, "not_attached")
+
+      true ->
+        s = set_writer(s, ref)
+        {:noreply, effect({:ok, ref, r, %{"connection" => ref.id, "epoch" => s.epoch}}, s)}
     end
   end
 
@@ -150,14 +172,18 @@ defmodule Shield.Agent do
     {:noreply, effects(%{s | engine: engine}, next)}
   end
 
-  def handle_info({:DOWN, monitor, :process, pid, _}, s) do
-    {:noreply,
-     %{
-       s
-       | engine: s.info.module.detach(s.engine, pid),
-         clients: Map.delete(s.clients, pid),
-         subscribers: Map.reject(s.subscribers, fn {_, {_, m}} -> m == monitor end)
-     }}
+  # A client that goes away loses its subscription and, if it held it, the write right; a
+  # remaining viewer is not promoted.
+  def handle_info({:DOWN, _, :process, pid, _}, s) do
+    s = %{
+      s
+      | engine: s.info.module.detach(s.engine, pid),
+        clients: Map.delete(s.clients, pid),
+        subscribers: Map.delete(s.subscribers, pid)
+    }
+
+    s = if s.holder && s.holder.pid == pid, do: set_writer(s, nil), else: s
+    {:noreply, s}
   end
 
   defp decode(buffer, bytes) do
@@ -184,6 +210,14 @@ defmodule Shield.Agent do
     if Map.has_key?(s.clients, ref.pid),
       do: s,
       else: %{s | clients: Map.put(s.clients, ref.pid, Process.monitor(ref.pid))}
+  end
+
+  defp set_writer(s, ref) do
+    epoch = s.epoch + 1
+    connection = if ref, do: ref.id, else: nil
+    {engine, next} = s.info.module.writer(s.engine, connection, epoch)
+    s = effects(%{s | engine: engine, holder: ref, epoch: epoch}, next)
+    manage(s, %{"op" => "writer", "connection" => connection, "epoch" => epoch})
   end
 
   defp effects(s, next) do
@@ -217,7 +251,57 @@ defmodule Shield.Agent do
     end
   end
 
-  defp effect({:broadcast, payload}, s), do: broadcast(s, payload)
+  defp effect({:broadcast, payload}, s) do
+    deliver(s, for({_, %{ref: ref, live: true}} <- s.subscribers, do: ref), "event", %{
+      "payload" => payload
+    })
+  end
+
+  # A subscriber that subscribes again, to resynchronize, stays what it was.
+  defp effect({:subscribe, ref}, s) do
+    entry =
+      case s.subscribers[ref.pid] do
+        nil -> %{ref: ref, live: false, attaching: true}
+        entry -> %{entry | live: false}
+      end
+
+    %{s | subscribers: Map.put(s.subscribers, ref.pid, entry)}
+  end
+
+  # The first subscriber to become live by attaching while nobody writes receives the write
+  # right, before its snapshot, so its first write already finds it.
+  defp effect({:snapshot, ref, r, payload}, s) do
+    entry = s.subscribers[ref.pid]
+
+    if is_nil(entry) do
+      s
+    else
+      s = if is_nil(s.holder) and entry.attaching, do: set_writer(s, ref), else: s
+
+      record =
+        Map.merge(Protocol.envelope("snapshot", s.info.id, s.info.engine), %{
+          "hub-instance" => s.info.instance,
+          "connection" => ref.id,
+          "lifecycle" => s.state,
+          "writer" => %{"connection" => s.holder && s.holder.id, "epoch" => s.epoch},
+          "payload" => payload
+        })
+
+      frame = Protocol.encode(record)
+
+      if byte_size(frame) > Protocol.record_limit() do
+        effect({:error, ref, r, "snapshot_frame_limit"}, s)
+      else
+        Connection.deliver_frame(ref, frame, record)
+        s = update_in(s.subscribers[ref.pid], &%{&1 | live: true, attaching: false})
+
+        effect(
+          {:ok, ref, r, %{"agent-id" => s.info.id, "connection" => ref.id}},
+          s
+        )
+      end
+    end
+  end
 
   defp effect({:transaction, engine, next, ref, request, payload}, s) do
     after_effect = effects(s, next)
@@ -229,28 +313,6 @@ defmodule Shield.Agent do
 
   defp effect({:ready}, s), do: lifecycle(s, "ready", %{})
   defp effect({:fail, code}, s), do: fail(s, code)
-
-  defp effect({:subscribe, ref, r}, s) do
-    record =
-      Map.merge(Protocol.envelope("snapshot", s.info.id, s.info.engine), %{
-        "hub-instance" => s.info.instance,
-        "seq" => s.seq,
-        "payload" => Map.put(s.info.module.snapshot(s.engine), "lifecycle", s.state)
-      })
-
-    frame = Protocol.encode(record)
-
-    if byte_size(frame) > Protocol.record_limit() do
-      effect({:error, ref, r, "snapshot_frame_limit"}, s)
-    else
-      Connection.deliver_frame(ref, frame, record)
-      effect({:ok, ref, r, %{"agent-id" => s.info.id}}, s)
-
-      if Map.has_key?(s.subscribers, ref.pid),
-        do: s,
-        else: %{s | subscribers: Map.put(s.subscribers, ref.pid, {ref, s.clients[ref.pid]})}
-    end
-  end
 
   defp effect({:error, ref, r, code}, s) do
     Connection.deliver(ref, Protocol.error(r["id"], s.info.id, s.info.engine, code))
@@ -278,27 +340,26 @@ defmodule Shield.Agent do
 
   defp lifecycle(s, state, detail) do
     GenServer.cast(Shield.Manager, {:state, s.info.id, state, not is_nil(s.port)})
-    broadcast(%{s | state: state}, %{"op" => "lifecycle", "state" => state, "detail" => detail})
+    manage(%{s | state: state}, %{"op" => "lifecycle", "state" => state, "detail" => detail})
   end
 
   defp finish(s, state, detail), do: %{lifecycle(s, state, detail) | ended: true}
 
-  defp broadcast(s, payload) do
-    seq = s.seq + 1
+  defp manage(s, payload) do
+    deliver(s, for({_, %{ref: ref}} <- s.subscribers, do: ref), "management", %{
+      "hub-instance" => s.info.instance,
+      "payload" => payload
+    })
+  end
 
-    r =
-      Map.merge(Protocol.envelope("event", s.info.id, s.info.engine), %{
-        "hub-instance" => s.info.instance,
-        "seq" => seq,
-        "payload" => payload
-      })
+  # One record for several connections, encoded once.
+  defp deliver(s, [], _, _), do: s
 
-    if map_size(s.subscribers) > 0 do
-      frame = Protocol.encode(r)
-      Enum.each(s.subscribers, fn {_, {ref, _}} -> Connection.deliver_frame(ref, frame, r) end)
-    end
-
-    %{s | seq: seq}
+  defp deliver(s, refs, type, fields) do
+    r = Map.merge(Protocol.envelope(type, s.info.id, s.info.engine), fields)
+    frame = Protocol.encode(r)
+    Enum.each(refs, &Connection.deliver_frame(&1, frame, r))
+    s
   end
 
   defp fail(%{failure: failure} = s, _) when not is_nil(failure), do: s

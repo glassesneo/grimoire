@@ -2,6 +2,9 @@
 # directory; explicit selection reserves an opaque identity within its engine and mode.
 # Manager serializes selection and creation, including while an Agent initializes.
 #
+# `take_write` (with the agent in the envelope's agent-id) gives the requesting connection,
+# which must be attached to that agent, the right to write; see Shield.Engine.
+#
 # Every request forwarded to an agent is answered once. An Agent that ends reports its final
 # lifecycle and stops only when released, after the requests forwarded before that report.
 # An Agent that crashes is reported per agent with `agent_failed` to the connections that
@@ -76,6 +79,17 @@ defmodule Shield.Manager do
 
       "attach" ->
         attach(ref, r, s)
+
+      "take_write" ->
+        case s.agents[r["agent-id"]] do
+          %{state: "ready", pid: pid} = a when is_pid(pid) ->
+            GenServer.cast(pid, {:take_write, ref, r})
+            {:noreply, put_agent(s, peer(a, ref))}
+
+          _ ->
+            error(ref, r, "agent_unavailable")
+            {:noreply, s}
+        end
 
       "stop" ->
         case s.agents[r["payload"]["id"]] do

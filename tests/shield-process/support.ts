@@ -1,4 +1,4 @@
-// What every SHIELD process script needs: polling, a fake Pi launch, raw socket peers, and teardown.
+// What every SHIELD process script needs: polling, a fake runtime launch, raw socket peers, and teardown.
 import { rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -22,27 +22,28 @@ export const alive = (pid: number) => {
   }
 };
 
-/** Attach options that run `fake-rpc.ts` in `mode`, writing its pid to `<dir>/<mode>.pid`. */
+/** Attach options that run `fake-runtime.ts` in `mode`, writing its pid to `<dir>/<mode>.pid`. */
 export const fakeLaunch = (dir: string, mode = "normal", env: Record<string, string> = {}) => ({
-  mode: "mock",
-  model: "fixture/fixed",
-  session: { kind: "new", id: randomUUID() },
+  configDir: dir,
   launch: {
     executable: process.execPath,
-    argv: [join(import.meta.dir, "fake-rpc.ts"), mode],
+    argv: [join(import.meta.dir, "fake-runtime.ts"), mode],
     env: { FIXTURE_PID: join(dir, `${mode}.pid`), ...env },
   },
 });
 
-export const attachPayload = <T extends { session: { id: string } }>(
-  cwd: string,
-  options: T,
-  kind = "cwd",
-) => ({
+export const attachPayload = (cwd: string, options: unknown, kind = "cwd", key = randomUUID()) => ({
   cwd,
-  harness: "quin",
+  harness: "keel",
   options,
-  selection: { kind, key: options.session.id },
+  selection: { kind, key },
+});
+
+/** An invocation's engine request payload. */
+export const invoke = (action: string, args?: unknown) => ({
+  op: "invoke",
+  action,
+  ...(args === undefined ? {} : { args }),
 });
 
 /** HubClients that `finish` closes. */

@@ -17,6 +17,6 @@ delib.module {
     neovim.publish = true;
     skills.publish = true;
     shield.publish = (config.myconfig.shield.enable or false) && lib.meta.availableOn pkgs.stdenv.hostPlatform config.bundles.shield.package;
-    quin.publish = (config.myconfig.shield.enable or false) && lib.meta.availableOn pkgs.stdenv.hostPlatform config.bundles.quin.package;
+    keel.publish = (config.myconfig.shield.enable or false) && lib.meta.availableOn pkgs.stdenv.hostPlatform config.bundles.keel.package;
   };
 }

@@ -26,16 +26,13 @@ try {
     fake,
     `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(join(directory, "child.pid"))}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`,
   );
-  const sessionId = randomUUID();
   const r = client
     .hub("attach", {
       cwd: directory,
-      harness: "quin",
-      selection: { kind: "cwd", key: sessionId },
+      harness: "keel",
+      selection: { kind: "cwd", key: randomUUID() },
       options: {
-        session: { kind: "new", id: sessionId },
-        mode: "mock",
-        model: "fixture/fixed",
+        configDir: directory,
         launch: { executable: process.env.SHIELD_NODE || process.execPath, argv: [fake], env: {} },
       },
     })

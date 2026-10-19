@@ -10,11 +10,8 @@
 }: let
   inherit (pkgs) lib;
   root = ../..;
-  covering = ["quin" "harness"];
-  unchecked = {
-    # Pi loads these extensions itself; no check installs their dependencies.
-    "abstractions/modules/agents/shield/runtime" = "no type check or lint";
-  };
+  covering = ["keel" "harness"];
+  unchecked = {};
   roots =
     # Read from the definitions, so a check omitted on this platform still counts.
     lib.concatMap (name: (import (./.. + "/${name}") {inherit inputs pkgs system;}).tsRoots) covering

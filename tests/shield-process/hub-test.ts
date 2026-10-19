@@ -17,8 +17,17 @@ import {
   type Envelope,
 } from "../../abstractions/modules/agents/shield/client/protocol";
 import { startHub } from "../../abstractions/modules/agents/shield/client/shield";
-import { PiAdapter } from "../../abstractions/modules/agents/shield/quin/view";
-import { alive, attachPayload, clientsOf, fakeLaunch, finish, rawClient, wait } from "./support";
+import { Mirror } from "../../abstractions/modules/agents/keel/protocol/apply";
+import {
+  alive,
+  attachPayload,
+  clientsOf,
+  fakeLaunch,
+  finish,
+  invoke,
+  rawClient,
+  wait,
+} from "./support";
 
 const dir = mkdtempSync(join(tmpdir(), "shield-hub-"));
 const socket = join(dir, "hub.sock");
@@ -26,27 +35,45 @@ const { clients, connect } = clientsOf(socket);
 const fakeOptions = (mode = "normal") => fakeLaunch(dir, mode, { PATH: "/usr/bin:/bin" });
 const attach = (c: HubClient, cwd = dir, opts = fakeOptions()) =>
   c.hub("attach", attachPayload(cwd, opts));
+
+/** A client that mirrors the runtime's state from its snapshot and events, as a screen does. */
+function mirrored(c: HubClient) {
+  const mirror = new Mirror();
+  const records: Envelope[] = [];
+  let connection: string | undefined;
+  let writer: string | null = null;
+  c.onRecord = (r) => {
+    records.push(r);
+    if (r.type === "snapshot") {
+      mirror.reset(r.payload);
+      connection = r.connection;
+      writer = r.writer?.connection ?? null;
+    } else if (r.type === "event") mirror.apply(r.payload);
+    else if (r.type === "management" && r.payload.op === "writer") writer = r.payload.connection;
+  };
+  return {
+    mirror,
+    records,
+    get connection() {
+      return connection;
+    },
+    get writes() {
+      return connection !== undefined && writer === connection;
+    },
+  };
+}
+
 try {
   const decoder = new JsonLines();
-  const unicode = Buffer.from('{"text":"日本\u2028語\u2029"}\r\n');
+  const unicode = Buffer.from('{"text":"日本 語 "}\r\n');
   const decoded = [...unicode].flatMap((byte) => decoder.feed(Uint8Array.of(byte)));
-  assert.deepEqual(decoded, [{ text: "日本\u2028語\u2029" }]);
+  assert.deepEqual(decoded, [{ text: "日本 語 " }]);
   await startHub(socket);
   const inode = statSync(`${socket}.lock`).ino;
   const a = connect(),
     b = connect();
-  const viewA = new PiAdapter(),
-    viewB = new PiAdapter();
-  const eventsA: Envelope[] = [],
-    eventsB: Envelope[] = [];
-  a.onRecord = (r) => {
-    eventsA.push(r);
-    viewA.apply(r);
-  };
-  b.onRecord = (r) => {
-    eventsB.push(r);
-    viewB.apply(r);
-  };
+  const viewA = mirrored(a),
+    viewB = mirrored(b);
   console.log("hub: atomic attach");
   const [first, second] = await Promise.all([attach(a), attach(b)]);
   assert(first.success && second.success);
@@ -61,7 +88,7 @@ try {
     type: "hub_request",
     id: "bad",
     "agent-id": null,
-    engine: "pi",
+    engine: "keel",
     method: "ping",
     payload: {},
   });
@@ -71,13 +98,13 @@ try {
   raw.socket.write("{malformed\n");
   await rawClosed;
   assert((await a.hub("ping")).success);
-  // An envelope may omit its engine; it means Pi both when creating and when joining an agent.
+  // An envelope may omit its engine; it means keel both when creating and when joining an agent.
   const bare = await rawClient(socket);
   const bareRecords = bare.records;
   const bareAttach = async (
     cwd: string,
     envelope: Record<string, unknown> = {},
-    harness = "quin",
+    harness = "keel",
   ) => {
     const requestId = `bare-${bareRecords.length}-${cwd.length}`;
     bare.write({
@@ -99,80 +126,58 @@ try {
   assert(bareId);
   assert.equal((await attach(connect(), bareCwd)).payload["agent-id"], bareId);
   // Only a registered engine, with a harness it admits, can create or join an agent.
-  assert.equal((await bareAttach(dir, { engine: "other" })).error?.code, "invalid_protocol");
-  assert.equal((await bareAttach(dir, { engine: "pi" }, "other")).error?.code, "invalid_attach");
+  assert.equal((await bareAttach(dir, { engine: "pi" })).error?.code, "invalid_protocol");
+  assert.equal((await bareAttach(dir, { engine: "keel" }, "other")).error?.code, "invalid_attach");
   bare.socket.destroy();
-  const rpc = { op: "rpc", record: { type: "get_state" } };
+  // An agent serves one configuration directory.
+  const otherConfig = join(dir, "other-config");
+  mkdirSync(otherConfig);
+  assert.equal(
+    (await attach(b, dir, { ...fakeOptions(), configDir: otherConfig })).error?.code,
+    "config_dir_mismatch",
+  );
+  console.log("hub: request ids per connection, writer");
   const [ra, rb] = await Promise.all([
-    a.request("engine_request", id, rpc, undefined, undefined, "same"),
-    b.request("engine_request", id, rpc, undefined, undefined, "same"),
+    a.request("engine_request", id, invoke("same"), undefined, undefined, "same"),
+    b.request("engine_request", id, invoke("same"), undefined, undefined, "same"),
   ]);
   assert(ra.success && rb.success);
   assert.equal(ra.id, "same");
   assert.equal(rb.id, "same");
-  assert.equal(ra.payload.id, "same");
-  assert.equal(rb.payload.id, "same");
-  assert(!(await attach(b, dir, { ...fakeOptions(), mode: "live" })).success);
-  // A model chooses only a new root's model; naming another one still joins this agent.
-  assert.equal(
-    (await attach(b, dir, { ...fakeOptions(), model: "fixture/other" })).payload?.["agent-id"],
-    id,
-  );
-  assert.equal(
-    (await a.engine(id, { op: "rpc", record: { type: "prompt", message: "/new" } })).error?.code,
-    "unsupported_or_invalid_rpc",
-  );
-  for (let i = 0; i < 2; i++) {
-    assert(
-      (await a.engine(id, { op: "rpc", record: { type: "prompt", message: "same" } })).success,
-    );
-    await wait(
-      () => eventsA.filter((r) => r.payload?.record?.type === "agent_settled").length === i + 1,
-    );
-  }
-  assert.equal(viewA.view.timeline.entries.filter((e) => e.kind === "assistant").length, 2);
-  assert.deepEqual(viewA.view, viewB.view);
-  assert(eventsA.some((e) => e.payload?.record?.type === "agent_end"));
-  console.log("hub: preflight interrupt");
-  const preflight = a.engine(id, { op: "rpc", record: { type: "prompt", message: "preflight" } });
-  await wait(() => !!viewA.view.dialogs["preflight-dialog"]);
-  const interrupt = b.engine(id, { op: "interrupt" });
-  await wait(() => viewA.view.run.interrupting);
-  const refused = await a.engine(id, {
-    op: "rpc",
-    record: { type: "prompt", message: "not accepted" },
-  });
-  assert.equal(refused.error?.code, "interrupting");
-  assert((await preflight).success);
-  assert((await interrupt).success);
-  await Bun.sleep(300);
-  assert.equal(viewA.view.run.active, false);
-  const sequence = eventsA.map((e) => e.payload?.record?.type);
-  const closed = sequence.lastIndexOf("dialog_closed");
-  assert(closed >= 0);
-  // Snapshot backlog is independent of live backlog; 40 MiB view plus response is valid.
+  // The runtime sees each request with its own connection.
+  assert.notEqual(ra.payload.detail, rb.payload.detail);
+  // The first screen to be live writes; the other views, and its write is refused.
+  assert.equal([viewA.writes, viewB.writes].filter(Boolean).length, 1);
+  const [writerClient, viewerClient] = viewA.writes ? [a, b] : [b, a];
+  const viewer = viewA.writes ? viewB : viewA;
+  assert.equal((await viewerClient.engine(id, invoke("write"))).payload.code, "not_writer");
+  assert.equal((await writerClient.engine(id, invoke("write"))).payload.outcome, "done");
+  assert((await viewerClient.request("hub_request", id, {}, "take_write")).success);
+  await wait(() => viewer.writes);
+  assert.equal((await writerClient.engine(id, invoke("write"))).payload.code, "not_writer");
+  // Events reach both screens in the runtime's sequence, and they converge.
+  for (let i = 0; i < 3; i++) assert((await a.engine(id, invoke("emit", `text ${i}`))).success);
+  await wait(() => viewA.mirror.seq === viewB.mirror.seq && viewA.mirror.seq > 0);
+  assert.deepEqual(viewA.mirror.state, viewB.mirror.state);
+  assert(!viewA.records.some((r) => r.type === "event" && "seq" in r));
+  // A third screen's snapshot equals what the others followed to the same number.
+  const c = connect();
+  const viewC = mirrored(c);
+  assert((await attach(c)).success);
+  assert.equal(viewC.mirror.seq, viewA.mirror.seq);
+  assert.deepEqual(viewC.mirror.state, viewA.mirror.state);
+  // Snapshot backlog is independent of live backlog; a 20 MiB state plus response is valid.
+  // The 20 MiB event exceeds a subscriber's live backlog, so a client that is not
+  // subscribed asks for it, and the subscribed screens are disconnected.
   console.log("hub: large snapshot");
-  await a
-    .engine(id, { op: "rpc", record: { type: "prompt", message: "large" } })
-    .catch(() => undefined);
-  // The 40 MiB of events exceed a subscriber's live backlog, so a client that is not subscribed waits for the run to end.
-  const probe = connect();
-  for (const end = Date.now() + 15000; ; await Bun.sleep(50)) {
-    if ((await probe.engine(id, rpc)).payload?.data?.isStreaming === false) break;
-    if (Date.now() > end) throw new Error("wait_timeout");
-  }
+  assert((await connect().engine(id, invoke("large"))).success);
   const large = connect();
   let snapshot: Envelope | undefined;
   large.onRecord = (r) => {
     if (r.type === "snapshot") snapshot = r;
   };
   assert((await attach(large)).success);
-  assert(
-    snapshot!.payload.view.timeline.entries.some(
-      (e: any) =>
-        e.kind === "assistant" && e.parts.some((p: any) => p.text?.length === 20 * 1024 * 1024),
-    ),
-  );
+  assert(snapshot!.payload.state.texts.some((t: string) => t.length === 20 * 1024 * 1024));
   // Input to a process that stopped reading stdin waits in order instead of failing the agent,
   // and neither blocks another agent progressing, or TERM/KILL.
   console.log("hub: blocked stdin");
@@ -182,29 +187,20 @@ try {
   const created = await attach(blocked, blockedCwd, fakeOptions("ignore-term"));
   assert(created.success);
   const blockedId = created.payload["agent-id"];
-  assert(
-    (await blocked.engine(blockedId, { op: "rpc", record: { type: "prompt", message: "stall" } }))
-      .success,
-  );
+  assert((await blocked.engine(blockedId, invoke("stall"))).success);
   const pending = blocked
-    .engine(blockedId, {
-      op: "rpc",
-      record: { type: "prompt", message: "a".repeat(2 * 1024 * 1024) },
-    })
+    .engine(blockedId, invoke("emit", "a".repeat(2 * 1024 * 1024)))
     .catch(() => undefined);
   await Bun.sleep(100);
   const queued = blocked
-    .engine(blockedId, {
-      op: "rpc",
-      record: { type: "prompt", message: "b".repeat(2 * 1024 * 1024) },
-    })
+    .engine(blockedId, invoke("emit", "b".repeat(2 * 1024 * 1024)))
     .catch(() => undefined);
   const otherCwd = join(dir, "other");
   mkdirSync(otherCwd);
   const other = connect();
   const otherRoot = await attach(other, otherCwd);
   assert(otherRoot.success);
-  assert((await other.engine(otherRoot.payload["agent-id"], rpc)).success);
+  assert((await other.engine(otherRoot.payload["agent-id"], invoke("emit"))).success);
   assert.equal(
     (await other.hub("list")).payload.find((agent: any) => agent["agent-id"] === blockedId)?.state,
     "ready",
@@ -237,7 +233,7 @@ try {
   symlinkSync(unsafe, `${linked}.lock`);
   await assert.rejects(startHub(linked), /unsafe file/);
   console.log(
-    "hub checks passed: atomic attach, two clients, exact IDs, convergence, preflight fencing, large snapshot, stdin stall, shutdown barrier, reboot, unsafe paths",
+    "hub checks passed: atomic attach, two clients, exact IDs, writer, convergence, large snapshot, stdin stall, shutdown barrier, reboot, unsafe paths",
   );
 } catch (e) {
   try {

@@ -2,7 +2,7 @@ import { createConnection, type Socket } from "node:net";
 
 // The hub's limits; see Shield.Protocol.
 
-const RECORD_LIMIT = 64 * 1024 * 1024;
+export const RECORD_LIMIT = 64 * 1024 * 1024;
 const LIVE_LIMIT = 16 * 1024 * 1024;
 export interface Envelope {
   v: 1;
@@ -14,7 +14,10 @@ export interface Envelope {
   payload?: any;
   error?: { code: string };
   "hub-instance"?: string;
-  seq?: number;
+  /** On a snapshot: the receiving connection's name, the hub lifecycle, and the writer. */
+  connection?: string;
+  lifecycle?: string;
+  writer?: { connection: string | null; epoch: number };
 }
 
 // Byte framing preserves split UTF-8 codepoints and Unicode separators.
