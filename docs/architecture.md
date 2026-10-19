@@ -52,7 +52,7 @@ Each mechanism is specified at the top of its file and by its option description
 
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
-- `extensions/module-metadata.nix`: required responsibility descriptions for modules.
+- `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
 - `extensions/module-tests.nix`: inline test cases declared by a module for its own contract, evaluated by `lib/module-tests.nix` into `checks.<system>.module-<name>`.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
 - `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
