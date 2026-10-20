@@ -32,7 +32,7 @@ Hjem-owned LaunchAgent files are owned copies, not store symlinks. Modified or u
 
 GUI absence defers live service operations until another switch; manual launchctl disable is respected. Successful switch means registration/start requests succeeded, not application readiness. Background services are not guaranteed to return after reboot. Linux service declarations currently fail evaluation rather than silently doing nothing. Darwin-native declarations are ignored on non-Darwin systems; an empty service apply there is a no-op.
 
-After service failure, ownership state and closure roots survive, and the next switch retries. The lifecycle and persistent state are specified in [the service reconciler](../adapters/hjem/services.py).
+After service failure, ownership state and closure roots survive, and the next switch retries. The lifecycle and persistent state are specified in [the service reconciler](../adapters/hjem/services/reconciler.cr).
 
 ## Verification boundary
 

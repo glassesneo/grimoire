@@ -59,7 +59,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
 - `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
-- `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services.py`.
+- `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services/reconciler.cr`.
 - `adapters/hjem/nix-secrets.nix`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package; which bundles are published is chosen separately.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.

@@ -4,6 +4,7 @@
   system,
 }: let
   lib = pkgs.lib;
+  reconciler = pkgs.callPackage ../../adapters/hjem/services {};
   makeSystem = (import ../../adapters/hjem {inherit inputs;}).moduleSystems.hjem.makeSystem;
   result = modules:
     makeSystem {
@@ -151,12 +152,12 @@ in {
     }).config.serviceApply.drvPath).success;
   assert !pkgs.stdenv.hostPlatform.isDarwin || darwinChecks;
     pkgs.runCommand "hjem-services-test" ({
-        nativeBuildInputs = [pkgs.python3];
+        inherit reconciler;
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         services = good.serviceApply;
       }) ''
-      python3 ${./reconcile.py} ${../../adapters/hjem/services.py}
+      test -x "$reconciler/bin/hjem-services-reconcile"
       ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
         test -f "$services/services.json"
         ${lib.concatMapStringsSep "\n" (job: ''test -f "$services/plists/${job.label}.plist"'') good.serviceApply.jobs}

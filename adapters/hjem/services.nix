@@ -17,7 +17,7 @@
 # ignored. Invalid declarations fail through the assertions, which guard
 # `serviceApply`. Its `jobs` passthru exposes the values used to generate the
 # Darwin manifest and plists (empty on Linux), for evaluation checks. Lifecycle
-# and ownership are implemented by services.py, not nix-darwin.
+# and ownership are implemented by services/reconciler.cr, not nix-darwin.
 {
   config,
   lib,
@@ -188,6 +188,7 @@
     ++ lib.optional (!pkgs.stdenv.hostPlatform.isDarwin && config.userServices != {}) "Linux user-service backend is not implemented";
   serviceJobs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (map (entry: entry.job) (builtins.attrValues jobs));
   manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON serviceJobs);
+  reconciler = pkgs.callPackage ./services {};
   services =
     if !pkgs.stdenv.hostPlatform.isDarwin
     then pkgs.writeShellScriptBin "apply" "exit 0"
@@ -203,7 +204,7 @@
         PY
         cat > "$out/bin/apply" <<'EOF'
         #!${pkgs.runtimeShell}
-        exec ${pkgs.python3}/bin/python3 ${./services.py} "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory} ${pkgs.nix}/bin/nix-store
+        exec ${reconciler}/bin/hjem-services-reconcile "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory} ${pkgs.nix}/bin/nix-store
         EOF
         chmod +x "$out/bin/apply"
       '';

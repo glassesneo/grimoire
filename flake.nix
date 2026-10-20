@@ -62,6 +62,11 @@
             indentation = "  ";
           };
         };
+        settings.formatter.crystal = {
+          command = "${pkgs.crystal}/bin/crystal";
+          options = ["tool" "format"];
+          includes = ["*.cr"];
+        };
         # Style comes from the nearest .luafmt.toml.
         settings.formatter.luafmt = {
           command = "${pkgs.emmylua-formatter}/bin/luafmt";
