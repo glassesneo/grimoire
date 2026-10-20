@@ -73,7 +73,7 @@ in {
       {
         ${settingsFile} = {
           exclusive = true;
-          source = packages.shield.piConfig.settings;
+          text = packages.shield.piConfig.settings.text;
         };
       }
       // {
@@ -97,22 +97,30 @@ in {
     keel.package = packages.keel;
   };
 
-  # The module's Hjem output and the options of its package are checked; the
-  # package's build and Pi's reading of the files belong to the checks that run
-  # them.
-  tests = {
+  checks = {
     pkgs,
     home,
+    system,
+    oxlintConfig,
     ...
   }: let
     tool = pkgs.writeShellScriptBin "fixture-tool" "";
     target = name: "${home}/.config/${name}";
-    deployed = name: result: let
-      matches = lib.filter (file: file.target == target name) result.manifest.files;
-    in
-      if matches == []
-      then null
-      else builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile (builtins.head matches).source));
+    deployed = name: result: lib.any (file: file.target == target name) result.manifest.files;
+    # Inspect declared contents before Hjem realizes them; reading manifest sources
+    # would require a foreign-platform builder during Linux evaluation on Darwin.
+    deployment = expected: {
+      modules.deployment.hjem.always = {config, ...}: {
+        assertions =
+          lib.mapAttrsToList (name: value: {
+            assertion = builtins.fromJSON (builtins.unsafeDiscardStringContext config.xdg.config.files.${name}.text) == value;
+            message = "shield fixture: unexpected ${name} contents";
+          })
+          expected;
+      };
+      expr = result: map (name: deployed name result) (builtins.attrNames expected);
+      expected = map (_: true) (builtins.attrNames expected);
+    };
     # A bundle is built for publication only when something publishes it.
     publishKeel.bundles.always.keel.publish = true;
     declared = {
@@ -122,50 +130,67 @@ in {
       };
       models.providers.fixture.baseUrl = "http://localhost:1/v1";
     };
+    publishBoth.bundles.always = {
+      shield.publish = true;
+      keel.publish = true;
+    };
   in {
-    deploys-declared-pi-files = {
-      host.myconfig.ifEnabled.shield = declared;
-      expr = result: {
-        settings = deployed settingsFile result;
-        models = deployed modelsFile result;
-      };
-      expected = {
-        inherit (declared) settings models;
-      };
+    keel = {
+      moduleSystem = "bundles";
+      modules.publish = publishBoth;
+      platforms = import ./platforms.nix;
+      tsRoots = ["."];
+      build = result:
+        import ./checks/keel.nix {
+          inherit pkgs oxlintConfig;
+          bun2nix = inputs.bun2nix.packages.${system}.default;
+          inherit (result) keel;
+        };
     };
-    deploys-valid-empty-models = {
-      expr = result: {
-        settings = deployed settingsFile result;
-        models = deployed modelsFile result;
-      };
-      expected = {
-        settings = {};
-        models.providers = {};
-      };
-      host.myconfig.ifEnabled.shield.defaultModel = null;
+    process = {
+      moduleSystem = "bundles";
+      modules.publish = publishBoth;
+      platforms = import ./platforms.nix;
+      build = result:
+        import ./checks/process.nix {
+          inherit pkgs;
+          inherit (result) keel shield;
+        };
     };
-    default-model-fills-undeclared-settings = {
-      host.myconfig.ifEnabled.shield.defaultModel = "fixture/nested/model";
-      expr = result: deployed settingsFile result;
-      expected = {
-        defaultProvider = "fixture";
-        defaultModel = "nested/model";
-      };
-    };
-    declared-settings-model-wins = {
-      host.myconfig.ifEnabled.shield = declared // {defaultModel = "other/model";};
-      expr = result: deployed settingsFile result;
-      expected = declared.settings;
-    };
-    deploys-extensions = {
-      host.myconfig.ifEnabled.shield.extensions = ["markdown" "/opt/keel/mine.ts"];
-      expr = result: deployed extensionsFile result;
-      expected.extensions = ["markdown" "/opt/keel/mine.ts"];
-    };
+    deploys-declared-pi-files =
+      deployment {
+        ${settingsFile} = declared.settings;
+        ${modelsFile} = declared.models;
+      }
+      // {host.myconfig.ifEnabled.shield = declared;};
+    deploys-valid-empty-models =
+      deployment {
+        ${settingsFile} = {};
+        ${modelsFile}.providers = {};
+      }
+      // {host.myconfig.ifEnabled.shield.defaultModel = null;};
+    default-model-fills-undeclared-settings =
+      deployment {
+        ${settingsFile} = {
+          defaultProvider = "fixture";
+          defaultModel = "nested/model";
+        };
+      }
+      // {host.myconfig.ifEnabled.shield.defaultModel = "fixture/nested/model";};
+    declared-settings-model-wins =
+      deployment {
+        ${settingsFile} = declared.settings;
+      }
+      // {host.myconfig.ifEnabled.shield = declared // {defaultModel = "other/model";};};
+    deploys-extensions =
+      deployment {
+        ${extensionsFile}.extensions = ["markdown" "/opt/keel/mine.ts"];
+      }
+      // {host.myconfig.ifEnabled.shield.extensions = ["markdown" "/opt/keel/mine.ts"];};
     null-extensions-leave-file-unmanaged = {
       host.myconfig.ifEnabled.shield.extensions = null;
       expr = result: deployed extensionsFile result;
-      expected = null;
+      expected = false;
     };
     rejects-empty-extension-entry = {
       host.myconfig.ifEnabled.shield.extensions = [""];
@@ -177,15 +202,24 @@ in {
       expr = result: lib.filter (file: lib.hasInfix "/keel/" file.target) result.manifest.files;
       expected = [];
     };
-    models-override-secret-default = {
-      host.myconfig.ifEnabled.shield.models.providers.command-code.apiKey = "explicit";
-      modules.secret.hjem.always.security.nix-secrets.secrets.command-code-api-key = {};
-      expr = result: (deployed modelsFile result).providers.command-code.apiKey;
-      expected = "explicit";
-    };
+    models-override-secret-default =
+      lib.recursiveUpdate (deployment {
+        ${modelsFile}.providers.command-code.apiKey = "explicit";
+      }) {
+        host.myconfig.ifEnabled.shield.models.providers.command-code.apiKey = "explicit";
+        modules.secret.hjem.always.security.nix-secrets.secrets.command-code-api-key = {};
+      };
     secret-default-is-runtime-reference = {
-      modules.secret.hjem.always.security.nix-secrets.secrets.command-code-api-key = {};
-      expr = result: lib.hasPrefix "!" (deployed modelsFile result).providers.command-code.apiKey;
+      modules.secret.hjem.always = {config, ...}: {
+        security.nix-secrets.secrets.command-code-api-key = {};
+        assertions = [
+          {
+            assertion = lib.hasPrefix "!" (builtins.fromJSON (builtins.unsafeDiscardStringContext config.xdg.config.files.${modelsFile}.text)).providers.command-code.apiKey;
+            message = "shield fixture: secret must be a runtime reference";
+          }
+        ];
+      };
+      expr = result: deployed modelsFile result;
       expected = true;
     };
     rejects-api-keys = {
@@ -194,6 +228,7 @@ in {
       fails = true;
     };
     extra-packages-reach-keel-only = {
+      platforms = import ./platforms.nix;
       host.myconfig.ifEnabled.shield.extraPackages = [tool];
       modules.publish = publishKeel;
       expr = result: {
@@ -219,7 +254,7 @@ in {
       modules.publish = publishKeel;
       moduleSystem = "bundles";
       expr = result: let
-        read = file: builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile file));
+        read = file: builtins.fromJSON file.text;
       in {
         settings = read result.keel.piConfig.settings;
         models = read result.keel.piConfig.models;

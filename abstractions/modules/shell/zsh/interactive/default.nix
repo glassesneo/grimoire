@@ -53,4 +53,38 @@ delib.module {
     # Without secondary_theme.zsh, fsh downloads the upstream free theme at startup.
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
+
+  checks = {
+    pkgs,
+    home,
+    ...
+  }: let
+    configDir = "${home}/fixture-config";
+    dataDir = "${home}/fixture-data";
+  in {
+    startup = {
+      uses = ["zsh"];
+      modules.fixture.hjem.always = {
+        xdg.config.directory = configDir;
+        xdg.data.directory = dataDir;
+        zsh.zshrc.fixture.text = "typeset -g FIXTURE=value";
+      };
+      build = result: let
+        source = target:
+          (lib.findFirst (file: file.target == target)
+            (throw "Missing fixture file ${target}")
+            result.manifest.files).source;
+      in
+        pkgs.runCommand "zsh-interactive-startup" {
+          zshrc = source "${configDir}/zsh/.zshrc";
+          theme = source "${dataDir}/fsh/secondary_theme.zsh";
+          nativeBuildInputs = [pkgs.zsh];
+        } ''
+          zsh -n "$zshrc"
+          grep -Fx 'FAST_WORK_DIR="${dataDir}/fsh"' "$zshrc"
+          test -f "$theme"
+          touch "$out"
+        '';
+    };
+  };
 }

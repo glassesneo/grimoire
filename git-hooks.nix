@@ -1,4 +1,4 @@
-# Owns commit automation and its installation. Run without pre-commit's stash:
+# Owns commit/push automation and its installation. Run without pre-commit's stash:
 # the repository hook isolates the index itself and writes fixes to the worktree.
 {
   pkgs,
@@ -29,9 +29,17 @@
     export PATH=${lib.makeBinPath [pkgs.git]}:$PATH
     exec ${lib.getExe hooks.config.package} run --all-files --config ${hooks.config.configFile}
   '';
+  pushHook = pkgs.writeShellApplication {
+    name = "pre-push";
+    runtimeInputs = [pkgs.git pkgs.nix pkgs.nushell pkgs.gnutar];
+    text = ''
+      exec nu --no-config-file --stdin ${./scripts}/pre-push.nu
+    '';
+  };
   directory = pkgs.runCommand "repository-git-hooks" {} ''
     mkdir -p "$out"
     ln -s ${hook} "$out/pre-commit"
+    ln -s ${lib.getExe pushHook} "$out/pre-push"
   '';
 in {
   inherit directory;

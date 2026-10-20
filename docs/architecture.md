@@ -39,10 +39,12 @@ A module's name is its `myconfig` interface path, so choose it for the modules a
 - `adapters/` owns integrations for module systems that Denix does not provide. An adapter translates Denix modules into the external system's configuration result; it does not own user configuration policy.
 - `extensions/` owns extensions of Denix itself: host attributes and behavior applied to every module or host. Features that consume them live in `abstractions/modules/`.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
-- `tests/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `tests/<name>/default.nix` is discovered automatically. The contract of a single module is tested inside that module instead; see Validation boundary.
+- `checks/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `checks/<name>/default.nix` is discovered automatically. The contract of a single module is checked inside that module instead; see Validation boundary.
 - `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
+
+A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its check fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
 Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Operator procedures and external-command orchestration default to Nushell under `scripts/`. An internal runtime implementation may use another language for a concrete standard-library or safety benefit; explain that reason beside the implementation.
 
@@ -53,7 +55,8 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-tests.nix`: inline test cases declared by a module for its own contract, evaluated by `lib/module-tests.nix` into `checks.<system>.module-<name>`.
+- `extensions/module-checks.nix`: module-owned inline cases, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`.
+- `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
 - `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
 - `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services.py`.
@@ -61,21 +64,23 @@ Each mechanism is specified at the top of its file and by its option description
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package; which bundles are published is chosen separately.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
 - `lib/module-docs.nix`: a module catalogue rendered from Denix metadata and declaration locations without generating a host configuration.
-- `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `tests/bun-lock`.
-- `git-hooks.nix`: development-shell installation of commit automation, with the transaction owned by `scripts/commit.nu`.
+- `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
+- `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, and `scripts/pre-push.nu` verifies outgoing tip trees.
 
 ## Validation boundary
 
-A test belongs under `tests/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
+A check belongs under `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
 
 Each kind of validation answers a different question:
 
 - An option type rejects a single invalid value where it is defined.
 - An assertion rejects a configuration whose choices are invalid together. It runs on every evaluation of a real configuration and addresses whoever wrote those choices.
-- An inline test shows that a module's implementation is correct on chosen inputs. It runs only as a check and addresses the module's author. A condition that no configuration choice can break, only a defect in the module, belongs here rather than in an assertion.
-- A check under `tests/` covers a repository mechanism, the composition, or a property that needs a build or spans the published configurations.
+- An inline check shows that a module's implementation is correct on chosen inputs. It runs only as a check and addresses the module's author. A condition that no configuration choice can break, only a defect in the module, belongs here rather than in an assertion.
+- A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations.
 
-A module's own contract — what its options produce and reject — is tested by the module's `tests`, beside its definition. Each case is evaluated on the adapters and extensions of `flake.nix` with only that module, the modules it names, and its fixture contributors. Inline tests cover evaluated values; a check that builds derivations or spans several modules' outputs stays under `tests/`.
+A module's own contract — what its options produce and reject — is checked by the module's `checks`, beside its definition. Each case uses the adapters and extensions of `flake.nix` with only that module, the modules explicitly named in `uses`, infrastructure, and fixture contributors. A case either compares an evaluated value, expects an evaluation/assertion failure, or builds a derivation from the fixture result. Platform filtering precedes fixture generation; supported cases aggregate into one check per module. Build cases stay with their owning feature rather than reading published packages to bypass the fixture.
+
+Commit automation builds selected checks on the final index snapshot, excluding formatting and catalogue freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and catalogue freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
 
 Mechanism checks use the smallest input boundary they own, without importing unrelated feature modules or extensions. Checks of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
 

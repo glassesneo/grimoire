@@ -3,7 +3,7 @@
 # `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
 # the packages, `serviceApply` (bin/apply), and a `preflight` derivation that
 # realizes all file, package and service closures. Assertions block every output
-# except `failedAssertions`, the messages of the failed ones, which module tests
+# except `failedAssertions`, the messages of the failed ones, which module checks
 # read without forcing an output.
 #
 # A file declared with `exclusive = true` in any file set (`files` or

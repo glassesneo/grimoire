@@ -69,7 +69,7 @@ def main [] {
   let home = checked /usr/bin/mktemp -d /tmp/hjem-nix-secrets-XXXXXXXX | path expand
   try {
     let fields = $'homeDirectory = ($home | to json -r); username = ($username | to json -r);'
-    let expr = '(import ./tests/nix-secrets/fixture.nix { inputs = (builtins.getFlake (toString ./.)).inputs; ' + $fields + ' }).probe'
+    let expr = '(import ./checks/nix-secrets/fixture.nix { inputs = (builtins.getFlake (toString ./.)).inputs; ' + $fields + ' }).probe'
     let probe = checked nix build --impure --no-link --print-out-paths --expr $expr
     let secret = open --raw ($probe | path join secret-path)
     mkdir ($home | path join storage)

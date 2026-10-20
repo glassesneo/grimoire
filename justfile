@@ -32,6 +32,10 @@ eval:
   nix flake check --no-build --no-update-lock-file
 
 # Build one flake check for the current system; see docs/operations.md for platform and live-check limits.
-[arg('name', help='Check name under checks.<system>, including module-<name> for inline module tests')]
+[arg('name', help='Check name under checks.<system>, including module-<name> for inline module checks')]
 check name:
-  nix build --no-link ".#checks.{{ system }}.{{ name }}"
+  nix build --no-link --no-update-lock-file '.#checks.{{ system }}."{{ name }}"'
+
+# Run all current-system checks, including formatting and catalogue freshness, on the tracked working tree.
+check-full:
+  nix flake check --no-update-lock-file

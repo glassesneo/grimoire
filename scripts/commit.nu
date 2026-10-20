@@ -3,6 +3,7 @@
 # work stays out of the snapshot, so a change can be split over several commits.
 # Fixes are refused before any mutation when they would overwrite such work.
 use ./docs.nu
+use ./checks.nu select-checks
 
 const empty = "0000000000000000000000000000000000000000"
 
@@ -57,9 +58,22 @@ export def main [] {
       }
       ^git --no-pager diff --cached --stat $before --
 
+      # Git supplies an implicit empty-tree comparison on an unborn branch.
+      let changes = ^git diff --cached --name-status -z --no-renames
+        | split row (char nul)
+        | compact --empty
+        | chunks 2
+        | each {|pair| {status: $pair.0, path: $pair.1} }
       do {
         cd $snapshot
-        ^nix flake check path:. --no-update-lock-file
+        let system = ^nix eval --impure --raw --expr builtins.currentSystem | str trim
+        let metadata = ^nix eval --json --no-update-lock-file $"path:.#lib.checks.($system)" | from json
+        let selected = select-checks $metadata $changes
+        print $"Selected checks: ($selected | str join ', ')"
+        if ($selected | is-not-empty) {
+          let installables = $selected | each {|name| $"path:.#checks.($system).($name | to json --raw)" }
+          ^nix build --no-link --no-update-lock-file ...$installables
+        }
       }
     } finally {
       rm --recursive --force $snapshot $"($snapshot).index"

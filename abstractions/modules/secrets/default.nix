@@ -38,7 +38,7 @@ in
     in {
       security.nix-secrets = {
         enable = true;
-        storage = ../../../secrets;
+        storage = ./storage;
         identityPaths = ["${config.directory}/.config/sops/age/keys.txt"];
         defaultRecipients = [
           "age1r990kv2jq2vd4fxhf6znzmqqg6w2wfhllw9s9uzjun6tvcd43e3san06yu"

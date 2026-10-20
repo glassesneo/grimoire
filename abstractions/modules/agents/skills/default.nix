@@ -79,7 +79,7 @@ in
 
     # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to
     # the wrong place; Hjem's symlink execution remains trusted.
-    tests = {
+    checks = {
       pkgs,
       home,
       ...

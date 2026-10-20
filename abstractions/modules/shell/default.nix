@@ -47,7 +47,7 @@ in
 
     # A distinct package shows that the selected shell module's package is
     # used, not a default that happens to equal it.
-    tests = {pkgs, ...}: let
+    checks = {pkgs, ...}: let
       package = pkgs.writeShellScriptBin "fixture-shell" "" // {shellPath = "/bin/fixture-shell";};
     in {
       login-shell = {

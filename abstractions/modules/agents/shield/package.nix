@@ -17,9 +17,8 @@
   models ? {providers = {};},
   writeText,
 }: let
-  platforms = ["aarch64-darwin"];
-  keelDir = ../keel;
-  piVersion = (lib.importJSON (keelDir + "/package.json")).dependencies."@earendil-works/pi-coding-agent";
+  platforms = import ./platforms.nix;
+  piVersion = (lib.importJSON ./package.json).dependencies."@earendil-works/pi-coding-agent";
   toolsPath = lib.makeBinPath extraPackages;
   # The declared default model applies only when the declared settings choose none.
   piSettings =
@@ -67,40 +66,29 @@
     export RELEASE_DISTRIBUTION=none
     exec ${hub}/bin/shield start
   '';
-  bunDeps = bun2nix.fetchBunDeps {bunNix = keelDir + "/bun.nix";};
+  bunDeps = bun2nix.fetchBunDeps {bunNix = ./bun.nix;};
   # The screen and the shield client as Bun executables, and the runtime as a Node module
   # beside the node_modules Pi and its extensions load from.
   build = bun2nix.mkDerivation {
-    packageJson = keelDir + "/package.json";
+    packageJson = ./package.json;
     src = lib.fileset.toSource {
-      root = ./..;
-      fileset = lib.fileset.unions [
-        (lib.fileset.difference keelDir (keelDir + "/bun.nix"))
-        ./client
-      ];
+      root = ./.;
+      fileset = lib.fileset.unions [./package.json ./bun.lock ./bunfig.toml ./build.ts ./keel ./client];
     };
     inherit bunDeps;
-    postUnpack = ''
-      cp "$sourceRoot/keel/package.json" "$sourceRoot/package.json"
-      cp "$sourceRoot/keel/bun.lock" "$sourceRoot/bun.lock"
-    '';
     doCheck = true;
-    # tests/keel type-checks and lints keel with the scripts that import it.
+    # The inline keel build case owns type, lint, and extension UI validation.
     checkPhase = ''
-      cd keel
       HOME="$TMPDIR" PI_TELEMETRY=off PI_OFFLINE=1 bun test
-      cd ..
     '';
     buildPhase = ''
-      cd keel
       bun run build.ts
-      cd ..
     '';
     installPhase = ''
       dir="$out/libexec/keel"
       mkdir -p "$dir/runtime/protocol" "$dir/runtime/runtime" "$dir/runtime/fixtures"
-      cp keel/keel keel/shield "$dir/"
-      cp keel/dist/runtime.mjs "$dir/runtime/"
+      cp dist/keel dist/shield "$dir/"
+      cp dist/runtime.mjs "$dir/runtime/"
       cp -r node_modules "$dir/runtime/"
       echo '{"type": "module"}' > "$dir/runtime/package.json"
       # What an extension written for keel imports, and the checks' fixtures.

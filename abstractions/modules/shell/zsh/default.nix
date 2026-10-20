@@ -25,6 +25,27 @@ delib.module ({cfg, ...}: {
     };
   };
 
+  checks = {
+    pkgs,
+    home,
+    ...
+  }: {
+    startup-syntax = {
+      modules.fixture.hjem.always.zsh.zshenv.fixture.text = "export FIXTURE=value";
+      build = result:
+        pkgs.runCommand "zsh-startup-syntax" {
+          source =
+            (lib.findFirst (file: file.target == "${home}/.zshenv")
+              (throw "Missing fixture .zshenv")
+              result.manifest.files).source;
+          nativeBuildInputs = [pkgs.zsh];
+        } ''
+          zsh -n "$source"
+          touch "$out"
+        '';
+    };
+  };
+
   darwin.ifEnabled = {config, ...}: {
     # explicitly disable nix-darwin default
     programs.zsh.enable = lib.mkDefault false;

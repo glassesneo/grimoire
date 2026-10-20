@@ -41,7 +41,7 @@ delib.module ({cfg, ...}: {
 
   # A fixture stands in for a feature module, so the case covers how
   # contributions reach the package rather than any particular feature.
-  tests = {pkgs, ...}: {
+  checks = {pkgs, ...}: {
     feature-contribution = {
       uses = ["publication"];
       modules.fixture-feature.myconfig.always.neovim.settings = {
