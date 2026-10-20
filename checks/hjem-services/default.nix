@@ -41,8 +41,10 @@
       };
     }
   ];
-  # Evaluation is the lowest boundary for duplicate/identity rejection. Plistlib
-  # validates serialization separately; runtime checks own lifecycle transitions.
+  # Lowering is observed before serialization; the serializer owns plist syntax.
+  # The build checks file placement, and runtime checks own lifecycle transitions.
+  jobs = lib.listToAttrs (map (job: lib.nameValuePair job.name job) good.serviceApply.jobs);
+  wait = ["/bin/sh" "-c" ''/bin/wait4path /nix/store && exec "$@"'' "sh"];
   rejected = module: !(builtins.tryEval (builtins.deepSeq (result [module]).serviceApply true)).success;
   # Declaration errors are assertions, so a rejection also names its reason.
   rejects = reason: module: lib.any (lib.hasInfix reason) (result [module]).failedAssertions && rejected module;
@@ -123,7 +125,21 @@
         };
       };
     };
-  }; true;
+  };
+  assert jobs.example.config.ProgramArguments == wait ++ ["${pkgs.coreutils}/bin/true" "literal $arg"];
+  assert jobs.example.config.EnvironmentVariables
+  == {
+    A = "a";
+    B = "b";
+  };
+  assert jobs.example.config.LimitLoadToSessionType == "Background";
+  assert jobs.native.config.ProgramArguments == wait ++ ["${pkgs.coreutils}/bin/true"];
+  assert !(jobs.native.config ? Program);
+  assert lib.all (name: let
+    expected = name == "example";
+    job = jobs.${name};
+  in
+    job.config.RunAtLoad == expected && job.runAtLoad == expected) ["example" "manual"]; true;
 in {
   check = assert lib.any (assertion: !assertion.assertion && lib.hasInfix "Linux user-service backend" assertion.message) (linuxResult base).config.assertions;
   assert (builtins.tryEval
@@ -142,22 +158,8 @@ in {
       }) ''
       python3 ${./reconcile.py} ${../../adapters/hjem/services.py}
       ${lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
-        python3 - "$services" <<'PY'
-        import json, pathlib, plistlib, sys
-        out = pathlib.Path(sys.argv[1])
-        jobs = {job['name']: job for job in json.loads((out / 'services.json').read_text())}
-        plists = {name: plistlib.loads((out / 'plists' / (job['label'] + '.plist')).read_bytes()) for name, job in jobs.items()}
-        wait = ['/bin/sh', '-c', '/bin/wait4path /nix/store && exec "$@"', 'sh']
-        true = '${pkgs.coreutils}/bin/true'
-        portable = plists['example']
-        assert portable['ProgramArguments'] == wait + [true, 'literal $arg']
-        assert portable['EnvironmentVariables'] == {'A': 'a', 'B': 'b'}
-        assert portable['LimitLoadToSessionType'] == 'Background'
-        assert plists['native']['ProgramArguments'] == wait + [true] and 'Program' not in plists['native']
-        # The declared autoStart reaches launchd and the reconciler alike.
-        for name, expected in [('example', True), ('manual', False)]:
-            assert plists[name]['RunAtLoad'] is expected and jobs[name]['runAtLoad'] is expected
-        PY
+        test -f "$services/services.json"
+        ${lib.concatMapStringsSep "\n" (job: ''test -f "$services/plists/${job.label}.plist"'') good.serviceApply.jobs}
       ''}
       touch "$out"
     '';

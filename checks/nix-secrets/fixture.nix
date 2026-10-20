@@ -36,6 +36,13 @@
           files = {
             "manifest.json".text = cfg.manifest;
             "cli-env.json".text = builtins.toJSON config.environment.sessionVariables;
+            "wiring.json".text = builtins.toJSON {
+              command = cfg.activate.command false;
+              script = cfg.activateScript.text;
+              activateScript = toString cfg.activateScript;
+              package = toString cfg.package;
+              stateDirectory = config.xdg.state.directory;
+            };
             "secret-path".text = cfg.secrets.dummy.path;
             "activate".source = pkgs.writeShellScript "probe-activate" ''
               export PATH=/usr/bin:/bin:/usr/sbin:/sbin

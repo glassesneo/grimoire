@@ -15,8 +15,9 @@
 #
 # Portable services are rejected on Linux, where native declarations are
 # ignored. Invalid declarations fail through the assertions, which guard
-# `serviceApply`. Lifecycle and ownership are implemented by services.py, not
-# nix-darwin.
+# `serviceApply`. Its `jobs` passthru exposes the values used to generate the
+# Darwin manifest and plists (empty on Linux), for evaluation checks. Lifecycle
+# and ownership are implemented by services.py, not nix-darwin.
 {
   config,
   lib,
@@ -185,7 +186,8 @@
     lib.filter (problem: problem != null) (lib.mapAttrsToList (_: entry: entry.problem) jobs)
     ++ lib.optional (builtins.length labels != builtins.length (lib.unique labels)) "duplicate Label"
     ++ lib.optional (!pkgs.stdenv.hostPlatform.isDarwin && config.userServices != {}) "Linux user-service backend is not implemented";
-  manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON (map (entry: entry.job) (builtins.attrValues jobs)));
+  serviceJobs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (map (entry: entry.job) (builtins.attrValues jobs));
+  manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON serviceJobs);
   services =
     if !pkgs.stdenv.hostPlatform.isDarwin
     then pkgs.writeShellScriptBin "apply" "exit 0"
@@ -225,7 +227,7 @@ in {
     };
   };
   config = {
-    serviceApply = services;
+    serviceApply = services.overrideAttrs (_: {passthru.jobs = serviceJobs;});
     assertions =
       map (problem: {
         assertion = false;
