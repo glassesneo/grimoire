@@ -37,6 +37,8 @@
           config = {
             Program = "${pkgs.coreutils}/bin/true";
             Label = "fixture.native";
+            EnvironmentVariables."A&B" = "<value>\t\n\r${builtins.fromJSON ''"\u007f"''}";
+            Extra = [true false (-1) [] {nested = "value";}];
           };
         };
       };
@@ -45,6 +47,8 @@
   # Lowering is observed before serialization; the serializer owns plist syntax.
   # The build checks file placement, and runtime checks own lifecycle transitions.
   jobs = lib.listToAttrs (map (job: lib.nameValuePair job.name job) good.serviceApply.jobs);
+  xml = good.serviceApply.plists."fixture.native".text;
+  controls = builtins.fromJSON ''["\u0001", "\u0008", "\u000b", "\u000c", "\u000e", "\u001f"]'';
   wait = ["/bin/sh" "-c" ''/bin/wait4path /nix/store && exec "$@"'' "sh"];
   rejected = module: !(builtins.tryEval (builtins.deepSeq (result [module]).serviceApply true)).success;
   # Declaration errors are assertions, so a rejection also names its reason.
@@ -101,6 +105,11 @@
   assert rejects "duplicate x.RunAtLoad" (bad {RunAtLoad = true;});
   assert rejects "invalid plist identity" (bad {Label = "../unsafe";});
   assert rejects "invalid plist identity" (bad {LimitLoadToSessionType = "Aqua";});
+  assert rejects "unsupported plist value" (bad {ThrottleInterval = 0.25;});
+  assert rejects "unsupported plist value" (bad {Extra = [{nested = 1.5;}];});
+  assert lib.all (control: rejects "XML control characters" (bad {Extra = [{nested = control;}];})) controls;
+  assert rejects "XML control characters" (bad {EnvironmentVariables."bad${builtins.head controls}" = "value";});
+  assert rejects "XML control characters" {userServices.x.command = ["/bin/true" (builtins.head controls)];};
   # The option type rejects an empty argv before any assertion.
   assert rejected {userServices.x.command = [];};
   assert rejects "duplicate restartOnSwitch policy" (lib.recursiveUpdate base {
@@ -136,6 +145,10 @@
   assert jobs.example.config.LimitLoadToSessionType == "Background";
   assert jobs.native.config.ProgramArguments == wait ++ ["${pkgs.coreutils}/bin/true"];
   assert !(jobs.native.config ? Program);
+  # Observe the adapter's escape=true wiring, not the upstream serializer's syntax.
+  assert lib.hasInfix ''/bin/wait4path /nix/store &amp;&amp; exec &quot;$@&quot;'' xml;
+  assert lib.hasInfix "<key>A&amp;B</key>" xml;
+  assert lib.hasInfix "<string>&lt;value&gt;" xml;
   assert lib.all (name: let
     expected = name == "example";
     job = jobs.${name};

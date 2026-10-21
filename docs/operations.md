@@ -34,17 +34,19 @@ GUI absence defers live service operations until another switch; manual launchct
 
 After service failure, ownership state and closure roots survive, and the next switch retries. The lifecycle and persistent state are specified in [the service reconciler](../adapters/hjem/services/reconciler.cr).
 
+Changing the serialized plist content retires and re-registers a job, even when `restartOnSwitch` is false. This includes formatting changes from a serializer replacement, so the first switch after such a change can interrupt existing services. Existing ownership journals are retained across the reconciler rewrite; do not delete or edit them to force migration.
+
 ## Verification boundary
 
 `nix flake check` runs checks applicable to the current system, including formatting and catalogue freshness. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
 
-Live activation and platform behavior need explicit verification outside those checks. VM snapshots are outside the repository's command interface.
+Live activation and platform behavior need explicit verification outside those checks. Use `seiran-vm1` with the rewrite applied for service verification, with an isolated home and dedicated probe labels; do not register test jobs on the workstation. Check registration, replacement, removal, retry, manual disable and journal migration there. GUI cases require an available GUI login session. VM snapshots are outside the repository's command interface.
 
 ## nix-secrets live verification
 
 `just check nix-secrets` runs the sandboxed compatibility check. It validates configuration/manifest wiring and the live script's syntax, checks that a missing identity prevents plaintext publication, and rejects an ordinary directory with a forged RAM-disk marker. It does not register LaunchAgents or create disk images. The sandboxed and live checks share `checks/nix-secrets/fixture.nix`.
 
-Inside the development shell, `nu scripts/nix-secrets-smoke.nu` runs the explicit macOS compatibility check outside the Nix sandbox. It needs a GUI login session, because the activation LaunchAgent belongs to the GUI domain. It verifies user LaunchAgent activation, fresh RAM-disk creation, reuse and recreation, consumer-visible value updates and actual file ownership/mode. It also rejects a mounted disk-backed HFS image carrying the marker. These are observations of the current package, patches, Hjem backend and macOS environment, not a general security guarantee.
+On `seiran-vm1`, inside the development shell, `nu scripts/nix-secrets-smoke.nu` runs the explicit macOS compatibility check outside the Nix sandbox. It needs a GUI login session, because the activation LaunchAgent belongs to the GUI domain. It verifies user LaunchAgent activation, fresh RAM-disk creation, reuse and recreation, consumer-visible value updates and actual file ownership/mode. It also rejects a mounted disk-backed HFS image carrying the marker. These are observations of the current package, patches, Hjem backend and macOS environment, not a general security guarantee.
 
 Run the live check after nix-secrets updates or local patch changes; after Hjem, service wiring, environment or dependency changes that can affect activation; after a macOS upgrade; and before first use on a new machine. Run sandboxed checks first. Unrelated configuration changes do not require this live check.
 

@@ -46,7 +46,15 @@ A concern has one owner. Shared outputs have one final writer, and adapters tran
 
 A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its check fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
-Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Operator procedures and external-command orchestration default to Nushell under `scripts/`. An internal runtime implementation may use another language for a concrete standard-library or safety benefit; explain that reason beside the implementation.
+Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Repository mechanisms use the language of the layer they own:
+
+- Operator procedures and external-command composition stay thin and use Nushell.
+- Build-time generation is expressed in Nix.
+- Activation-time execution logic uses Crystal.
+- Checks use the language of the layer they observe: Nix for evaluated configuration, Crystal for runtime state machines, and Nushell for external-command integration.
+- Logic that grows beyond command composition belongs in Nix transformations or the execution implementation, not in the orchestration layer.
+
+These rules govern repository mechanisms, not feature applications or upstream implementations. Minimal generated shell glue remains where build tools or platform startup require it, such as waiting for the Nix store before launching a program.
 
 ## Repository mechanisms
 

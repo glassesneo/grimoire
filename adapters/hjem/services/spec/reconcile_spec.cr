@@ -87,7 +87,7 @@ class FailingFiles < HjemServices::Files
 end
 
 class Fixture
-  getter tmp = Path[File.tempname("hjem-spec-")]
+  getter tmp = Path[File.tempname("hjem-spec-", dir: File.realpath(Dir.tempdir))]
   getter ctl = FakeCtl.new
   getter home : Path
   getter store : String

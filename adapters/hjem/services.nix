@@ -4,7 +4,9 @@
 # `platform.darwin.launchAgents`, or both under one name, which lowers to one
 # job. Native `config` adds plist leaves to the portable ones and never replaces
 # them: a leaf both define is rejected, as is a native `Program` beside a
-# portable command.
+# portable command. Plist values may be strings, booleans, integers, lists or
+# dictionaries, not floats. XML control characters in strings or keys are
+# rejected; `_module` keys are outside the supported plist contract.
 #
 # The executable and its arguments reach the program as argv, never as shell
 # text. Every job first waits for /nix/store to be mounted, so a custom argv[0]
@@ -15,8 +17,8 @@
 #
 # Portable services are rejected on Linux, where native declarations are
 # ignored. Invalid declarations fail through the assertions, which guard
-# `serviceApply`. Its `jobs` passthru exposes the values used to generate the
-# Darwin manifest and plists (empty on Linux), for evaluation checks. Lifecycle
+# `serviceApply`. Its `jobs` and `plists` passthrus expose the manifest values
+# and Nix-generated plist files (empty on Linux) for evaluation checks. Lifecycle
 # and ownership are implemented by services/reconciler.cr, not nix-darwin.
 {
   config,
@@ -104,9 +106,19 @@
     builtins.isString v
     || builtins.isBool v
     || builtins.isInt v
-    || builtins.isFloat v
     || (builtins.isList v && lib.all validValue v)
     || (builtins.isAttrs v && lib.all validValue (builtins.attrValues v));
+  # Nix strings cannot contain NUL; XML also excludes these remaining C0 controls.
+  xmlControls = builtins.fromJSON ''"\u0001-\u0008\u000b\u000c\u000e-\u001f"'';
+  xmlString = s: builtins.match "[^${xmlControls}]*" s != null;
+  validXml = v:
+    if builtins.isString v
+    then xmlString v
+    else if builtins.isList v
+    then lib.all validXml v
+    else if builtins.isAttrs v
+    then lib.all xmlString (builtins.attrNames v) && lib.all validXml (builtins.attrValues v)
+    else true;
   safeLabel = s: builtins.isString s && builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" s != null;
   jobs = lib.mapAttrs (name: _: let
     p = config.userServices.${name} or null;
@@ -140,7 +152,6 @@
     args = merged.ProgramArguments or [];
     checks =
       safeLabel label
-      && validValue merged
       && builtins.isString program
       && lib.hasPrefix "/" program
       && builtins.isList args
@@ -158,6 +169,10 @@
       then "${name}: duplicate restartOnSwitch policy"
       else if combined.duplicates != []
       then "duplicate ${lib.concatStringsSep ", " combined.duplicates}"
+      else if !validValue merged
+      then "${name}: unsupported plist value (floats are not supported)"
+      else if !validXml merged
+      then "${name}: XML control characters in plist keys or strings"
       else if !checks
       then "${name}: invalid plist identity, executable or session"
       else null;
@@ -188,20 +203,19 @@
     ++ lib.optional (!pkgs.stdenv.hostPlatform.isDarwin && config.userServices != {}) "Linux user-service backend is not implemented";
   serviceJobs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (map (entry: entry.job) (builtins.attrValues jobs));
   manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON serviceJobs);
+  plists = lib.listToAttrs (map (job:
+    lib.nameValuePair job.label
+    (pkgs.writeText "${job.label}.plist" (lib.generators.toPlist {escape = true;} job.config)))
+  serviceJobs);
   reconciler = pkgs.callPackage ./services {};
   services =
     if !pkgs.stdenv.hostPlatform.isDarwin
     then pkgs.writeShellScriptBin "apply" "exit 0"
     else
-      pkgs.runCommand "hjem-services" {nativeBuildInputs = [pkgs.python3];} ''
+      pkgs.runCommand "hjem-services" {} ''
         mkdir -p "$out/bin" "$out/plists"
         cp ${manifest} "$out/services.json"
-        python3 - "$out" <<'PY'
-        import json, plistlib, sys, pathlib
-        out = pathlib.Path(sys.argv[1])
-        for job in json.loads((out / 'services.json').read_text()):
-            (out / 'plists' / (job['label'] + '.plist')).write_bytes(plistlib.dumps(job['config']))
-        PY
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (label: plist: ''cp ${plist} "$out/plists/${label}.plist"'') plists)}
         cat > "$out/bin/apply" <<'EOF'
         #!${pkgs.runtimeShell}
         exec ${reconciler}/bin/hjem-services-reconcile "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory} ${pkgs.nix}/bin/nix-store
@@ -228,7 +242,12 @@ in {
     };
   };
   config = {
-    serviceApply = services.overrideAttrs (_: {passthru.jobs = serviceJobs;});
+    serviceApply = services.overrideAttrs (_: {
+      passthru = {
+        jobs = serviceJobs;
+        inherit plists;
+      };
+    });
     assertions =
       map (problem: {
         assertion = false;
