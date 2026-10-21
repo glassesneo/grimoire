@@ -28,19 +28,17 @@ These are local gates. `--no-verify` or absent hooks bypass them; no server-side
 
 ## Hjem service ownership
 
-Hjem-owned LaunchAgent files are owned copies, not store symlinks. Modified or unmanaged files/jobs are rejected; remove declarations to retire managed jobs. Do not manually edit managed plists or the service journal. Calling upstream standalone directly does not update services; use the repository's switch recipes.
+Hjem-owned LaunchAgent files are owned copies, not store symlinks. Modified or unmanaged files/jobs are rejected; remove declarations to retire managed jobs. Do not manually edit managed plists, or edit or delete the service journal. Calling upstream standalone directly does not update services; use the repository's switch recipes.
 
 GUI absence defers live service operations until another switch; manual launchctl disable is respected. Successful switch means registration/start requests succeeded, not application readiness. Background services are not guaranteed to return after reboot. Linux service declarations currently fail evaluation rather than silently doing nothing. Darwin-native declarations are ignored on non-Darwin systems; an empty service apply there is a no-op.
 
 After service failure, ownership state and closure roots survive, and the next switch retries. The lifecycle and persistent state are specified in [the service reconciler](../adapters/hjem/services/reconciler.cr).
 
-Changing the serialized plist content retires and re-registers a job, even when `restartOnSwitch` is false. This includes formatting changes from a serializer replacement, so the first switch after such a change can interrupt existing services. Existing ownership journals are retained across the reconciler rewrite; do not delete or edit them to force migration.
-
 ## Verification boundary
 
 `nix flake check` runs checks applicable to the current system, including formatting and catalogue freshness. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
 
-Live activation and platform behavior need explicit verification outside those checks. Use `seiran-vm1` with the rewrite applied for service verification, with an isolated home and dedicated probe labels; do not register test jobs on the workstation. Check registration, replacement, removal, retry, manual disable and journal migration there. GUI cases require an available GUI login session. VM snapshots are outside the repository's command interface.
+Live activation and platform behavior need explicit verification outside those checks. Use `seiran-vm1` for service verification, with an isolated home and dedicated probe labels; do not register test jobs on the workstation. Check registration, replacement, removal, retry, manual disable and journal migration there. GUI cases require an available GUI login session. VM snapshots are outside the repository's command interface.
 
 ## nix-secrets live verification
 

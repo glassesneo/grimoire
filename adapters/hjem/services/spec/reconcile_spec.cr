@@ -87,7 +87,7 @@ class FailingFiles < HjemServices::Files
 end
 
 class Fixture
-  getter tmp = Path[File.tempname("hjem-spec-", dir: File.realpath(Dir.tempdir))]
+  getter tmp = Path[File.tempname("hjem-spec", nil, dir: File.realpath(Dir.tempdir))]
   getter ctl = FakeCtl.new
   getter home : Path
   getter store : String
@@ -323,21 +323,49 @@ describe "journal reconciliation" do
     end
   end
 
-  it "reads every legacy intent and interrupted-copy/unlink shape without changing the array wire" do
+  it "reads legacy intents without runAtLoad and uses the desired startup policy" do
     # Owned before/after installation; Removing before/after unlink; Retired
     # before identity cleanup. A failed journal save after unlink leaves Removing.
     { {false, nil, false}, {false, nil, true}, {true, nil, true}, {true, nil, false}, {true, true, false} }.each do |remove, retired, installed|
       fixture do |f|
-        one = f.generation(1)
+        one = f.generation(1, [f.job(restart: true, run_at_load: true)])
         f.seed(one, remove, retired)
+        legacy = f.records
+        legacy[0].as_h.delete("runAtLoad")
+        File.write(f.state / "state.json", legacy.to_json)
         File.write(f.target, "1") if installed
         f.apply(one)
         File.read(f.target).should eq("1")
         f.ctl.jobs.should eq(Set{ {"user/#{LibC.getuid}", "org.hjem.test"} })
         f.records.size.should eq(1)
         f.records[0]["remove"].as_bool.should be_false
+        f.records[0]["runAtLoad"].as_bool.should be_true
+        f.ctl.restarts.should eq(0)
         f.records[0]["root"].as_s.should eq((f.state / "root-generation-1").to_s)
       end
+    end
+  end
+
+  it "preserves and later retires a deferred GUI journal without runAtLoad" do
+    fixture do |f|
+      one = f.generation(1)
+      f.seed(one, true, true)
+      legacy = f.records
+      legacy[0].as_h.delete("runAtLoad")
+      legacy[0].as_h["domain"] = JSON::Any.new("gui")
+      File.write(f.state / "state.json", legacy.to_json)
+      f.ctl.jobs.add({"gui/#{LibC.getuid}", "org.hjem.test"})
+      empty = f.generation(2, [] of Hash(String, String | Bool))
+      f.apply(empty)
+      f.records[0]["retired"].as_bool.should be_true
+      f.records[0]["runAtLoad"].as_bool.should be_false
+      f.roots.should eq(Set{one, empty})
+      f.apply(empty)
+      f.ctl.gui = true
+      f.apply(empty)
+      f.records.should be_empty
+      f.ctl.jobs.should be_empty
+      f.roots.should eq(Set{empty})
     end
   end
 

@@ -1,10 +1,15 @@
 # Owns serialized, retryable LaunchAgent reconciliation. The JSON array is a
 # write-ahead ownership journal, not evidence inferred from installed files.
+# The journal (state.json) and persistent generation roots live under
+# .local/state/hjem/services in the configured home, beyond temporary build roots.
 # Intent precedes installation; successful operations are never rolled back.
 # Failed/deferred entries and desired intent retain their generation roots.
+# Changed serialized plist content triggers retirement and registration even
+# when restartOnSwitch is false; formatting-only differences count.
 # Crystal's stdlib supplies flock, tempfile, file fsync and same-directory
-# rename. No directory fsync is performed: full power-loss durability is not
-# guaranteed. launchctl is invoked without a shell; specs substitute a fake.
+# rename. The kernel lock is released when its file closes or the process exits.
+# No directory fsync is performed: full power-loss durability is not guaranteed.
+# launchctl is invoked without a shell; specs substitute a fake.
 require "json"
 require "file_utils"
 require "set"
@@ -32,8 +37,9 @@ module HjemServices
     property content : String
     property root : String
     property restart : Bool
+    # Older journals omit this field; execution uses the desired job's policy.
     @[JSON::Field(key: "runAtLoad")]
-    property run_at_load : Bool
+    property run_at_load : Bool = false
     property remove : Bool = false
     property retired : Bool? = nil
 
@@ -131,7 +137,7 @@ module HjemServices
 
     def atomic(path : Path, data : String)
       path = physical(path)
-      temp = File.tempfile(".hjem-", dir: path.parent.to_s)
+      temp = File.tempfile(".hjem", nil, dir: path.parent.to_s)
       begin
         temp.print(data)
         temp.flush
