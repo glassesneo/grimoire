@@ -7,7 +7,7 @@
   ...
 }: let
   # Each directory is a complete skill package named by its directory.
-  ownSkills = ["context-projection-design"];
+  ownSkills = ["context-projection-design" "parallax-bridge"];
   harnessDirs = [".agents/skills" ".claude/skills"];
 
   parts = dir: lib.splitString "/" dir;
