@@ -1,4 +1,5 @@
-// The actual Nix foreground release must retain fd9, while a Port child must not.
+// The actual Nix foreground release must retain fd9, while a Port child must not; two
+// `shield start` processes at once start one hub.
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { randomUUID } from "node:crypto";
 import { HubClient } from "../../client/protocol";
-import { startHub } from "../../client/shield";
+import { startHub } from "./support";
 
 const directory = mkdtempSync(join(tmpdir(), "shield-lock-"));
 const socket = join(directory, "hub.sock");

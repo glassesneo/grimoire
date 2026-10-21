@@ -6,7 +6,7 @@ import { type FauxResponseStep, fauxAssistantMessage } from "@earendil-works/pi-
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { keel } from "../api";
-import { call, type Harness, harness, send } from "./test-support";
+import { call, type Harness, harness, prompts, responded, tools } from "./test-support";
 
 let current: Harness | undefined;
 afterEach(async () => {
@@ -14,8 +14,11 @@ afterEach(async () => {
   current = undefined;
 });
 const start = async (options: Parameters<typeof harness>[0]) => (current = await harness(options));
-const texts = (h: Harness) => h.mirror.state!.items.map((item) => item.text);
-const phase = (h: Harness) => h.mirror.state!.run.phase;
+const phase = (h: Harness) => h.run().phase;
+/** Whether the tool call `name` ended in one of `states`. */
+const ended = (h: Harness, name: string, states: string[]) =>
+  tools(h, name).some((tool) => states.includes(tool.state));
+const send = (h: Harness, text: string) => h.submit(text);
 const sleep = Bun.sleep;
 
 /** The model's requests, by the last user or tool text each one ends with. */
@@ -45,17 +48,17 @@ test("a pause asked for while a tool runs lets it finish and holds the run befor
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  expect(await h.invoke("global.pause")).toMatchObject({ outcome: "done" });
+  expect(await h.action("global.pause")).toMatchObject({ outcome: "done" });
   expect(phase(h)).toBe("pausing");
   h.release();
   await h.until(() => phase(h) === "paused");
   await sleep(50);
   // The tool finished and its result is in; the model was not asked again.
-  expect(texts(h).some((t) => t.startsWith("wait") && t.includes("done"))).toBe(true);
+  expect(ended(h, "wait", ["done"])).toBe(true);
   expect(seen).toEqual(["user:go"]);
-  expect(h.runtime.session.isIdle).toBe(false);
-  expect(await h.invoke("global.resume")).toMatchObject({ outcome: "done" });
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
+  expect(h.driver.session.isIdle).toBe(false);
+  expect(await h.action("global.resume")).toMatchObject({ outcome: "done" });
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
   expect(seen).toEqual(["user:go", "toolResult:waited w1"]);
 });
 
@@ -71,15 +74,12 @@ test("a pause asked for while the model responds lets the response finish and ho
   });
   await send(h, "go");
   await h.until(() => phase(h) === "running");
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   await h.until(() => phase(h) === "paused");
   await sleep(50);
   expect(h.started).toEqual([]);
   // A sent prompt is queued as a follow-up and resumes the run.
-  expect(await send(h, "more")).toMatchObject({
-    outcome: "accepted",
-    detail: { disposition: "queued" },
-  });
+  expect(await send(h, "more")).toEqual({ outcome: "submitted", disposition: "queued" });
   await h.until(() => h.started.length === 1);
   expect(phase(h)).toBe("running");
   h.release();
@@ -107,15 +107,15 @@ test("a pause does not hold the calls a running tool makes", async () => {
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   h.release();
   // The script's second call starts although a pause was asked for.
   await h.until(() => h.started.length === 2);
   h.release();
   await h.until(() => phase(h) === "paused");
-  expect(texts(h).some((t) => t.startsWith("script") && t.includes("script done"))).toBe(true);
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
+  expect(tools(h, "script").some((tool) => tool.result?.text === "script done")).toBe(true);
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
 });
 
 test("a pause asked for while a tool waits for an answer holds once the answered tool finishes", async () => {
@@ -139,48 +139,26 @@ test("a pause asked for while a tool waits for an answer holds once the answered
     responses: [call("ask", "a1"), fauxAssistantMessage("after")],
   });
   await send(h, "go");
-  await h.until((m) => m.state!.requests.length === 1);
-  await h.invoke("global.pause");
+  await h.until(() => h.requests.size === 1);
+  await h.action("global.pause");
   expect(phase(h)).toBe("pausing");
-  const request = h.mirror.state!.requests[0]!;
-  const supplement = h.mirror.state!.drafts[request.destination]!;
-  await h.invoke("draft.set", {
-    destination: request.destination,
-    text: "because",
-    base: supplement.revision,
-  });
-  // A viewer cannot answer, an older supplement is refused, a wrong value too.
-  const answer = (args: object, connection = "a") =>
-    h.invoke("request.answer", { request: request.id, ...args }, connection);
-  expect(await answer({ value: "a", revision: supplement.revision + 1 }, "b")).toMatchObject({
-    code: "not_writer",
-  });
-  expect(await answer({ value: "a", revision: supplement.revision })).toMatchObject({
-    code: "stale_revision",
-  });
-  expect(await answer({ value: "c", revision: supplement.revision + 1 })).toMatchObject({
-    code: "invalid_answer",
-  });
-  expect(await answer({ value: "b", revision: supplement.revision + 1 })).toMatchObject({
-    outcome: "done",
-  });
-  expect(await answer({ value: "b", revision: supplement.revision + 1 })).toMatchObject({
-    code: "request_closed",
-  });
+  const [request] = [...h.requests.values()];
+  h.answer(request!.id, { status: "answered", value: "b", supplement: "because" });
+  await h.until(() => answers.length === 1);
   expect(answers).toEqual([{ status: "answered", value: "b", supplement: "because" }]);
   // The request was not cancelled for the pause, and answering it did not cancel the pause.
   await h.until(() => phase(h) === "paused");
   await sleep(50);
-  expect(texts(h)).not.toContain("after");
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
+  expect(responded(h, "after")).toBe(false);
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
 });
 
 test("answering a request while the run is paused resumes it", async () => {
   const asking: ExtensionFactory = (pi: ExtensionAPI) => {
-    pi.on("session_start", (_event, ctx) => {
+    pi.on("session_start", async (_event, ctx) => {
       const k = keel(ctx);
-      k.actions.register([
+      await k.actions.register([
         {
           id: "test.ask",
           class: "control",
@@ -196,15 +174,15 @@ test("answering a request while the run is paused resumes it", async () => {
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   h.release();
   await h.until(() => phase(h) === "paused");
-  await h.invoke("test.ask");
-  await h.until((m) => m.state!.requests.length === 1);
+  await h.action("test.ask");
+  await h.until(() => h.requests.size === 1);
   expect(phase(h)).toBe("paused");
-  const request = h.mirror.state!.requests[0]!;
-  await h.invoke("request.answer", { request: request.id, value: "Yes", revision: 0 });
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
+  const [request] = [...h.requests.values()];
+  h.answer(request!.id, { status: "answered", value: true, supplement: "" });
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
 });
 
 test("a prompt sent while a pause is still pending keeps the pause", async () => {
@@ -213,36 +191,14 @@ test("a prompt sent while a pause is still pending keeps the pause", async () =>
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.pause");
-  expect(await send(h, "more please")).toMatchObject({ detail: { disposition: "queued" } });
+  await h.action("global.pause");
+  expect(await send(h, "more please")).toEqual({ outcome: "submitted", disposition: "queued" });
   expect(phase(h)).toBe("pausing");
   h.release();
   await h.until(() => phase(h) === "paused");
-  expect(h.mirror.state!.queue.followUp).toEqual(["more please"]);
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("more"));
-});
-
-test("a draft is sent once, however often the same revision is sent", async () => {
-  const h = await start({
-    responses: [call("wait", "w1"), fauxAssistantMessage("after"), fauxAssistantMessage("x")],
-  });
-  await send(h, "go");
-  await h.until(() => h.started.length === 1);
-  const set = await h.invoke("draft.set", {
-    destination: "prompt",
-    text: "once",
-    base: h.mirror.state!.drafts.prompt!.revision,
-  });
-  const revision = (set as { detail: { revision: number } }).detail.revision;
-  const results = await Promise.all([
-    h.invoke("editor.submit", { destination: "prompt", revision }),
-    h.invoke("editor.submit", { destination: "prompt", revision }),
-  ]);
-  expect(results.map((r) => r.outcome).sort()).toEqual(["accepted", "rejected"]);
-  expect(h.mirror.state!.queue.followUp).toEqual(["once"]);
-  h.release();
-  await h.until(() => phase(h) === "idle");
+  expect(h.queue().followUp).toEqual(["more please"]);
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "more"));
 });
 
 test("stop ends the run even while an extension command holds the input", async () => {
@@ -256,23 +212,15 @@ test("stop ends the run even while an extension command holds the input", async 
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   h.release();
   await h.until(() => phase(h) === "paused");
   // The command waits for a run that waits for a resume.
-  const draft = await h.invoke("draft.set", {
-    destination: "prompt",
-    text: "/wait-idle",
-    base: h.mirror.state!.drafts.prompt!.revision,
-  });
-  void h.invoke("editor.submit", {
-    destination: "prompt",
-    revision: (draft as any).detail.revision,
-  });
+  void h.submit("/wait-idle");
   await sleep(50);
-  await h.invoke("global.stop");
-  await h.until(() => phase(h) === "idle" && h.runtime.session.isIdle);
-  expect(texts(h)).not.toContain("never");
+  await h.action("global.stop");
+  await h.until(() => phase(h) === "idle" && h.driver.session.isIdle);
+  expect(responded(h, "never")).toBe(false);
 });
 
 test("a sent prompt does not close or answer an open request", async () => {
@@ -294,17 +242,17 @@ test("a sent prompt does not close or answer an open request", async () => {
     responses: [call("ask", "a1"), fauxAssistantMessage("after"), fauxAssistantMessage("followed")],
   });
   await send(h, "go");
-  await h.until((m) => m.state!.requests.length === 1);
-  expect(await send(h, "and then")).toMatchObject({
-    outcome: "accepted",
-    detail: { disposition: "queued" },
-  });
+  await h.until(() => h.requests.size === 1);
+  expect(await send(h, "and then")).toEqual({ outcome: "submitted", disposition: "queued" });
   await sleep(50);
-  expect(h.mirror.state!.requests).toHaveLength(1);
-  const request = h.mirror.state!.requests[0]!;
-  await h.invoke("request.answer", { request: request.id, value: "Yes", revision: 0 });
-  await h.until(() => phase(h) === "idle" && texts(h).includes("followed"));
-  expect(texts(h).some((t) => t.includes('"value":true'))).toBe(true);
+  // Sending asked the model to close nothing.
+  expect(h.operations("cancel_request")).toEqual([]);
+  expect(h.operations("cancel_requests")).toEqual([]);
+  expect(h.requests.size).toBe(1);
+  const [request] = [...h.requests.values()];
+  h.answer(request!.id, { status: "answered", value: true, supplement: "" });
+  await h.until(() => phase(h) === "idle" && responded(h, "followed"));
+  expect(tools(h, "ask").some((tool) => tool.result?.text.includes('"value":true'))).toBe(true);
 });
 
 test("a pause holds an automatic retry before it asks the model again", async () => {
@@ -323,13 +271,13 @@ test("a pause holds an automatic retry before it asks the model again", async ()
     ),
   });
   await send(h, "go");
-  await h.until((m) => m.state!.run.retrying);
-  await h.invoke("global.pause");
+  await h.until(() => h.run().retrying);
+  await h.action("global.pause");
   await h.until(() => phase(h) === "paused");
   await sleep(150);
   expect(seen).toEqual(["user:go"]);
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("recovered"));
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "recovered"));
   expect(seen).toHaveLength(2);
 });
 
@@ -356,18 +304,20 @@ test("a pause asked for during compaction between turns holds the next request",
   await h.until(() => h.started.length === 1);
   h.release();
   await h.until(() => compacting);
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   await h.until(() => phase(h) === "paused");
   await sleep(50);
   // The model was asked for the summary, and not yet for the next response.
   expect(seen).toHaveLength(2);
   expect(seen[1]).toContain("checkpoint");
-  expect(texts(h).some((t) => t.startsWith("compacted (threshold)"))).toBe(true);
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
+  expect(
+    h.entries().some((entry) => entry.kind === "compaction" && entry.state === "completed"),
+  ).toBe(true);
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
 });
 
-test("stop releases a paused run, clears the queue and requests, and keeps the runtime", async () => {
+test("stop releases a paused run, clears the queue and requests, and keeps the driver", async () => {
   const asking: ExtensionFactory = (pi: ExtensionAPI) => {
     pi.on("session_start", (_event, ctx) => {
       pi.registerCommand("ask-later", {
@@ -387,28 +337,28 @@ test("stop releases a paused run, clears the queue and requests, and keeps the r
   await h.until(() => h.started.length === 1);
   await send(h, "queued one");
   await send(h, "/ask-later");
-  await h.until((m) => m.state!.queue.followUp.length === 1 && m.state!.requests.length === 1);
-  await h.invoke("global.pause");
+  await h.until(() => h.queue().followUp.length === 1 && h.requests.size === 1);
+  await h.action("global.pause");
   h.release();
   await h.until(() => phase(h) === "paused");
-  expect(await h.invoke("global.stop", undefined, "b")).toMatchObject({ outcome: "accepted" });
-  await h.until(() => phase(h) === "idle" && h.runtime.session.isIdle);
-  expect(h.mirror.state!.queue).toEqual({ steering: [], followUp: [] });
-  expect(h.mirror.state!.requests).toEqual([]);
+  expect(await h.action("global.stop", undefined, false)).toMatchObject({ outcome: "accepted" });
+  await h.until(() => phase(h) === "idle" && h.driver.session.isIdle);
+  expect(h.queue()).toEqual({ steering: [], followUp: [] });
+  expect(h.requests.size).toBe(0);
   expect(seen).toEqual(["user:go"]);
   // The session still works.
   await send(h, "again");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("again"));
+  await h.until(() => phase(h) === "idle" && responded(h, "again"));
 });
 
 test("stop aborts a tool that is running", async () => {
   const h = await start({ responses: [call("wait", "w1"), fauxAssistantMessage("never")] });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.stop");
-  await h.until(() => phase(h) === "idle" && h.runtime.session.isIdle);
-  expect(texts(h)).not.toContain("never");
-  expect(texts(h).some((t) => t.startsWith("wait") && /failed|unfinished/.test(t))).toBe(true);
+  await h.action("global.stop");
+  await h.until(() => phase(h) === "idle" && h.driver.session.isIdle);
+  expect(responded(h, "never")).toBe(false);
+  expect(ended(h, "wait", ["error", "unfinished"])).toBe(true);
 });
 
 /** An extension that queues a custom message while the run continues. */
@@ -438,23 +388,24 @@ test("taking every queued instruction into the prompt leaves extension messages 
   await send(h, "first");
   await send(h, "/note");
   await send(h, "second");
-  await h.until((m) => m.state!.queue.followUp.length === 2);
-  const base = h.mirror.state!.drafts.prompt!.revision;
-  await h.invoke("draft.set", { destination: "prompt", text: "draft to replace", base });
-  expect(await h.invoke("editor.queue_edit_all", undefined, "b")).toMatchObject({
-    code: "not_writer",
-  });
-  expect(await h.invoke("editor.queue_edit_all")).toMatchObject({
+  await h.until(() => h.queue().followUp.length === 2);
+  expect(await h.action("editor.queue_edit_all")).toMatchObject({
     outcome: "done",
     detail: { taken: 2 },
   });
-  expect(h.mirror.state!.drafts.prompt!.text).toBe("first\n\nsecond");
-  expect(h.mirror.state!.queue).toEqual({ steering: [], followUp: [] });
+  // The prompt draft is replaced, not added to.
+  expect(h.operations("set_draft")).toEqual([
+    { op: "set_draft", destination: "prompt", text: "first\n\nsecond" },
+  ]);
+  expect(h.operations("append_draft")).toEqual([]);
+  expect(h.queue()).toEqual({ steering: [], followUp: [] });
   h.release();
-  await h.until(() => phase(h) === "idle" && texts(h).includes("noted"));
+  await h.until(() => phase(h) === "idle" && responded(h, "noted"));
   // The instructions were not sent; the extension's message was.
   expect(seen.some((s) => s.includes("first"))).toBe(false);
-  expect(texts(h).some((t) => t.includes("extension note"))).toBe(true);
+  expect(
+    h.entries().some((entry) => entry.kind === "custom" && entry.text === "extension note"),
+  ).toBe(true);
 });
 
 test("sending every queued instruction again as steering delivers each once, before the next request", async () => {
@@ -470,21 +421,18 @@ test("sending every queued instruction again as steering delivers each once, bef
   await h.until(() => h.started.length === 1);
   await send(h, "first");
   await send(h, "second");
-  await h.until((m) => m.state!.queue.followUp.length === 2);
-  expect(await h.invoke("editor.queue_steer_all")).toMatchObject({
+  await h.until(() => h.queue().followUp.length === 2);
+  expect(await h.action("editor.queue_steer_all")).toMatchObject({
     outcome: "done",
     detail: { resent: 2 },
   });
-  expect(h.mirror.state!.queue).toEqual({ steering: ["first", "second"], followUp: [] });
+  expect(h.queue()).toEqual({ steering: ["first", "second"], followUp: [] });
   h.release();
   await h.until(() => phase(h) === "idle");
   // Steering reaches the model before its next request, one instruction a
   // request in Pi's default steering mode, each once.
   expect(seen).toEqual(["user:go", "user:first", "user:second"]);
-  expect(texts(h).filter((t) => t === "> first" || t === "> second")).toEqual([
-    "> first",
-    "> second",
-  ]);
+  expect(prompts(h).filter((t) => t === "first" || t === "second")).toEqual(["first", "second"]);
 });
 
 test("sending again runs Pi's input handlers again, so a transformation applies twice", async () => {
@@ -499,10 +447,10 @@ test("sending again runs Pi's input handlers again, so a transformation applies 
   await send(h, "go");
   await h.until(() => h.started.length === 1);
   await send(h, "first");
-  await h.until((m) => m.state!.queue.followUp.length === 1);
-  expect(h.mirror.state!.queue.followUp).toEqual(["T(first)"]);
-  await h.invoke("editor.queue_steer_all");
-  expect(h.mirror.state!.queue.steering).toEqual(["T(T(first))"]);
+  await h.until(() => h.queue().followUp.length === 1);
+  expect(h.queue().followUp).toEqual(["T(first)"]);
+  await h.action("editor.queue_steer_all");
+  expect(h.queue().steering).toEqual(["T(T(first))"]);
   h.release();
   await h.until(() => phase(h) === "idle");
 });
@@ -531,19 +479,30 @@ test("an instruction Pi refuses to take again is kept, its image included", asyn
   await send(h, "first");
   await send(h, "plain");
   await send(h, "/with-image");
-  await h.until((m) => m.state!.queue.followUp.length === 3);
+  await h.until(() => h.queue().followUp.length === 3);
   // Pi refuses the second instruction sent again, as it would a prompt it cannot take.
-  const session = h.runtime.session;
+  const session = h.driver.session;
   const prompt = session.prompt.bind(session);
   session.prompt = (text, options) =>
     text === "plain" ? Promise.reject(new Error("refused")) : prompt(text, options);
-  expect(await h.invoke("editor.queue_steer_all")).toMatchObject({ outcome: "rejected" });
+  expect(await h.action("editor.queue_steer_all")).toMatchObject({ outcome: "rejected" });
   session.prompt = prompt;
   // The text instruction waits in the prompt draft; the pictured one waits to be delivered.
-  expect(h.mirror.state!.drafts.prompt!.text).toBe("plain");
-  expect(texts(h).some((t) => t.includes("with images could not be sent again"))).toBe(true);
+  // Added to the end of the prompt draft, never replacing what the screen typed.
+  expect(h.operations("append_draft")).toEqual([
+    { op: "append_draft", destination: "prompt", text: "plain" },
+  ]);
+  expect(h.operations("set_draft")).toEqual([]);
+  expect(
+    h
+      .entries()
+      .some(
+        (entry) =>
+          entry.kind === "notice" && entry.text.includes("with images could not be sent again"),
+      ),
+  ).toBe(true);
   h.release();
-  await h.until(() => phase(h) === "idle" && texts(h).includes("later"));
+  await h.until(() => phase(h) === "idle" && responded(h, "later"));
   const delivered = JSON.stringify(session.messages);
   expect(delivered).toContain('"text":"first"');
   expect(delivered).toContain('"mimeType":"image/png"');
@@ -556,17 +515,17 @@ test("a held run keeps its queue for the queue operations", async () => {
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   await send(h, "queued");
   // The prompt resumed the run; pause again and hold it at the boundary.
-  await h.invoke("global.pause");
+  await h.action("global.pause");
   h.release();
   await h.until(() => phase(h) === "paused");
-  expect(h.mirror.state!.queue.followUp).toEqual(["queued"]);
-  expect(await h.invoke("editor.queue_edit_all")).toMatchObject({ detail: { taken: 1 } });
-  await h.invoke("global.resume");
-  await h.until(() => phase(h) === "idle" && texts(h).includes("after"));
-  expect(texts(h)).not.toContain("> queued");
+  expect(h.queue().followUp).toEqual(["queued"]);
+  expect(await h.action("editor.queue_edit_all")).toMatchObject({ detail: { taken: 1 } });
+  await h.action("global.resume");
+  await h.until(() => phase(h) === "idle" && responded(h, "after"));
+  expect(prompts(h)).not.toContain("queued");
 });
 
 test("compaction is refused while a run is active", async () => {
@@ -576,7 +535,7 @@ test("compaction is refused while a run is active", async () => {
   });
   await send(h, "go");
   await h.until(() => h.started.length === 1);
-  expect(await h.invoke("global.compact", {}, "b")).toMatchObject({ code: "not_idle" });
+  expect(await h.action("global.compact", {}, false)).toMatchObject({ code: "not_idle" });
   h.release();
   await h.until(() => phase(h) === "idle");
 });

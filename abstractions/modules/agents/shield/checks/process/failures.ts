@@ -4,7 +4,6 @@ import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type HubClient, type Envelope } from "../../client/protocol";
-import { startHub } from "../../client/shield";
 import { Mirror } from "../../keel/protocol/apply";
 import {
   alive,
@@ -14,6 +13,7 @@ import {
   finish,
   invoke,
   rawClient,
+  startHub,
   wait,
 } from "./support";
 const dir = mkdtempSync(join(tmpdir(), "shield-fail-")),
@@ -52,7 +52,7 @@ try {
   assert(brokenRoot.success);
   const brokenPid = Number(readFileSync(join(dir, "invalid-ignore.pid"), "utf8"));
   const bad = await broken.engine(brokenRoot.payload["agent-id"], invoke("emit"));
-  assert.equal(bad.error?.code, "acceptance_unknown");
+  assert.equal(bad.payload?.code, "acceptance_unknown");
   await wait(() =>
     lifecycles(events).some((r) => r.payload.detail?.error === "invalid_engine_frame"),
   );
@@ -164,7 +164,7 @@ try {
   await wait(() => !alive(pid));
   await fresh.hub("shutdown");
   console.log(
-    "failure checks passed: 60s startup deadline, malformed runtime frame, TERM/KILL, slow-reader isolation, unexpected exit/no replacement, consistent ends",
+    "failure checks passed: 60s startup deadline, malformed driver frame, TERM/KILL, slow-reader isolation, unexpected exit/no replacement, consistent ends",
   );
 } catch (e) {
   try {

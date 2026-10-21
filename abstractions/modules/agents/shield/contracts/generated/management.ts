@@ -1,0 +1,642 @@
+// Generated from contracts/management.tsp by `just shield-contracts`; do not edit.
+export default {
+  $comment: "Generated from contracts/management.tsp by `just shield-contracts`; do not edit.",
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "ManagementContract.json",
+  type: "object",
+  properties: {
+    request: {
+      $ref: "#/$defs/Request",
+    },
+    record: {
+      $ref: "#/$defs/HubRecord",
+    },
+    attachPayload: {
+      $ref: "#/$defs/AttachPayload",
+    },
+    attachResult: {
+      $ref: "#/$defs/AttachResult",
+    },
+    stopPayload: {
+      $ref: "#/$defs/StopPayload",
+    },
+    pingResult: {
+      $ref: "#/$defs/PingResult",
+    },
+    listResult: {
+      type: "array",
+      items: {
+        $ref: "#/$defs/AgentSummary",
+      },
+    },
+    takeWriteResult: {
+      $ref: "#/$defs/TakeWriteResult",
+    },
+    empty: {
+      $ref: "#/$defs/Empty",
+    },
+  },
+  required: [
+    "request",
+    "record",
+    "attachPayload",
+    "attachResult",
+    "stopPayload",
+    "pingResult",
+    "listResult",
+    "takeWriteResult",
+    "empty",
+  ],
+  unevaluatedProperties: false,
+  description: "Every shape of the contract, reachable from one document.",
+  $defs: {
+    Request: {
+      anyOf: [
+        {
+          $ref: "#/$defs/HubRequest",
+        },
+        {
+          $ref: "#/$defs/EngineRequest",
+        },
+      ],
+    },
+    HubRecord: {
+      anyOf: [
+        {
+          $ref: "#/$defs/Response",
+        },
+        {
+          $ref: "#/$defs/SnapshotRecord",
+        },
+        {
+          $ref: "#/$defs/EventRecord",
+        },
+        {
+          $ref: "#/$defs/ManagementRecord",
+        },
+        {
+          $ref: "#/$defs/AgentFailedRecord",
+        },
+      ],
+      description: "A record the hub sends a connection.",
+    },
+    AttachPayload: {
+      type: "object",
+      properties: {
+        cwd: {
+          type: "string",
+          description: "An existing absolute directory.",
+        },
+        harness: {
+          type: "string",
+        },
+        selection: {
+          $ref: "#/$defs/Selection",
+        },
+        options: {
+          $ref: "#/$defs/RecordUnknown",
+          description: "The engine's attach options.",
+        },
+      },
+      required: ["cwd", "harness", "selection", "options"],
+      unevaluatedProperties: false,
+      description: "`attach`'s payload.",
+    },
+    AttachResult: {
+      type: "object",
+      properties: {
+        "agent-id": {
+          type: "string",
+        },
+        connection: {
+          type: "string",
+        },
+      },
+      required: ["agent-id", "connection"],
+      unevaluatedProperties: false,
+    },
+    StopPayload: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+        },
+      },
+      required: ["id"],
+      unevaluatedProperties: false,
+      description: "`stop`'s payload.",
+    },
+    PingResult: {
+      type: "object",
+      properties: {
+        "hub-instance": {
+          type: "string",
+        },
+        "hub-pid": {
+          type: "string",
+        },
+      },
+      required: ["hub-instance", "hub-pid"],
+      unevaluatedProperties: false,
+    },
+    AgentSummary: {
+      type: "object",
+      properties: {
+        "agent-id": {
+          type: "string",
+        },
+        cwd: {
+          type: "string",
+        },
+        harness: {
+          type: "string",
+        },
+        engine: {
+          type: "string",
+        },
+        state: {
+          $ref: "#/$defs/Lifecycle",
+        },
+        "parent-id": {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+      },
+      required: ["agent-id", "cwd", "harness", "engine", "state", "parent-id"],
+      unevaluatedProperties: false,
+    },
+    TakeWriteResult: {
+      type: "object",
+      properties: {
+        connection: {
+          type: "string",
+        },
+        epoch: {
+          type: "integer",
+        },
+      },
+      required: ["connection", "epoch"],
+      unevaluatedProperties: false,
+    },
+    Empty: {
+      type: "object",
+      properties: {},
+      unevaluatedProperties: false,
+      description: "The payload of `stop`'s and `shutdown`'s success.",
+    },
+    HubRequest: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "hub_request",
+        },
+        id: {
+          type: "string",
+          description: "Unique among the connection's unresolved requests.",
+        },
+        "agent-id": {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+          description: "The agent a method concerns, such as `take_write`'s; null for the others.",
+        },
+        engine: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+          description: "The engine the request means; absent or null means the hub's default.",
+        },
+        method: {
+          type: "string",
+        },
+        payload: {
+          $ref: "#/$defs/RecordUnknown",
+        },
+      },
+      required: ["v", "type", "id", "agent-id", "method", "payload"],
+      unevaluatedProperties: false,
+      description: "Requests the hub answers itself.",
+    },
+    EngineRequest: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "engine_request",
+        },
+        id: {
+          type: "string",
+        },
+        "agent-id": {
+          type: "string",
+        },
+        engine: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+        payload: {
+          $ref: "#/$defs/RecordUnknown",
+        },
+      },
+      required: ["v", "type", "id", "agent-id", "payload"],
+      unevaluatedProperties: false,
+      description: "A request the agent's engine answers.",
+    },
+    Response: {
+      anyOf: [
+        {
+          $ref: "#/$defs/Success",
+        },
+        {
+          $ref: "#/$defs/Failure",
+        },
+      ],
+    },
+    SnapshotRecord: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "snapshot",
+        },
+        "agent-id": {
+          type: "string",
+        },
+        engine: {
+          type: "string",
+        },
+        "hub-instance": {
+          type: "string",
+        },
+        connection: {
+          type: "string",
+          description: "The receiving connection's name, as writers are named.",
+        },
+        lifecycle: {
+          $ref: "#/$defs/Lifecycle",
+        },
+        writer: {
+          $ref: "#/$defs/Writer",
+        },
+        payload: {},
+      },
+      required: [
+        "v",
+        "type",
+        "agent-id",
+        "engine",
+        "hub-instance",
+        "connection",
+        "lifecycle",
+        "writer",
+        "payload",
+      ],
+      unevaluatedProperties: false,
+      description: "Delivers the engine's snapshot to the connection that subscribed.",
+    },
+    EventRecord: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "event",
+        },
+        "agent-id": {
+          type: "string",
+        },
+        engine: {
+          type: "string",
+        },
+        payload: {},
+      },
+      required: ["v", "type", "agent-id", "engine", "payload"],
+      unevaluatedProperties: false,
+      description: "A state event of the engine, for live subscribers.",
+    },
+    ManagementRecord: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "management",
+        },
+        "agent-id": {
+          type: "string",
+        },
+        engine: {
+          type: "string",
+        },
+        "hub-instance": {
+          type: "string",
+        },
+        payload: {
+          $ref: "#/$defs/ManagementPayload",
+        },
+      },
+      required: ["v", "type", "agent-id", "engine", "hub-instance", "payload"],
+      unevaluatedProperties: false,
+      description: "The hub's news about an agent, for every subscriber.",
+    },
+    AgentFailedRecord: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "agent_failed",
+        },
+        "agent-id": {
+          type: "string",
+        },
+        engine: {
+          type: "null",
+        },
+        error: {
+          $ref: "#/$defs/ErrorDetail",
+        },
+      },
+      required: ["v", "type", "agent-id", "engine", "error"],
+      unevaluatedProperties: false,
+      description:
+        "The agent's state owner crashed; its unresolved requests are answered with this code.",
+    },
+    Selection: {
+      type: "object",
+      properties: {
+        kind: {
+          anyOf: [
+            {
+              type: "string",
+              const: "cwd",
+            },
+            {
+              type: "string",
+              const: "identity",
+            },
+          ],
+          description:
+            "`cwd` joins the newest live agent of the directory; `identity` reserves `key`.",
+        },
+        key: {
+          type: "string",
+        },
+      },
+      required: ["kind", "key"],
+      unevaluatedProperties: false,
+    },
+    RecordUnknown: {
+      type: "object",
+      properties: {},
+      unevaluatedProperties: {},
+    },
+    Lifecycle: {
+      anyOf: [
+        {
+          type: "string",
+          const: "starting",
+        },
+        {
+          type: "string",
+          const: "ready",
+        },
+        {
+          type: "string",
+          const: "stopping",
+        },
+        {
+          type: "string",
+          const: "exited",
+        },
+        {
+          type: "string",
+          const: "failed",
+        },
+      ],
+    },
+    Success: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "response",
+        },
+        id: {
+          type: "string",
+        },
+        "agent-id": {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+        engine: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+        success: {
+          type: "boolean",
+          const: true,
+        },
+        payload: {},
+      },
+      required: ["v", "type", "id", "agent-id", "engine", "success", "payload"],
+      unevaluatedProperties: false,
+    },
+    Failure: {
+      type: "object",
+      properties: {
+        v: {
+          type: "number",
+          const: 1,
+        },
+        type: {
+          type: "string",
+          const: "response",
+        },
+        id: {
+          description: "The request's id as it was sent, which an invalid request may lack.",
+        },
+        "agent-id": {},
+        engine: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+        success: {
+          type: "boolean",
+          const: false,
+        },
+        error: {
+          $ref: "#/$defs/ErrorDetail",
+        },
+        payload: {
+          description: "The engine's detail, when it gives one.",
+        },
+      },
+      required: ["v", "type", "id", "agent-id", "engine", "success", "error"],
+      unevaluatedProperties: false,
+    },
+    Writer: {
+      type: "object",
+      properties: {
+        connection: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+          description: "The connection that may write; null when nobody may.",
+        },
+        epoch: {
+          type: "integer",
+          description: "The number of writer changes so far.",
+        },
+      },
+      required: ["connection", "epoch"],
+      unevaluatedProperties: false,
+    },
+    ManagementPayload: {
+      anyOf: [
+        {
+          $ref: "#/$defs/LifecycleChange",
+        },
+        {
+          $ref: "#/$defs/WriterChange",
+        },
+      ],
+    },
+    ErrorDetail: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+        },
+      },
+      required: ["code"],
+      unevaluatedProperties: false,
+    },
+    LifecycleChange: {
+      type: "object",
+      properties: {
+        op: {
+          type: "string",
+          const: "lifecycle",
+        },
+        state: {
+          $ref: "#/$defs/Lifecycle",
+        },
+        detail: {
+          $ref: "#/$defs/LifecycleDetail",
+        },
+      },
+      required: ["op", "state", "detail"],
+      unevaluatedProperties: false,
+    },
+    WriterChange: {
+      type: "object",
+      properties: {
+        op: {
+          type: "string",
+          const: "writer",
+        },
+        connection: {
+          anyOf: [
+            {
+              type: "string",
+            },
+            {
+              type: "null",
+            },
+          ],
+        },
+        epoch: {
+          type: "integer",
+        },
+      },
+      required: ["op", "connection", "epoch"],
+      unevaluatedProperties: false,
+    },
+    LifecycleDetail: {
+      type: "object",
+      properties: {
+        error: {
+          type: "string",
+          description: "The failure's code.",
+        },
+        exitCode: {
+          type: "integer",
+          description: "The engine process's exit status.",
+        },
+      },
+      unevaluatedProperties: false,
+    },
+  },
+} as const;

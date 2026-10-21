@@ -117,7 +117,7 @@ function TextareaEngine(props: EditorViewProps): JSX.Element {
 
 /**
  * The editor region's engine. An engine owns the caret, selection, IME, and
- * undo, and shows the text it is given; the draft itself is the runtime's.
+ * undo, and shows the text it is given; the draft itself is the model's.
  * It reports every edit and the caret through the callbacks, measures its
  * height, and receives only keys the screen did not resolve to an action.
  * The built-in engine is the OpenTUI textarea.

@@ -16,6 +16,8 @@ bun2nix.mkDerivation {
       ../bun.lock
       ../bunfig.toml
       ../tsconfig.json
+      ../contracts/cases.json
+      ../contracts/state.json
       (pkgs.lib.fileset.fileFilter (file: pkgs.lib.any file.hasExt ["ts" "tsx" "js" "jsx" "mjs" "cjs"]) ./..)
     ];
   };

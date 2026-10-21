@@ -2,7 +2,7 @@
  * What this screen's stage has selected: a request, an assist, or nothing, in
  * which case the editor shows the prompt. The selection and the cursor among
  * a request's options or an assist's candidates are this screen's alone; the
- * requests, assists, and their drafts are the runtime's. A new request never
+ * requests, assists, and their drafts are the model's. A new request never
  * changes the selection; a selected request that closes leaves the stage on
  * nothing.
  */
@@ -37,9 +37,10 @@ export class StageModel extends Emitter {
     );
   }
 
-  /** The draft the editor shows. */
-  destination(): string {
-    return this.selected()?.info.destination ?? PROMPT;
+  /** The draft the editor shows; undefined for a request that takes no supplement. */
+  destination(): string | undefined {
+    const selected = this.selected();
+    return selected ? selected.info.destination : PROMPT;
   }
 
   /** Drops a selection whose target closed. */

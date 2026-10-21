@@ -1,0 +1,5774 @@
+{
+ "$comment": "Captured from keel/runtime/timeline.ts of commit 66d659e, the last TypeScript model, with one read-only getter added to Timeline (`get entries() { return this.#entries; }`), by the script in `capture`: save it as keel/runtime/capture-projection.ts in that tree and run `bun keel/runtime/capture-projection.ts` from the shield directory. Each step lists the entries that changed, in the driver's Entry form, `order` when an entry was not appended, and what Timeline.publish returned: every item, the ids of changed items, and whether the order changed. Tool extras are the decorator's results the old projection computed.",
+ "capture": "/**\n * Captures the projection's expectations from the TypeScript timeline before the model moves\n * to Elixir: fixed Pi events go through `Timeline.reduce`, and after each step the entries\n * that changed, as the keel contract's Entry, and `Timeline.publish`'s items, changed ids,\n * and order are written to hub/test/fixtures/projection.json. Ids, times, and content are\n * fixed by the cases themselves.\n *\n * Run from the shield directory: bun keel/runtime/capture-projection.ts\n */\nimport { readFileSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { Timeline, type TimelineEvent } from \"./timeline\";\n\ntype Step =\n  | { events: TimelineEvent[] }\n  | { notice: { level: \"info\" | \"warning\" | \"error\"; text: string } }\n  | { decorate: { tool: string; owner: string } }\n  | { undecorate: { tool: string; owner: string } };\n\nconst ev = (event: unknown) => event as TimelineEvent;\nconst assistant = (content: unknown[], extra: Record<string, unknown> = {}) => ({\n  role: \"assistant\",\n  content,\n  ...extra,\n});\nconst text = (value: string) => ({ type: \"text\", text: value });\nconst thinking = (value: string, extra: Record<string, unknown> = {}) => ({\n  type: \"thinking\",\n  thinking: value,\n  ...extra,\n});\nconst toolCall = (id: string, name: string, args: unknown) => ({\n  type: \"toolCall\",\n  id,\n  name,\n  arguments: args,\n});\nconst update = (message: unknown) => ev({ type: \"message_update\", message });\nconst end = (message: unknown) => ev({ type: \"message_end\", message });\nconst start = (message: unknown) => ev({ type: \"message_start\", message });\nconst user = (content: unknown) =>\n  start({ role: \"user\", content: typeof content === \"string\" ? [text(content)] : content });\n\n/** A decorator whose result depends only on its own tool, as keel's codemode decorator does. */\nconst decorator = (tool: { args: { available: boolean; value?: unknown }; state: string; result?: { text: string } }) => ({\n  state: tool.state,\n  code:\n    tool.args.available && typeof (tool.args.value as { code?: unknown })?.code === \"string\"\n      ? (tool.args.value as { code: string }).code\n      : null,\n  output: tool.result?.text ?? null,\n});\n\nconst cases: Record<string, Step[]> = {\n  \"streamed response with thinking and fences\": [\n    { events: [user(\"explain\"), start(assistant([]))] },\n    { events: [update(assistant([thinking(\"Let me\")]))] },\n    { events: [update(assistant([thinking(\"Let me think.\"), text(\"Here:\\n\\n```ts\\nconst a\")]))] },\n    {\n      events: [\n        update(assistant([thinking(\"Let me think.\"), text(\"Here:\\n\\n```ts\\nconst a = 1;\\n```\\n\\nand ~~~\\nraw\")])),\n      ],\n    },\n    // An update that changes nothing publishes nothing.\n    {\n      events: [\n        update(assistant([thinking(\"Let me think.\"), text(\"Here:\\n\\n```ts\\nconst a = 1;\\n```\\n\\nand ~~~\\nraw\")])),\n      ],\n    },\n    {\n      events: [\n        update(\n          assistant([\n            thinking(\"Let me think.\"),\n            text(\"Here:\\n\\n```ts\\nconst a = 1;\\n```\\n\\n\\n\\n````md\\n```\\nnested\\n```\\n````\\nDone.\"),\n          ]),\n        ),\n      ],\n    },\n    {\n      events: [\n        end(\n          assistant(\n            [\n              thinking(\"Let me think.\"),\n              text(\"Here:\\n\\n```ts\\nconst a = 1;\\n```\\n\\n\\n\\n````md\\n```\\nnested\\n```\\n````\\nDone.\"),\n            ],\n            { stopReason: \"stop\" },\n          ),\n        ),\n        ev({ type: \"agent_settled\" }),\n      ],\n    },\n  ],\n  \"withheld thinking, user images, and stop reasons\": [\n    {\n      events: [\n        user([text(\"look\"), { type: \"image\", data: \"iVBORw0KGgo=\", mimeType: \"image/png\" }]),\n        start(assistant([thinking(\"\", { thinkingSignature: \"sig\" }), thinking(\"x\", { redacted: true })])),\n      ],\n    },\n    { events: [end(assistant([thinking(\"\", { thinkingSignature: \"sig\" })], { stopReason: \"length\" }))] },\n    { events: [ev({ type: \"agent_settled\" }), user(\"again\"), start(assistant([]))] },\n    {\n      events: [\n        end(assistant([], { stopReason: \"error\", errorMessage: \"overloaded_error: Overloaded\" })),\n        ev({ type: \"agent_settled\" }),\n      ],\n    },\n    { events: [user(\"third\"), start(assistant([text(\"partial\")]))] },\n    { events: [end(assistant([text(\"partial\")], { stopReason: \"aborted\" })), ev({ type: \"agent_settled\" })] },\n  ],\n  \"tools, results, nested calls, and a decorator\": [\n    { decorate: { tool: \"codemode\", owner: \"codemode\" } },\n    { events: [user(\"run\"), start(assistant([text(\"Running.\")]))] },\n    {\n      events: [\n        update(\n          assistant([\n            text(\"Running.\"),\n            toolCall(\"c1\", \"bash\", { command: \"ls\", timeout: 5 }),\n            toolCall(\"c2\", \"codemode\", { code: \"await tools.read({})\" }),\n          ]),\n        ),\n      ],\n    },\n    {\n      events: [\n        end(\n          assistant(\n            [\n              text(\"Running.\"),\n              toolCall(\"c1\", \"bash\", { command: \"ls -la\", timeout: 5 }),\n              toolCall(\"c2\", \"codemode\", { code: \"await tools.read({})\" }),\n            ],\n            { stopReason: \"toolUse\" },\n          ),\n        ),\n        ev({ type: \"tool_execution_start\", toolCallId: \"c1\", toolName: \"bash\", args: { command: \"ls -la\", timeout: 5 } }),\n      ],\n    },\n    {\n      events: [\n        ev({\n          type: \"tool_execution_update\",\n          toolCallId: \"c1\",\n          partialResult: { content: [text(\"a\\nb\")], details: { exit: null } },\n        }),\n        ev({\n          type: \"tool_execution_start\",\n          toolCallId: \"c2\",\n          toolName: \"codemode\",\n          args: { code: \"await tools.read({})\" },\n        }),\n      ],\n    },\n    {\n      events: [\n        ev({\n          type: \"tool_execution_start\",\n          toolCallId: \"n1\",\n          toolName: \"read\",\n          args: { path: \"a\" },\n          parentToolCallId: \"c2\",\n        }),\n        ev({\n          type: \"tool_execution_end\",\n          toolCallId: \"c1\",\n          result: { content: [text(\"a\\nb\\nc\"), { type: \"image\", data: \"AAAA\", mimeType: \"image/jpeg\" }], details: { exit: 0 } },\n          isError: false,\n        }),\n      ],\n    },\n    {\n      events: [\n        ev({\n          type: \"tool_execution_start\",\n          toolCallId: \"n2\",\n          toolName: \"grep\",\n          args: { pattern: \"x\" },\n          parentToolCallId: \"n1\",\n        }),\n        ev({ type: \"tool_execution_update\", toolCallId: \"n1\", partialResult: \"reading\", parentToolCallId: \"c2\" }),\n      ],\n    },\n    {\n      events: [\n        ev({ type: \"tool_execution_end\", toolCallId: \"n2\", result: [\"not content\"], isError: true, parentToolCallId: \"n1\" }),\n        ev({ type: \"tool_execution_end\", toolCallId: \"n1\", result: \"file a\", isError: false, parentToolCallId: \"c2\" }),\n      ],\n    },\n    {\n      events: [\n        end({ role: \"toolResult\", toolCallId: \"c2\", content: [text(\"Script completed\")], details: { calls: 2 }, isError: false }),\n      ],\n    },\n    { notice: { level: \"info\", text: \"after the script\" } },\n    {\n      events: [\n        ev({\n          type: \"tool_execution_start\",\n          toolCallId: \"n3\",\n          toolName: \"read\",\n          args: { path: \"late\" },\n          parentToolCallId: \"c2\",\n        }),\n      ],\n    },\n    { undecorate: { tool: \"codemode\", owner: \"codemode\" } },\n    {\n      events: [\n        start(assistant([toolCall(\"c3\", \"write\", { content: \"x\", path: \"b\" })])),\n        end(assistant([toolCall(\"c3\", \"write\", { content: \"x\", path: \"b\" })], { stopReason: \"toolUse\" })),\n        ev({ type: \"agent_settled\" }),\n      ],\n    },\n  ],\n  \"a response whose text arrives after its tool started\": [\n    { events: [user(\"go\"), ev({ type: \"tool_execution_start\", toolCallId: \"t1\", toolName: \"read\", args: { path: \"x\" } })] },\n    { events: [update(assistant([text(\"Reading first.\")]))] },\n    { events: [update(assistant([text(\"Reading first.\"), toolCall(\"t1\", \"read\", { path: \"x\" })]))] },\n    { events: [ev({ type: \"tool_execution_end\", toolCallId: \"t1\", result: { content: \"done\" }, isError: false })] },\n    { events: [end(assistant([text(\"Reading first.\"), toolCall(\"t1\", \"read\", { path: \"x\" })], { stopReason: \"toolUse\" })), ev({ type: \"agent_settled\" })] },\n  ],\n  \"compaction, retries, custom messages, settings, and notices\": [\n    { notice: { level: \"warning\", text: \"extension x: something\" } },\n    { events: [ev({ type: \"compaction_start\", reason: \"threshold\" })] },\n    {\n      events: [\n        ev({\n          type: \"compaction_end\",\n          reason: \"threshold\",\n          result: { summary: \"the history so far\", tokensBefore: 1234 },\n          aborted: false,\n        }),\n      ],\n    },\n    { events: [ev({ type: \"compaction_end\", reason: \"overflow\", aborted: false, errorMessage: \"no model\" })] },\n    { events: [ev({ type: \"compaction_start\", reason: \"manual\" }), ev({ type: \"compaction_end\", reason: \"manual\", aborted: true })] },\n    {\n      events: [\n        ev({ type: \"auto_retry_start\", attempt: 1, maxAttempts: 3, delayMs: 50, errorMessage: \"overloaded\" }),\n      ],\n    },\n    { events: [ev({ type: \"agent_start\" })] },\n    {\n      events: [\n        ev({ type: \"auto_retry_start\", attempt: 2, maxAttempts: 3, delayMs: 100, errorMessage: \"overloaded again\" }),\n      ],\n    },\n    { events: [ev({ type: \"auto_retry_end\", success: false, finalError: \"gave up\" })] },\n    {\n      events: [\n        ev({ type: \"summarization_retry_scheduled\", attempt: 1, maxAttempts: 2, delayMs: 10, errorMessage: \"summary failed\" }),\n        ev({ type: \"summarization_retry_attempt_start\" }),\n      ],\n    },\n    { events: [ev({ type: \"summarization_retry_finished\" })] },\n    {\n      events: [\n        ev({ type: \"auto_retry_start\", attempt: 1, maxAttempts: 2, delayMs: 5, errorMessage: \"blip\" }),\n        ev({ type: \"auto_retry_end\", success: true }),\n      ],\n    },\n    {\n      events: [\n        end({ role: \"custom\", customType: \"note\", content: \"a note\", display: true, details: { n: 1 } }),\n        end({ role: \"custom\", customType: \"hidden\", content: \"unseen\", display: false }),\n        end({ role: \"custom\", customType: \"blocks\", content: [text(\"one\"), text(\"two\")], display: true }),\n      ],\n    },\n    {\n      events: [\n        ev({ type: \"thinking_level_changed\", level: \"high\" }),\n        ev({ type: \"model_changed\", previous: \"a/one\", model: \"b/two\" }),\n        ev({ type: \"model_changed\", previous: undefined, model: \"b/two\" }),\n      ],\n    },\n    { notice: { level: \"info\", text: \"fine\" } },\n    { notice: { level: \"error\", text: \"broken\" } },\n  ],\n};\n\ninterface Captured {\n  entries: Record<string, unknown>[];\n  order?: string[];\n  items: unknown[];\n  changed: string[];\n  reorder: boolean;\n}\n\n/** An old entry as the keel contract's Entry; its tool extras come from the projected item. */\nfunction asEntry(entry: Record<string, unknown>, items: Map<string, { data: Record<string, unknown> }>) {\n  const { scope: _, content: __, ...rest } = entry;\n  const wire = JSON.parse(JSON.stringify(rest)) as Record<string, unknown>;\n  if (entry.kind === \"tool\") {\n    const extra = items.get(entry.id as string)?.data.extra;\n    if (extra !== undefined) wire.extra = extra;\n  }\n  return wire;\n}\n\nconst output: { name: string; steps: Captured[] }[] = [];\nfor (const [name, steps] of Object.entries(cases)) {\n  const timeline = new Timeline({ model: \"a/one\", thinking: \"medium\" });\n  const removers = new Map<string, () => void>();\n  let previous = new Map<string, string>();\n  let previousOrder: string[] = [];\n  const captured: Captured[] = [];\n  for (const step of steps) {\n    if (\"events\" in step) for (const event of step.events) timeline.reduce(event);\n    else if (\"notice\" in step) timeline.notice(step.notice.level, step.notice.text);\n    else if (\"decorate\" in step)\n      removers.set(\n        `${step.decorate.tool}/${step.decorate.owner}`,\n        timeline.decorate(step.decorate.tool, step.decorate.owner, decorator as never),\n      );\n    else removers.get(`${step.undecorate.tool}/${step.undecorate.owner}`)?.();\n    const published = timeline.publish();\n    const items = new Map(published.items.map((item) => [item.id, item as never]));\n    const entries = timeline.entries.map((entry) => asEntry(entry as never, items));\n    const ids = entries.map((entry) => entry.id as string);\n    const changed = entries.filter((entry) => previous.get(entry.id as string) !== JSON.stringify(entry));\n    const appended = [...previousOrder, ...ids.filter((id) => !previousOrder.includes(id))];\n    const inOrder = appended.length === ids.length && appended.every((id, index) => id === ids[index]);\n    captured.push({\n      entries: changed,\n      ...(inOrder ? {} : { order: ids }),\n      items: JSON.parse(JSON.stringify(published.items)),\n      changed: published.changed.map((item) => item.id),\n      reorder: published.order !== undefined,\n    });\n    previous = new Map(entries.map((entry) => [entry.id as string, JSON.stringify(entry)]));\n    previousOrder = ids;\n  }\n  output.push({ name, steps: captured });\n}\n\nwriteFileSync(\n  join(import.meta.dir, \"../../hub/test/fixtures/projection.json\"),\n  `${JSON.stringify(\n    {\n      $comment:\n        \"Captured from keel/runtime/timeline.ts of commit 66d659e, the last TypeScript model, with one read-only getter added to Timeline (`get entries() { return this.#entries; }`), by the script in `capture`: save it as keel/runtime/capture-projection.ts in that tree and run `bun keel/runtime/capture-projection.ts` from the shield directory. Each step lists the entries that changed, in the driver's Entry form, `order` when an entry was not appended, and what Timeline.publish returned: every item, the ids of changed items, and whether the order changed. Tool extras are the decorator's results the old projection computed.\",\n      capture: readFileSync(import.meta.path, \"utf8\"),\n      cases: output,\n    },\n    null,\n    1,\n  )}\\n`,\n);\n\n",
+ "cases": [
+  {
+   "name": "streamed response with thinking and fences",
+   "steps": [
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-0",
+       "version": 0,
+       "text": "explain",
+       "images": []
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      }
+     ],
+     "changed": [
+      "user-0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 0,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "Let me",
+         "withheld": false
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 2,
+       "kind": "response",
+       "text": "thinking…",
+       "data": {
+        "thinking": "Let me",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "",
+        "streaming": true
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking\nLet me",
+       "data": {
+        "text": "Let me",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me",
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:thinking:0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 1,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "Let me think.",
+         "withheld": false
+        },
+        {
+         "type": "text",
+         "text": "Here:\n\n```ts\nconst a"
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 4,
+       "kind": "response",
+       "text": "Here:\n\n```ts\nconst a",
+       "data": {
+        "thinking": "Let me think.",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "Here:\n\n```ts\nconst a",
+        "streaming": true
+       },
+       "source": "Here:\n\n```ts\nconst a"
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 5,
+       "kind": "thinking",
+       "text": "thinking\nLet me think.",
+       "data": {
+        "text": "Let me think.",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me think.",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:text:1:part:0",
+       "version": 6,
+       "kind": "prose",
+       "text": "Here:\n",
+       "data": {
+        "text": "Here:\n",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Here:\n"
+      },
+      {
+       "id": "response-1:text:1:part:1",
+       "version": 7,
+       "kind": "code",
+       "text": "```ts\nconst a",
+       "data": {
+        "language": "ts",
+        "body": "const a",
+        "sourceText": "```ts\nconst a",
+        "open": true
+       },
+       "parentId": "response-1",
+       "source": "```ts\nconst a"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:thinking:0",
+      "response-1:text:1:part:0",
+      "response-1:text:1:part:1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 2,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "Let me think.",
+         "withheld": false
+        },
+        {
+         "type": "text",
+         "text": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw"
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 8,
+       "kind": "response",
+       "text": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw",
+       "data": {
+        "thinking": "Let me think.",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw",
+        "streaming": true
+       },
+       "source": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw"
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 5,
+       "kind": "thinking",
+       "text": "thinking\nLet me think.",
+       "data": {
+        "text": "Let me think.",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me think.",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:text:1:part:0",
+       "version": 6,
+       "kind": "prose",
+       "text": "Here:\n",
+       "data": {
+        "text": "Here:\n",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Here:\n"
+      },
+      {
+       "id": "response-1:text:1:part:1",
+       "version": 9,
+       "kind": "code",
+       "text": "```ts\nconst a = 1;\n```",
+       "data": {
+        "language": "ts",
+        "body": "const a = 1;",
+        "sourceText": "```ts\nconst a = 1;\n```",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "```ts\nconst a = 1;\n```"
+      },
+      {
+       "id": "response-1:text:1:part:2",
+       "version": 10,
+       "kind": "prose",
+       "text": "\nand ~~~\nraw",
+       "data": {
+        "text": "\nand ~~~\nraw",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "\nand ~~~\nraw"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:1:part:1",
+      "response-1:text:1:part:2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 8,
+       "kind": "response",
+       "text": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw",
+       "data": {
+        "thinking": "Let me think.",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw",
+        "streaming": true
+       },
+       "source": "Here:\n\n```ts\nconst a = 1;\n```\n\nand ~~~\nraw"
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 5,
+       "kind": "thinking",
+       "text": "thinking\nLet me think.",
+       "data": {
+        "text": "Let me think.",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me think.",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:text:1:part:0",
+       "version": 6,
+       "kind": "prose",
+       "text": "Here:\n",
+       "data": {
+        "text": "Here:\n",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Here:\n"
+      },
+      {
+       "id": "response-1:text:1:part:1",
+       "version": 9,
+       "kind": "code",
+       "text": "```ts\nconst a = 1;\n```",
+       "data": {
+        "language": "ts",
+        "body": "const a = 1;",
+        "sourceText": "```ts\nconst a = 1;\n```",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "```ts\nconst a = 1;\n```"
+      },
+      {
+       "id": "response-1:text:1:part:2",
+       "version": 10,
+       "kind": "prose",
+       "text": "\nand ~~~\nraw",
+       "data": {
+        "text": "\nand ~~~\nraw",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "\nand ~~~\nraw"
+      }
+     ],
+     "changed": [],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 3,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "Let me think.",
+         "withheld": false
+        },
+        {
+         "type": "text",
+         "text": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone."
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 11,
+       "kind": "response",
+       "text": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone.",
+       "data": {
+        "thinking": "Let me think.",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone.",
+        "streaming": true
+       },
+       "source": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone."
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 5,
+       "kind": "thinking",
+       "text": "thinking\nLet me think.",
+       "data": {
+        "text": "Let me think.",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me think.",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:text:1:part:0",
+       "version": 6,
+       "kind": "prose",
+       "text": "Here:\n",
+       "data": {
+        "text": "Here:\n",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Here:\n"
+      },
+      {
+       "id": "response-1:text:1:part:1",
+       "version": 9,
+       "kind": "code",
+       "text": "```ts\nconst a = 1;\n```",
+       "data": {
+        "language": "ts",
+        "body": "const a = 1;",
+        "sourceText": "```ts\nconst a = 1;\n```",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "```ts\nconst a = 1;\n```"
+      },
+      {
+       "id": "response-1:text:1:part:3",
+       "version": 12,
+       "kind": "code",
+       "text": "````md\n```\nnested\n```\n````",
+       "data": {
+        "language": "md",
+        "body": "```\nnested\n```",
+        "sourceText": "````md\n```\nnested\n```\n````",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "````md\n```\nnested\n```\n````"
+      },
+      {
+       "id": "response-1:text:1:part:4",
+       "version": 13,
+       "kind": "prose",
+       "text": "Done.",
+       "data": {
+        "text": "Done.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Done."
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:1:part:3",
+      "response-1:text:1:part:4"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 4,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "Let me think.",
+         "withheld": false
+        },
+        {
+         "type": "text",
+         "text": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone."
+        }
+       ],
+       "streaming": false,
+       "stopReason": "stop"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> explain",
+       "data": {
+        "text": "explain",
+        "images": []
+       },
+       "source": "explain",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 14,
+       "kind": "response",
+       "text": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone.",
+       "data": {
+        "thinking": "Let me think.",
+        "hasThinking": true,
+        "thinkingWithheld": false,
+        "body": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone.",
+        "streaming": false,
+        "stopReason": "stop"
+       },
+       "source": "Here:\n\n```ts\nconst a = 1;\n```\n\n\n\n````md\n```\nnested\n```\n````\nDone."
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 5,
+       "kind": "thinking",
+       "text": "thinking\nLet me think.",
+       "data": {
+        "text": "Let me think.",
+        "withheld": false
+       },
+       "parentId": "response-1",
+       "source": "Let me think.",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:text:1:part:0",
+       "version": 15,
+       "kind": "prose",
+       "text": "Here:\n",
+       "data": {
+        "text": "Here:\n",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Here:\n"
+      },
+      {
+       "id": "response-1:text:1:part:1",
+       "version": 9,
+       "kind": "code",
+       "text": "```ts\nconst a = 1;\n```",
+       "data": {
+        "language": "ts",
+        "body": "const a = 1;",
+        "sourceText": "```ts\nconst a = 1;\n```",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "```ts\nconst a = 1;\n```"
+      },
+      {
+       "id": "response-1:text:1:part:3",
+       "version": 12,
+       "kind": "code",
+       "text": "````md\n```\nnested\n```\n````",
+       "data": {
+        "language": "md",
+        "body": "```\nnested\n```",
+        "sourceText": "````md\n```\nnested\n```\n````",
+        "open": false
+       },
+       "parentId": "response-1",
+       "source": "````md\n```\nnested\n```\n````"
+      },
+      {
+       "id": "response-1:text:1:part:4",
+       "version": 16,
+       "kind": "prose",
+       "text": "Done.",
+       "data": {
+        "text": "Done.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Done."
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:1:part:0",
+      "response-1:text:1:part:4"
+     ],
+     "reorder": false
+    }
+   ]
+  },
+  {
+   "name": "withheld thinking, user images, and stop reasons",
+   "steps": [
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-0",
+       "version": 0,
+       "text": "look",
+       "images": [
+        "image/png, 8 B"
+       ]
+      },
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 0,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "",
+         "withheld": true
+        },
+        {
+         "type": "thinking",
+         "text": "",
+         "withheld": true
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 2,
+       "kind": "response",
+       "text": "thinking…",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": true
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      },
+      {
+       "id": "response-1:thinking:1",
+       "version": 4,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "user-0",
+      "response-1",
+      "response-1:thinking:0",
+      "response-1:thinking:1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 1,
+       "parts": [
+        {
+         "type": "thinking",
+         "text": "",
+         "withheld": true
+        }
+       ],
+       "streaming": false,
+       "stopReason": "length"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 5,
+       "kind": "response",
+       "text": "stopped at the output limit",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": false,
+        "stopReason": "length"
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "response-1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-2",
+       "version": 0,
+       "text": "again",
+       "images": []
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 5,
+       "kind": "response",
+       "text": "stopped at the output limit",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": false,
+        "stopReason": "length"
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      },
+      {
+       "id": "user-2",
+       "version": 6,
+       "kind": "user",
+       "text": "> again",
+       "data": {
+        "text": "again",
+        "images": []
+       },
+       "source": "again",
+       "tone": "user"
+      }
+     ],
+     "changed": [
+      "user-2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-3",
+       "version": 0,
+       "parts": [],
+       "streaming": false,
+       "stopReason": "error",
+       "errorMessage": "overloaded_error: Overloaded"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 5,
+       "kind": "response",
+       "text": "stopped at the output limit",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": false,
+        "stopReason": "length"
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      },
+      {
+       "id": "user-2",
+       "version": 6,
+       "kind": "user",
+       "text": "> again",
+       "data": {
+        "text": "again",
+        "images": []
+       },
+       "source": "again",
+       "tone": "user"
+      },
+      {
+       "id": "response-3",
+       "version": 7,
+       "kind": "response",
+       "text": "error: overloaded_error: Overloaded",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "",
+        "streaming": false,
+        "stopReason": "error",
+        "errorMessage": "overloaded_error: Overloaded"
+       },
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "response-3"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-4",
+       "version": 0,
+       "text": "third",
+       "images": []
+      },
+      {
+       "kind": "assistant",
+       "id": "response-5",
+       "version": 0,
+       "parts": [
+        {
+         "type": "text",
+         "text": "partial"
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 5,
+       "kind": "response",
+       "text": "stopped at the output limit",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": false,
+        "stopReason": "length"
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      },
+      {
+       "id": "user-2",
+       "version": 6,
+       "kind": "user",
+       "text": "> again",
+       "data": {
+        "text": "again",
+        "images": []
+       },
+       "source": "again",
+       "tone": "user"
+      },
+      {
+       "id": "response-3",
+       "version": 7,
+       "kind": "response",
+       "text": "error: overloaded_error: Overloaded",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "",
+        "streaming": false,
+        "stopReason": "error",
+        "errorMessage": "overloaded_error: Overloaded"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "user-4",
+       "version": 8,
+       "kind": "user",
+       "text": "> third",
+       "data": {
+        "text": "third",
+        "images": []
+       },
+       "source": "third",
+       "tone": "user"
+      },
+      {
+       "id": "response-5",
+       "version": 9,
+       "kind": "response",
+       "text": "partial",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "partial",
+        "streaming": true
+       },
+       "source": "partial"
+      },
+      {
+       "id": "response-5:text:0:part:0",
+       "version": 10,
+       "kind": "prose",
+       "text": "partial",
+       "data": {
+        "text": "partial",
+        "streaming": true
+       },
+       "parentId": "response-5",
+       "source": "partial"
+      }
+     ],
+     "changed": [
+      "user-4",
+      "response-5",
+      "response-5:text:0:part:0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-5",
+       "version": 1,
+       "parts": [
+        {
+         "type": "text",
+         "text": "partial"
+        }
+       ],
+       "streaming": false,
+       "stopReason": "aborted"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> look\nattachments: image/png, 8 B",
+       "data": {
+        "text": "look",
+        "images": [
+         "image/png, 8 B"
+        ]
+       },
+       "source": "look",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 5,
+       "kind": "response",
+       "text": "stopped at the output limit",
+       "data": {
+        "thinking": "",
+        "hasThinking": true,
+        "thinkingWithheld": true,
+        "body": "",
+        "streaming": false,
+        "stopReason": "length"
+       }
+      },
+      {
+       "id": "response-1:thinking:0",
+       "version": 3,
+       "kind": "thinking",
+       "text": "thinking withheld",
+       "data": {
+        "text": "",
+        "withheld": true
+       },
+       "parentId": "response-1",
+       "tone": "dim"
+      },
+      {
+       "id": "user-2",
+       "version": 6,
+       "kind": "user",
+       "text": "> again",
+       "data": {
+        "text": "again",
+        "images": []
+       },
+       "source": "again",
+       "tone": "user"
+      },
+      {
+       "id": "response-3",
+       "version": 7,
+       "kind": "response",
+       "text": "error: overloaded_error: Overloaded",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "",
+        "streaming": false,
+        "stopReason": "error",
+        "errorMessage": "overloaded_error: Overloaded"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "user-4",
+       "version": 8,
+       "kind": "user",
+       "text": "> third",
+       "data": {
+        "text": "third",
+        "images": []
+       },
+       "source": "third",
+       "tone": "user"
+      },
+      {
+       "id": "response-5",
+       "version": 11,
+       "kind": "response",
+       "text": "partial\naborted",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "partial",
+        "streaming": false,
+        "stopReason": "aborted"
+       },
+       "source": "partial",
+       "tone": "warning"
+      },
+      {
+       "id": "response-5:text:0:part:0",
+       "version": 12,
+       "kind": "prose",
+       "text": "partial",
+       "data": {
+        "text": "partial",
+        "streaming": false
+       },
+       "parentId": "response-5",
+       "source": "partial"
+      }
+     ],
+     "changed": [
+      "response-5",
+      "response-5:text:0:part:0"
+     ],
+     "reorder": false
+    }
+   ]
+  },
+  {
+   "name": "tools, results, nested calls, and a decorator",
+   "steps": [
+    {
+     "entries": [],
+     "items": [],
+     "changed": [],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-0",
+       "version": 0,
+       "text": "run",
+       "images": []
+      },
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 0,
+       "parts": [
+        {
+         "type": "text",
+         "text": "Running."
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 2,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": true
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 3,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      }
+     ],
+     "changed": [
+      "user-0",
+      "response-1",
+      "response-1:text:0:part:0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/c1",
+       "version": 0,
+       "callId": "c1",
+       "name": "bash",
+       "args": {
+        "available": true,
+        "value": {
+         "command": "ls",
+         "timeout": 5
+        }
+       },
+       "state": "pending"
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/c2",
+       "version": 0,
+       "callId": "c2",
+       "name": "codemode",
+       "args": {
+        "available": true,
+        "value": {
+         "code": "await tools.read({})"
+        }
+       },
+       "state": "pending",
+       "extra": {
+        "codemode": {
+         "state": "pending",
+         "code": "await tools.read({})",
+         "output": null
+        }
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 2,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": true
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 3,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 4,
+       "kind": "tool",
+       "text": "bash command=ls timeout=5 · queued",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls",
+          "timeout": 5
+         }
+        },
+        "state": "pending",
+        "calls": []
+       },
+       "variant": "bash"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 5,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · queued",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "pending",
+        "calls": [],
+        "extra": {
+         "codemode": {
+          "state": "pending",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      }
+     ],
+     "changed": [
+      "response-1/c1",
+      "response-1/c2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 1,
+       "parts": [
+        {
+         "type": "text",
+         "text": "Running."
+        }
+       ],
+       "streaming": false,
+       "stopReason": "toolUse"
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/c1",
+       "version": 2,
+       "callId": "c1",
+       "name": "bash",
+       "args": {
+        "available": true,
+        "value": {
+         "command": "ls -la",
+         "timeout": 5
+        }
+       },
+       "state": "running"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 8,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · running…",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "bash"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 5,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · queued",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "pending",
+        "calls": [],
+        "extra": {
+         "codemode": {
+          "state": "pending",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:0:part:0",
+      "response-1/c1"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/c1",
+       "version": 3,
+       "callId": "c1",
+       "name": "bash",
+       "args": {
+        "available": true,
+        "value": {
+         "command": "ls -la",
+         "timeout": 5
+        }
+       },
+       "state": "running",
+       "result": {
+        "text": "a\nb",
+        "images": [],
+        "details": {
+         "exit": null
+        },
+        "partial": true
+       }
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/c2",
+       "version": 1,
+       "callId": "c2",
+       "name": "codemode",
+       "args": {
+        "available": true,
+        "value": {
+         "code": "await tools.read({})"
+        }
+       },
+       "state": "running",
+       "extra": {
+        "codemode": {
+         "state": "running",
+         "code": "await tools.read({})",
+         "output": null
+        }
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 9,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · running…\na\nb",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "running",
+        "result": {
+         "text": "a\nb",
+         "images": [],
+         "details": {
+          "exit": null
+         },
+         "partial": true
+        },
+        "calls": []
+       },
+       "variant": "bash"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 10,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · running…",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "running",
+        "calls": [],
+        "extra": {
+         "codemode": {
+          "state": "running",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      }
+     ],
+     "changed": [
+      "response-1/c1",
+      "response-1/c2"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/c1",
+       "version": 4,
+       "callId": "c1",
+       "name": "bash",
+       "args": {
+        "available": true,
+        "value": {
+         "command": "ls -la",
+         "timeout": 5
+        }
+       },
+       "state": "done",
+       "result": {
+        "text": "a\nb\nc",
+        "images": [
+         "image/jpeg, 3 B"
+        ],
+        "details": {
+         "exit": 0
+        },
+        "partial": false
+       }
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/n1",
+       "version": 0,
+       "callId": "n1",
+       "parentId": "response-1/c2",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "a"
+        }
+       },
+       "state": "running"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 12,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · running…",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "running",
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "running"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "running",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 13,
+       "kind": "tool",
+       "text": "read path=a · running…",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read",
+       "parentId": "response-1/c2"
+      }
+     ],
+     "changed": [
+      "response-1/c1",
+      "response-1/c2",
+      "response-1/n1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/n1",
+       "version": 1,
+       "callId": "n1",
+       "parentId": "response-1/c2",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "a"
+        }
+       },
+       "state": "running",
+       "result": {
+        "text": "reading",
+        "images": [],
+        "partial": true
+       }
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/n2",
+       "version": 0,
+       "callId": "n2",
+       "parentId": "response-1/n1",
+       "name": "grep",
+       "args": {
+        "available": true,
+        "value": {
+         "pattern": "x"
+        }
+       },
+       "state": "running"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 14,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · running…",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "running",
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "running"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "running"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "running",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 15,
+       "kind": "tool",
+       "text": "read path=a · running…\nreading",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "running",
+        "result": {
+         "text": "reading",
+         "images": [],
+         "partial": true
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "running"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 16,
+       "kind": "tool",
+       "text": "grep pattern=x · running…",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1"
+      }
+     ],
+     "changed": [
+      "response-1/c2",
+      "response-1/n1",
+      "response-1/n2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/n1",
+       "version": 2,
+       "callId": "n1",
+       "parentId": "response-1/c2",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "a"
+        }
+       },
+       "state": "done",
+       "result": {
+        "text": "file a",
+        "images": [],
+        "partial": false
+       }
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/n2",
+       "version": 1,
+       "callId": "n2",
+       "parentId": "response-1/n1",
+       "name": "grep",
+       "args": {
+        "available": true,
+        "value": {
+         "pattern": "x"
+        }
+       },
+       "state": "error",
+       "result": {
+        "text": "",
+        "images": [],
+        "partial": false
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 17,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · running…",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "running",
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "running",
+          "code": "await tools.read({})",
+          "output": null
+         }
+        }
+       },
+       "variant": "codemode"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "response-1/c2",
+      "response-1/n1",
+      "response-1/n2"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/c2",
+       "version": 2,
+       "callId": "c2",
+       "name": "codemode",
+       "args": {
+        "available": true,
+        "value": {
+         "code": "await tools.read({})"
+        }
+       },
+       "state": "done",
+       "result": {
+        "text": "Script completed",
+        "images": [],
+        "details": {
+         "calls": 2
+        },
+        "partial": false
+       },
+       "extra": {
+        "codemode": {
+         "state": "done",
+         "code": "await tools.read({})",
+         "output": "Script completed"
+        }
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 20,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · done\nScript completed",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "Script completed",
+         "images": [],
+         "details": {
+          "calls": 2
+         },
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "done",
+          "code": "await tools.read({})",
+          "output": "Script completed"
+         }
+        }
+       },
+       "variant": "codemode",
+       "source": "Script completed"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "response-1/c2"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "notice",
+       "id": "notice-2",
+       "version": 0,
+       "level": "info",
+       "text": "after the script"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 20,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · done\nScript completed",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "Script completed",
+         "images": [],
+         "details": {
+          "calls": 2
+         },
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "done",
+          "code": "await tools.read({})",
+          "output": "Script completed"
+         }
+        }
+       },
+       "variant": "codemode",
+       "source": "Script completed"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      },
+      {
+       "id": "notice-2",
+       "version": 21,
+       "kind": "notice",
+       "text": "after the script",
+       "data": {
+        "level": "info",
+        "text": "after the script"
+       },
+       "source": "after the script",
+       "tone": "accent"
+      }
+     ],
+     "changed": [
+      "notice-2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/n3",
+       "version": 0,
+       "callId": "n3",
+       "parentId": "response-1/c2",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "late"
+        }
+       },
+       "state": "running"
+      }
+     ],
+     "order": [
+      "user-0",
+      "response-1",
+      "response-1/c1",
+      "response-1/c2",
+      "response-1/n1",
+      "response-1/n2",
+      "response-1/n3",
+      "notice-2"
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 22,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · done\nScript completed",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "Script completed",
+         "images": [],
+         "details": {
+          "calls": 2
+         },
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         },
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "late"
+           }
+          },
+          "state": "running"
+         }
+        ],
+        "extra": {
+         "codemode": {
+          "state": "done",
+          "code": "await tools.read({})",
+          "output": "Script completed"
+         }
+        }
+       },
+       "variant": "codemode",
+       "source": "Script completed"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      },
+      {
+       "id": "response-1/n3",
+       "version": 23,
+       "kind": "tool",
+       "text": "read path=late · running…",
+       "data": {
+        "callId": "n3",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "late"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read",
+       "parentId": "response-1/c2"
+      },
+      {
+       "id": "notice-2",
+       "version": 21,
+       "kind": "notice",
+       "text": "after the script",
+       "data": {
+        "level": "info",
+        "text": "after the script"
+       },
+       "source": "after the script",
+       "tone": "accent"
+      }
+     ],
+     "changed": [
+      "response-1/c2",
+      "response-1/n3"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/c2",
+       "version": 2,
+       "callId": "c2",
+       "name": "codemode",
+       "args": {
+        "available": true,
+        "value": {
+         "code": "await tools.read({})"
+        }
+       },
+       "state": "done",
+       "result": {
+        "text": "Script completed",
+        "images": [],
+        "details": {
+         "calls": 2
+        },
+        "partial": false
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 24,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · done\nScript completed",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "Script completed",
+         "images": [],
+         "details": {
+          "calls": 2
+         },
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         },
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "late"
+           }
+          },
+          "state": "running"
+         }
+        ]
+       },
+       "variant": "codemode",
+       "source": "Script completed"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      },
+      {
+       "id": "response-1/n3",
+       "version": 23,
+       "kind": "tool",
+       "text": "read path=late · running…",
+       "data": {
+        "callId": "n3",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "late"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read",
+       "parentId": "response-1/c2"
+      },
+      {
+       "id": "notice-2",
+       "version": 21,
+       "kind": "notice",
+       "text": "after the script",
+       "data": {
+        "level": "info",
+        "text": "after the script"
+       },
+       "source": "after the script",
+       "tone": "accent"
+      }
+     ],
+     "changed": [
+      "response-1/c2"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/n3",
+       "version": 1,
+       "callId": "n3",
+       "parentId": "response-1/c2",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "late"
+        }
+       },
+       "state": "unfinished"
+      },
+      {
+       "kind": "tool",
+       "id": "response-3/c3",
+       "version": 1,
+       "callId": "c3",
+       "name": "write",
+       "args": {
+        "available": true,
+        "value": {
+         "content": "x",
+         "path": "b"
+        }
+       },
+       "state": "unfinished"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> run",
+       "data": {
+        "text": "run",
+        "images": []
+       },
+       "source": "run",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Running.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Running.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Running."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Running.",
+       "data": {
+        "text": "Running.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Running."
+      },
+      {
+       "id": "response-1/c1",
+       "version": 11,
+       "kind": "tool",
+       "text": "bash command=ls -la timeout=5 · done\na\nb\nc\n[image: image/jpeg, 3 B]",
+       "data": {
+        "callId": "c1",
+        "name": "bash",
+        "args": {
+         "available": true,
+         "value": {
+          "command": "ls -la",
+          "timeout": 5
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "a\nb\nc",
+         "images": [
+          "image/jpeg, 3 B"
+         ],
+         "details": {
+          "exit": 0
+         },
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "bash",
+       "source": "a\nb\nc"
+      },
+      {
+       "id": "response-1/c2",
+       "version": 25,
+       "kind": "tool",
+       "text": "codemode code=await tools.read({}) · done\nScript completed",
+       "data": {
+        "callId": "c2",
+        "name": "codemode",
+        "args": {
+         "available": true,
+         "value": {
+          "code": "await tools.read({})"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "Script completed",
+         "images": [],
+         "details": {
+          "calls": 2
+         },
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "a"
+           }
+          },
+          "state": "done"
+         },
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         },
+         {
+          "name": "read",
+          "args": {
+           "available": true,
+           "value": {
+            "path": "late"
+           }
+          },
+          "state": "unfinished"
+         }
+        ]
+       },
+       "variant": "codemode",
+       "source": "Script completed"
+      },
+      {
+       "id": "response-1/n1",
+       "version": 18,
+       "kind": "tool",
+       "text": "read path=a · done\nfile a",
+       "data": {
+        "callId": "n1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "a"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "file a",
+         "images": [],
+         "partial": false
+        },
+        "calls": [
+         {
+          "name": "grep",
+          "args": {
+           "available": true,
+           "value": {
+            "pattern": "x"
+           }
+          },
+          "state": "error"
+         }
+        ]
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "source": "file a"
+      },
+      {
+       "id": "response-1/n2",
+       "version": 19,
+       "kind": "tool",
+       "text": "grep pattern=x · failed",
+       "data": {
+        "callId": "n2",
+        "name": "grep",
+        "args": {
+         "available": true,
+         "value": {
+          "pattern": "x"
+         }
+        },
+        "state": "error",
+        "result": {
+         "text": "",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "grep",
+       "parentId": "response-1/n1",
+       "tone": "error"
+      },
+      {
+       "id": "response-1/n3",
+       "version": 26,
+       "kind": "tool",
+       "text": "read path=late · unfinished",
+       "data": {
+        "callId": "n3",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "late"
+         }
+        },
+        "state": "unfinished",
+        "calls": []
+       },
+       "variant": "read",
+       "parentId": "response-1/c2",
+       "tone": "warning"
+      },
+      {
+       "id": "notice-2",
+       "version": 21,
+       "kind": "notice",
+       "text": "after the script",
+       "data": {
+        "level": "info",
+        "text": "after the script"
+       },
+       "source": "after the script",
+       "tone": "accent"
+      },
+      {
+       "id": "response-3/c3",
+       "version": 27,
+       "kind": "tool",
+       "text": "write content=x path=b · unfinished",
+       "data": {
+        "callId": "c3",
+        "name": "write",
+        "args": {
+         "available": true,
+         "value": {
+          "content": "x",
+          "path": "b"
+         }
+        },
+        "state": "unfinished",
+        "calls": []
+       },
+       "variant": "write",
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "response-1/c2",
+      "response-1/n3",
+      "response-3/c3"
+     ],
+     "reorder": true
+    }
+   ]
+  },
+  {
+   "name": "a response whose text arrives after its tool started",
+   "steps": [
+    {
+     "entries": [
+      {
+       "kind": "user",
+       "id": "user-0",
+       "version": 0,
+       "text": "go",
+       "images": []
+      },
+      {
+       "kind": "tool",
+       "id": "response-1/t1",
+       "version": 0,
+       "callId": "t1",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "x"
+        }
+       },
+       "state": "running"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> go",
+       "data": {
+        "text": "go",
+        "images": []
+       },
+       "source": "go",
+       "tone": "user"
+      },
+      {
+       "id": "response-1/t1",
+       "version": 2,
+       "kind": "tool",
+       "text": "read path=x · running…",
+       "data": {
+        "callId": "t1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "x"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read"
+      }
+     ],
+     "changed": [
+      "user-0",
+      "response-1/t1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 0,
+       "parts": [
+        {
+         "type": "text",
+         "text": "Reading first."
+        }
+       ],
+       "streaming": true
+      }
+     ],
+     "order": [
+      "user-0",
+      "response-1",
+      "response-1/t1"
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> go",
+       "data": {
+        "text": "go",
+        "images": []
+       },
+       "source": "go",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 3,
+       "kind": "response",
+       "text": "Reading first.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Reading first.",
+        "streaming": true
+       },
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 4,
+       "kind": "prose",
+       "text": "Reading first.",
+       "data": {
+        "text": "Reading first.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1/t1",
+       "version": 2,
+       "kind": "tool",
+       "text": "read path=x · running…",
+       "data": {
+        "callId": "t1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "x"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:0:part:0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> go",
+       "data": {
+        "text": "go",
+        "images": []
+       },
+       "source": "go",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 3,
+       "kind": "response",
+       "text": "Reading first.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Reading first.",
+        "streaming": true
+       },
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 4,
+       "kind": "prose",
+       "text": "Reading first.",
+       "data": {
+        "text": "Reading first.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1/t1",
+       "version": 2,
+       "kind": "tool",
+       "text": "read path=x · running…",
+       "data": {
+        "callId": "t1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "x"
+         }
+        },
+        "state": "running",
+        "calls": []
+       },
+       "variant": "read"
+      }
+     ],
+     "changed": [],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "tool",
+       "id": "response-1/t1",
+       "version": 1,
+       "callId": "t1",
+       "name": "read",
+       "args": {
+        "available": true,
+        "value": {
+         "path": "x"
+        }
+       },
+       "state": "done",
+       "result": {
+        "text": "done",
+        "images": [],
+        "partial": false
+       }
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> go",
+       "data": {
+        "text": "go",
+        "images": []
+       },
+       "source": "go",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 3,
+       "kind": "response",
+       "text": "Reading first.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Reading first.",
+        "streaming": true
+       },
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 4,
+       "kind": "prose",
+       "text": "Reading first.",
+       "data": {
+        "text": "Reading first.",
+        "streaming": true
+       },
+       "parentId": "response-1",
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1/t1",
+       "version": 5,
+       "kind": "tool",
+       "text": "read path=x · done\ndone",
+       "data": {
+        "callId": "t1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "x"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "done",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "read",
+       "source": "done"
+      }
+     ],
+     "changed": [
+      "response-1/t1"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "assistant",
+       "id": "response-1",
+       "version": 1,
+       "parts": [
+        {
+         "type": "text",
+         "text": "Reading first."
+        }
+       ],
+       "streaming": false,
+       "stopReason": "toolUse"
+      }
+     ],
+     "items": [
+      {
+       "id": "user-0",
+       "version": 1,
+       "kind": "user",
+       "text": "> go",
+       "data": {
+        "text": "go",
+        "images": []
+       },
+       "source": "go",
+       "tone": "user"
+      },
+      {
+       "id": "response-1",
+       "version": 6,
+       "kind": "response",
+       "text": "Reading first.",
+       "data": {
+        "thinking": "",
+        "hasThinking": false,
+        "thinkingWithheld": false,
+        "body": "Reading first.",
+        "streaming": false,
+        "stopReason": "toolUse"
+       },
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1:text:0:part:0",
+       "version": 7,
+       "kind": "prose",
+       "text": "Reading first.",
+       "data": {
+        "text": "Reading first.",
+        "streaming": false
+       },
+       "parentId": "response-1",
+       "source": "Reading first."
+      },
+      {
+       "id": "response-1/t1",
+       "version": 5,
+       "kind": "tool",
+       "text": "read path=x · done\ndone",
+       "data": {
+        "callId": "t1",
+        "name": "read",
+        "args": {
+         "available": true,
+         "value": {
+          "path": "x"
+         }
+        },
+        "state": "done",
+        "result": {
+         "text": "done",
+         "images": [],
+         "partial": false
+        },
+        "calls": []
+       },
+       "variant": "read",
+       "source": "done"
+      }
+     ],
+     "changed": [
+      "response-1",
+      "response-1:text:0:part:0"
+     ],
+     "reorder": false
+    }
+   ]
+  },
+  {
+   "name": "compaction, retries, custom messages, settings, and notices",
+   "steps": [
+    {
+     "entries": [
+      {
+       "kind": "notice",
+       "id": "notice-0",
+       "version": 0,
+       "level": "warning",
+       "text": "extension x: something"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "notice-0"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "compaction",
+       "id": "compaction-1",
+       "version": 0,
+       "state": "running",
+       "reason": "threshold"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 2,
+       "kind": "compaction",
+       "text": "compacting… (threshold)",
+       "data": {
+        "state": "running",
+        "reason": "threshold"
+       },
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "compaction-1"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "compaction",
+       "id": "compaction-1",
+       "version": 1,
+       "state": "completed",
+       "reason": "threshold",
+       "summary": "the history so far",
+       "tokensBefore": 1234
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "compaction-1"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "compaction",
+       "id": "compaction-2",
+       "version": 1,
+       "state": "failed",
+       "reason": "overflow",
+       "errorMessage": "no model"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "compaction-2"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "compaction",
+       "id": "compaction-3",
+       "version": 1,
+       "state": "aborted",
+       "reason": "manual"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "compaction-3"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-4",
+       "version": 1,
+       "category": "response",
+       "state": "waiting",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 3,
+         "delayMs": 50,
+         "error": "overloaded"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 6,
+       "kind": "retry",
+       "text": "retry 1/3 · waiting to retry\nattempt 1/3: overloaded",
+       "data": {
+        "category": "response",
+        "state": "waiting",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-4"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-4",
+       "version": 2,
+       "category": "response",
+       "state": "retrying",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 3,
+         "delayMs": 50,
+         "error": "overloaded"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 7,
+       "kind": "retry",
+       "text": "retry 1/3 · retrying…\nattempt 1/3: overloaded",
+       "data": {
+        "category": "response",
+        "state": "retrying",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-4"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-4",
+       "version": 3,
+       "category": "response",
+       "state": "waiting",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 3,
+         "delayMs": 50,
+         "error": "overloaded"
+        },
+        {
+         "attempt": 2,
+         "maxAttempts": 3,
+         "delayMs": 100,
+         "error": "overloaded again"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 8,
+       "kind": "retry",
+       "text": "retry 2/3 · waiting to retry\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "waiting",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-4"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-4",
+       "version": 4,
+       "category": "response",
+       "state": "failed",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 3,
+         "delayMs": 50,
+         "error": "overloaded"
+        },
+        {
+         "attempt": 2,
+         "maxAttempts": 3,
+         "delayMs": 100,
+         "error": "overloaded again"
+        }
+       ],
+       "finalError": "gave up"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "retry-4"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-5",
+       "version": 2,
+       "category": "summary",
+       "state": "retrying",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 2,
+         "delayMs": 10,
+         "error": "summary failed"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 10,
+       "kind": "retry",
+       "text": "summary retry 1/2 · retrying…\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "retrying",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-5"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-5",
+       "version": 3,
+       "category": "summary",
+       "state": "ended",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 2,
+         "delayMs": 10,
+         "error": "summary failed"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-5"
+     ],
+     "reorder": false
+    },
+    {
+     "entries": [
+      {
+       "kind": "retry",
+       "id": "retry-6",
+       "version": 2,
+       "category": "response",
+       "state": "succeeded",
+       "attempts": [
+        {
+         "attempt": 1,
+         "maxAttempts": 2,
+         "delayMs": 5,
+         "error": "blip"
+        }
+       ]
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-6",
+       "version": 12,
+       "kind": "retry",
+       "text": "retry 1/2 · succeeded\nattempt 1/2: blip",
+       "data": {
+        "category": "response",
+        "state": "succeeded",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 5,
+          "error": "blip"
+         }
+        ]
+       },
+       "tone": "warning"
+      }
+     ],
+     "changed": [
+      "retry-6"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "custom",
+       "id": "custom-7",
+       "version": 0,
+       "customType": "note",
+       "text": "a note",
+       "details": {
+        "n": 1
+       }
+      },
+      {
+       "kind": "custom",
+       "id": "custom-8",
+       "version": 0,
+       "customType": "blocks",
+       "text": "one\ntwo"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-6",
+       "version": 12,
+       "kind": "retry",
+       "text": "retry 1/2 · succeeded\nattempt 1/2: blip",
+       "data": {
+        "category": "response",
+        "state": "succeeded",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 5,
+          "error": "blip"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "custom-7",
+       "version": 13,
+       "kind": "custom",
+       "text": "note\na note",
+       "data": {
+        "customType": "note",
+        "text": "a note",
+        "details": {
+         "n": 1
+        }
+       },
+       "source": "a note",
+       "tone": "accent"
+      },
+      {
+       "id": "custom-8",
+       "version": 14,
+       "kind": "custom",
+       "text": "blocks\none\ntwo",
+       "data": {
+        "customType": "blocks",
+        "text": "one\ntwo"
+       },
+       "source": "one\ntwo",
+       "tone": "accent"
+      }
+     ],
+     "changed": [
+      "custom-7",
+      "custom-8"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "config",
+       "id": "config-9",
+       "version": 0,
+       "setting": "thinking",
+       "from": "medium",
+       "to": "high"
+      },
+      {
+       "kind": "config",
+       "id": "config-10",
+       "version": 0,
+       "setting": "model",
+       "from": "a/one",
+       "to": "b/two"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-6",
+       "version": 12,
+       "kind": "retry",
+       "text": "retry 1/2 · succeeded\nattempt 1/2: blip",
+       "data": {
+        "category": "response",
+        "state": "succeeded",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 5,
+          "error": "blip"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "custom-7",
+       "version": 13,
+       "kind": "custom",
+       "text": "note\na note",
+       "data": {
+        "customType": "note",
+        "text": "a note",
+        "details": {
+         "n": 1
+        }
+       },
+       "source": "a note",
+       "tone": "accent"
+      },
+      {
+       "id": "custom-8",
+       "version": 14,
+       "kind": "custom",
+       "text": "blocks\none\ntwo",
+       "data": {
+        "customType": "blocks",
+        "text": "one\ntwo"
+       },
+       "source": "one\ntwo",
+       "tone": "accent"
+      },
+      {
+       "id": "config-9",
+       "version": 15,
+       "kind": "config",
+       "text": "── thinking: medium → high",
+       "data": {
+        "setting": "thinking",
+        "from": "medium",
+        "to": "high"
+       },
+       "source": "── thinking: medium → high",
+       "tone": "dim"
+      },
+      {
+       "id": "config-10",
+       "version": 16,
+       "kind": "config",
+       "text": "── model: a/one → b/two",
+       "data": {
+        "setting": "model",
+        "from": "a/one",
+        "to": "b/two"
+       },
+       "source": "── model: a/one → b/two",
+       "tone": "dim"
+      }
+     ],
+     "changed": [
+      "config-9",
+      "config-10"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "notice",
+       "id": "notice-11",
+       "version": 0,
+       "level": "info",
+       "text": "fine"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-6",
+       "version": 12,
+       "kind": "retry",
+       "text": "retry 1/2 · succeeded\nattempt 1/2: blip",
+       "data": {
+        "category": "response",
+        "state": "succeeded",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 5,
+          "error": "blip"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "custom-7",
+       "version": 13,
+       "kind": "custom",
+       "text": "note\na note",
+       "data": {
+        "customType": "note",
+        "text": "a note",
+        "details": {
+         "n": 1
+        }
+       },
+       "source": "a note",
+       "tone": "accent"
+      },
+      {
+       "id": "custom-8",
+       "version": 14,
+       "kind": "custom",
+       "text": "blocks\none\ntwo",
+       "data": {
+        "customType": "blocks",
+        "text": "one\ntwo"
+       },
+       "source": "one\ntwo",
+       "tone": "accent"
+      },
+      {
+       "id": "config-9",
+       "version": 15,
+       "kind": "config",
+       "text": "── thinking: medium → high",
+       "data": {
+        "setting": "thinking",
+        "from": "medium",
+        "to": "high"
+       },
+       "source": "── thinking: medium → high",
+       "tone": "dim"
+      },
+      {
+       "id": "config-10",
+       "version": 16,
+       "kind": "config",
+       "text": "── model: a/one → b/two",
+       "data": {
+        "setting": "model",
+        "from": "a/one",
+        "to": "b/two"
+       },
+       "source": "── model: a/one → b/two",
+       "tone": "dim"
+      },
+      {
+       "id": "notice-11",
+       "version": 17,
+       "kind": "notice",
+       "text": "fine",
+       "data": {
+        "level": "info",
+        "text": "fine"
+       },
+       "source": "fine",
+       "tone": "accent"
+      }
+     ],
+     "changed": [
+      "notice-11"
+     ],
+     "reorder": true
+    },
+    {
+     "entries": [
+      {
+       "kind": "notice",
+       "id": "notice-12",
+       "version": 0,
+       "level": "error",
+       "text": "broken"
+      }
+     ],
+     "items": [
+      {
+       "id": "notice-0",
+       "version": 1,
+       "kind": "notice",
+       "text": "extension x: something",
+       "data": {
+        "level": "warning",
+        "text": "extension x: something"
+       },
+       "source": "extension x: something",
+       "tone": "warning"
+      },
+      {
+       "id": "compaction-1",
+       "version": 3,
+       "kind": "compaction",
+       "text": "compacted (threshold) · 1234 tokens before\nthe history so far",
+       "data": {
+        "state": "completed",
+        "reason": "threshold",
+        "summary": "the history so far",
+        "tokensBefore": 1234
+       },
+       "source": "the history so far",
+       "tone": "dim"
+      },
+      {
+       "id": "compaction-2",
+       "version": 4,
+       "kind": "compaction",
+       "text": "compaction failed (overflow)\nno model",
+       "data": {
+        "state": "failed",
+        "reason": "overflow",
+        "errorMessage": "no model"
+       },
+       "source": "no model",
+       "tone": "error"
+      },
+      {
+       "id": "compaction-3",
+       "version": 5,
+       "kind": "compaction",
+       "text": "compaction aborted (manual)",
+       "data": {
+        "state": "aborted",
+        "reason": "manual"
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-4",
+       "version": 9,
+       "kind": "retry",
+       "text": "retry 2/3 · failed\ngave up\nattempt 1/3: overloaded\nattempt 2/3: overloaded again",
+       "data": {
+        "category": "response",
+        "state": "failed",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 3,
+          "delayMs": 50,
+          "error": "overloaded"
+         },
+         {
+          "attempt": 2,
+          "maxAttempts": 3,
+          "delayMs": 100,
+          "error": "overloaded again"
+         }
+        ],
+        "finalError": "gave up"
+       },
+       "tone": "error"
+      },
+      {
+       "id": "retry-5",
+       "version": 11,
+       "kind": "retry",
+       "text": "summary retry 1/2 · ended\nattempt 1/2: summary failed",
+       "data": {
+        "category": "summary",
+        "state": "ended",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 10,
+          "error": "summary failed"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "retry-6",
+       "version": 12,
+       "kind": "retry",
+       "text": "retry 1/2 · succeeded\nattempt 1/2: blip",
+       "data": {
+        "category": "response",
+        "state": "succeeded",
+        "attempts": [
+         {
+          "attempt": 1,
+          "maxAttempts": 2,
+          "delayMs": 5,
+          "error": "blip"
+         }
+        ]
+       },
+       "tone": "warning"
+      },
+      {
+       "id": "custom-7",
+       "version": 13,
+       "kind": "custom",
+       "text": "note\na note",
+       "data": {
+        "customType": "note",
+        "text": "a note",
+        "details": {
+         "n": 1
+        }
+       },
+       "source": "a note",
+       "tone": "accent"
+      },
+      {
+       "id": "custom-8",
+       "version": 14,
+       "kind": "custom",
+       "text": "blocks\none\ntwo",
+       "data": {
+        "customType": "blocks",
+        "text": "one\ntwo"
+       },
+       "source": "one\ntwo",
+       "tone": "accent"
+      },
+      {
+       "id": "config-9",
+       "version": 15,
+       "kind": "config",
+       "text": "── thinking: medium → high",
+       "data": {
+        "setting": "thinking",
+        "from": "medium",
+        "to": "high"
+       },
+       "source": "── thinking: medium → high",
+       "tone": "dim"
+      },
+      {
+       "id": "config-10",
+       "version": 16,
+       "kind": "config",
+       "text": "── model: a/one → b/two",
+       "data": {
+        "setting": "model",
+        "from": "a/one",
+        "to": "b/two"
+       },
+       "source": "── model: a/one → b/two",
+       "tone": "dim"
+      },
+      {
+       "id": "notice-11",
+       "version": 17,
+       "kind": "notice",
+       "text": "fine",
+       "data": {
+        "level": "info",
+        "text": "fine"
+       },
+       "source": "fine",
+       "tone": "accent"
+      },
+      {
+       "id": "notice-12",
+       "version": 18,
+       "kind": "notice",
+       "text": "broken",
+       "data": {
+        "level": "error",
+        "text": "broken"
+       },
+       "source": "broken",
+       "tone": "error"
+      }
+     ],
+     "changed": [
+      "notice-12"
+     ],
+     "reorder": true
+    }
+   ]
+  }
+ ]
+}

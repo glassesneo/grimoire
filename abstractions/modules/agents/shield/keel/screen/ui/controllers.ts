@@ -1,7 +1,7 @@
 /**
  * The screen's own state that needs no terminal: focus among the regions, and
  * the timeline as a tree of items with its cursor and disclosure. The items
- * come from the runtime; the cursor and disclosure are this screen's alone.
+ * come from the model; the cursor and disclosure are this screen's alone.
  * Nothing here imports OpenTUI, Solid, or a terminal.
  */
 

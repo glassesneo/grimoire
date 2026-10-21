@@ -1,6 +1,6 @@
 # These tests cover Manager's selection boundary: cwd-only selection must join the newest
 # live agent, an explicit identity must not start a second agent, and stop must keep the
-# identity reserved until the agent ended. Fake idle processes stand in for the runtime.
+# identity reserved until the agent ended. Fake idle processes stand in for the driver.
 defmodule Shield.ManagerTest do
   use ExUnit.Case
   alias Shield.{Manager, Protocol}

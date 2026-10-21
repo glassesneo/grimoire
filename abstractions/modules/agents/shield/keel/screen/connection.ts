@@ -1,16 +1,21 @@
 /**
- * This screen's connection to one agent through the hub. It mirrors the
- * runtime's state from a snapshot and the events after it, follows the hub's
- * management records (lifecycle, writer), and sends invocations.
+ * This screen's connection to one agent through the hub. It mirrors keel's
+ * model from a snapshot and the events after it, follows the hub's management
+ * records (lifecycle, writer), and sends invocations.
  *
  * When an event does not continue the mirror's sequence, the screen stops
  * sending changes, asks for a new snapshot, and replaces its mirror; no event
- * is replayed. An invocation that was sent but not answered when the
- * connection ended has unknown acceptance, and is never sent again.
+ * is replayed. A snapshot, event, or result that does not conform to the keel
+ * contract is not applied at all: the screen closes the connection, which
+ * frees its write right, and keeps showing the last state it applied with the
+ * error. It neither reconnects nor resends, and edits the model had not
+ * confirmed are not recovered. An invocation that was sent but not answered
+ * when the connection ended has unknown acceptance, and is never sent again.
  */
 import { HubClient, type Envelope } from "../../client/protocol";
 import { type Applied, Mirror, SequenceGap } from "../protocol/apply";
-import type { InvokeResult, Snapshot, StateEvent } from "../protocol/wire";
+import { firstError, validator } from "../protocol/contract";
+import type { InvokeResult } from "../protocol/wire";
 import { Emitter } from "./ui/controllers";
 
 /** Lifecycles that end an agent, or this connection to it. */
@@ -33,12 +38,14 @@ export class Connection extends Emitter {
   /** Called once, when this screen detaches. */
   onDetach: () => void = () => {};
   #detached = false;
+  /** Why the connection was closed for a record that does not conform. */
+  #invalid: string | undefined;
 
   constructor(readonly client: HubClient) {
     super();
     client.onRecord = (record) => this.#record(record);
     client.onDisconnect = (error) => {
-      if (this.#detached) return;
+      if (this.#detached || this.#invalid) return;
       if (!TERMINAL.has(this.lifecycle)) {
         this.notice = error.message;
         this.lifecycle = "disconnected";
@@ -59,6 +66,9 @@ export class Connection extends Emitter {
   }
 
   #record(r: Envelope): void {
+    // A screen closed for an invalid record keeps what it showed; nothing later applies, the
+    // rest of the read the record came in included.
+    if (this.#invalid) return;
     try {
       if (r.type === "agent_failed") {
         if (this.agent === undefined || r["agent-id"] === this.agent) {
@@ -66,7 +76,9 @@ export class Connection extends Emitter {
           this.phase = "ended";
         }
       } else if (r.type === "snapshot") {
-        const snapshot = r.payload as Snapshot;
+        const snapshot = r.payload;
+        if (!validator("Snapshot").Check(snapshot))
+          return this.#reject(`snapshot: ${firstError("Snapshot", snapshot)}`);
         this.agent = r["agent-id"] ?? undefined;
         this.id = r.connection;
         this.lifecycle = r.lifecycle ?? this.lifecycle;
@@ -77,8 +89,12 @@ export class Connection extends Emitter {
         this.notice = undefined;
         this.onState(undefined);
       } else if (r.type === "event") {
+        // Only the event is checked; the state it applies to already was. One that arrives
+        // while the screen resynchronizes is checked too, then dropped.
+        if (!validator("StateEvent").Check(r.payload))
+          return this.#reject(`event: ${firstError("StateEvent", r.payload)}`);
         if (this.phase !== "live") return;
-        const applied = this.mirror.apply(r.payload as StateEvent);
+        const applied = this.mirror.apply(r.payload);
         this.onState(applied);
       } else if (r.type === "management") {
         const payload = r.payload as { op: string; [key: string]: any };
@@ -97,6 +113,15 @@ export class Connection extends Emitter {
         this.notice = (error as Error).message;
       }
     }
+    this.changed();
+  }
+
+  /** Stops following the agent after a record that does not conform. */
+  #reject(problem: string): void {
+    this.#invalid = problem;
+    this.notice = `closed: the agent sent an invalid ${problem}`;
+    this.phase = "ended";
+    this.client.close();
     this.changed();
   }
 
@@ -123,7 +148,7 @@ export class Connection extends Emitter {
     return undefined;
   }
 
-  /** Runs an action in the runtime and resolves with its result. */
+  /** Runs an action through the model and resolves with its result. */
   async invoke(action: string, args?: unknown): Promise<InvokeResult> {
     const unavailable = this.unavailable;
     if (unavailable) return { outcome: "rejected", code: "unavailable", message: unavailable };
@@ -136,7 +161,15 @@ export class Connection extends Emitter {
       });
       if (!r.success)
         return { outcome: "rejected", code: r.error?.code ?? "refused", message: r.error?.code };
-      return r.payload as InvokeResult;
+      if (!validator("InvokeResult").Check(r.payload)) {
+        this.#reject(`result: ${firstError("InvokeResult", r.payload)}`);
+        return {
+          outcome: "unknown",
+          code: "invalid_result",
+          message: "the agent's answer was invalid",
+        };
+      }
+      return r.payload;
     } catch (error) {
       return { outcome: "rejected", code: "unknown", message: (error as Error).message };
     }

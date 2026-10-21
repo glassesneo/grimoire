@@ -7,9 +7,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { keel } from "../api";
 
 export default function tools(pi: ExtensionAPI): void {
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     const { items } = keel(ctx);
-    items.present("tool", "tool.generic");
-    items.present("tool/bash", "tool.bash");
+    await items.present("tool", "tool.generic");
+    await items.present("tool/bash", "tool.bash");
   });
 }

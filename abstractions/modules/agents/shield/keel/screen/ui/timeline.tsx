@@ -1,7 +1,7 @@
 /**
  * The timeline view: items in reading order with
  * their gutter marks, range bars, and expanded details. What the items are is
- * decided by the runtime, not here.
+ * decided by the model, not here.
  */
 import type { Renderable, ScrollBoxRenderable } from "@opentui/core";
 import {

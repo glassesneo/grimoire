@@ -1,0 +1,447 @@
+{
+  "$comment": "Values the TypeScript and Elixir validators must judge alike: each names a definition of the generated keel schema, a value, and whether it conforms.",
+  "cases": [
+    {
+      "definition": "DriverRecord",
+      "valid": true,
+      "value": {
+        "type": "entries",
+        "entries": [
+          {
+            "kind": "user",
+            "id": "user-0",
+            "version": 0,
+            "text": "hi",
+            "images": []
+          },
+          {
+            "kind": "tool",
+            "id": "response-1/c1",
+            "version": 2,
+            "callId": "c1",
+            "name": "bash",
+            "args": {
+              "available": true,
+              "value": {
+                "command": "ls"
+              }
+            },
+            "state": "done",
+            "result": {
+              "text": "a",
+              "images": [],
+              "details": null,
+              "partial": false
+            },
+            "extra": {
+              "codemode": {
+                "output": ""
+              }
+            }
+          }
+        ],
+        "order": [
+          "user-0",
+          "response-1/c1"
+        ]
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "entries",
+        "entries": [
+          {
+            "kind": "user",
+            "id": "user-0",
+            "version": 0,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "entries",
+        "entries": [],
+        "extra": true
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "unheard-of"
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "entries",
+        "entries": [
+          {
+            "kind": "tool",
+            "id": "t",
+            "version": 0,
+            "callId": "c",
+            "name": "x",
+            "args": {
+              "available": true
+            },
+            "state": "done"
+          }
+        ]
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": true,
+      "value": {
+        "type": "operation",
+        "id": "d1",
+        "operation": {
+          "op": "declare_actions",
+          "actions": [
+            {
+              "id": "timeline.copy",
+              "class": "view",
+              "keys": [
+                "y"
+              ],
+              "runs": "screen"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "operation",
+        "id": "d1",
+        "operation": {
+          "op": "declare_actions",
+          "actions": [
+            {
+              "id": "x.y",
+              "class": "admin",
+              "runs": "driver"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": true,
+      "value": {
+        "type": "result",
+        "id": "s1",
+        "result": {
+          "outcome": "submitted",
+          "disposition": "queued"
+        }
+      }
+    },
+    {
+      "definition": "DriverRecord",
+      "valid": false,
+      "value": {
+        "type": "result",
+        "id": "s1",
+        "result": {
+          "outcome": "submitted",
+          "disposition": "maybe"
+        }
+      }
+    },
+    {
+      "definition": "Instruction",
+      "valid": true,
+      "value": {
+        "type": "request_closed",
+        "request": "r0",
+        "answer": {
+          "status": "answered",
+          "value": true,
+          "supplement": ""
+        }
+      }
+    },
+    {
+      "definition": "Instruction",
+      "valid": false,
+      "value": {
+        "type": "request_closed",
+        "request": "r0",
+        "answer": {
+          "status": "answered"
+        }
+      }
+    },
+    {
+      "definition": "Instruction",
+      "valid": true,
+      "value": {
+        "type": "operation_result",
+        "id": "d1",
+        "outcome": "ok",
+        "value": {
+          "registration": "g1"
+        }
+      }
+    },
+    {
+      "definition": "ScreenRequest",
+      "valid": true,
+      "value": {
+        "op": "invoke",
+        "action": "draft.set",
+        "args": [
+          1,
+          "two"
+        ],
+        "writerEpoch": 3
+      }
+    },
+    {
+      "definition": "ScreenRequest",
+      "valid": false,
+      "value": {
+        "op": "invoke",
+        "action": "draft.set",
+        "writerEpoch": "3"
+      }
+    },
+    {
+      "definition": "ScreenRequest",
+      "valid": false,
+      "value": {
+        "op": "invoke",
+        "action": "draft.set",
+        "writerEpoch": 1.5
+      }
+    },
+    {
+      "definition": "Snapshot",
+      "valid": true,
+      "value": {
+        "instance": "m",
+        "seq": 4,
+        "state": {
+          "session": {
+            "id": "s",
+            "cwd": "/",
+            "model": null,
+            "thinking": null
+          },
+          "run": {
+            "phase": "idle",
+            "compacting": false,
+            "retrying": false
+          },
+          "items": [
+            {
+              "id": "user-0",
+              "version": 1,
+              "kind": "user",
+              "text": "> hi",
+              "source": "hi",
+              "tone": "user",
+              "data": {
+                "text": "hi",
+                "images": []
+              }
+            }
+          ],
+          "queue": {
+            "steering": [],
+            "followUp": []
+          },
+          "requests": [
+            {
+              "id": "r0",
+              "kind": "choice",
+              "title": "Pick",
+              "options": [
+                "a"
+              ]
+            }
+          ],
+          "assists": [],
+          "drafts": {
+            "prompt": {
+              "text": "",
+              "revision": 0
+            }
+          },
+          "actions": [
+            {
+              "id": "editor.submit",
+              "class": "write",
+              "local": false
+            }
+          ],
+          "keys": {
+            "editor.submit": [
+              "return"
+            ]
+          },
+          "kinds": {
+            "tool/bash": "tool.bash"
+          }
+        }
+      }
+    },
+    {
+      "definition": "Snapshot",
+      "valid": false,
+      "value": {
+        "instance": "m",
+        "seq": 4,
+        "state": {
+          "session": {
+            "id": "s",
+            "cwd": "/",
+            "model": null,
+            "thinking": null
+          },
+          "run": {
+            "phase": "idle",
+            "compacting": false,
+            "retrying": false
+          },
+          "items": [],
+          "queue": {
+            "steering": [],
+            "followUp": []
+          },
+          "requests": [],
+          "assists": [],
+          "drafts": {
+            "prompt": {
+              "text": "",
+              "revision": "0"
+            }
+          },
+          "actions": [],
+          "keys": {},
+          "kinds": {}
+        }
+      }
+    },
+    {
+      "definition": "StateEvent",
+      "valid": false,
+      "value": {
+        "instance": "m",
+        "seq": 5,
+        "changes": {
+          "items": [
+            {
+              "id": "p",
+              "version": 2,
+              "kind": "prose",
+              "text": "x",
+              "data": {
+                "text": "x"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "definition": "StateEvent",
+      "valid": false,
+      "value": {
+        "instance": "m",
+        "seq": 5,
+        "changes": {
+          "keys": {
+            "a": "return"
+          }
+        }
+      }
+    },
+    {
+      "definition": "StateEvent",
+      "valid": true,
+      "value": {
+        "instance": "m",
+        "seq": 5,
+        "changes": {
+          "items": [
+            {
+              "id": "r:text:0:part:0",
+              "version": 2,
+              "kind": "prose",
+              "parentId": "r",
+              "text": "x",
+              "source": "x",
+              "data": {
+                "text": "x",
+                "streaming": true
+              }
+            }
+          ],
+          "order": [
+            "r",
+            "r:text:0:part:0"
+          ],
+          "drafts": {
+            "prompt": {
+              "text": "",
+              "revision": 3
+            }
+          },
+          "keys": {
+            "editor.submit": [
+              "return"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "definition": "InvokeResult",
+      "valid": true,
+      "value": {
+        "outcome": "unknown",
+        "code": "acceptance_unknown",
+        "message": "the driver ended"
+      }
+    },
+    {
+      "definition": "InvokeResult",
+      "valid": true,
+      "value": {
+        "outcome": "accepted",
+        "appliedSeq": 4,
+        "detail": {
+          "disposition": "queued"
+        }
+      }
+    },
+    {
+      "definition": "InvokeResult",
+      "valid": false,
+      "value": {
+        "outcome": "unknown"
+      }
+    },
+    {
+      "definition": "InvokeResult",
+      "valid": false,
+      "value": {
+        "outcome": "done",
+        "appliedSeq": -0.5
+      }
+    }
+  ]
+}

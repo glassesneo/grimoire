@@ -1,12 +1,13 @@
 /**
  * keel's control of a Pi session: when a prompt counts as accepted, pausing
- * between steps, stopping, and taking the queued instructions out again.
+ * between steps, stopping, and taking the queued instructions out again. The
+ * run's phase and the queue are the driver's; it reports them to the model.
  *
  * Accepting. Pi's `prompt()` resolves only when the run it starts ends, so
  * acceptance is read from its `preflightResult` callback, which pi-coding-agent
  * 1.1.0 documents as internal (AgentSession.prompt, dist/core/agent-session.js).
- * A prompt that resolves without reporting fails as "acceptance unknown"
- * instead of being taken as accepted. Pi defers a prompt made while it emits
+ * A prompt that resolves without reporting is "acceptance unknown" instead of
+ * being taken as accepted; a prompt Pi refuses before reporting is refused. Pi defers a prompt made while it emits
  * `agent_settled`, which would also resolve without reporting, so prompts wait
  * until that emission is over.
  *
@@ -31,14 +32,28 @@
  * queue methods. Taking them out happens in one synchronous step, so Pi
  * cannot drain the queues halfway through it; messages Pi already drained are
  * in flight and are not taken. Only user instructions are taken; messages
- * extensions queued are put back in their order.
+ * extensions queued are put back in their order. The prompt draft is the
+ * model's: a taken instruction reaches it through an operation the queue
+ * operation waits for.
  */
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { contentText, type ImageContent, imagesOf, isContentBlock } from "./content";
-import { PROMPT } from "../protocol/wire";
-import { type Store, StoreError } from "./store";
+import type { NoticeLevel } from "../protocol/items";
+import { type DriverResult, PROMPT, type QueueInfo, type RunInfo } from "../protocol/wire";
+import { Rejection } from "./outcome";
 
 type Disposition = "started" | "queued" | "handled";
+
+/** What the control needs from the rest of the driver. */
+export interface ControlHost {
+  /** The run or the queue changed. */
+  changed(): void;
+  setDraft(destination: string, text: string): Promise<void>;
+  appendDraft(destination: string, text: string): Promise<void>;
+  notice(level: NoticeLevel, text: string): void;
+  /** Cancels the open requests extensions made. */
+  cancelRequests(): Promise<void>;
+}
 
 type Lane = <T>(operation: () => Promise<T>) => Promise<T>;
 
@@ -51,20 +66,35 @@ interface Taken {
 
 export class Control {
   readonly #session: AgentSession;
-  readonly #store: Store;
+  readonly #host: ControlHost;
+  run: RunInfo = { phase: "idle", compacting: false, retrying: false };
+  queue: QueueInfo = { steering: [], followUp: [] };
   #lane: Promise<unknown> = Promise.resolve();
   #waiters: ((proceed: boolean) => void)[] = [];
   /** A run started and its `agent_settled` has not been emitted yet. */
   #unsettled = false;
   #settled: (() => void)[] = [];
 
-  constructor(session: AgentSession, store: Store) {
+  constructor(session: AgentSession, host: ControlHost) {
     this.#session = session;
-    this.#store = store;
+    this.#host = host;
   }
 
   get phase() {
-    return this.#store.run.phase;
+    return this.run.phase;
+  }
+
+  #setRun(changes: Partial<RunInfo>): void {
+    const next = { ...this.run, ...changes };
+    if (JSON.stringify(next) === JSON.stringify(this.run)) return;
+    this.run = next;
+    this.#host.changed();
+  }
+
+  #setQueue(queue: QueueInfo): void {
+    if (JSON.stringify(queue) === JSON.stringify(this.queue)) return;
+    this.queue = { steering: [...queue.steering], followUp: [...queue.followUp] };
+    this.#host.changed();
   }
 
   /** Follows the session's events for the run state. */
@@ -72,30 +102,30 @@ export class Control {
     switch (event.type) {
       case "agent_start":
         this.#unsettled = true;
-        if (this.phase === "idle") this.#store.setRun({ phase: "running" });
+        if (this.phase === "idle") this.#setRun({ phase: "running" });
         break;
       case "agent_settled":
         this.#unsettled = false;
         for (const resume of this.#settled.splice(0)) queueMicrotask(resume);
         if (this.phase !== "stopping") {
           this.#release(true);
-          this.#store.setRun({ phase: "idle", retrying: false });
+          this.#setRun({ phase: "idle", retrying: false });
         }
         break;
       case "compaction_start":
-        this.#store.setRun({ compacting: true });
+        this.#setRun({ compacting: true });
         break;
       case "compaction_end":
-        this.#store.setRun({ compacting: false });
+        this.#setRun({ compacting: false });
         break;
       case "auto_retry_start":
-        this.#store.setRun({ retrying: true });
+        this.#setRun({ retrying: true });
         break;
       case "auto_retry_end":
-        this.#store.setRun({ retrying: false });
+        this.#setRun({ retrying: false });
         break;
       case "queue_update":
-        this.#store.setQueue({
+        this.#setQueue({
           steering: [...(event.steering as string[])],
           followUp: [...(event.followUp as string[])],
         });
@@ -142,7 +172,7 @@ export class Control {
           () => {
             if (!reported)
               reject(
-                new StoreError(
+                new Rejection(
                   "acceptance_unknown",
                   "Pi finished the prompt without reporting whether it accepted it",
                 ),
@@ -157,45 +187,42 @@ export class Control {
   }
 
   #requireActive(): void {
-    if (this.phase === "stopping") throw new StoreError("stopping");
+    if (this.phase === "stopping") throw new Rejection("stopping");
   }
 
   /**
-   * Sends the prompt draft as it is at `revision`, and clears it if it did
-   * not change meanwhile. A revision is sent at most once: while it is being
-   * sent or after it was, sending it again is refused; a send Pi refused
-   * leaves it to be sent again.
+   * Sends text as the prompt, in input order with the queue operations, and
+   * reports whether Pi accepted it: it did, it refused it before reporting
+   * (or the run is stopping), or it ended the prompt without reporting. The
+   * model owns the draft and its claim; this only sends what it was given.
    */
-  submitPrompt(revision: number): Promise<Disposition> {
-    this.#requireActive();
-    const release = this.#store.claimDraft(PROMPT, revision);
-    const text = this.#store.draft(PROMPT).text.trim();
-    if (!text) {
-      release();
-      throw new StoreError("empty");
-    }
-    return this.#serial(async () => {
+  submit(text: string): Promise<DriverResult> {
+    if (this.phase === "stopping")
+      return Promise.resolve({ outcome: "rejected", code: "stopping" });
+    return this.#serial(async (): Promise<DriverResult> => {
       try {
         this.#requireActive();
         const disposition = await this.#submit(text, "followUp");
-        this.#store.clearDraft(PROMPT, revision);
         // A sent prompt resumes a paused run, once it is queued.
         this.resumePaused();
-        return disposition;
+        return { outcome: "submitted", disposition };
       } catch (error) {
-        release();
-        throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        if (error instanceof Rejection && error.code === "acceptance_unknown")
+          return { outcome: "unknown", code: error.code, message };
+        if (error instanceof Rejection) return { outcome: "rejected", code: error.code };
+        return { outcome: "rejected", code: "refused", message };
       }
     });
   }
 
   /** Compaction runs only while idle; Pi would otherwise abort the run to compact. */
   compact(instructions?: string): void {
-    if (this.phase !== "idle" || !this.#session.isIdle) throw new StoreError("not_idle");
+    if (this.phase !== "idle" || !this.#session.isIdle) throw new Rejection("not_idle");
     void this.#session
       .compact(instructions)
       .catch((error: unknown) =>
-        this.#store.notice(
+        this.#host.notice(
           "error",
           `compaction failed: ${error instanceof Error ? error.message : String(error)}`,
         ),
@@ -208,14 +235,14 @@ export class Control {
 
   pause(): void {
     if (this.phase === "paused" || this.phase === "pausing") return;
-    if (this.phase !== "running") throw new StoreError(this.phase === "idle" ? "idle" : this.phase);
-    this.#store.setRun({ phase: "pausing" });
+    if (this.phase !== "running") throw new Rejection(this.phase === "idle" ? "idle" : this.phase);
+    this.#setRun({ phase: "pausing" });
   }
 
   /** Ends a pause, or a pause still waiting for its step. */
   resume(): void {
     if (this.phase !== "paused" && this.phase !== "pausing") return;
-    this.#store.setRun({ phase: "running" });
+    this.#setRun({ phase: "running" });
     this.#release(true);
   }
 
@@ -231,7 +258,7 @@ export class Control {
   async gate(signal: AbortSignal | undefined): Promise<boolean> {
     if (this.phase === "stopping" || signal?.aborted) return false;
     if (this.phase !== "pausing" && this.phase !== "paused") return true;
-    this.#store.setRun({ phase: "paused" });
+    this.#setRun({ phase: "paused" });
     return new Promise<boolean>((resolve) => {
       const onAbort = () => finish(false);
       const finish = (proceed: boolean) => {
@@ -263,21 +290,26 @@ export class Control {
    */
   async stop(): Promise<void> {
     if (this.phase === "stopping") return;
-    this.#store.setRun({ phase: "stopping" });
-    this.#store.refuseRequests = true;
+    this.#setRun({ phase: "stopping" });
+    // The model answers the cancellation; the abort never waits for it.
+    const cancel = () =>
+      void this.#host
+        .cancelRequests()
+        .catch((error) =>
+          this.#host.notice("error", `cancelling requests failed: ${String(error)}`),
+        );
     try {
-      this.#store.cancelRequests();
+      cancel();
       this.#session.clearQueue();
       const aborted = this.#session.abort();
       this.#release(false);
       await aborted;
       await this.#lane;
-      this.#store.cancelRequests();
+      cancel();
       this.#session.clearQueue();
       if (!this.#session.isIdle) await this.#session.abort();
     } finally {
-      this.#store.refuseRequests = false;
-      this.#store.setRun({ phase: "idle", retrying: false });
+      this.#setRun({ phase: "idle", retrying: false });
     }
   }
 
@@ -312,7 +344,7 @@ export class Control {
       imagesOf(Array.isArray(message.content) ? message.content.filter(isContentBlock) : []);
     if (!keepImages && [...steering, ...followUp].some((m) => isUser(m) && imagesIn(m).length)) {
       for (const message of steering) agent.steer(message);
-      throw new StoreError(
+      throw new Rejection(
         "queued_images",
         "a queued instruction has an image the editor cannot hold",
       );
@@ -353,13 +385,11 @@ export class Control {
           const texts = rest
             .filter((entry) => entry.images.length === 0)
             .map((entry) => entry.text);
-          const draft = this.#store.draft(PROMPT).text;
-          if (texts.length)
-            this.#store.setDraft(PROMPT, [draft, ...texts].filter(Boolean).join("\n\n"));
+          if (texts.length) await this.#host.appendDraft(PROMPT, texts.join("\n\n"));
           const withImages = rest.filter((entry) => entry.images.length > 0);
           for (const entry of withImages) this.#session.agent.followUp(entry.message);
           if (withImages.length)
-            this.#store.notice(
+            this.#host.notice(
               "warning",
               `${withImages.length} instruction${withImages.length === 1 ? "" : "s"} with images could not be sent again and wait as follow-ups`,
             );
@@ -376,7 +406,8 @@ export class Control {
     return this.#serial(async () => {
       this.#requireActive();
       const taken = this.#take(false);
-      if (taken.length) this.#store.setDraft(PROMPT, taken.map((entry) => entry.text).join("\n\n"));
+      if (taken.length)
+        await this.#host.setDraft(PROMPT, taken.map((entry) => entry.text).join("\n\n"));
       return { taken: taken.length };
     });
   }

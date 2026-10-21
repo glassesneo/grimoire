@@ -1,4 +1,5 @@
-# OTP owns process lifetime; Node runs the keel runtime, which hosts Pi through its SDK.
+# OTP owns process lifetime and keel's model; Node runs the keel driver, which hosts Pi through
+# its SDK.
 {
   lib,
   stdenvNoCC,
@@ -16,6 +17,9 @@
   settings ? {},
   models ? {providers = {};},
   writeText,
+  jq,
+  oxfmt,
+  crystal,
 }: let
   platforms = import ./platforms.nix;
   piVersion = (lib.importJSON ./package.json).dependencies."@earendil-works/pi-coding-agent";
@@ -35,20 +39,87 @@
     settings = writeText "keel-pi-settings.json" (builtins.toJSON piSettings);
     models = writeText "keel-pi-models.json" (builtins.toJSON models);
   };
-  hub = stdenvNoCC.mkDerivation {
-    pname = "shield-hub";
+  # The contracts' JSON Schemas and the TypeScript modules exposing them, generated from the
+  # TypeSpec sources alone with tools pinned apart from the product's dependencies. TypeSpec
+  # seals an object as `unevaluatedProperties: {"not": {}}`; it is written as the equivalent
+  # `false`, which TypeBox infers as a closed object rather than an open index signature.
+  # `just shield-contracts` copies the output into contracts/generated, and the contracts
+  # build case compares the two.
+  contracts = bun2nix.mkDerivation {
+    packageJson = ./contracts/package.json;
+    src = lib.fileset.toSource {
+      root = ./contracts;
+      fileset = lib.fileset.unions [
+        ./contracts/package.json
+        ./contracts/bun.lock
+        ./contracts/keel.tsp
+        ./contracts/management.tsp
+      ];
+    };
+    bunDeps = bun2nix.fetchBunDeps {bunNix = ./contracts/bun.nix;};
+    nativeBuildInputs = [nodejs jq oxfmt];
+    buildPhase = ''
+      mkdir generated
+      for name in keel management; do
+        node node_modules/@typespec/compiler/cmd/tsp.js compile "$name.tsp" --pretty=false \
+          --emit @typespec/json-schema \
+          --option @typespec/json-schema.file-type=json \
+          --option @typespec/json-schema.seal-object-schemas=true \
+          --option "@typespec/json-schema.emitter-output-dir=$PWD/emitted/$name"
+        comment="Generated from contracts/$name.tsp by \`just shield-contracts\`; do not edit."
+        jq --arg comment "$comment" \
+          '{"$comment": $comment} + walk(if type == "object" and .unevaluatedProperties == {"not": {}} then .unevaluatedProperties = false else . end)' \
+          emitted/$name/*.json > "generated/$name.schema.json"
+        printf '// %s\nexport default %s as const;\n' "$comment" "$(cat "generated/$name.schema.json")" > "generated/$name.ts"
+      done
+      oxfmt generated/*.ts
+    '';
+    installPhase = ''
+      cp -r generated "$out"
+    '';
+    dontFixup = true;
+  };
+  # Hex packages of the hub, fixed by mix.lock and this hash.
+  hubDeps = beamPackages.fetchMixDeps {
+    pname = "shield-hub-deps";
     version = "0.1.0";
     src = lib.fileset.toSource {
       root = ./hub;
-      fileset = lib.fileset.unions [./hub/mix.exs ./hub/.formatter.exs ./hub/lib ./hub/test];
+      fileset = lib.fileset.unions [./hub/mix.exs ./hub/mix.lock];
     };
+    hash = "sha256-Z65FkY3YB3IzK+87jLskpBXhTiOv+5nmvKIO/ikluJI=";
+  };
+  hub = stdenvNoCC.mkDerivation {
+    pname = "shield-hub";
+    version = "0.1.0";
+    # The model validates the records it receives against the generated keel schema, which
+    # it reads at compile time.
+    src = lib.fileset.toSource {
+      root = ./.;
+      fileset = lib.fileset.unions [
+        ./hub/mix.exs
+        ./hub/mix.lock
+        ./hub/.formatter.exs
+        ./hub/lib
+        ./hub/test
+        ./contracts/generated/keel.schema.json
+        ./contracts/cases.json
+        ./contracts/state.json
+      ];
+    };
+    sourceRoot = "source/hub";
     doCheck = true;
     checkPhase = ''
       MIX_ENV=test mix test --no-start
     '';
-    nativeBuildInputs = [beamPackages.elixir];
+    nativeBuildInputs = [beamPackages.elixir beamPackages.hex beamPackages.rebar3];
+    configurePhase = ''
+      export HOME="$TMPDIR" MIX_HOME="$TMPDIR/mix" HEX_HOME="$TMPDIR/hex" HEX_OFFLINE=1
+      export MIX_REBAR3=${beamPackages.rebar3}/bin/rebar3 REBAR_GLOBAL_CONFIG_DIR="$TMPDIR/rebar3"
+      cp -r --no-preserve=mode ${hubDeps} deps
+    '';
     buildPhase = ''
-      export HOME="$TMPDIR" MIX_ENV=prod
+      export MIX_ENV=prod
       mix compile --warnings-as-errors
       mix release
     '';
@@ -67,13 +138,23 @@
     exec ${hub}/bin/shield start
   '';
   bunDeps = bun2nix.fetchBunDeps {bunNix = ./bun.nix;};
-  # The screen and the shield client as Bun executables, and the runtime as a Node module
-  # beside the node_modules Pi and its extensions load from.
+  # The screen as a Bun executable, and the driver as a Node module beside the node_modules Pi
+  # and its extensions load from.
   build = bun2nix.mkDerivation {
     packageJson = ./package.json;
     src = lib.fileset.toSource {
       root = ./.;
-      fileset = lib.fileset.unions [./package.json ./bun.lock ./bunfig.toml ./build.ts ./keel ./client];
+      fileset = lib.fileset.unions [
+        ./package.json
+        ./bun.lock
+        ./bunfig.toml
+        ./build.ts
+        ./keel
+        ./client
+        ./contracts/generated
+        ./contracts/cases.json
+        ./contracts/state.json
+      ];
     };
     inherit bunDeps;
     doCheck = true;
@@ -86,21 +167,35 @@
     '';
     installPhase = ''
       dir="$out/libexec/keel"
-      mkdir -p "$dir/runtime/protocol" "$dir/runtime/runtime" "$dir/runtime/fixtures"
-      cp dist/keel dist/shield "$dir/"
-      cp dist/runtime.mjs "$dir/runtime/"
-      cp -r node_modules "$dir/runtime/"
-      echo '{"type": "module"}' > "$dir/runtime/package.json"
-      # What an extension written for keel imports, and the checks' fixtures.
-      cp keel/api.ts "$dir/runtime/"
-      cp keel/protocol/*.ts "$dir/runtime/protocol/"
-      cp keel/runtime/content.ts "$dir/runtime/runtime/"
-      cp keel/fixtures/*.ts "$dir/runtime/fixtures/"
+      mkdir -p "$dir/driver/protocol" "$dir/driver/driver" "$dir/driver/fixtures" "$dir/contracts/generated"
+      cp dist/keel "$dir/"
+      cp dist/driver.mjs "$dir/driver/"
+      cp -r node_modules "$dir/driver/"
+      echo '{"type": "module"}' > "$dir/driver/package.json"
+      # What an extension written for keel imports, with the types it names, and the checks'
+      # fixtures.
+      cp keel/api.ts "$dir/driver/"
+      cp keel/protocol/*.ts "$dir/driver/protocol/"
+      cp keel/driver/content.ts "$dir/driver/driver/"
+      cp contracts/generated/keel.ts "$dir/contracts/generated/"
+      cp keel/fixtures/*.ts "$dir/driver/fixtures/"
     '';
     dontFixup = true;
   };
-  runtime = writeShellScript "keel-runtime" ''
-    exec ${nodejs}/bin/node ${build}/libexec/keel/runtime/runtime.mjs "$@"
+  # The management CLI, a native executable that runs without Bun or the BEAM.
+  cli = crystal.buildCrystalPackage {
+    pname = "shield-cli";
+    version = "0.1.0";
+    src = lib.fileset.toSource {
+      root = ./client;
+      fileset = lib.fileset.unions [./client/shield.cr ./client/shield_cli.cr ./client/spec];
+    };
+    format = "crystal";
+    crystalBinaries.shield.src = "shield.cr";
+    doCheck = true;
+  };
+  driver = writeShellScript "keel-driver" ''
+    exec ${nodejs}/bin/node ${build}/libexec/keel/driver/driver.mjs "$@"
   '';
 in {
   inherit hub launcher build;
@@ -110,9 +205,9 @@ in {
     dontUnpack = true;
     nativeBuildInputs = [makeWrapper];
     installPhase = ''
-      makeWrapper ${build}/libexec/keel/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
+      makeWrapper ${cli}/bin/shield "$out/bin/shield" --set SHIELD_LAUNCHER ${launcher}
     '';
-    passthru = {inherit launcher piConfig;};
+    passthru = {inherit launcher piConfig contracts;};
     meta = {
       mainProgram = "shield";
       inherit platforms;
@@ -125,17 +220,19 @@ in {
     nativeBuildInputs = [makeWrapper];
     installPhase = ''
       makeWrapper ${build}/libexec/keel/keel "$out/bin/keel" \
-        --set KEEL_RUNTIME ${runtime} \
+        --set KEEL_DRIVER ${driver} \
         --set KEEL_PI_VERSION ${lib.escapeShellArg piVersion} \
         ${lib.optionalString (extraPackages != []) "--set SHIELD_TOOLS_PATH ${lib.escapeShellArg toolsPath}"}
     '';
     passthru = {
       inherit bunDeps piConfig;
-      runtime = {
-        executable = runtime;
+      driver = {
+        executable = driver;
         node = "${nodejs}/bin/node";
-        faux = "${build}/libexec/keel/runtime/fixtures/faux.ts";
-        bashFixture = "${build}/libexec/keel/runtime/fixtures/bash-fixture.ts";
+        faux = "${build}/libexec/keel/driver/fixtures/faux.ts";
+        bashFixture = "${build}/libexec/keel/driver/fixtures/bash-fixture.ts";
+        # The packages the driver loads, which the process case's scripts import as well.
+        modules = "${build}/libexec/keel/driver/node_modules";
       };
     };
     meta = {

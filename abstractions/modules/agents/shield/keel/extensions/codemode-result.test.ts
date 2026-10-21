@@ -1,6 +1,6 @@
 // A marked line tells the reader where a script failed, so a wrong mark misleads. These
 // cases are constructed in the format of pi 1.1.0's codemode results; real failing runs
-// through the keel runtime are checked by shield's inline process case.
+// through the keel driver are checked by shield's inline process case.
 import { expect, test } from "bun:test";
 import {
   codemodeErrorLocation,

@@ -1,4 +1,4 @@
-import { contentText, type ImageContent, imagesOf, type TextContent } from "../runtime/content";
+import { contentText, type ImageContent, imagesOf, type TextContent } from "../driver/content";
 
 /**
  * Where a failed codemode script stopped, read from the result text of pi

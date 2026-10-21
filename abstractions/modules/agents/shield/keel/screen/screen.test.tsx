@@ -1,16 +1,12 @@
-// What a person at a keel screen relies on, against a real runtime with the
-// faux provider: keys, focus, the stage, drafts, and the write right.
+// What a person at a keel screen relies on, against a scripted agent: keys, focus, the
+// stage, drafts, the write right, and what the screen does with records it cannot trust.
 import { afterEach, expect, test } from "bun:test";
 import { testRender } from "@opentui/solid";
 import { createSignal } from "solid-js";
-import { fauxAssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { keel } from "../api";
+import type { Item, RequestInfo, State } from "../protocol/wire";
 import { Connection } from "./connection";
 import { type KeelScreen, Screen, setupScreen } from "./screen";
-import { call, until } from "../runtime/test-support";
-import { linked } from "./test-support";
+import { FakeHub, fixture, TIMELINE, until } from "./test-support";
 import { createRenderers } from "./ui/renderers";
 
 const cleanup: (() => unknown)[] = [];
@@ -18,20 +14,38 @@ afterEach(async () => {
   for (const step of cleanup.splice(0).reverse()) await step();
 });
 
-async function open(options: Parameters<typeof linked>[0] = {}) {
-  const { hub, h } = await linked(options);
-  cleanup.push(() => h.dispose());
-  const screens: { connection: Connection; screen: KeelScreen }[] = [];
+async function open(hub = new FakeHub()) {
   const add = async () => {
     const connection = await hub.connect();
     const screen = setupScreen(connection, {
       clipboard: { writeText: async () => true, dispose: async () => {} },
     });
     cleanup.push(() => screen.dispose());
-    screens.push({ connection, screen });
     return { connection, screen };
   };
-  return { hub, h, add, screens };
+  return { hub, add };
+}
+
+async function render(screen: KeelScreen, width = 80, height = 24) {
+  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
+    width,
+    height,
+  });
+  cleanup.push(() => setup.renderer.destroy());
+  await setup.flush();
+  return setup;
+}
+
+/** The frame once it shows `text`, each look after a finished render; fails after 5 s. */
+async function showing(setup: Awaited<ReturnType<typeof render>>, text: string) {
+  const end = Date.now() + 5000;
+  for (;;) {
+    await setup.flush();
+    const frame = setup.captureCharFrame();
+    if (frame.includes(text)) return frame;
+    if (Date.now() > end) throw new Error(`the screen never showed ${text}`);
+    await Bun.sleep(20);
+  }
 }
 
 const key = (name: string, mods: { ctrl?: boolean; shift?: boolean; meta?: boolean } = {}) => ({
@@ -41,7 +55,6 @@ const key = (name: string, mods: { ctrl?: boolean; shift?: boolean; meta?: boole
   meta: false,
   ...mods,
 });
-const texts = (c: Connection) => c.mirror.state!.items.map((item) => item.text);
 
 /** Types into the editor as the native input would report it. */
 const type = (screen: KeelScreen, text: string) => {
@@ -49,27 +62,47 @@ const type = (screen: KeelScreen, text: string) => {
   screen.edit(current + text, current.length + text.length);
 };
 
-test("typing and Enter send the prompt, the response appears, and the editor empties", async () => {
-  const { add } = await open({ responses: [fauxAssistantMessage("Hello from faux")] });
-  const { connection, screen } = await add();
-  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
-    width: 80,
-    height: 24,
+const notice = (id: string, text: string): Item => ({
+  id,
+  version: 1,
+  kind: "notice",
+  text,
+  data: { level: "info", text },
+});
+
+const request = (id: string, supplement: boolean): RequestInfo => ({
+  id,
+  kind: "choice",
+  title: "Pick",
+  options: ["one", "two"],
+  ...(supplement ? { destination: `request:${id}` } : {}),
+});
+
+test("typing and Enter send the prompt revision that holds the text, and the editor follows the model", async () => {
+  const { hub, add } = await open();
+  hub.handlers.set("editor.submit", () => {
+    hub.publish({
+      drafts: { prompt: { text: "", revision: 2 } },
+      items: [notice("user-0", "> hi there")],
+      order: ["user-0"],
+    });
+    return { outcome: "accepted", appliedSeq: hub.seq, detail: { disposition: "started" } };
   });
-  cleanup.push(() => setup.renderer.destroy());
-  await setup.flush();
+  const { screen } = await add();
+  const setup = await render(screen);
   setup.renderer.stdin.emit("data", Buffer.from("hi there\r"));
-  await until(
-    () =>
-      texts(connection).includes("Hello from faux") &&
-      connection.mirror.state!.run.phase === "idle",
-  );
+  await until(() => hub.sent("editor.submit").length === 1);
+  expect(hub.sent("editor.submit")[0]!.args).toEqual({ destination: "prompt", revision: 1 });
+  expect(hub.sent("draft.set").at(-1)!.args).toEqual({
+    destination: "prompt",
+    text: "hi there",
+    base: 0,
+  });
+  await until(() => screen.drafts.text("prompt") === "");
   await setup.flush();
   const frame = setup.captureCharFrame();
   expect(frame).toContain("> hi there");
-  expect(frame).toContain("Hello from faux");
   expect(frame).toContain("writer");
-  expect(screen.drafts.text("prompt")).toBe("");
 });
 
 test("a second screen views: its typing is refused until it takes the write, which the first loses", async () => {
@@ -93,48 +126,25 @@ test("a second screen views: its typing is refused until it takes the write, whi
 });
 
 test("a global key is looked up before the focused region's", async () => {
-  const { add } = await open({
-    extensions: ["timeline"],
-    keybindings: { "global.pause": "j" },
-    responses: [call("wait", "w"), fauxAssistantMessage("x")],
-  });
-  const { connection, screen } = await add();
+  const { hub, add } = await open(new FakeHub(fixture(TIMELINE, { "global.pause": ["j"] })));
+  const { screen } = await add();
   screen.regions.requestFocus("timeline");
   expect(screen.key(key("j"))).toBe(true);
-  // Pausing while idle is refused by the runtime; the key reached global.pause, not the cursor.
-  await until(() => (screen.state.notice ?? "").startsWith("global.pause"));
+  await until(() => hub.sent("global.pause").length === 1);
+  // A region's own key still reaches its action, which this screen runs itself.
   expect(screen.key(key("down"))).toBe(true);
-  expect(texts(connection)).toEqual(
-    expect.arrayContaining([expect.stringContaining("keybindings: global global.pause takes J")]),
-  );
+  expect(hub.sent("timeline.cursor_down")).toEqual([]);
 });
 
-test("a request waits without taking focus; selected, the editor holds its supplement and Enter answers it", async () => {
-  const answers: unknown[] = [];
-  const asking: ExtensionFactory = (pi: ExtensionAPI) => {
-    pi.registerTool({
-      name: "ask",
-      label: "Ask",
-      description: "Asks the user",
-      parameters: Type.Object({}),
-      async execute(_id, _args, _signal, _update, ctx) {
-        const answer = await keel(ctx).requests.choice({ title: "Pick", options: ["one", "two"] });
-        answers.push(answer);
-        return { content: [{ type: "text", text: "asked" }], details: {} };
-      },
-    });
-  };
-  const { add } = await open({
-    bundled: { asking },
-    extensions: ["asking"],
-    responses: [call("ask", "a"), fauxAssistantMessage("done")],
-  });
-  const { connection, screen } = await add();
-  type(screen, "go");
-  screen.run("editor.submit");
-  await until(() => connection.mirror.state!.requests.length === 1);
-  // Arrival changes neither the selection nor focus; the prompt draft is kept.
+test("a request waits without taking focus; selected, the editor holds its supplement and Enter answers with it", async () => {
+  const { hub, add } = await open();
+  const { screen } = await add();
   type(screen, "next prompt");
+  hub.publish({
+    requests: [request("r0", true)],
+    drafts: { ...hub.state.drafts, "request:r0": { text: "", revision: 0 } },
+  });
+  await until(() => screen.stage.waiting() === 1);
   expect(screen.stage.selected()).toBeUndefined();
   expect(screen.regions.current()).toBe("editor");
   screen.run("editor.stage_next");
@@ -143,23 +153,57 @@ test("a request waits without taking focus; selected, the editor holds its suppl
   type(screen, "because");
   screen.run("editor.candidate_next");
   screen.run("editor.submit");
-  await until(() => answers.length === 1);
-  expect(answers).toEqual([{ status: "answered", value: "two", supplement: "because" }]);
+  await until(() => hub.sent("request.answer").length === 1);
+  expect(hub.sent("request.answer")[0]!.args).toEqual({ request: "r0", value: "two", revision: 1 });
+  hub.publish({ requests: [], drafts: { prompt: hub.state.drafts.prompt! } });
   await until(() => screen.stage.selected() === undefined);
   // Back on the prompt, its draft is as it was.
   expect(screen.drafts.text("prompt")).toBe("next prompt");
-  await until(() => connection.mirror.state!.run.phase === "idle");
+});
+
+test("a request without a supplement takes no typing, keeps the prompt as it was, and Enter answers it", async () => {
+  const { hub, add } = await open();
+  const { screen } = await add();
+  const setup = await render(screen);
+  setup.renderer.stdin.emit("data", Buffer.from("draft"));
+  await until(() => hub.state.drafts.prompt?.text === "draft");
+  hub.publish({ requests: [request("r1", false)] });
+  await until(() => screen.stage.waiting() === 1);
+  // Its arrival takes no focus and leaves the prompt in the editor.
+  expect(screen.regions.current()).toBe("editor");
+  screen.run("editor.stage_next");
+  await setup.flush();
+  expect(setup.captureCharFrame()).toContain("no supplement; Enter answers");
+  setup.renderer.stdin.emit("data", Buffer.from("typed"));
+  await setup.flush();
+  await Bun.sleep(20);
+  await setup.flush();
+  expect(setup.captureCharFrame()).not.toContain("typed");
+  setup.renderer.stdin.emit("data", Buffer.from("\r"));
+  await until(() => hub.sent("request.answer").length === 1);
+  expect(hub.sent("request.answer")[0]!.args).toEqual({ request: "r1", value: "one" });
+  // Nothing typed went to any draft, the prompt's included, and nothing says the answer failed.
+  expect(hub.sent("draft.set").map((invocation) => invocation.args)).toEqual([
+    { destination: "prompt", text: "draft", base: 0 },
+  ]);
+  expect(hub.state.drafts.prompt!.text).toBe("draft");
+  await until(() => !(screen.state.notice ?? "").includes("Enter answers"));
+});
+
+test("a request without a supplement arriving while the timeline is focused leaves focus there", async () => {
+  const { hub, add } = await open(new FakeHub(fixture(TIMELINE)));
+  const { screen } = await add();
+  screen.regions.requestFocus("timeline");
+  hub.publish({ requests: [request("r1", false)] });
+  await until(() => screen.stage.waiting() === 1);
+  expect(screen.regions.current()).toBe("timeline");
+  expect(screen.stage.selected()).toBeUndefined();
 });
 
 test("stop needs a second press within a second on the same screen, and another action disarms", async () => {
-  const { add, h } = await open({
-    responses: [call("wait", "w"), fauxAssistantMessage("never")],
-  });
+  const { hub, add } = await open();
   const first = await add();
   const second = await add();
-  type(first.screen, "go");
-  first.screen.run("editor.submit");
-  await until(() => h.started.length === 1);
   first.screen.key(key("c", { ctrl: true }));
   expect(first.screen.state.armedUntil).toBeGreaterThan(0);
   first.screen.run("editor.focus_next");
@@ -168,61 +212,203 @@ test("stop needs a second press within a second on the same screen, and another 
   first.screen.key(key("c", { ctrl: true }));
   second.screen.key(key("c", { ctrl: true }));
   await Bun.sleep(20);
-  expect(first.connection.mirror.state!.run.phase).toBe("running");
+  expect(hub.sent("global.stop")).toEqual([]);
   first.screen.key(key("c", { ctrl: true }));
-  await until(() => first.connection.mirror.state!.run.phase === "idle");
-  expect(texts(first.connection)).not.toContain("never");
+  await until(() => hub.sent("global.stop").length === 1);
 });
 
-test("the command input completes a name, then runs the chosen candidate's action", async () => {
-  const { add } = await open({ extensions: ["commands", "model"] });
-  const { connection, screen } = await add();
-  screen.run("editor.command_open");
-  expect(screen.stage.selected()?.info.id).toBe("command");
-  type(screen, "think");
-  await until(
-    () => connection.mirror.state!.assists.find((a) => a.id === "command")!.candidates.length === 1,
-  );
-  screen.run("editor.submit");
-  await until(() => connection.mirror.state!.drafts["assist:command"]!.text === "thinking ");
-  screen.run("editor.command_open");
-  await until(() =>
-    connection.mirror
-      .state!.assists.find((a) => a.id === "command")!
-      .candidates.some((c) => c.label === "high"),
-  );
-  const candidates = connection.mirror.state!.assists.find((a) => a.id === "command")!.candidates;
-  for (let i = 0; i < candidates.findIndex((c) => c.label === "high"); i++)
-    screen.run("editor.candidate_next");
-  screen.run("editor.submit");
-  await until(() => connection.mirror.state!.session.thinking === "high");
+test("a key bound to global.stop needs a second press on the same screen, as the region stops do", async () => {
+  const { hub, add } = await open(new FakeHub(fixture([], { "global.stop": ["ctrl+x"] })));
+  const { screen } = await add();
+  screen.key(key("x", { ctrl: true }));
+  await Bun.sleep(30);
+  expect(hub.sent("global.stop")).toEqual([]);
+  screen.key(key("x", { ctrl: true }));
+  await until(() => hub.sent("global.stop").length === 1);
 });
 
-test("a gap in the event sequence stops changes and replaces the mirror from a new snapshot", async () => {
-  const { add } = await open();
+test("typing between two stop presses disarms the first", async () => {
+  const { hub, add } = await open();
+  const { screen } = await add();
+  screen.key(key("c", { ctrl: true }));
+  // A typed character reaches the editor, not an action.
+  expect(screen.key(key("a"))).toBe(false);
+  screen.key(key("c", { ctrl: true }));
+  await Bun.sleep(30);
+  expect(hub.sent("global.stop")).toEqual([]);
+});
+
+test("an assist candidate is accepted for the text typed, once its candidates have caught up", async () => {
+  const hub = new FakeHub();
+  hub.state = {
+    ...hub.state,
+    assists: [
+      { id: "slow", title: "Slow", destination: "assist:slow", revision: 0, candidates: [] },
+    ],
+    drafts: { ...hub.state.drafts, "assist:slow": { text: "", revision: 0 } },
+  };
+  const { add } = await open(hub);
+  const { screen } = await add();
+  screen.stage.select("assist", "slow");
+  type(screen, "typed");
+  screen.run("editor.submit");
+  await until(() => hub.state.drafts["assist:slow"]!.revision === 1);
+  await Bun.sleep(40);
+  expect(hub.sent("assist.accept")).toEqual([]);
+  hub.publish({
+    assists: [
+      {
+        ...hub.state.assists[0]!,
+        revision: 1,
+        candidates: [{ id: "only", label: "typed", action: { id: "slow.run" } }],
+      },
+    ],
+  });
+  await until(() => hub.sent("assist.accept").length === 1);
+  expect(hub.sent("assist.accept")[0]!.args).toEqual({
+    assist: "slow",
+    candidate: "only",
+    revision: 1,
+  });
+});
+
+test("Enter sends nothing when the model refused the typing, and the editor shows the model's text", async () => {
+  const { hub, add } = await open();
+  const { screen } = await add();
+  // The model's prompt changes before this screen's typing reaches it.
+  hub.publish({ drafts: { prompt: { text: "theirs", revision: 1 } } });
+  const stale = hub.handlers.get("draft.set")!;
+  hub.handlers.set("draft.set", async (invocation) => {
+    await Bun.sleep(10);
+    return stale({ ...invocation, args: { ...invocation.args, base: 0 } });
+  });
+  await until(() => screen.drafts.text("prompt") === "theirs");
+  screen.edit("mine", 4);
+  screen.run("editor.submit");
+  await Bun.sleep(60);
+  expect(hub.sent("editor.submit")).toEqual([]);
+  expect(screen.drafts.text("prompt")).toBe("theirs");
+  expect(screen.state.notice).toContain("not saved");
+});
+
+test("a gap in the event sequence asks for a new snapshot, which brings what the screen missed", async () => {
+  const { hub, add } = await open();
   const { connection } = await add();
-  const before = connection.mirror.seq;
+  const asked = hub.snapshots;
+  // An event the screen never received moves the agent on.
+  hub.state = { ...hub.state, items: [notice("notice-0", "missed")] };
+  hub.seq += 1;
   (connection.client as any).onRecord({
     v: 1,
     type: "event",
     "agent-id": "agent",
     engine: "keel",
-    payload: { runtimeInstance: connection.mirror.runtimeInstance, seq: before + 5, changes: {} },
+    payload: { instance: hub.instance, seq: hub.seq + 1, changes: {} },
   });
-  expect(["syncing", "live"]).toContain(connection.phase);
-  await until(() => connection.phase === "live");
-  expect(connection.mirror.seq).toBe(before);
+  await until(() => hub.snapshots === asked + 1 && connection.phase === "live");
+  expect(connection.mirror.state!.items.map((item) => item.text)).toEqual(["missed"]);
+});
+
+/** Delivers records to a screen's connection in one read, as the hub's socket does. */
+const deliver = (connection: Connection, records: Record<string, unknown>[]) => {
+  for (const record of records)
+    (connection.client as any).onRecord({ v: 1, "agent-id": "agent", engine: "keel", ...record });
+};
+
+const snapshotRecord = (hub: FakeHub, state: State) => ({
+  type: "snapshot",
+  connection: "c1",
+  lifecycle: "ready",
+  writer: { connection: "c1", epoch: hub.epoch },
+  payload: { instance: hub.instance, seq: hub.seq + 10, state },
+});
+
+test("a record that does not conform is not applied: the screen closes, keeps what it showed, and says why", async () => {
+  const { hub, add } = await open();
+  hub.publish({ items: [notice("notice-0", "kept on screen")], order: ["notice-0"] });
+  const { connection, screen } = await add();
+  const setup = await render(screen, 60, 12);
+  const seq = connection.mirror.seq;
+  // A snapshot that would replace everything follows in the same read; it must not apply.
+  deliver(connection, [
+    {
+      type: "event",
+      payload: {
+        instance: hub.instance,
+        seq: seq + 1,
+        changes: { items: [notice("notice-1", "never shown")], drafts: { prompt: { text: 1 } } },
+      },
+    },
+    snapshotRecord(hub, { ...hub.state, items: [notice("notice-2", "after the invalid one")] }),
+  ]);
+  expect(connection.phase).toBe("ended");
+  expect(connection.mirror.seq).toBe(seq);
+  expect(hub.clients).toHaveLength(0);
+  expect(hub.writer).toBeUndefined();
+  await setup.flush();
+  const frame = setup.captureCharFrame();
+  expect(frame).toContain("kept on screen");
+  expect(frame).not.toContain("never shown");
+  expect(frame).not.toContain("after the invalid one");
+  expect(connection.notice).toContain("invalid event");
+});
+
+test("an invalid snapshot is not applied either, and the screen closes", async () => {
+  const { hub, add } = await open();
+  const { connection } = await add();
+  const seq = connection.mirror.seq;
+  deliver(connection, [
+    snapshotRecord(hub, { ...hub.state, drafts: { prompt: { text: "x" } } } as never),
+  ]);
+  expect(connection.phase).toBe("ended");
+  expect(connection.mirror.seq).toBe(seq);
+  expect(connection.notice).toContain("invalid snapshot");
+  expect(hub.clients).toHaveLength(0);
+});
+
+test("an invalid result closes the screen and is reported as of unknown effect", async () => {
+  const { hub, add } = await open();
+  hub.handlers.set("global.pause", () => ({ outcome: "maybe" }) as never);
+  const { connection, screen } = await add();
+  screen.run("global.pause");
+  await until(() => connection.phase === "ended");
+  expect(connection.notice).toContain("invalid result");
+  expect(hub.clients).toHaveLength(0);
+});
+
+test("an unknown outcome is reported and not retried", async () => {
+  const { hub, add } = await open();
+  hub.handlers.set("global.pause", () => ({ outcome: "unknown", code: "acceptance_unknown" }));
+  const { screen } = await add();
+  screen.run("global.pause");
+  await until(() => (screen.state.notice ?? "").includes("acceptance_unknown"));
+  expect(screen.state.notice).toContain("not sent again");
+  await Bun.sleep(20);
+  expect(hub.sent("global.pause")).toHaveLength(1);
+});
+
+test("an agent that ends leaves its last items and drafts on the screen", async () => {
+  const { hub, add } = await open();
+  hub.publish({ items: [notice("notice-0", "the last words")], order: ["notice-0"] });
+  const { connection, screen } = await add();
+  const setup = await render(screen, 60, 12);
+  setup.renderer.stdin.emit("data", Buffer.from("unsent"));
+  await until(() => hub.state.drafts.prompt?.text === "unsent");
+  deliver(connection, [
+    { type: "management", payload: { op: "lifecycle", state: "exited", detail: { exitCode: 0 } } },
+  ]);
+  expect(connection.phase).toBe("ended");
+  await setup.flush();
+  const frame = setup.captureCharFrame();
+  expect(frame).toContain("the last words");
+  expect(frame).toContain("unsent");
+  expect(frame).toContain("exited");
 });
 
 test("a terminal too short for the editor draws nothing, and draws again when it grows", async () => {
-  const { add } = await open({ responses: [] });
+  const { add } = await open();
   const { screen } = await add();
-  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
-    width: 40,
-    height: 1,
-  });
-  cleanup.push(() => setup.renderer.destroy());
-  await setup.flush();
+  const setup = await render(screen, 40, 1);
   expect(setup.captureCharFrame().trim()).toBe("");
   setup.resize(40, 12);
   await setup.flush();
@@ -230,39 +416,21 @@ test("a terminal too short for the editor draws nothing, and draws again when it
 });
 
 test("an item whose kind maps to no renderer here is shown as its text", async () => {
-  const marking: ExtensionFactory = (pi: ExtensionAPI) => {
-    pi.on("session_start", (_event, ctx) => {
-      keel(ctx).items.present("notice", "renderer.this.screen.lacks");
-      keel(ctx).items.notice("info", "plain notice");
-    });
+  const hub = new FakeHub();
+  hub.state = {
+    ...hub.state,
+    items: [notice("notice-0", "plain notice")],
+    kinds: { notice: "renderer.this.screen.lacks" },
   };
-  const { add } = await open({ bundled: { marking }, extensions: ["marking"] });
+  const { add } = await open(hub);
   const { screen } = await add();
-  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
-    width: 60,
-    height: 12,
-  });
-  cleanup.push(() => setup.renderer.destroy());
-  await setup.flush();
+  const setup = await render(screen, 60, 12);
   expect(setup.captureCharFrame()).toContain("plain notice");
 });
 
 test("Markdown, tool, and codemode renderers show what their items carry", async () => {
-  const client: { onRecord: (record: unknown) => void } & Record<string, unknown> = {
-    onRecord: () => {},
-    onDisconnect: () => {},
-    connected: Promise.resolve(),
-    close: () => {},
-  };
-  const connection = new Connection(client as never);
-  const item = (id: string, kind: string, data: unknown, extra: Record<string, unknown> = {}) => ({
-    id,
-    version: 1,
-    kind,
-    text: `${kind} as text`,
-    data,
-    ...extra,
-  });
+  const item = (id: string, kind: string, data: unknown, extra: Record<string, unknown> = {}) =>
+    ({ id, version: 1, kind, text: `${kind} as text`, data, ...extra }) as Item;
   const failedScript = {
     callId: "s",
     name: "codemode",
@@ -283,78 +451,54 @@ test("Markdown, tool, and codemode renderers show what their items carry", async
       },
     },
   };
-  client.onRecord({
-    v: 1,
-    type: "snapshot",
-    "agent-id": "agent",
-    engine: "keel",
-    connection: "c1",
-    lifecycle: "ready",
-    writer: { connection: "c1", epoch: 1 },
-    payload: {
-      runtimeInstance: "r",
-      seq: 0,
-      state: {
-        session: { id: "session", cwd: "/project", model: "faux/faux", thinking: null },
-        run: { phase: "idle", compacting: false, retrying: false },
-        items: [
-          item("r", "response", {
-            thinking: "",
-            hasThinking: false,
-            thinkingWithheld: false,
-            body: "# Heading\nSome **bold** words",
-            streaming: false,
-          }),
-          item(
-            "t",
-            "tool",
-            {
-              callId: "t",
-              name: "lookup",
-              args: { available: true, value: { query: "keel" } },
-              state: "done",
-              result: { text: "found it", images: [], partial: false },
-              calls: [],
-            },
-            { variant: "lookup" },
-          ),
-          item("s", "tool", failedScript, { variant: "codemode" }),
-          item("n", "mystery", {}),
-        ],
-        queue: { steering: [], followUp: ["later"] },
-        requests: [],
-        assists: [],
-        drafts: { prompt: { text: "", revision: 0 } },
-        actions: [],
-        keys: {},
-        kinds: {
-          response: "markdown.response",
-          tool: "tool.generic",
-          "tool/codemode": "tool.codemode",
-          mystery: "renderer.nobody.has",
+  const hub = new FakeHub();
+  hub.state = {
+    ...hub.state,
+    items: [
+      item("r", "response", {
+        thinking: "",
+        hasThinking: false,
+        thinkingWithheld: false,
+        body: "# Heading\nSome **bold** words",
+        streaming: false,
+      }),
+      item(
+        "t",
+        "tool",
+        {
+          callId: "t",
+          name: "lookup",
+          args: { available: true, value: { query: "keel" } },
+          state: "done",
+          result: { text: "found it", images: [], partial: false },
+          calls: [],
         },
-      },
+        { variant: "lookup" },
+      ),
+      item("s", "tool", failedScript, { variant: "codemode" }),
+      item("n", "notice", { level: "info", text: "x" }),
+    ],
+    queue: { steering: [], followUp: ["later"] },
+    kinds: {
+      response: "markdown.response",
+      tool: "tool.generic",
+      "tool/codemode": "tool.codemode",
+      notice: "renderer.nobody.has",
     },
-  });
-  const screen = setupScreen(connection);
-  cleanup.push(() => screen.dispose());
-  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
-    width: 100,
-    height: 30,
-  });
-  cleanup.push(() => setup.renderer.destroy());
-  await setup.flush();
-  await Bun.sleep(50);
-  await setup.flush();
-  const frame = setup.captureCharFrame();
-  expect(frame).toContain("Heading");
+  };
+  const { add } = await open(hub);
+  const { screen } = await add();
+  const setup = await render(screen, 100, 30);
+  // Markdown is rendered asynchronously; each look waits for a finished frame.
+  const frame = await showing(setup, "Heading");
   expect(frame).not.toContain("# Heading");
   expect(frame).not.toContain("**bold**");
-  expect(frame).toContain("lookup query=keel · done");
-  expect(frame).toContain("codemode 1 call · 0.4s · failed at line 2");
-  expect(frame).toContain("· read path=notes.md · done");
+  // What each item carries is shown; the separators between are not the point.
+  expect(frame).toMatch(/lookup.*query=keel.*done/);
+  expect(frame).toMatch(/codemode.*1 call.*0\.4s.*failed at line 2/);
+  expect(frame).toMatch(/read.*path=notes\.md.*done/);
   expect(frame).toContain("TypeError: cannot read property 'missing' of null");
-  expect(frame).toContain("mystery as text");
+  expect(frame).toContain("notice as text");
   expect(frame).toContain("queued: later");
 });
 
@@ -389,7 +533,7 @@ test("expanded scripts keep their source, line numbers, and error marker when th
         },
       },
     },
-  };
+  } as unknown as Item;
   const renderer = createRenderers()["tool.codemode"]!;
   const setup = await testRender(
     () => renderer.renderDetails!({ value, id: value.id, version: 1, expanded: true }),
@@ -410,93 +554,13 @@ test("a viewer's typing does not stay in its editor", async () => {
   const { add } = await open();
   await add();
   const { screen } = await add();
-  const setup = await testRender(() => <Screen screen={screen} cwd="/project" />, {
-    width: 60,
-    height: 12,
-  });
-  cleanup.push(() => setup.renderer.destroy());
-  await setup.flush();
+  const setup = await render(screen, 60, 12);
   setup.renderer.stdin.emit("data", Buffer.from("typed"));
   await setup.flush();
   await Bun.sleep(20);
   await setup.flush();
   expect(setup.captureCharFrame()).not.toContain("typed");
   expect(setup.captureCharFrame()).toContain("view");
-});
-
-test("a key bound to global.stop needs a second press on the same screen, as the region stops do", async () => {
-  const { add, h } = await open({
-    keybindings: { "global.stop": "ctrl+x" },
-    responses: [call("wait", "w"), fauxAssistantMessage("never")],
-  });
-  const { connection, screen } = await add();
-  type(screen, "go");
-  screen.run("editor.submit");
-  await until(() => h.started.length === 1);
-  screen.key(key("x", { ctrl: true }));
-  await Bun.sleep(30);
-  expect(connection.mirror.state!.run.phase).toBe("running");
-  screen.key(key("x", { ctrl: true }));
-  await until(() => connection.mirror.state!.run.phase === "idle");
-  expect(texts(connection)).not.toContain("never");
-});
-
-test("typing between two stop presses disarms the first", async () => {
-  const { add, h } = await open({
-    responses: [call("wait", "w"), fauxAssistantMessage("done")],
-  });
-  const { connection, screen } = await add();
-  type(screen, "go");
-  screen.run("editor.submit");
-  await until(() => h.started.length === 1);
-  screen.key(key("c", { ctrl: true }));
-  // A typed character reaches the editor, not an action.
-  expect(screen.key(key("a"))).toBe(false);
-  screen.key(key("c", { ctrl: true }));
-  await Bun.sleep(30);
-  expect(connection.mirror.state!.run.phase).toBe("running");
-  h.release();
-  await until(() => connection.mirror.state!.run.phase === "idle");
-});
-
-test("Enter sends what was typed, or nothing when the agent refused the typing", async () => {
-  const { add, h } = await open({ responses: [fauxAssistantMessage("reply")] });
-  const { connection, screen } = await add();
-  // The agent changes the prompt draft before this screen's typing reaches it.
-  h.runtime.store.setDraft("prompt", "theirs");
-  type(screen, "mine");
-  screen.run("editor.submit");
-  await Bun.sleep(50);
-  expect(texts(connection)).toEqual([]);
-  expect(screen.drafts.text("prompt")).toBe("theirs");
-  expect(screen.state.notice).toContain("not saved");
-});
-
-test("an assist candidate is accepted for the text typed, once its candidates have caught up", async () => {
-  const runs: unknown[] = [];
-  const slow: ExtensionFactory = (pi: ExtensionAPI) => {
-    pi.on("session_start", (_event, ctx) => {
-      const k = keel(ctx);
-      k.actions.register([
-        { id: "slow.run", class: "control", run: ({ args }) => void runs.push(args) },
-      ]);
-      k.assists.register({
-        id: "slow",
-        title: "Slow",
-        candidates: async (text) => {
-          await Bun.sleep(40);
-          return [{ id: "only", label: text, action: { id: "slow.run", args: { text } } }];
-        },
-      });
-    });
-  };
-  const { add } = await open({ bundled: { slow }, extensions: ["slow"] });
-  const { screen } = await add();
-  screen.stage.select("assist", "slow");
-  type(screen, "typed");
-  screen.run("editor.submit");
-  await until(() => runs.length === 1);
-  expect(runs).toEqual([{ text: "typed" }]);
 });
 
 test("before the agent's state arrives, the close keys still close the screen", async () => {

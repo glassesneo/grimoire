@@ -14,9 +14,9 @@ import { assistDestination, type Candidate } from "../protocol/wire";
 const COMMAND = "command";
 
 export default function commands(pi: ExtensionAPI): void {
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     const k = keel(ctx);
-    k.actions.register([
+    await k.actions.register([
       // The screen selects the command assist and focuses the editor.
       {
         id: "editor.command_open",
@@ -28,19 +28,20 @@ export default function commands(pi: ExtensionAPI): void {
       {
         id: "command.complete",
         title: "Write a command name into the command input",
-        run: ({ args }) => {
+        run: async ({ args }) => {
           const name = isRecord(args) && typeof args.name === "string" ? args.name : undefined;
-          if (!name || !k.assists.list().includes(name)) throw new Error(`unknown command ${name}`);
-          k.drafts.set(assistDestination(COMMAND), `${name} `);
+          if (!name || !(await k.assists.list()).includes(name))
+            throw new Error(`unknown command ${name}`);
+          await k.drafts.set(assistDestination(COMMAND), `${name} `);
         },
       },
     ]);
-    k.assists.register({
+    await k.assists.register({
       id: COMMAND,
       title: "Command",
       candidates: async (text) => {
         const space = text.indexOf(" ");
-        const names = k.assists.list().filter((id) => id !== COMMAND);
+        const names = (await k.assists.list()).filter((id) => id !== COMMAND);
         if (space === -1) {
           const query = text.trim().toLowerCase();
           return names

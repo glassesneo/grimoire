@@ -1,6 +1,7 @@
 /**
- * Plain-text forms of item data, shared by the runtime, which puts them in an
- * item's `text`, and the screen's renderers, which color them.
+ * Plain-text forms of item data for the screen's renderers, which color them,
+ * and small helpers the driver and extensions share. keel's model writes the same
+ * forms into an item's `text` (Shield.Keel.Projection); change both together.
  */
 import type { ResponseData, ToolArguments, ToolState } from "./items";
 

@@ -12,16 +12,17 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type HubClient, JsonLines, type Envelope } from "../../client/protocol";
-import { startHub } from "../../client/shield";
 import { Mirror } from "../../keel/protocol/apply";
 import {
   alive,
   attachPayload,
   clientsOf,
+  conforms,
   fakeLaunch,
   finish,
   invoke,
   rawClient,
+  startHub,
   wait,
 } from "./support";
 
@@ -32,26 +33,41 @@ const fakeOptions = (mode = "normal") => fakeLaunch(dir, mode, { PATH: "/usr/bin
 const attach = (c: HubClient, cwd = dir, opts = fakeOptions()) =>
   c.hub("attach", attachPayload(cwd, opts));
 
-/** A client that mirrors the runtime's state from its snapshot and events, as a screen does. */
+/**
+ * A client that mirrors the model's state from its snapshot and events, as a screen does, and
+ * checks that every record the hub sends it conforms to the management contract.
+ */
 function mirrored(c: HubClient) {
   const mirror = new Mirror();
   const records: Envelope[] = [];
   let connection: string | undefined;
   let writer: string | null = null;
+  let epoch = 0;
   c.onRecord = (r) => {
     records.push(r);
+    assert(
+      conforms("HubRecord", r),
+      `nonconforming hub record: ${JSON.stringify(r).slice(0, 200)}`,
+    );
     if (r.type === "snapshot") {
       mirror.reset(r.payload);
       connection = r.connection;
       writer = r.writer?.connection ?? null;
+      epoch = r.writer?.epoch ?? 0;
     } else if (r.type === "event") mirror.apply(r.payload);
-    else if (r.type === "management" && r.payload.op === "writer") writer = r.payload.connection;
+    else if (r.type === "management" && r.payload.op === "writer") {
+      writer = r.payload.connection;
+      epoch = r.payload.epoch;
+    }
   };
   return {
     mirror,
     records,
     get connection() {
       return connection;
+    },
+    get epoch() {
+      return epoch;
     },
     get writes() {
       return connection !== undefined && writer === connection;
@@ -140,18 +156,20 @@ try {
   assert(ra.success && rb.success);
   assert.equal(ra.id, "same");
   assert.equal(rb.id, "same");
-  // The runtime sees each request with its own connection.
+  // The driver sees each request with its own connection.
   assert.notEqual(ra.payload.detail, rb.payload.detail);
   // The first screen to be live writes; the other views, and its write is refused.
   assert.equal([viewA.writes, viewB.writes].filter(Boolean).length, 1);
   const [writerClient, viewerClient] = viewA.writes ? [a, b] : [b, a];
-  const viewer = viewA.writes ? viewB : viewA;
-  assert.equal((await viewerClient.engine(id, invoke("write"))).payload.code, "not_writer");
-  assert.equal((await writerClient.engine(id, invoke("write"))).payload.outcome, "done");
+  const [writerView, viewer] = viewA.writes ? [viewA, viewB] : [viewB, viewA];
+  const write = (c: HubClient, view: typeof viewA) =>
+    c.engine(id, invoke("write", undefined, view.epoch));
+  assert.equal((await write(viewerClient, viewer)).payload.code, "not_writer");
+  assert.equal((await write(writerClient, writerView)).payload.outcome, "done");
   assert((await viewerClient.request("hub_request", id, {}, "take_write")).success);
   await wait(() => viewer.writes);
-  assert.equal((await writerClient.engine(id, invoke("write"))).payload.code, "not_writer");
-  // Events reach both screens in the runtime's sequence, and they converge.
+  assert.equal((await write(writerClient, writerView)).payload.code, "not_writer");
+  // Events reach both screens in the model's sequence, and they converge.
   for (let i = 0; i < 3; i++) assert((await a.engine(id, invoke("emit", `text ${i}`))).success);
   await wait(() => viewA.mirror.seq === viewB.mirror.seq && viewA.mirror.seq > 0);
   assert.deepEqual(viewA.mirror.state, viewB.mirror.state);
@@ -173,7 +191,7 @@ try {
     if (r.type === "snapshot") snapshot = r;
   };
   assert((await attach(large)).success);
-  assert(snapshot!.payload.state.texts.some((t: string) => t.length === 20 * 1024 * 1024));
+  assert(snapshot!.payload.state.items.some((item: any) => item.text.length === 20 * 1024 * 1024));
   // Input to a process that stopped reading stdin waits in order instead of failing the agent,
   // and neither blocks another agent progressing, or TERM/KILL.
   console.log("hub: blocked stdin");
@@ -206,8 +224,8 @@ try {
   const start = Date.now();
   await other.hub("shutdown");
   const [written, waiting] = await Promise.all([pending, queued]);
-  assert.equal(written?.error?.code, "acceptance_unknown");
-  assert.equal(waiting?.error?.code, "acceptance_unknown");
+  assert.equal(written?.payload?.code, "acceptance_unknown");
+  assert.equal(waiting?.payload?.code, "acceptance_unknown");
   await wait(() => !alive(pid), 8000);
   // TERM, KILL after 5 s, and the exit observed within the Agent's 1 s.
   assert(Date.now() - start < 7000);

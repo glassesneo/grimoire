@@ -147,6 +147,20 @@ in {
           inherit (result) keel;
         };
     };
+    # The committed generated contracts are what the TypeSpec sources generate.
+    contracts = {
+      moduleSystem = "bundles";
+      modules.publish = publishBoth;
+      platforms = import ./platforms.nix;
+      build = result:
+        pkgs.runCommand "shield-contracts-current" {} ''
+          if ! diff -ru ${result.shield.contracts} ${./contracts/generated}; then
+            echo "contracts/generated is stale; run just shield-contracts" >&2
+            exit 1
+          fi
+          touch "$out"
+        '';
+    };
     process = {
       moduleSystem = "bundles";
       modules.publish = publishBoth;

@@ -1,8 +1,12 @@
-// What every SHIELD process script needs: polling, a fake runtime launch, raw socket peers, and teardown.
+// What every SHIELD process script needs: the packaged shield executable, polling, a fake
+// driver launch, raw socket peers, the management contract, and teardown.
 import { rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { createConnection, type Socket } from "node:net";
+import Schema from "typebox/schema";
+import management from "../../contracts/generated/management";
 import { HubClient, JsonLines } from "../../client/protocol";
 
 export const wait = async (predicate: () => boolean, timeout = 15000) => {
@@ -22,12 +26,30 @@ export const alive = (pid: number) => {
   }
 };
 
-/** Attach options that run `fake-runtime.ts` in `mode`, writing its pid to `<dir>/<mode>.pid`. */
+/** Runs the packaged `shield` executable; rejects with its stderr when it fails. */
+export function shield(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("shield", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (bytes) => (stdout += bytes));
+    child.stderr.on("data", (bytes) => (stderr += bytes));
+    child.on("error", reject);
+    child.on("close", (code) =>
+      code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || `shield exited ${code}`)),
+    );
+  });
+}
+
+/** Starts the hub at `socket` with `shield start`, as a person does. */
+export const startHub = (socket: string) => shield(["--socket", socket, "start"]);
+
+/** Attach options that run `fake-driver.ts` in `mode`, writing its pid to `<dir>/<mode>.pid`. */
 export const fakeLaunch = (dir: string, mode = "normal", env: Record<string, string> = {}) => ({
   configDir: dir,
   launch: {
     executable: process.execPath,
-    argv: [join(import.meta.dir, "fake-runtime.ts"), mode],
+    argv: [join(import.meta.dir, "fake-driver.ts"), mode],
     env: { FIXTURE_PID: join(dir, `${mode}.pid`), ...env },
   },
 });
@@ -39,11 +61,12 @@ export const attachPayload = (cwd: string, options: unknown, kind = "cwd", key =
   selection: { kind, key },
 });
 
-/** An invocation's engine request payload. */
-export const invoke = (action: string, args?: unknown) => ({
+/** An invocation of the fake driver's action `name`, under the writer epoch a screen saw. */
+export const invoke = (name: string, args?: unknown, writerEpoch?: number) => ({
   op: "invoke",
-  action,
+  action: `fake.${name}`,
   ...(args === undefined ? {} : { args }),
+  ...(writerEpoch === undefined ? {} : { writerEpoch }),
 });
 
 /** HubClients that `finish` closes. */
@@ -77,6 +100,21 @@ export async function rawClient(path: string, onRecord: (record: any) => void = 
     records,
     write: (record: unknown) => socket.write(JSON.stringify(record) + "\n"),
   };
+}
+
+const definitions = management.$defs;
+type Definition = Extract<keyof typeof definitions, string>;
+const validators = new Map<string, { Check(value: unknown): boolean }>();
+
+/** Whether `value` conforms to the management contract's definition `name`. */
+export function conforms(name: Definition, value: unknown): boolean {
+  let validator = validators.get(name);
+  if (!validator)
+    validators.set(
+      name,
+      (validator = Schema.Compile({ $defs: definitions, $ref: `#/$defs/${name}` } as never)),
+    );
+  return validator.Check(value);
 }
 
 /** Shuts the hub down, closes the clients, and removes the scratch directory. */

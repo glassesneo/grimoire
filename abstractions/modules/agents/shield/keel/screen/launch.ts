@@ -1,5 +1,5 @@
 /**
- * What the screen asks the hub to start: the keel runtime, in this directory,
+ * What the screen asks the hub to start: the keel driver, in this directory,
  * reading the configuration directory, with this screen's environment. Pi's
  * session file goes to SHIELD's sessions directory for the cwd. A running
  * agent keeps the environment it started with; attaching does not change it.
@@ -8,10 +8,11 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { privateDirectory, sessionsDirectory } from "../../client/paths";
+import type { AttachOptions } from "../protocol/wire";
 
-export function launchOptions(cwd: string, configDir: string) {
-  const executable = process.env.KEEL_RUNTIME;
-  if (!executable) throw new Error("the keel runtime is missing; use the packaged keel");
+export function launchOptions(cwd: string, configDir: string): AttachOptions {
+  const executable = process.env.KEEL_DRIVER;
+  if (!executable) throw new Error("the keel driver is missing; use the packaged keel");
   privateDirectory(configDir);
   const sessions = join(sessionsDirectory(), createHash("sha256").update(cwd).digest("hex"));
   privateDirectory(sessions);

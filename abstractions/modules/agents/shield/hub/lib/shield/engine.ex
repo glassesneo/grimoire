@@ -11,11 +11,12 @@
 # stdin in order and without blocking itself; a write that would queue more than one record's
 # limit is rejected with `engine_stdin_busy`.
 #
-# The process owns its state and numbers its changes; the hub relays them without reading or
+# The engine-neutral modules never interpret an engine's records or state. An engine module
+# owns its harness's model: it may keep the state screens follow itself, as Shield.Keel does,
+# and numbers its changes; the Agent delivers its snapshots and events without reading or
 # renumbering them. A subscriber starts pending: it receives management records (lifecycle,
-# writer) but no state events until its snapshot is delivered. Since the process writes its
-# snapshot and its events on one ordered stream, every event after the snapshot follows it,
-# and none before it is needed.
+# writer) but no state events until its snapshot is delivered. Since the engine's effects are
+# performed in order, every event after the snapshot follows it, and none before it is needed.
 #
 # Effects:
 #   {:write, record}                      a record for the process's stdin

@@ -1,5 +1,6 @@
-// The keel runtime through the real hub: Pi through its SDK with the faux provider, no
-// credentials, and screens that only follow the runtime's snapshot and events.
+// keel through the real hub: the driver runs Pi through its SDK with the faux provider and no
+// credentials, keel's model in the hub owns the state, and screens only follow its snapshot
+// and events.
 import { strict as assert } from "node:assert";
 import {
   chmodSync,
@@ -12,11 +13,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HubClient } from "../../client/protocol";
-import { startHub } from "../../client/shield";
 import { Connection } from "../../keel/screen/connection";
 import { launchOptions } from "../../keel/screen/launch";
 import type { Item } from "../../keel/protocol/wire";
-import { alive, attachPayload, finish, wait } from "./support";
+import { alive, attachPayload, finish, startHub, wait } from "./support";
 
 const dir = mkdtempSync(join(tmpdir(), "shield-keel-"));
 const socket = join(dir, "hub.sock");
@@ -30,10 +30,7 @@ Object.assign(process.env, {
 });
 const faux = process.env.KEEL_FAUX!;
 const bashFixture = process.env.KEEL_BASH_FIXTURE!;
-assert(
-  faux && bashFixture && process.env.KEEL_RUNTIME,
-  "the packaged runtime's paths are required",
-);
+assert(faux && bashFixture && process.env.KEEL_DRIVER, "the packaged driver's paths are required");
 const clients: HubClient[] = [];
 
 /** A configuration directory listing `extensions`, with the faux provider's model. */
@@ -48,7 +45,15 @@ function config(name: string, extensions: string[]) {
   writeFileSync(join(path, "extensions.json"), JSON.stringify({ extensions }));
   return path;
 }
-const standard = config("standard", [faux, "codemode", "markdown", "tools", "model", "queue"]);
+const standard = config("standard", [
+  faux,
+  "codemode",
+  "markdown",
+  "tools",
+  "model",
+  "queue",
+  "commands",
+]);
 
 /** A screen's connection: it follows the agent and runs actions, as the screen does. */
 async function screen(cwd = dir, configDir = standard, env: Record<string, string> = {}) {
@@ -177,7 +182,7 @@ try {
   const supplement = await c.invoke("draft.set", {
     destination: request.destination,
     text: "because",
-    base: 0,
+    base: state(c).drafts[request.destination!]!.revision,
   });
   await c.invoke("request.answer", {
     request: request.id,
@@ -186,7 +191,52 @@ try {
   });
   await wait(() => items(c, "notice").some((item) => item.text.includes('"supplement":"because"')));
 
-  console.log("keel: a new runtime starts a new session");
+  console.log("keel: a request without a supplement, answered without one");
+  await send(c, "/fixture-plain-request");
+  await wait(() => state(c).requests.length === 1);
+  const plain = state(c).requests[0]!;
+  assert.equal(plain.destination, undefined);
+  assert.equal(state(c).drafts[`request:${plain.id}`], undefined);
+  assert.equal(
+    (await c.invoke("request.answer", { request: plain.id, value: "only" })).outcome,
+    "done",
+  );
+  await wait(() =>
+    items(c, "notice").some((item) => item.text === '{"status":"answered","value":"only"}'),
+  );
+
+  console.log("keel: the command input completes a name, then runs the chosen candidate's action");
+  const command = () => state(c).assists.find((assist) => assist.id === "command")!;
+  const commandDraft = () => state(c).drafts["assist:command"]!;
+  const typed = await c.invoke("draft.set", {
+    destination: "assist:command",
+    text: "think",
+    base: commandDraft().revision,
+  });
+  assert.equal(typed.outcome, "done", JSON.stringify(typed));
+  let revision = commandDraft().revision;
+  await wait(() => command().revision === revision && command().candidates.length > 0);
+  const named = command().candidates.find((candidate) => candidate.label === "thinking")!;
+  assert.equal(
+    (await c.invoke("assist.accept", { assist: "command", candidate: named.id, revision })).outcome,
+    "done",
+  );
+  await wait(() => commandDraft().text === "thinking ");
+  revision = commandDraft().revision;
+  const before = state(c).session.thinking;
+  await wait(
+    () =>
+      command().revision === revision &&
+      command().candidates.some((candidate) => candidate.label !== before),
+  );
+  const level = command().candidates.find((candidate) => candidate.label !== before)!;
+  assert.equal(
+    (await c.invoke("assist.accept", { assist: "command", candidate: level.id, revision })).outcome,
+    "done",
+  );
+  await wait(() => state(c).session.thinking === level.label);
+
+  console.log("keel: a new driver starts a new session");
   const session = state(c).session.id;
   await c.client.hub("stop", { id: agent });
   await wait(() => c.lifecycle === "exited");
@@ -290,7 +340,7 @@ try {
   assert.equal(items(reboot, "user").length, 0);
   await reboot.client.hub("shutdown");
   console.log(
-    "keel compatibility passed: streaming reattach, snapshot equality, one writer, tool reattach, stop, pause, codemode scripts, requests, new session per runtime, real bash TERM, codemode-only tools, creator environment, reboot",
+    "keel compatibility passed: streaming reattach, snapshot equality, one writer, tool reattach, stop, pause, codemode scripts, requests with and without a supplement, the command input, new session per driver, real bash TERM, codemode-only tools, creator environment, reboot",
   );
 } catch (error) {
   try {

@@ -7,7 +7,7 @@
  */
 import { createCodemodeExtension, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { keel } from "../api";
-import { imageLabel } from "../runtime/content";
+import { imageLabel } from "../driver/content";
 import {
   codemodeErrorLocation,
   codemodeOutput,
@@ -30,11 +30,11 @@ const codemode = createCodemodeExtension({ mode: "only" });
 
 export default async function codemodeExtension(pi: ExtensionAPI): Promise<void> {
   await codemode(pi);
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     if (!pi.getActiveTools().includes("codemode"))
       pi.setActiveTools([...pi.getActiveTools(), "codemode"]);
     const { items } = keel(ctx);
-    items.present("tool/codemode", "tool.codemode");
+    await items.present("tool/codemode", "tool.codemode");
     items.decorateTool("codemode", "codemode", (tool, content): CodemodeSummary => {
       const value = tool.args.available ? tool.args.value : undefined;
       const code =

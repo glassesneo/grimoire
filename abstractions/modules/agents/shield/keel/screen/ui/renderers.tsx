@@ -1,5 +1,5 @@
 /**
- * The screen's renderers, by the names the runtime's `kinds` map items to.
+ * The screen's renderers, by the names the model's `kinds` map items to.
  * Each reads only its item's `data` in the shape protocol/items.ts gives it;
  * none reads Pi's messages. `text` shows any item as its plain text, and
  * serves every kind that has no renderer here or no mapping in the state.

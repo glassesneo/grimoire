@@ -1,7 +1,7 @@
 /** The extensions keel ships, by the name extensions.json lists them under. */
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import type { Bundled } from "../runtime/host";
+import type { Bundled } from "../driver/driver";
 import codemode from "./codemode";
 import commands from "./commands";
 import markdown from "./markdown";

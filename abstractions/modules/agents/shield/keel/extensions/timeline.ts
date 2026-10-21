@@ -21,8 +21,8 @@ const actions: Record<string, string[]> = {
 };
 
 export default function timeline(pi: ExtensionAPI): void {
-  pi.on("session_start", (_event, ctx) => {
-    keel(ctx).actions.register(
+  pi.on("session_start", async (_event, ctx) => {
+    await keel(ctx).actions.register(
       Object.entries(actions).map(([id, keys]) => ({ id, class: "view" as const, keys })),
     );
   });

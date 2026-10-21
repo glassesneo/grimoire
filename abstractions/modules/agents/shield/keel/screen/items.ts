@@ -2,7 +2,7 @@
  * The mirrored items in the screen's timeline store. Each item is shown with
  * the renderer its kind maps to in the state, `kind/variant` first; a kind
  * without a mapping, or mapped to a renderer this screen does not have, is
- * shown as its text. Item identity follows the runtime's ids, so the cursor
+ * shown as its text. Item identity follows the model's ids, so the cursor
  * and disclosure survive every update.
  */
 import type { JSX } from "solid-js";

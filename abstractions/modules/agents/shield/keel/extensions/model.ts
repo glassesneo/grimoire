@@ -15,9 +15,9 @@ function argument(args: unknown, field: string): string | undefined {
 }
 
 export default function model(pi: ExtensionAPI): void {
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     const k = keel(ctx);
-    k.actions.register([
+    await k.actions.register([
       {
         id: "global.model_set",
         class: "control",
@@ -55,7 +55,7 @@ export default function model(pi: ExtensionAPI): void {
       const query = text.trim().toLowerCase();
       return !query || fields.some((value) => value.toLowerCase().includes(query));
     };
-    k.assists.register({
+    await k.assists.register({
       id: "model",
       title: "Model",
       candidates: (text) => {
@@ -74,7 +74,7 @@ export default function model(pi: ExtensionAPI): void {
           }));
       },
     });
-    k.assists.register({
+    await k.assists.register({
       id: "thinking",
       title: "Thinking level",
       candidates: (text) =>
@@ -88,7 +88,7 @@ export default function model(pi: ExtensionAPI): void {
             action: { id: "global.thinking_set", args: { level } },
           })),
     });
-    k.assists.register({
+    await k.assists.register({
       id: "compact",
       title: "Compact",
       candidates: (text) => [

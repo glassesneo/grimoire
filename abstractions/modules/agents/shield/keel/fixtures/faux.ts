@@ -1,6 +1,7 @@
 // A test and development extension, loaded only when extensions.json lists its path: the
 // shield-faux/fixed provider, whose commands /fixture-tool, /fixture-codemode, and
-// /fixture-request replay fixed, harmless responses; /fixture-tools reports the declared
+// /fixture-request (and /fixture-plain-request, without a supplement) replay fixed, harmless
+// responses; /fixture-tools reports the declared
 // tools and /fixture-environment the synthetic environment the process checks set. The real
 // bash fixture the checks use is a separate extension.
 import {
@@ -138,6 +139,16 @@ export default function (pi: ExtensionAPI) {
       const k = keel(ctx);
       void k.requests
         .choice({ title: "Fixture choice", options: ["one", "two"] })
+        .then((answer) => k.items.notice("info", JSON.stringify(answer)));
+    },
+  });
+  // The same with a request that takes no supplement.
+  pi.registerCommand("fixture-plain-request", {
+    description: "Ask a keel choice request without a supplement",
+    handler: async (_, ctx) => {
+      const k = keel(ctx);
+      void k.requests
+        .choice({ title: "Fixture plain choice", options: ["only"], supplement: false })
         .then((answer) => k.items.notice("info", JSON.stringify(answer)));
     },
   });

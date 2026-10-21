@@ -1,6 +1,6 @@
-# The Agent's guarantees to screens, against a scripted runtime: who may write, that a
+# The Agent's guarantees to screens, against a scripted keel driver: who may write, that a
 # subscriber gets events only after its snapshot, and that hub news never takes a state seq.
-# The runtime's own check of the writer is exercised through the `write` action.
+# keel's model checks the writer it is told about; the `write` action exercises that.
 defmodule Shield.AgentTest do
   use ExUnit.Case
   alias Shield.{Agent, Keel, Protocol}
@@ -11,7 +11,7 @@ defmodule Shield.AgentTest do
     File.mkdir_p!(dir)
     on_exit(fn -> File.rm_rf(dir) end)
     elixir = System.find_executable("elixir")
-    script = Path.expand("support/fake_runtime.exs", __DIR__)
+    script = Path.expand("support/fake_driver.exs", __DIR__)
 
     options = %{
       "configDir" => dir,
@@ -91,11 +91,10 @@ defmodule Shield.AgentTest do
     snapshot
   end
 
-  defp invoke(agent, ref, id, action) do
-    GenServer.cast(
-      agent,
-      {:input, ref, %{"id" => id, "payload" => %{"op" => "invoke", "action" => action}}}
-    )
+  defp invoke(agent, ref, id, action, epoch \\ nil) do
+    payload = %{"op" => "invoke", "action" => "fake." <> action}
+    payload = if epoch, do: Map.put(payload, "writerEpoch", epoch), else: payload
+    GenServer.cast(agent, {:input, ref, %{"id" => id, "payload" => payload}})
 
     response(ref.id, id)
   end
@@ -116,9 +115,9 @@ defmodule Shield.AgentTest do
     assert first["connection"] == "ca"
     second = attach(c.agent, b, c.options)
     assert second["writer"] == %{"connection" => "ca", "epoch" => 1}
-    assert invoke(c.agent, b, "w1", "write")["payload"]["code"] == "not_writer"
-    assert invoke(c.agent, a, "w2", "write")["payload"]["outcome"] == "done"
-    # View and control actions are the runtime's to allow; the hub does not filter them.
+    assert invoke(c.agent, b, "w1", "write", 1)["payload"]["code"] == "not_writer"
+    assert invoke(c.agent, a, "w2", "write", 1)["payload"]["outcome"] == "done"
+    # View and control actions are the model's to allow; the hub does not filter them.
     assert invoke(c.agent, b, "v1", "look")["payload"]["detail"] == "cb"
 
     GenServer.cast(c.agent, {:take_write, b, %{"id" => "take"}})
@@ -127,8 +126,8 @@ defmodule Shield.AgentTest do
     for name <- ["ca", "cb"],
         do: management(name, &(&1 == %{"op" => "writer", "connection" => "cb", "epoch" => 2}))
 
-    assert invoke(c.agent, a, "w3", "write")["payload"]["code"] == "not_writer"
-    assert invoke(c.agent, b, "w4", "write")["payload"]["outcome"] == "done"
+    assert invoke(c.agent, a, "w3", "write", 2)["payload"]["code"] == "not_writer"
+    assert invoke(c.agent, b, "w4", "write", 2)["payload"]["outcome"] == "done"
   end
 
   test "a writer that goes away frees the right without promoting a viewer", c do
@@ -141,7 +140,7 @@ defmodule Shield.AgentTest do
 
     management("cb", &(&1 == %{"op" => "writer", "connection" => nil, "epoch" => 2}))
 
-    assert invoke(c.agent, b, "w1", "write")["payload"]["code"] == "not_writer"
+    assert invoke(c.agent, b, "w1", "write", 2)["payload"]["code"] == "not_writer"
     # The next screen to attach takes it.
     third = client("cc")
     assert attach(c.agent, third, c.options)["writer"] == %{"connection" => "cc", "epoch" => 3}
@@ -163,18 +162,23 @@ defmodule Shield.AgentTest do
 
     assert next("cb", "snapshot")["writer"] == %{"connection" => nil, "epoch" => 2}
     assert response("cb", "resync")["success"]
-    assert invoke(c.agent, b, "w1", "write")["payload"]["code"] == "not_writer"
+    assert invoke(c.agent, b, "w1", "write", 2)["payload"]["code"] == "not_writer"
   end
 
-  test "events carry the runtime's numbers, start after the snapshot, and hub news has none", c do
+  test "events carry the model's numbers, start after the snapshot, and hub news has none", c do
     ready(c.agent)
     a = client("ca")
     invoke(c.agent, a, "e0", "emit")
     snapshot = attach(c.agent, a, c.options)
-    assert snapshot["payload"]["seq"] == 1
-    assert invoke(c.agent, a, "e1", "emit")["payload"]["appliedSeq"] == 2
+    seq = snapshot["payload"]["seq"]
+    assert Enum.map(snapshot["payload"]["state"]["items"], & &1["id"]) == ["notice-0"]
+    assert invoke(c.agent, a, "e1", "emit")["payload"]["appliedSeq"] == seq + 1
     event = next("ca", "event")
-    assert event["payload"] == %{"runtimeInstance" => "fake", "seq" => 2}
+
+    assert %{"seq" => next_seq, "changes" => %{"items" => [%{"id" => "notice-1"}]}} =
+             event["payload"]
+
+    assert next_seq == seq + 1
     refute Map.has_key?(event, "seq")
 
     GenServer.cast(c.agent, :stop)
@@ -187,7 +191,24 @@ defmodule Shield.AgentTest do
     end
   end
 
-  test "only a subscriber may take the write, and an unanswered invoke ends unknown when the runtime exits",
+  test "a request the contract does not admit is refused before the model sees it", c do
+    ready(c.agent)
+    a = client("ca")
+    attach(c.agent, a, c.options)
+
+    GenServer.cast(
+      c.agent,
+      {:input, a,
+       %{
+         "id" => "bad",
+         "payload" => %{"op" => "invoke", "action" => "fake.look", "writerEpoch" => "1"}
+       }}
+    )
+
+    assert response("ca", "bad")["error"]["code"] == "invalid_request"
+  end
+
+  test "only a subscriber may take the write, and an unanswered invoke ends unknown when the driver exits",
        c do
     ready(c.agent)
     a = client("ca")
@@ -197,15 +218,16 @@ defmodule Shield.AgentTest do
 
     GenServer.cast(
       c.agent,
-      {:input, a, %{"id" => "s1", "payload" => %{"op" => "invoke", "action" => "silent"}}}
+      {:input, a, %{"id" => "s1", "payload" => %{"op" => "invoke", "action" => "fake.silent"}}}
     )
 
     GenServer.cast(
       c.agent,
-      {:input, a, %{"id" => "x", "payload" => %{"op" => "invoke", "action" => "crash"}}}
+      {:input, a, %{"id" => "x", "payload" => %{"op" => "invoke", "action" => "fake.crash"}}}
     )
 
-    assert response("ca", "s1")["error"]["code"] == "acceptance_unknown"
+    assert %{"outcome" => "unknown", "code" => "acceptance_unknown"} =
+             response("ca", "s1")["payload"]
   end
 
   test "an agent serves one configuration directory", c do

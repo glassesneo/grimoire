@@ -1,11 +1,11 @@
 /**
- * The screen's copies of the drafts it edits. The runtime holds every draft;
+ * The screen's copies of the drafts it edits. The model holds every draft;
  * this copy exists so typing shows at once. A destination's copy is either
- * following the runtime, and replaced by every new runtime text, or holding
- * edits not yet confirmed, and then left alone by later runtime text until
+ * following the model, and replaced by every new model text, or holding
+ * edits not yet confirmed, and then left alone by later model text until
  * they are. One edit per destination is in flight at a time, always from the
- * revision the runtime confirmed last, so an edit never overwrites a text it
- * did not start from. A refused edit gives the copy back to the runtime's
+ * revision the model confirmed last, so an edit never overwrites a text it
+ * did not start from. A refused edit gives the copy back to the model's
  * text.
  */
 import type { Draft, InvokeResult } from "../protocol/wire";
@@ -13,12 +13,15 @@ import { Emitter } from "./ui/controllers";
 
 interface Local {
   text: string;
-  /** The runtime revision `text` was last confirmed as. */
+  /** The model revision `text` was last confirmed as. */
   revision: number;
-  /** Local text the runtime has not confirmed. */
+  /** Local text the model has not confirmed. */
   dirty: boolean;
   sending: Promise<void> | undefined;
 }
+
+/** Where typing into a request without a supplement is counted as undone. */
+const NONE = "";
 
 export interface DraftHost {
   drafts(): Record<string, Draft>;
@@ -35,39 +38,45 @@ export class Drafts extends Emitter {
     super();
   }
 
-  /** The text to show for a destination. */
-  text(destination: string): string {
+  /** The text to show for a destination; none for a request that takes no supplement. */
+  text(destination: string | undefined): string {
+    if (destination === undefined) return "";
     const local = this.#local.get(destination);
     return local?.dirty || local?.sending
       ? local.text
       : (this.host.drafts()[destination]?.text ?? "");
   }
 
-  /** Follows new runtime drafts for destinations without pending edits. */
+  /** Follows new model drafts for destinations without pending edits. */
   sync(): void {
     const drafts = this.host.drafts();
     let changed = false;
     for (const [destination, local] of this.#local) {
-      const runtime = drafts[destination];
-      if (!runtime) {
+      const model = drafts[destination];
+      if (!model) {
         this.#local.delete(destination);
         changed = true;
         continue;
       }
       if (local.dirty || local.sending) continue;
-      if (local.text !== runtime.text || local.revision !== runtime.revision) {
-        local.text = runtime.text;
-        local.revision = runtime.revision;
+      if (local.text !== model.text || local.revision !== model.revision) {
+        local.text = model.text;
+        local.revision = model.revision;
         changed = true;
       }
     }
     if (changed) this.changed();
   }
 
-  /** The user typed; returns false when this screen may not write. */
-  edit(destination: string, text: string): boolean {
-    const runtime = this.host.drafts()[destination];
-    if (!runtime) return false;
+  /** The user typed; returns false when the text cannot be kept. */
+  edit(destination: string | undefined, text: string): boolean {
+    if (destination === undefined) {
+      this.host.notify("This request takes no supplement; Enter answers it");
+      this.#replace(NONE);
+      return false;
+    }
+    const model = this.host.drafts()[destination];
+    if (!model) return false;
     if (!this.host.writable()) {
       this.host.notify("This screen views only; take the write to type");
       this.#replace(destination);
@@ -76,8 +85,8 @@ export class Drafts extends Emitter {
     let local = this.#local.get(destination);
     if (!local) {
       local = {
-        text: runtime.text,
-        revision: runtime.revision,
+        text: model.text,
+        revision: model.revision,
         dirty: false,
         sending: undefined,
       };
@@ -101,12 +110,12 @@ export class Drafts extends Emitter {
         text,
         base: local.revision,
       });
-      if (result.outcome === "rejected") {
-        // The runtime's text wins; what was typed meanwhile is dropped with it.
-        const runtime = this.host.drafts()[destination];
+      if (result.outcome === "rejected" || result.outcome === "unknown") {
+        // The model's text wins; what was typed meanwhile is dropped with it.
+        const model = this.host.drafts()[destination];
         local.dirty = false;
-        local.text = runtime?.text ?? "";
-        local.revision = runtime?.revision ?? 0;
+        local.text = model?.text ?? "";
+        local.revision = model?.revision ?? 0;
         this.#replace(destination);
         this.host.notify(`The draft was not saved (${result.code}); it shows the agent's text`);
       } else {
@@ -124,8 +133,8 @@ export class Drafts extends Emitter {
    * Counts the times typing in the destination was undone, by a refused edit
    * or because this screen may not write, so the editor shows the draft again.
    */
-  replaced(destination: string): number {
-    return this.#replaced.get(destination) ?? 0;
+  replaced(destination: string | undefined): number {
+    return this.#replaced.get(destination ?? NONE) ?? 0;
   }
 
   #replace(destination: string): void {
@@ -135,16 +144,16 @@ export class Drafts extends Emitter {
 
   /**
    * Waits until every edit of the destination is confirmed, and resolves with
-   * the revision the runtime holds the text shown now as; undefined when the
-   * runtime ends up with another text, as after a refused edit.
+   * the revision the model holds the text shown now as; undefined when the
+   * model ends up with another text, as after a refused edit.
    */
   async settle(destination: string): Promise<number | undefined> {
     const expected = this.text(destination);
     for (;;) {
       const local = this.#local.get(destination);
       if (!local) {
-        const runtime = this.host.drafts()[destination];
-        return runtime?.text === expected ? runtime.revision : undefined;
+        const model = this.host.drafts()[destination];
+        return model?.text === expected ? model.revision : undefined;
       }
       if (local.sending) {
         await local.sending;
@@ -154,8 +163,8 @@ export class Drafts extends Emitter {
         this.#send(destination, local);
         continue;
       }
-      const runtime = this.host.drafts()[destination];
-      return local.text === expected && runtime?.text === expected ? local.revision : undefined;
+      const model = this.host.drafts()[destination];
+      return local.text === expected && model?.text === expected ? local.revision : undefined;
     }
   }
 }

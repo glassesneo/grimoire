@@ -1,5 +1,5 @@
 /**
- * Following the runtime's state from a snapshot and its events. The screen
+ * Following the model's state from a snapshot and its events. The screen
  * keeps a mirror; it never interprets Pi. A mirror refuses an event that does
  * not continue its sequence, and then needs a new snapshot.
  */
@@ -23,13 +23,13 @@ export interface Applied {
 
 export class Mirror {
   state: State | undefined;
-  runtimeInstance: string | undefined;
+  instance: string | undefined;
   seq = -1;
   #index = new Map<string, number>();
 
   reset(snapshot: Snapshot): void {
     this.state = structuredClone(snapshot.state);
-    this.runtimeInstance = snapshot.runtimeInstance;
+    this.instance = snapshot.instance;
     this.seq = snapshot.seq;
     this.#reindex();
   }
@@ -38,8 +38,7 @@ export class Mirror {
   apply(event: StateEvent): Applied {
     const state = this.state;
     if (!state) throw new SequenceGap("no snapshot");
-    if (event.runtimeInstance !== this.runtimeInstance)
-      throw new SequenceGap("runtime instance changed");
+    if (event.instance !== this.instance) throw new SequenceGap("model instance changed");
     if (event.seq !== this.seq + 1)
       throw new SequenceGap(`expected seq ${this.seq + 1}, got ${event.seq}`);
     const { items, order, ...sections } = event.changes;

@@ -6,7 +6,7 @@
  * region's; a key neither binds goes to the focused region's native input, so
  * only the editor's engine ever types. Actions run here when they are the
  * screen's own (`local` in the state); every other action is invoked in the
- * runtime, which decides whether this screen may run it.
+ * model, which decides whether this screen may run it.
  *
  * Stop. The first press of a stop action, `global.stop` or a region's, arms
  * only this screen, and a second press within a second invokes `global.stop`;
@@ -56,6 +56,14 @@ class ScreenState extends Emitter {
     if (!this.armedUntil) return;
     this.armedUntil = 0;
     clearTimeout(this.#armTimer);
+    this.changed();
+  }
+
+  /** Drops the notice shown now. */
+  clear(): void {
+    if (this.notice === undefined) return;
+    this.notice = undefined;
+    clearTimeout(this.#noticeTimer);
     this.changed();
   }
 
@@ -139,6 +147,8 @@ export function setupScreen(
   });
 
   const report = (action: string, result: InvokeResult) => {
+    if (result.outcome === "unknown")
+      return state.notify(`${action}: ${result.message ?? result.code}; it is not sent again`);
     if (result.outcome !== "rejected") return;
     const hint =
       result.code === "not_writer"
@@ -163,11 +173,22 @@ export function setupScreen(
 
   /** Sends what the editor shows: the prompt, a request's answer, or an assist's candidate. */
   const submit = async () => {
-    // Change callbacks can lag a batch of input that ends in Enter.
-    const latest = readEditor?.();
-    if (latest) edit(latest.text, latest.cursor);
     const target = stage.selected();
     const destination = stage.destination();
+    // Change callbacks can lag a batch of input that ends in Enter. A request without a
+    // supplement has no draft to bring up to date.
+    const latest = readEditor?.();
+    if (latest && destination !== undefined) edit(latest.text, latest.cursor);
+    // A request without a supplement is answered as it is; there is no draft to settle.
+    if (target?.kind === "request" && destination === undefined) {
+      const value = target.info.options[stage.cursor(target)];
+      if (value === undefined) return;
+      const result = await invoke("request.answer", { request: target.info.id, value });
+      // The hint that typing goes nowhere no longer applies once the request is answered.
+      if (result.outcome === "done") state.clear();
+      return;
+    }
+    if (destination === undefined) return;
     const revision = await drafts.settle(destination);
     if (revision === undefined) return;
     if (target?.kind === "assist") {
@@ -237,7 +258,7 @@ export function setupScreen(
       [...REGIONS.map((region) => `${region}.${name}`), ...ids].map((id) => [id, handler]),
     );
 
-  /** What the screen itself does for an action id; anything else is invoked in the runtime. */
+  /** What the screen itself does for an action id; anything else is invoked through the model. */
   const local: Record<string, () => void> = {
     ...everywhere("stop", stop, "global.stop"),
     ...everywhere("take_write", takeWrite, "screen.take_write"),
@@ -441,7 +462,10 @@ export function Screen(props: { screen: KeelScreen; cwd: string }): JSX.Element 
     version();
     const target = stage.selected();
     if (!target) return connection.writable ? undefined : "prompt (view only)";
-    return target.kind === "request" ? `supplement: ${target.info.title}` : `${target.info.title}`;
+    if (target.kind === "assist") return target.info.title;
+    return target.info.destination === undefined
+      ? `${target.info.title} (no supplement; Enter answers)`
+      : `supplement: ${target.info.title}`;
   };
   return (
     <box width="100%" height="100%" backgroundColor="#1e1e2e">
