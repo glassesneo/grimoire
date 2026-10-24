@@ -20,6 +20,12 @@ delib.module {
     dotDir = "${config.xdg.config.directory}/zsh";
     fsh = pkgs.zsh-fast-syntax-highlighting;
     fshWorkDir = "${config.xdg.data.directory}/fsh";
+    autosuggestions = pkgs.zsh-autosuggestions;
+    # Profiles whose packages' completions compinit finds: Hjem's packages and the installer's nix.
+    completionProfiles = [
+      "${config.xdg.state.directory}/hjem/standalone/current-profile"
+      "/nix/var/nix/profiles/default"
+    ];
   in {
     zsh.zshenv.zdotdir.text = ''
       ZDOTDIR="${dotDir}"
@@ -27,11 +33,18 @@ delib.module {
 
     zsh.zshrc = {
       compinit.text = ''
+        () {
+          local profile
+          for profile in ${lib.escapeShellArgs completionProfiles}; do
+            fpath+=($profile/share/zsh/site-functions $profile/share/zsh/vendor-completions)
+          done
+        }
         autoload -Uz compinit && compinit
       '';
       pure.text = ''
         fpath+=(${pkgs.pure-prompt}/share/zsh/site-functions)
         autoload -Uz promptinit && promptinit
+        zstyle :prompt:pure:git:stash show yes
         prompt pure
       '';
     };
@@ -42,6 +55,10 @@ delib.module {
       text = lib.concatStringsSep "\n" [
         (builtins.readFile ./rc.zsh)
         (mylib.fragments.render config.zsh.zshrc)
+        ''
+          ZSH_AUTOSUGGEST_STRATEGY=(history)
+          source ${autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+        ''
         # fsh wraps the widgets that exist when it loads, so it stays last.
         ''
           FAST_WORK_DIR="${fshWorkDir}"
@@ -61,12 +78,14 @@ delib.module {
   }: let
     configDir = "${home}/fixture-config";
     dataDir = "${home}/fixture-data";
+    stateDir = "${home}/fixture-state";
   in {
     startup = {
       uses = ["zsh"];
       modules.fixture.hjem.always = {
         xdg.config.directory = configDir;
         xdg.data.directory = dataDir;
+        xdg.state.directory = stateDir;
         zsh.zshrc.fixture.text = "typeset -g FIXTURE=value";
       };
       build = result: let
@@ -83,6 +102,8 @@ delib.module {
           zsh -n "$zshrc"
           grep -Fx 'FAST_WORK_DIR="${dataDir}/fsh"' "$zshrc"
           test -f "$theme"
+          grep -F '${stateDir}/hjem/standalone/current-profile' "$zshrc"
+          grep -Fx 'source ${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh' "$zshrc"
           touch "$out"
         '';
     };
