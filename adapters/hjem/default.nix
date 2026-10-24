@@ -130,9 +130,13 @@
       preflight =
         pkgs.runCommand
         "hjem-preflight"
-        {inherit dependencies;}
+        {
+          # Structured attrs keep store paths containing spaces, such as app bundles, intact.
+          __structuredAttrs = true;
+          inherit dependencies;
+        }
         ''
-          for dependency in $dependencies; do
+          for dependency in "''${dependencies[@]}"; do
             test -e "$dependency"
             printf '%s\n' "$dependency"
           done > "$out"

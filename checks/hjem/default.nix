@@ -59,6 +59,10 @@
     && !(builtins.tryEval failing.preflight).success
     && !(builtins.tryEval failing.serviceApply).success;
 
+  # Preflight must not split a source path at its spaces.
+  spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
+  spaced = mkResult [{files."spaced.txt".source = spacedSource;}];
+
   manifest = result.manifest;
 
   pick = suffix:
@@ -88,6 +92,8 @@ in {
     pkgs.runCommand "hjem-adapter-test" {
       inherit manifestFile package;
       inherit (result) preflight;
+      inherit spacedSource;
+      spacedPreflight = spaced.preflight;
 
       textPath = textFile.source;
       stringPath = stringFile.source;
@@ -105,6 +111,7 @@ in {
       done
 
       test "$("$package/bin/fixture-tool")" = "fixture"
+      grep -Fxq "$spacedSource" "$spacedPreflight"
 
       mkdir "$out"
       touch "$out/passed"
