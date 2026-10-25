@@ -8,27 +8,91 @@ require "spec"
 require "file_utils"
 require "../reconciler"
 
+# A leaf is its XML document; a dictionary maps keys to nodes.
+alias Node = String | Hash(String, Node)
+
+def tree(**entries) : Node
+  entries.to_h.transform_keys(&.to_s).transform_values(&.as(Node)).as(Node)
+end
+
+# Keyed by domain and first key, with the semantics of HjemDefaults::Preferences.
 class FakePreferences
-  getter values = {} of Tuple(String, String) => String
-  getter writes = [] of Tuple(String, String, String?)
+  getter values = {} of Tuple(String, String) => Node
+  getter writes = [] of Tuple(String, Array(String), String?)
   getter syncs = [] of String
   property fail_write = false
 
-  def read(domain, key)
-    values[{domain, key}]?
+  # The enclosing nodes from the first key's value down to the leaf's parent,
+  # ending early where one is absent.
+  private def chain(domain, path) : Array(Node?)
+    nodes = [values[{domain, path.first}]?] of Node?
+    path[1..].each_with_index do |key, i|
+      node = nodes.last
+      return nodes if node.nil?
+      raise HjemDefaults::Blocked.new(path[0..i]) unless node.is_a?(Hash)
+      nodes << node[key]? unless i == path.size - 2
+    end
+    nodes
   end
 
-  def matches?(domain, key, xml)
-    values[{domain, key}]? == xml
+  private def leaf(domain, path) : Node?
+    parent = chain(domain, path).last
+    return parent if path.size == 1 || parent.nil?
+    raise HjemDefaults::Blocked.new(path[0..-2]) unless parent.is_a?(Hash)
+    parent[path.last]?
   end
 
-  def write(domain, key, xml)
+  def read(domain, path)
+    leaf(domain, path).as(String?)
+  end
+
+  def blocked?(domain, path)
+    leaf(domain, path)
+    false
+  rescue HjemDefaults::Blocked
+    true
+  end
+
+  def present(domain, path)
+    chain(domain, path).count { |node| !node.nil? }
+  end
+
+  def matches?(domain, path, xml)
+    leaf(domain, path) == xml
+  rescue HjemDefaults::Blocked
+    false
+  end
+
+  def write(domain, path, xml)
     raise "injected write" if fail_write
-    writes << {domain, key, xml}
-    if xml
-      values[{domain, key}] = xml
-    else
-      values.delete({domain, key})
+    leaf(domain, path)
+    writes << {domain, path, xml}
+    if path.size == 1
+      values[{domain, path.first}] = xml
+      return
+    end
+    node = (values[{domain, path.first}] ||= {} of String => Node).as(Hash)
+    path[1...-1].each { |key| node = (node[key] ||= {} of String => Node).as(Hash) }
+    node[path.last] = xml
+  end
+
+  def remove(domain, path, keep)
+    raise "injected write" if fail_write
+    writes << {domain, path, nil}
+    nodes = chain(domain, path)
+    if path.size == 1
+      values.delete({domain, path.first})
+      return
+    end
+    return if nodes.last.nil?
+    nodes.last.as(Hash).delete(path.last)
+    (nodes.size - 1).downto(keep) do |level|
+      break unless nodes[level].as(Hash).empty?
+      if level == 0
+        values.delete({domain, path.first})
+      else
+        nodes[level - 1].as(Hash).delete(path[level])
+      end
     end
   end
 
@@ -78,13 +142,22 @@ class Fixture
     @home = tmp / "home"
   end
 
+  # Declares single keys of each domain.
   def generation(n, domains)
+    paths(n, domains.map { |domain, keys, actions| {domain, keys.transform_keys { |key| [key] }, actions} })
+  end
+
+  def paths(n, domains)
     path = tmp / "generation-#{n}"
     Dir.mkdir_p(path)
-    File.write(path / "defaults.json", domains.map { |domain, keys, actions|
-      {"domain" => domain, "keys" => keys, "actions" => actions}
+    File.write(path / "defaults.json", domains.map { |domain, leaves, actions|
+      {"domain" => domain, "values" => leaves.map { |p, xml| {"path" => p, "xml" => xml} }, "actions" => actions}
     }.to_json)
     path
+  end
+
+  def state
+    home / ".local/state/hjem/defaults/state.json"
   end
 
   def apply(path)
@@ -92,7 +165,7 @@ class Fixture
   end
 
   def journal
-    HjemDefaults::Journal.from_json(File.read(home / ".local/state/hjem/defaults/state.json"))
+    HjemDefaults::Journal.from_json(File.read(state))
   end
 
   def close
@@ -116,7 +189,7 @@ describe "journal reconciliation" do
       one = f.generation(1, [{"com.test", {"kept" => "new", "added" => "1"}, [DOCK]}])
       f.apply(one)
       f.prefs.values.should eq({ {"com.test", "kept"} => "new", {"com.test", "added"} => "1" })
-      f.journal.keys.map { |o| {o.key, o.original} }.to_set.should eq(Set{ {"kept", "old"}, {"added", nil} })
+      f.journal.keys.map { |o| {o.path, o.original} }.to_set.should eq(Set{ {["kept"], "old"}, {["added"], nil} })
       f.commands.performed.should eq([DOCK])
       f.journal.pending.should be_empty
       f.prefs.syncs.should eq(["com.test"])
@@ -198,6 +271,73 @@ describe "journal reconciliation" do
       f.commands.performed.should eq([DOCK, TOOL])
     end
   end
+
+  it "writes leaves into dictionaries and removes only the dictionaries it created" do
+    fixture do |f|
+      f.prefs.values[{"com.test", "keys"}] = tree("32": "kept")
+      one = f.paths(1, [{"com.test", {["keys", "64", "enabled"] => "off", ["new", "a", "b"] => "x"}, [DOCK]}])
+      f.apply(one)
+      f.prefs.values.should eq({
+        {"com.test", "keys"} => tree("32": "kept", "64": tree(enabled: "off")),
+        {"com.test", "new"}  => tree(a: tree(b: "x")),
+      })
+      f.journal.keys.map { |o| {o.path, o.present} }.to_set.should eq(Set{ {["keys", "64", "enabled"], 1}, {["new", "a", "b"], 0} })
+      f.apply(one)
+      f.prefs.writes.size.should eq(2)
+      f.apply(f.paths(2, [] of Tuple(String, Hash(Array(String), String), Array(HjemDefaults::Action))))
+      f.prefs.values.should eq({ {"com.test", "keys"} => tree("32": "kept") })
+      f.commands.performed.should eq([DOCK, DOCK])
+    end
+  end
+
+  it "fails before writing when a value along a declared path is not a dictionary" do
+    fixture do |f|
+      f.prefs.values[{"com.test", "scalar"}] = "x"
+      one = f.paths(1, [{"com.test", {["fine"] => "1", ["scalar", "a"] => "2"}, [DOCK]}])
+      expect_raises(Exception, /Not a dictionary along com.test \["scalar","a"\]/) { f.apply(one) }
+      f.prefs.writes.should be_empty
+      File.exists?(f.state).should be_false
+    end
+  end
+
+  it "restores an overlapping removed path before recording the declared one" do
+    fixture do |f|
+      f.apply(f.paths(1, [{"com.test", {["a", "b"] => "1"}, [DOCK]}]))
+      f.apply(f.paths(2, [{"com.test", {["a", "b", "c"] => "2"}, [DOCK]}]))
+      f.prefs.values.should eq({ {"com.test", "a"} => tree(b: tree(c: "2")) })
+      f.journal.keys.map { |o| {o.path, o.original, o.present} }.should eq([{["a", "b", "c"], nil, 0}])
+      f.apply(f.paths(3, [{"com.test", {["a"] => "3"}, [DOCK]}]))
+      f.prefs.values.should eq({ {"com.test", "a"} => "3" })
+      f.journal.keys.map { |o| {o.path, o.original} }.should eq([{["a"], nil}])
+      f.apply(f.paths(4, [] of Tuple(String, Hash(Array(String), String), Array(HjemDefaults::Action))))
+      f.prefs.values.should be_empty
+    end
+  end
+
+  it "ends ownership without restoring when an enclosing value is no longer a dictionary" do
+    fixture do |f|
+      f.apply(f.paths(1, [{"com.test", {["a", "b"] => "1"}, [DOCK]}]))
+      f.prefs.values[{"com.test", "a"}] = "replaced"
+      f.apply(f.paths(2, [] of Tuple(String, Hash(Array(String), String), Array(HjemDefaults::Action))))
+      f.prefs.values.should eq({ {"com.test", "a"} => "replaced" })
+      f.journal.keys.should be_empty
+      f.commands.performed.should eq([DOCK])
+    end
+  end
+
+  it "reads entries of an earlier journal that name a single key" do
+    fixture do |f|
+      Dir.mkdir_p(f.state.parent)
+      File.write(f.state, %({"keys":[{"domain":"com.test","key":"k","original":"before","actions":[]}],"pending":[]}))
+      f.prefs.values[{"com.test", "k"}] = "declared"
+      f.apply(f.generation(1, [{"com.test", {"k" => "declared"}, [DOCK]}]))
+      f.prefs.writes.should be_empty
+      f.journal.keys.map { |o| {o.path, o.original} }.should eq([{["k"], "before"}])
+      File.read(f.state).should_not contain(%("key"))
+      f.apply(f.generation(2, [] of Tuple(String, Hash(String, String), Array(HjemDefaults::Action))))
+      f.prefs.values.should eq({ {"com.test", "k"} => "before" })
+    end
+  end
 end
 
 describe HjemDefaults::Commands do
@@ -253,5 +393,30 @@ describe HjemDefaults::Plist do
       end
     end
     expect_raises(Exception, /Invalid plist/) { HjemDefaults::Plist.parse("not a plist") { } }
+  end
+
+  it "sets and removes leaves at key paths" do
+    xml = ->(body : String) { %(<?xml version="1.0" encoding="UTF-8"?><plist version="1.0">#{body}</plist>) }
+    HjemDefaults::Plist.parse(xml.call("<dict><key>32</key><true/><key>s</key><string>x</string></dict>")) do |top|
+      HjemDefaults::Plist.parse(xml.call("<false/>")) do |leaf|
+        HjemDefaults::Plist.present(top, ["k", "64", "enabled"]).should eq(1)
+        HjemDefaults::Plist.owning(HjemDefaults::Plist.set(top, ["k", "64", "enabled"], leaf)) do |set|
+          HjemDefaults::Plist.parse(xml.call("<dict><key>32</key><true/><key>s</key><string>x</string><key>64</key><dict><key>enabled</key><false/></dict></dict>")) do |expected|
+            LibCF.CFEqual(set, expected).should eq(1)
+          end
+          LibCF.CFEqual(HjemDefaults::Plist.at(set, ["k", "64", "enabled"]), leaf).should eq(1)
+          HjemDefaults::Plist.owning(HjemDefaults::Plist.remove(set, ["k", "64", "enabled"], 1)) do |removed|
+            LibCF.CFEqual(removed, top).should eq(1)
+          end
+          HjemDefaults::Plist.owning(HjemDefaults::Plist.remove(set, ["k", "64", "enabled"], 2)) do |kept|
+            HjemDefaults::Plist.at(kept, ["k", "64"]).null?.should be_false
+          end
+        end
+        expect_raises(HjemDefaults::Blocked, /\["k","s"\] is not a dictionary/) { HjemDefaults::Plist.set(top, ["k", "s", "a"], leaf) }
+        HjemDefaults::Plist.owning(HjemDefaults::Plist.set(LibCF::Ref.null, ["k", "a", "b"], leaf)) do |created|
+          HjemDefaults::Plist.remove(created, ["k", "a", "b"], 0).null?.should be_true
+        end
+      end
+    end
   end
 end

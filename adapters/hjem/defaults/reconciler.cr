@@ -1,15 +1,22 @@
 # Owns serialized, retryable reconciliation of Hjem-owned user defaults.
 # The journal (state.json) lives under .local/state/hjem/defaults in the
-# configured home. It records each owned key with the plist XML of its value
-# before ownership (null when absent), the actions of its domain, and the
-# onChange actions not yet completed.
-# A key's previous value and the actions a run will cause are recorded before
-# any value is written. A key is written only when its value differs from the
-# declared one. Removing a declaration restores the recorded value, deleting
-# the key when it was absent, and ends ownership; actions run only when the
-# restore changed the value. Pending actions are retried by later runs until
-# they complete; a GUI-domain service restart without a GUI session stays
-# pending, and a failed action stops the run with the rest still pending.
+# configured home. It records each owned leaf by domain and key path with the
+# plist XML of its value before ownership (null when absent), how many of its
+# enclosing dictionaries were present then, the actions of its domain, and the
+# onChange actions not yet completed. An entry of an earlier journal that names
+# a single key is read as the path of that key.
+# A run fails before writing when a value along a declared path is not a
+# dictionary. A leaf's previous value and the actions a run will cause are
+# recorded before any value is written. A leaf is written only when its value
+# differs from the declared one. Removing a declaration restores the recorded
+# value, or deletes the leaf and the enclosing dictionaries that were absent
+# once they are empty, and ends ownership; actions run only when the restore
+# changed the value. A leaf whose enclosing value is no longer a dictionary is
+# left as it is, with a warning. A removed path that encloses or lies within a
+# declared one is restored first, so the declared leaf records the restored
+# value. Pending actions are retried by later runs until they complete; a
+# GUI-domain service restart without a GUI session stays pending, and a failed
+# action stops the run with the rest still pending.
 # Crystal's stdlib supplies flock, tempfile, file fsync and same-directory
 # rename. No directory fsync is performed: full power-loss durability is not
 # guaranteed. Preferences and commands are injected; specs substitute fakes.
@@ -27,11 +34,26 @@ module HjemDefaults
   class Owned
     include JSON::Serializable
     property domain : String
-    property key : String
+    property path = [] of String
+    property present = 0
     property original : String?
     property actions : Array(Action)
+    # The single key that an earlier journal recorded instead of a path.
+    @[JSON::Field(ignore_serialize: true)]
+    property key : String? = nil
 
-    def initialize(@domain, @key, @original, @actions)
+    def initialize(@domain, @path, @present, @original, @actions)
+    end
+
+    def after_initialize
+      if path.empty? && (key = @key)
+        @path = [key]
+      end
+      @key = nil
+    end
+
+    def describe : String
+      "#{domain} #{path.to_json}"
     end
   end
 
@@ -44,10 +66,14 @@ module HjemDefaults
     end
   end
 
+  record Leaf, path : Array(String), xml : String do
+    include JSON::Serializable
+  end
+
   class Desired
     include JSON::Serializable
     getter domain : String
-    getter keys : Hash(String, String)
+    getter values : Array(Leaf)
     getter actions : Array(Action)
   end
 
@@ -119,42 +145,69 @@ module HjemDefaults
     end
   end
 
+  def self.overlap?(a : Array(String), b : Array(String)) : Bool
+    shorter, longer = a.size <= b.size ? {a, b} : {b, a}
+    longer[0, shorter.size] == shorter
+  end
+
+  def self.queue(journal : Journal, actions : Array(Action))
+    actions.each { |action| journal.pending << action unless journal.pending.includes?(action) }
+  end
+
+  # Ends ownership of a leaf, restoring its recorded value when that changes it.
+  def self.release(path : Path, journal : Journal, owned : Owned, prefs)
+    if prefs.blocked?(owned.domain, owned.path)
+      STDERR.puts "Hjem defaults: not restoring #{owned.describe}: an enclosing value is not a dictionary"
+    elsif !prefs.matches?(owned.domain, owned.path, owned.original)
+      queue(journal, owned.actions)
+      save(path, journal)
+      if xml = owned.original
+        prefs.write(owned.domain, owned.path, xml)
+      else
+        prefs.remove(owned.domain, owned.path, owned.present)
+      end
+      prefs.sync(owned.domain)
+    end
+    journal.keys.delete(owned)
+    save(path, journal)
+  end
+
   def self.apply_locked(closure : Path, state : Path, prefs, commands)
     path = state / "state.json"
     raise "Unsafe journal" if File.symlink?(path)
     journal = File.exists?(path) ? Journal.from_json(File.read(path)) : Journal.new
     desired = Array(Desired).from_json(File.read(closure / "defaults.json"))
 
-    wanted = desired.flat_map { |entry| entry.keys.map { |key, xml| {entry, key, xml} } }
-    changed = wanted.reject { |entry, key, xml| prefs.matches?(entry.domain, key, xml) }
+    wanted = desired.flat_map { |entry| entry.values.map { |leaf| {entry, leaf} } }
     removed = journal.keys.reject do |owned|
-      wanted.any? { |entry, key, _| entry.domain == owned.domain && key == owned.key }
+      wanted.any? { |entry, leaf| entry.domain == owned.domain && leaf.path == owned.path }
     end
-    restored = removed.reject { |owned| prefs.matches?(owned.domain, owned.key, owned.original) }
+    overlapping, removed = removed.partition do |owned|
+      wanted.any? { |entry, leaf| entry.domain == owned.domain && overlap?(leaf.path, owned.path) }
+    end
+    overlapping.each { |owned| release(path, journal, owned, prefs) }
 
-    wanted.each do |entry, key, _|
-      if owned = journal.keys.find { |o| o.domain == entry.domain && o.key == key }
+    blocked = wanted.select { |entry, leaf| prefs.blocked?(entry.domain, leaf.path) }
+    unless blocked.empty?
+      raise "Not a dictionary along #{blocked.map { |entry, leaf| "#{entry.domain} #{leaf.path.to_json}" }.join(", ")}"
+    end
+    changed = wanted.reject { |entry, leaf| prefs.matches?(entry.domain, leaf.path, leaf.xml) }
+
+    wanted.each do |entry, leaf|
+      if owned = journal.keys.find { |o| o.domain == entry.domain && o.path == leaf.path }
         owned.actions = entry.actions
       else
-        journal.keys << Owned.new(entry.domain, key, prefs.read(entry.domain, key), entry.actions)
+        journal.keys << Owned.new(entry.domain, leaf.path, prefs.present(entry.domain, leaf.path),
+          prefs.read(entry.domain, leaf.path), entry.actions)
       end
     end
-    (changed.flat_map { |entry, _, _| entry.actions } + restored.flat_map(&.actions)).each do |action|
-      journal.pending << action unless journal.pending.includes?(action)
-    end
+    queue(journal, changed.flat_map { |entry, _| entry.actions })
     save(path, journal)
 
-    changed.each { |entry, key, xml| prefs.write(entry.domain, key, xml) }
-    changed.map { |entry, _, _| entry.domain }.uniq.each { |domain| prefs.sync(domain) }
+    changed.each { |entry, leaf| prefs.write(entry.domain, leaf.path, leaf.xml) }
+    changed.map { |entry, _| entry.domain }.uniq.each { |domain| prefs.sync(domain) }
 
-    removed.each do |owned|
-      if restored.includes?(owned)
-        prefs.write(owned.domain, owned.key, owned.original)
-        prefs.sync(owned.domain)
-      end
-      journal.keys.delete(owned)
-      save(path, journal)
-    end
+    removed.each { |owned| release(path, journal, owned, prefs) }
 
     journal.pending.dup.each do |action|
       if commands.perform(action).deferred?

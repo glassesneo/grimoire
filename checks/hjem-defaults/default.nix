@@ -23,7 +23,11 @@
           settings = {
             flag = true;
             count = -1;
-            "A&B" = {nested = ["<value>"];};
+            "A&B" = {
+              nested = ["<value>"];
+              deeper.leaf = "y";
+              empty = {};
+            };
           };
           onChange = {
             restartProcesses = ["Dock" "Finder"];
@@ -46,6 +50,7 @@
   # The reconciler build runs its own specs for runtime transitions.
   domains = lib.listToAttrs (map (entry: lib.nameValuePair entry.domain entry) good.defaultsApply.domains);
   app = domains."com.example.app";
+  values = lib.listToAttrs (map (leaf: lib.nameValuePair (lib.concatStringsSep "/" leaf.path) leaf.xml) app.values);
   label = (lib.findFirst (job: job.name == "tool") null good.serviceApply.jobs).label;
   controls = builtins.fromJSON ''["\u0001", "\u001f"]'';
   rejected = modules: !(builtins.tryEval (builtins.deepSeq (result modules).defaultsApply true)).success;
@@ -79,6 +84,8 @@ in {
   assert lib.all (control: rejects "XML control characters" (settings "com.example" {key = [control];})) controls;
   assert rejects "invalid key" (settings "com.example" {"bad${builtins.head controls}" = "value";});
   assert rejects "invalid key" (settings "com.example" {"" = "value";});
+  assert rejects "invalid key" (settings "com.example" {outer."" = "value";});
+  assert rejects "unsupported plist value" (settings "com.example" {outer.ratio = 0.5;});
   assert rejects "invalid domain name" (settings "../escape" {key = "value";});
   assert rejects "invalid domain name" (settings "-g" {key = "value";});
   assert rejects "duplicate domain ignoring case" {
@@ -92,12 +99,14 @@ in {
   };
   # The option type rejects an unknown process before any assertion.
   assert rejected [{platform.darwin.defaults."com.example".onChange.restartProcesses = ["Safari"];}];
-  # Conflicting values for one key are an option merge error, not a silent choice.
+  # Conflicting values for one leaf are an option merge error, not a silent choice.
   assert rejected [(settings "com.example" {key = "a";}) (settings "com.example" {key = "b";})];
-  assert builtins.attrNames app.keys == ["A&B" "count" "flag" "other"];
-  assert lib.hasInfix "<true/>" app.keys.flag;
-  assert lib.hasInfix "<integer>-1</integer>" app.keys.count;
-  assert lib.hasInfix "<string>&lt;value&gt;</string>" app.keys."A&B";
+  assert rejected [(settings "com.example" {outer.key = "a";}) (settings "com.example" {outer.key = "b";})];
+  # Each leaf is declared at its path; lists are leaves and empty sets declare nothing.
+  assert map (leaf: leaf.path) app.values == [["A&B" "deeper" "leaf"] ["A&B" "nested"] ["count"] ["flag"] ["other"]];
+  assert lib.hasInfix "<true/>" values.flag;
+  assert lib.hasInfix "<integer>-1</integer>" values.count;
+  assert lib.hasInfix "<string>&lt;value&gt;</string>" values."A&B/nested";
   assert app.actions
   == [
     {

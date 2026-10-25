@@ -1,18 +1,24 @@
 # Owns Hjem user defaults declarations and their Darwin lowering.
 #
-# `platform.darwin.defaults.<domain>.settings` declares top-level keys of a
+# `platform.darwin.defaults.<domain>.settings` declares values of a
 # preferences domain of the current user on any host; `NSGlobalDomain` names
-# the global domain. Each switch writes every declared value that differs from
-# the current one, so a value changed elsewhere is overwritten by the next
-# switch. A dictionary or list is written whole, replacing the existing value.
-# The switch that first declares a key records its value at that moment, or its
-# absence; removing the declaration restores that value or deletes the key.
-# Plist values may be strings, booleans, integers, lists or dictionaries, not
-# floats. XML control characters in strings or keys are rejected. Domain names
-# must be unique ignoring case.
+# the global domain. An attribute set declares each of its leaves, the values
+# that are not attribute sets, at its key path: a dictionary is written into,
+# keeping keys that are not declared, and missing dictionaries along the path
+# are created. A list or other value is written whole, and an empty attribute
+# set declares nothing. Each switch writes every declared leaf that differs
+# from the current one, so a value changed elsewhere is overwritten by the next
+# switch; a switch fails before writing when a value along a declared path is
+# not a dictionary. The switch that first declares a leaf records its value at
+# that moment, or its absence; removing the declaration restores that value, or
+# deletes the leaf and the dictionaries the declaration created once they are
+# empty. A leaf whose enclosing value is no longer a dictionary is left as it
+# is. Leaf values may be strings, booleans, integers or lists of plist values,
+# not floats. XML control characters in strings or keys are rejected, as are
+# empty keys. Domain names must be unique ignoring case.
 #
-# `onChange` acts after a switch that wrote or restored a key of the domain,
-# including the switch that restores keys whose declarations were removed.
+# `onChange` acts after a switch that wrote or restored a leaf of the domain,
+# including the switch that restores leaves whose declarations were removed.
 # Restarting a service that is not loaded does nothing; restarting a `gui`
 # service without a GUI session is deferred to a later switch.
 #
@@ -35,7 +41,7 @@
       settings = mkOption {
         type = types.attrsOf types.anything;
         default = {};
-        description = "Top-level keys of the domain and their plist values; each value replaces the key's whole value.";
+        description = "Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole.";
       };
       onChange = {
         restartProcesses = mkOption {
@@ -60,17 +66,27 @@
   services = config.userServices // config.platform.darwin.launchAgents;
   jobs = lib.listToAttrs (map (job: lib.nameValuePair job.name job) config.serviceApply.jobs);
   safeDomain = name: builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" name != null;
+  # Values that are not attribute sets, with the key paths that reach them.
+  leaves = path: value:
+    if builtins.isAttrs value
+    then lib.concatLists (lib.mapAttrsToList (key: leaves (path ++ [key])) value)
+    else [{inherit path value;}];
   domainProblems = name: entry:
     lib.optional (!safeDomain name) "${name}: invalid domain name"
-    ++ lib.concatLists (lib.mapAttrsToList (key: value:
-      if key == "" || !plist.xmlString key
-      then ["${name}: invalid key ${builtins.toJSON key}"]
+    ++ lib.concatMap ({
+      path,
+      value,
+    }: let
+      at = "${name} ${builtins.toJSON path}";
+    in
+      if lib.any (key: key == "" || !plist.xmlString key) path
+      then ["${name}: invalid key in ${builtins.toJSON path}"]
       else if !plist.validValue value
-      then ["${name}.${key}: unsupported plist value (floats are not supported)"]
+      then ["${at}: unsupported plist value (floats are not supported)"]
       else if !plist.validXml value
-      then ["${name}.${key}: XML control characters in plist keys or strings"]
+      then ["${at}: XML control characters in plist keys or strings"]
       else [])
-    entry.settings)
+    (leaves [] entry.settings)
     ++ map (service: "${name}: unknown service ${service}")
     (lib.filter (service: !(services ? ${service})) entry.onChange.restartServices);
   names = map lib.toLower (builtins.attrNames declared);
@@ -96,7 +112,10 @@
     );
   domains = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (lib.mapAttrsToList (name: entry: {
       domain = name;
-      keys = lib.mapAttrs (_: lib.generators.toPlist {escape = true;}) entry.settings;
+      values = map (leaf: {
+        inherit (leaf) path;
+        xml = lib.generators.toPlist {escape = true;} leaf.value;
+      }) (leaves [] entry.settings);
       actions = actions entry;
     })
     declared);
@@ -120,7 +139,7 @@ in {
     platform.darwin.defaults = mkOption {
       type = types.attrsOf domain;
       default = {};
-      description = "Hjem-owned user defaults, by preferences domain; removing a key restores the value it had before it was declared.";
+      description = "Hjem-owned user defaults, by preferences domain; removing a declaration restores the value it had before it was declared.";
     };
     defaultsApply = mkOption {
       type = types.package;

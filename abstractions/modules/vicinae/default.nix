@@ -104,6 +104,18 @@ delib.module ({
       };
     };
 
+    # The toggle shortcut takes ⌘Space over from Spotlight's search shortcut.
+    platform.darwin.defaults."com.apple.symbolichotkeys" = {
+      settings.AppleSymbolicHotKeys."64" = {
+        enabled = false;
+        value = {
+          type = "standard";
+          parameters = [32 49 1048576];
+        };
+      };
+      onChange.activateSettings = true;
+    };
+
     vicinae.settings = {
       telemetry.system_info = true;
       input_server.enabled = true;
