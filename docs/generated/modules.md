@@ -8,6 +8,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>assertions</code> | Enforce module-contributed assertions across module systems. | [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix) |
 | <code>bat</code> | Provide and configure bat for file display. | [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix) |
 | <code>batman</code> | Provide batman and configure it as Zsh's manual page pager. | [<code>abstractions/modules/bat/batman/default.nix</code>](../../abstractions/modules/bat/batman/default.nix) |
+| <code>bettertouchtool</code> | Provide BetterTouchTool. | [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../abstractions/modules/bettertouchtool/default.nix) |
 | <code>casks</code> | Expose the official Homebrew casks, packaged by brew-nix, to modules. | [<code>abstractions/modules/casks/default.nix</code>](../../abstractions/modules/casks/default.nix) |
 | <code>claude-code</code> | Provide and configure Claude Code. | [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix) |
 | <code>cursor-agent</code> | Provide the Cursor Agent CLI. | [<code>abstractions/modules/agents/cursor-agent/default.nix</code>](../../abstractions/modules/agents/cursor-agent/default.nix) |
@@ -19,6 +20,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>git</code> | Provide Git and configure the user's Git environment. | [<code>abstractions/modules/git/default.nix</code>](../../abstractions/modules/git/default.nix) |
 | <code>git.include</code> | Configure Git settings through includes. | [<code>abstractions/modules/git/include/default.nix</code>](../../abstractions/modules/git/include/default.nix) |
 | <code>gomi</code> | Provide gomi and integrate it into Zsh. | [<code>abstractions/modules/gomi/default.nix</code>](../../abstractions/modules/gomi/default.nix) |
+| <code>grok-bot</code> | Provide the Grok-bot desktop app. | [<code>abstractions/modules/grok-bot/default.nix</code>](../../abstractions/modules/grok-bot/default.nix) |
 | <code>host</code> | Expose the selected host's information to modules and reflect its identity in OS host names. | [<code>abstractions/modules/host/default.nix</code>](../../abstractions/modules/host/default.nix) |
 | <code>identity</code> | Expose the fixed identity of the person who uses these hosts. | [<code>abstractions/modules/identity/default.nix</code>](../../abstractions/modules/identity/default.nix) |
 | <code>neovim</code> | Provide and configure neovim | [<code>abstractions/modules/neovim/default.nix</code>](../../abstractions/modules/neovim/default.nix) |

@@ -1,8 +1,8 @@
 # Owns module responsibility descriptions and classification tags, not host metadata.
 # Every module must declare a non-blank meta.description, even when disabled.
 # Force descriptions when generating modules so lazy evaluation cannot skip them.
-# meta.tags describes only the declaring module; tags are not inherited and do not
-# affect enablement. Consumers read them through config.modules.<name>.meta.tags.
+# meta.tags describes only the declaring module; tags are not inherited. Consumers
+# read them through config.modules.<name>.meta.tags.
 {
   lib,
   config,
