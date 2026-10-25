@@ -15,19 +15,21 @@ delib.module ({
     package = packageOption myconfig.casks.packages.bettertouchtool;
   };
 
-  hjem.ifEnabled = {config, ...}: {
+  hjem.ifEnabled = {
     files."Applications/BetterTouchTool.app" = {
       exclusive = true;
       source = "${cfg.package}/Applications/BetterTouchTool.app";
     };
 
-    userServices.bettertouchtool.command = [
-      "/usr/bin/open"
-      "-gj"
-      "-a"
-      "${config.directory}/Applications/BetterTouchTool.app"
-    ];
-    # Only the gui domain is loaded at login.
-    platform.darwin.launchAgents.bettertouchtool.domain = "gui";
+    platform.darwin.defaults.CustomUserPreferences = {
+      settings = {
+        "com.hegenberg.BetterTouchTool" = {
+          # Use login item to start at login
+          launchOnStartup = true;
+          SUEnableAutomaticChecks = false;
+          SUAutomaticallyUpdate = false;
+        };
+      };
+    };
   };
 })
