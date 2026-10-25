@@ -21,15 +21,11 @@ delib.module ({
       source = "${cfg.package}/Applications/BetterTouchTool.app";
     };
 
-    platform.darwin.defaults.CustomUserPreferences = {
-      settings = {
-        "com.hegenberg.BetterTouchTool" = {
-          # Use login item to start at login
-          launchOnStartup = true;
-          SUEnableAutomaticChecks = false;
-          SUAutomaticallyUpdate = false;
-        };
-      };
+    platform.darwin.defaults."com.hegenberg.BetterTouchTool".settings = {
+      # Use login item to start at login
+      launchOnStartup = true;
+      SUEnableAutomaticChecks = false;
+      SUAutomaticallyUpdate = false;
     };
   };
 })
