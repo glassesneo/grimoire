@@ -42,6 +42,42 @@
         "type": "github"
       }
     },
+    "brew-api": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792859220,
+        "narHash": "sha256-ztxMhiCnqpXdwqmaOKgjh55F8oEI8tpaP01VlDwzUc4=",
+        "owner": "BatteredBunny",
+        "repo": "brew-api",
+        "rev": "dded361add4527472e6d5a38c7fc5936364bd02d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BatteredBunny",
+        "repo": "brew-api",
+        "type": "github"
+      }
+    },
+    "brew-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792854888,
+        "narHash": "sha256-coXkz8wddWiXpAaTtXwUXPlKGPADnDCSk4XObL0L0Os=",
+        "owner": "glassesneo",
+        "repo": "brew-nix",
+        "rev": "e7cc2ce118bd8db6917bd88ae0e44a9634d1cb65",
+        "type": "github"
+      },
+      "original": {
+        "owner": "glassesneo",
+        "repo": "brew-nix",
+        "type": "github"
+      }
+    },
     "bun2nix": {
       "inputs": {
         "flake-parts": [
@@ -454,6 +490,8 @@
     "root": {
       "inputs": {
         "blink-cmp": "blink-cmp",
+        "brew-api": "brew-api",
+        "brew-nix": "brew-nix",
         "bun2nix": [
           "llm-agents",
           "bun2nix"

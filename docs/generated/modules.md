@@ -8,6 +8,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>assertions</code> | Enforce module-contributed assertions across module systems. | [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix) |
 | <code>bat</code> | Provide and configure bat for file display. | [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix) |
 | <code>batman</code> | Provide batman and configure it as Zsh's manual page pager. | [<code>abstractions/modules/bat/batman/default.nix</code>](../../abstractions/modules/bat/batman/default.nix) |
+| <code>casks</code> | Expose the official Homebrew casks, packaged by brew-nix, to modules. | [<code>abstractions/modules/casks/default.nix</code>](../../abstractions/modules/casks/default.nix) |
 | <code>claude-code</code> | Provide and configure Claude Code. | [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix) |
 | <code>cursor-agent</code> | Provide the Cursor Agent CLI. | [<code>abstractions/modules/agents/cursor-agent/default.nix</code>](../../abstractions/modules/agents/cursor-agent/default.nix) |
 | <code>direnv</code> | Provide and configure direnv, including its Zsh integration. | [<code>abstractions/modules/direnv/default.nix</code>](../../abstractions/modules/direnv/default.nix) |

@@ -191,6 +191,15 @@
       url = "github:saghen/blink.cmp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    brew-nix = {
+      url = "github:glassesneo/brew-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # Cask data for the official homebrew/cask tap, bound to brew-nix by the casks module.
+    brew-api = {
+      url = "github:BatteredBunny/brew-api";
+      flake = false;
+    };
     llm-agents.url = "github:numtide/llm-agents.nix";
     # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
     # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.
