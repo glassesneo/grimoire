@@ -6,6 +6,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | --- | --- | --- |
 | <code>agents</code> | Provide a shared configuration interface for LLM agents and configure the selected agent packages. | [<code>abstractions/modules/agents/default.nix</code>](../../abstractions/modules/agents/default.nix) |
 | <code>alacritty</code> | Provide Alacritty terminal emulator. | [<code>abstractions/modules/alacritty/default.nix</code>](../../abstractions/modules/alacritty/default.nix) |
+| <code>app-identity</code> | Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds. | [<code>abstractions/modules/app-identity/default.nix</code>](../../abstractions/modules/app-identity/default.nix) |
 | <code>assertions</code> | Enforce module-contributed assertions across module systems. | [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix) |
 | <code>bat</code> | Provide and configure bat for file display. | [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix) |
 | <code>batman</code> | Provide batman and configure it as Zsh's manual page pager. | [<code>abstractions/modules/bat/batman/default.nix</code>](../../abstractions/modules/bat/batman/default.nix) |
@@ -41,6 +42,9 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>skills</code> | Declare harness-independent skills and deploy them for agent use. | [<code>abstractions/modules/agents/skills/default.nix</code>](../../abstractions/modules/agents/skills/default.nix) |
 | <code>ssh</code> | Configure the OpenSSH client and the user's personal key. | [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix) |
 | <code>users</code> | Apply the host's declared user information to OS user configuration. | [<code>abstractions/modules/users/default.nix</code>](../../abstractions/modules/users/default.nix) |
+| <code>vicinae</code> | Provide the Vicinae launcher as a login service with a stable code-signing identity. | [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractions/modules/vicinae/default.nix) |
+| <code>vicinae.compact-transition</code> | Animate the Vicinae launcher window between its compact and expanded states. | [<code>abstractions/modules/vicinae/compact-transition/default.nix</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) |
+| <code>vicinae.selection-highlight</code> | Animate the Vicinae selection highlight as it moves between list items. | [<code>abstractions/modules/vicinae/selection-highlight/default.nix</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) |
 | <code>zoxide</code> | Provide zoxide and initialize its directory navigation in Zsh. | [<code>abstractions/modules/zoxide/default.nix</code>](../../abstractions/modules/zoxide/default.nix) |
 | <code>zsh</code> | Enable Zsh and provide the foundation required for its use. | [<code>abstractions/modules/shell/zsh/default.nix</code>](../../abstractions/modules/shell/zsh/default.nix) |
 | <code>zsh.interactive</code> | Build Zsh's interactive environment. | [<code>abstractions/modules/shell/zsh/interactive/default.nix</code>](../../abstractions/modules/shell/zsh/interactive/default.nix) |

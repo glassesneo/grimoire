@@ -15,6 +15,10 @@ in
       (lib.mkMerge (map (name: lib.setAttrByPath (lib.splitString "." name ++ ["enable"]) true) guiModules))
       {
         shell.loginShell = "zsh";
+        vicinae = {
+          compact-transition.enable = true;
+          selection-highlight.enable = true;
+        };
         secrets.names = [
           "vercel-ai-gateway-api-key"
           "openrouter-api-key"
