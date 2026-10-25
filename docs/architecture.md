@@ -1,8 +1,8 @@
 # Architecture
 
-This file describes the architecture of ark: its composition, the concepts used to declare configurations, directory responsibilities, and repository mechanisms. It assumes familiarity with Nix.
+This file describes the architecture of grimoire: its composition, the concepts used to declare configurations, directory responsibilities, and repository mechanisms. It assumes familiarity with Nix.
 
-Ark uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
+Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
 
 The framework composes, extends, verifies, and applies the configuration. Modules and hosts express the concrete environment built with it. See [Documentation Policy](documentation-policy.md) for how specifications and choices are documented.
 

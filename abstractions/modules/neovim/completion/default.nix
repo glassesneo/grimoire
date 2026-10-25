@@ -16,9 +16,9 @@ delib.module {
       pkgs.vimPlugins.colorful-menu-nvim
       pkgs.vimPlugins.friendly-snippets
     ];
-    plugins.dev.ark-completion = {
+    plugins.dev.grimoire-completion = {
       pure = ./config;
-      impure = "~/ark/abstractions/modules/neovim/completion/config";
+      impure = "~/grimoire/abstractions/modules/neovim/completion/config";
     };
   };
 }

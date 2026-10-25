@@ -13,9 +13,9 @@ delib.module {
       pkgs.alejandra
       pkgs.nil
     ];
-    plugins.dev.ark-lsp = {
+    plugins.dev.grimoire-lsp = {
       pure = ./config;
-      impure = "~/ark/abstractions/modules/neovim/lsp/config";
+      impure = "~/grimoire/abstractions/modules/neovim/lsp/config";
     };
   };
 }

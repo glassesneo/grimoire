@@ -22,10 +22,10 @@ delib.module ({cfg, ...}: {
   myconfig.always.neovim.settings = {pkgs, ...}: {
     inherit (cfg) enable;
     neovim = inputs.neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
-    plugins.dev.ark = {
+    plugins.dev.grimoire = {
       pure = ./config;
       # Read by the devMode package so Lua edits apply without a rebuild.
-      impure = "~/ark/abstractions/modules/neovim/config";
+      impure = "~/grimoire/abstractions/modules/neovim/config";
     };
   };
 
@@ -49,7 +49,7 @@ delib.module ({cfg, ...}: {
       };
       moduleSystem = "bundles";
       expr = result: builtins.attrNames result.neovim.config.plugins.dev;
-      expected = ["ark" "fixture"];
+      expected = ["fixture" "grimoire"];
     };
   };
 })

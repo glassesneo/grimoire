@@ -1,9 +1,9 @@
-#+TITLE: ark
+#+TITLE: grimoire
 #+AUTHOR: Neo Kitani
 
 * About
 
-ark is everything I put together for my own computing environment: my machines, tools, and settings, along with the infrastructure that brings them together.
+grimoire is everything I put together for my own computing environment: my machines, tools, and settings, along with the infrastructure that brings them together.
 
 It began as a rewrite of my dotfiles. Built on the rewrite branch of [[https://github.com/yunfachi/denix][Denix]], it includes custom adapters and publishable bundles as well as the configuration itself. It is a personal environment, not a reusable template.
 

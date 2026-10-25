@@ -12,7 +12,7 @@ This file owns agent work rules for the `neovim` module, its feature submodules,
 
 - Each feature is a submodule `neovim.<feature>` in `<feature>/`. It contributes its plugins and tools to `myconfig.neovim.settings` and registers its own `<feature>/config` as an mnw dev plugin, so enabling or disabling it adds or removes the whole feature.
 - A feature works whether or not its siblings are enabled. Its Lua refers only to its own plugins and Neovim built-ins.
-- Do not depend on the load order of `plugin/` files, and do not prefix file names with numbers to force one. Prefer APIs that resolve at use time, such as `vim.lsp.config` or autocommands. Code used by several features goes in the parent's `config/lua/ark/<name>.lua` and is `require`d where it is used.
+- Do not depend on the load order of `plugin/` files, and do not prefix file names with numbers to force one. Prefer APIs that resolve at use time, such as `vim.lsp.config` or autocommands. Code used by several features goes in the parent's `config/lua/grimoire/<name>.lua` and is `require`d where it is used.
 - A partial override of an nvim-lspconfig definition goes in `<feature>/config/after/lsp/<name>.lua`. A server defined entirely in this repository goes in `<feature>/config/lsp/<name>.lua`.
 
 ## Verification

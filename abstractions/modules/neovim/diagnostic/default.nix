@@ -7,9 +7,9 @@ delib.module {
 
   myconfig.ifEnabled.neovim.settings = {pkgs, ...}: {
     plugins.start = [pkgs.vimPlugins.tiny-inline-diagnostic-nvim];
-    plugins.dev.ark-diagnostic = {
+    plugins.dev.grimoire-diagnostic = {
       pure = ./config;
-      impure = "~/ark/abstractions/modules/neovim/diagnostic/config";
+      impure = "~/grimoire/abstractions/modules/neovim/diagnostic/config";
     };
   };
 }
