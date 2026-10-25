@@ -1,6 +1,6 @@
 # Operations
 
-This file covers working-environment setup, commit and push gates, service ownership, and live verification. Recipe descriptions and arguments are owned by the justfiles; use `just --list --list-submodules` and `just --usage <recipe>`.
+This file covers working-environment setup, commit and push gates, service and defaults ownership, and live verification. Recipe descriptions and arguments are owned by the justfiles; use `just --list --list-submodules` and `just --usage <recipe>`.
 
 ## Development environment
 
@@ -34,11 +34,17 @@ GUI absence defers live service operations until another switch; manual launchct
 
 After service failure, ownership state and closure roots survive, and the next switch retries. The lifecycle and persistent state are specified in [the service reconciler](../adapters/hjem/services/reconciler.cr).
 
+## Hjem defaults ownership
+
+Declared defaults are applied by the repository's switch recipes after services; calling upstream standalone directly does not apply them. A value changed in an application or with `defaults` is overwritten by the next switch while it stays declared. The value a key had when it was first declared is restored when its declaration is removed, even if it has since been changed elsewhere. Do not edit or delete the defaults journal: it holds those values, and losing it leaves declared values in place with nothing to restore.
+
+A failed or deferred change action stays pending and runs on a later switch; a GUI service restart waits for a GUI session. The lifecycle and persistent state are specified in [the defaults reconciler](../adapters/hjem/defaults/reconciler.cr).
+
 ## Verification boundary
 
 `nix flake check` runs checks applicable to the current system, including formatting and catalogue freshness. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
 
-Live activation and platform behavior need explicit verification outside those checks. Use `seiran-vm1` for service verification, with an isolated home and dedicated probe labels; do not register test jobs on the workstation. Check registration, replacement, removal, retry, manual disable and journal migration there. GUI cases require an available GUI login session. VM snapshots are outside the repository's command interface.
+Live activation and platform behavior need explicit verification outside those checks. Use `seiran-vm1` for service verification, with an isolated home and dedicated probe labels; do not register test jobs on the workstation. Check registration, replacement, removal, retry, manual disable and journal migration there. Verify defaults there too with a dedicated probe domain; values go to the preferences of the user running the apply, whatever home it is given: first declaration of present and absent keys, overwrite after an outside change, restoration on removal, and each change action. GUI cases require an available GUI login session. VM snapshots are outside the repository's command interface.
 
 ## nix-secrets live verification
 

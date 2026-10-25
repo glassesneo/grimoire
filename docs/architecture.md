@@ -68,6 +68,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
 - `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
 - `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services/reconciler.cr`.
+- `adapters/hjem/defaults.nix`: Hjem-owned user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `adapters/hjem/defaults/reconciler.cr`. `adapters/hjem/plist.nix` holds the plist value validation it shares with services.
 - `adapters/hjem/nix-secrets.nix`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package; which bundles are published is chosen separately.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.

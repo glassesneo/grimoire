@@ -1,8 +1,9 @@
 # Owns the Hjem module system and the contract of its result.
 #
 # `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
-# the packages, `serviceApply` (bin/apply), and a `preflight` derivation that
-# realizes all file, package and service closures. Assertions block every output
+# the packages, `serviceApply` and `defaultsApply` (each with bin/apply), and a
+# `preflight` derivation that realizes all file, package, service and defaults
+# closures. Assertions block every output
 # except `failedAssertions`, the messages of the failed ones, which module checks
 # read without forcing an output.
 #
@@ -97,6 +98,7 @@
             }
             exclusiveFiles
             ./services.nix
+            ./defaults.nix
             (import ./nix-secrets.nix {inherit inputs;})
             # standalone applies packages through current-profile; expose it on PATH.
             ({config, ...}: {
@@ -125,7 +127,7 @@
         (source: source != null)
         (map (file: file.source) enabledFiles);
 
-      dependencies = sources ++ cfg.packages ++ [cfg.serviceApply];
+      dependencies = sources ++ cfg.packages ++ [cfg.serviceApply cfg.defaultsApply];
 
       preflight =
         pkgs.runCommand
@@ -161,6 +163,7 @@
 
         inherit preflight;
         serviceApply = cfg.serviceApply;
+        defaultsApply = cfg.defaultsApply;
       }
       // {inherit failedAssertions;};
   };

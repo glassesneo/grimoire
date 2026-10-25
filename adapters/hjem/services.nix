@@ -102,23 +102,7 @@
       duplicates = [];
     }
     b;
-  validValue = v:
-    builtins.isString v
-    || builtins.isBool v
-    || builtins.isInt v
-    || (builtins.isList v && lib.all validValue v)
-    || (builtins.isAttrs v && lib.all validValue (builtins.attrValues v));
-  # Nix strings cannot contain NUL; XML also excludes these remaining C0 controls.
-  xmlControls = builtins.fromJSON ''"\u0001-\u0008\u000b\u000c\u000e-\u001f"'';
-  xmlString = s: builtins.match "[^${xmlControls}]*" s != null;
-  validXml = v:
-    if builtins.isString v
-    then xmlString v
-    else if builtins.isList v
-    then lib.all validXml v
-    else if builtins.isAttrs v
-    then lib.all xmlString (builtins.attrNames v) && lib.all validXml (builtins.attrValues v)
-    else true;
+  inherit (import ./plist.nix {inherit lib;}) validValue validXml;
   safeLabel = s: builtins.isString s && builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" s != null;
   jobs = lib.mapAttrs (name: _: let
     p = config.userServices.${name} or null;

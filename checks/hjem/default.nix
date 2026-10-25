@@ -57,7 +57,8 @@
     !(builtins.tryEval failing.manifest).success
     && !(builtins.tryEval failing.packages).success
     && !(builtins.tryEval failing.preflight).success
-    && !(builtins.tryEval failing.serviceApply).success;
+    && !(builtins.tryEval failing.serviceApply).success
+    && !(builtins.tryEval failing.defaultsApply).success;
 
   # Preflight must not split a source path at its spaces.
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
@@ -88,7 +89,7 @@ in {
     && lib.all (file: !lib.hasSuffix "/disabled.txt" file.target) manifest.files
     && builtins.length result.packages == 1
   ) "Hjem adapter contract failed";
-  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and serviceApply";
+  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, serviceApply, and defaultsApply";
     pkgs.runCommand "hjem-adapter-test" {
       inherit manifestFile package;
       inherit (result) preflight;
