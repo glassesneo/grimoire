@@ -58,23 +58,19 @@
         "type": "github"
       }
     },
-    "brew-nix": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
+    "brew-taps-api": {
+      "flake": false,
       "locked": {
-        "lastModified": 1792854888,
-        "narHash": "sha256-coXkz8wddWiXpAaTtXwUXPlKGPADnDCSk4XObL0L0Os=",
+        "lastModified": 1792944928,
+        "narHash": "sha256-VLOBx62fb02517UcR3t24E2If1YLNAnkK4TyK5aVyww=",
         "owner": "glassesneo",
-        "repo": "brew-nix",
-        "rev": "e7cc2ce118bd8db6917bd88ae0e44a9634d1cb65",
+        "repo": "brew-taps-api",
+        "rev": "98a99a4da1ca2f5a442062bd9162f1a1b6df442a",
         "type": "github"
       },
       "original": {
         "owner": "glassesneo",
-        "repo": "brew-nix",
+        "repo": "brew-taps-api",
         "type": "github"
       }
     },
@@ -109,6 +105,26 @@
         "owner": "Mic92",
         "ref": "llm-agents",
         "repo": "bun2nix",
+        "type": "github"
+      }
+    },
+    "cask2nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792946644,
+        "narHash": "sha256-LcZ+ETksG39hNORIZ8cxqqKd58GhiKnmG70uVs6lDUA=",
+        "owner": "glassesneo",
+        "repo": "cask2nix",
+        "rev": "74df576f04b10bed7cb90d147637bf9e31d1d239",
+        "type": "github"
+      },
+      "original": {
+        "owner": "glassesneo",
+        "repo": "cask2nix",
         "type": "github"
       }
     },
@@ -565,11 +581,12 @@
       "inputs": {
         "blink-cmp": "blink-cmp",
         "brew-api": "brew-api",
-        "brew-nix": "brew-nix",
+        "brew-taps-api": "brew-taps-api",
         "bun2nix": [
           "llm-agents",
           "bun2nix"
         ],
+        "cask2nix": "cask2nix",
         "denix": "denix",
         "git-hooks": "git-hooks_2",
         "hjem": "hjem",

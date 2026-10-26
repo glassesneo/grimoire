@@ -11,7 +11,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>bat</code> | Provide and configure bat for file display. | [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix) |
 | <code>batman</code> | Provide batman and configure it as Zsh's manual page pager. | [<code>abstractions/modules/bat/batman/default.nix</code>](../../abstractions/modules/bat/batman/default.nix) |
 | <code>bettertouchtool</code> | Provide BetterTouchTool. | [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../abstractions/modules/bettertouchtool/default.nix) |
-| <code>casks</code> | Expose the official Homebrew casks, packaged by brew-nix, to modules. | [<code>abstractions/modules/casks/default.nix</code>](../../abstractions/modules/casks/default.nix) |
+| <code>casks</code> | Expose Homebrew casks, packaged by cask2nix from the official and third-party taps, to modules. | [<code>abstractions/modules/casks/default.nix</code>](../../abstractions/modules/casks/default.nix) |
 | <code>claude-code</code> | Provide and configure Claude Code. | [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix) |
 | <code>cursor-agent</code> | Provide the Cursor Agent CLI. | [<code>abstractions/modules/agents/cursor-agent/default.nix</code>](../../abstractions/modules/agents/cursor-agent/default.nix) |
 | <code>direnv</code> | Provide and configure direnv, including its Zsh integration. | [<code>abstractions/modules/direnv/default.nix</code>](../../abstractions/modules/direnv/default.nix) |
@@ -34,6 +34,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>nixpkgs</code> | Configure Nixpkgs for the host. | [<code>abstractions/modules/nixpkgs/default.nix</code>](../../abstractions/modules/nixpkgs/default.nix) |
 | <code>pay-respects</code> | Provide command typo recovery with pay-respects. | [<code>abstractions/modules/pay-respects/default.nix</code>](../../abstractions/modules/pay-respects/default.nix) |
 | <code>pay-respects.disrespectful</code> | Replace command typo recovery with a playful response. | [<code>abstractions/modules/pay-respects/disrespectful/default.nix</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) |
+| <code>phi</code> | Provide the Phi browser. | [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/modules/phi/default.nix) |
 | <code>publication</code> | Centralize publication choices for feature-owned bundles. | [<code>abstractions/modules/publication/default.nix</code>](../../abstractions/modules/publication/default.nix) |
 | <code>ripgrep</code> | Provide ripgrep for searching file contents. | [<code>abstractions/modules/ripgrep/default.nix</code>](../../abstractions/modules/ripgrep/default.nix) |
 | <code>secrets</code> | Manage the selected encrypted secrets with nix-secrets. | [<code>abstractions/modules/secrets/default.nix</code>](../../abstractions/modules/secrets/default.nix) |

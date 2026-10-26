@@ -191,13 +191,18 @@
       url = "github:saghen/blink.cmp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    brew-nix = {
-      url = "github:glassesneo/brew-nix";
+    cask2nix = {
+      url = "github:glassesneo/cask2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Cask data for the official homebrew/cask tap, bound to brew-nix by the casks module.
+    # Cask data for the official homebrew/cask tap, bound to cask2nix by the casks module.
     brew-api = {
       url = "github:BatteredBunny/brew-api";
+      flake = false;
+    };
+    # Cask data for third-party taps, bound to cask2nix by the casks module.
+    brew-taps-api = {
+      url = "github:glassesneo/brew-taps-api";
       flake = false;
     };
     # Not following nixpkgs keeps the dependencies upstream CI pushes to
