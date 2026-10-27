@@ -25,6 +25,14 @@
                   else "/home/${config.name}"
                 ))
                 "Home directory of the user on this host.";
+              uid =
+                description
+                (intOption (
+                  if isDarwin
+                  then 501
+                  else 1000
+                ))
+                "Numeric user ID of the user's account on this host.";
             };
           });
           description = "The sole user of this host.";
