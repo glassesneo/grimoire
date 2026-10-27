@@ -23,6 +23,8 @@
           settings = {
             flag = true;
             count = -1;
+            ratio = 0.1 + 0.2;
+            tiny = 1.0e-7;
             "A&B" = {
               nested = ["<value>"];
               deeper.leaf = "y";
@@ -52,6 +54,7 @@
   app = domains."com.example.app";
   values = lib.listToAttrs (map (leaf: lib.nameValuePair (lib.concatStringsSep "/" leaf.path) leaf.xml) app.values);
   label = (lib.findFirst (job: job.name == "tool") null good.serviceApply.jobs).label;
+  inf = 1.0e308 * 10.0;
   controls = builtins.fromJSON ''["\u0001", "\u001f"]'';
   rejected = modules: !(builtins.tryEval (builtins.deepSeq (result modules).defaultsApply true)).success;
   # Declaration errors are assertions, so a rejection also names its reason.
@@ -78,14 +81,14 @@
     };
 in {
   platforms = lib.platforms.darwin;
-  check = assert rejects "unsupported plist value" (settings "com.example" {ratio = 0.5;});
-  assert rejects "unsupported plist value" (settings "com.example" {list = [{nested = 1.5;}];});
+  check = assert rejects "unsupported plist value" (settings "com.example" {ratio = inf;});
+  assert rejects "unsupported plist value" (settings "com.example" {list = [{nested = inf - inf;}];});
   assert rejects "unsupported plist value" (settings "com.example" {missing = null;});
   assert lib.all (control: rejects "XML control characters" (settings "com.example" {key = [control];})) controls;
   assert rejects "invalid key" (settings "com.example" {"bad${builtins.head controls}" = "value";});
   assert rejects "invalid key" (settings "com.example" {"" = "value";});
   assert rejects "invalid key" (settings "com.example" {outer."" = "value";});
-  assert rejects "unsupported plist value" (settings "com.example" {outer.ratio = 0.5;});
+  assert rejects "unsupported plist value" (settings "com.example" {outer.ratio = -inf;});
   assert rejects "invalid domain name" (settings "../escape" {key = "value";});
   assert rejects "invalid domain name" (settings "-g" {key = "value";});
   assert rejects "duplicate domain ignoring case" {
@@ -103,9 +106,12 @@ in {
   assert rejected [(settings "com.example" {key = "a";}) (settings "com.example" {key = "b";})];
   assert rejected [(settings "com.example" {outer.key = "a";}) (settings "com.example" {outer.key = "b";})];
   # Each leaf is declared at its path; lists are leaves and empty sets declare nothing.
-  assert map (leaf: leaf.path) app.values == [["A&B" "deeper" "leaf"] ["A&B" "nested"] ["count"] ["flag"] ["other"]];
+  assert map (leaf: leaf.path) app.values == [["A&B" "deeper" "leaf"] ["A&B" "nested"] ["count"] ["flag"] ["other"] ["ratio"] ["tiny"]];
   assert lib.hasInfix "<true/>" values.flag;
   assert lib.hasInfix "<integer>-1</integer>" values.count;
+  # Floats keep every digit needed to parse back to the declared value.
+  assert lib.hasInfix "<real>0.30000000000000004</real>" values.ratio;
+  assert lib.hasInfix "<real>1e-07</real>" values.tiny;
   assert lib.hasInfix "<string>&lt;value&gt;</string>" values."A&B/nested";
   assert app.actions
   == [

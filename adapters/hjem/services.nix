@@ -4,8 +4,8 @@
 # `platform.darwin.launchAgents`, or both under one name, which lowers to one
 # job. Native `config` adds plist leaves to the portable ones and never replaces
 # them: a leaf both define is rejected, as is a native `Program` beside a
-# portable command. Plist values may be strings, booleans, integers, lists or
-# dictionaries, not floats. XML control characters in strings or keys are
+# portable command. Plist values may be strings, booleans, integers, finite
+# floats, lists or dictionaries. XML control characters in strings or keys are
 # rejected; `_module` keys are outside the supported plist contract.
 #
 # The executable and its arguments reach the program as argv, never as shell
@@ -102,7 +102,7 @@
       duplicates = [];
     }
     b;
-  inherit (import ./plist.nix {inherit lib;}) validValue validXml;
+  inherit (import ./plist.nix {inherit lib;}) validValue validXml toPlist;
   safeLabel = s: builtins.isString s && builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" s != null;
   jobs = lib.mapAttrs (name: _: let
     p = config.userServices.${name} or null;
@@ -154,7 +154,7 @@
       else if combined.duplicates != []
       then "duplicate ${lib.concatStringsSep ", " combined.duplicates}"
       else if !validValue merged
-      then "${name}: unsupported plist value (floats are not supported)"
+      then "${name}: unsupported plist value"
       else if !validXml merged
       then "${name}: XML control characters in plist keys or strings"
       else if !checks
@@ -189,7 +189,7 @@
   manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON serviceJobs);
   plists = lib.listToAttrs (map (job:
     lib.nameValuePair job.label
-    (pkgs.writeText "${job.label}.plist" (lib.generators.toPlist {escape = true;} job.config)))
+    (pkgs.writeText "${job.label}.plist" (toPlist job.config)))
   serviceJobs);
   reconciler = pkgs.callPackage ./services {};
   services =

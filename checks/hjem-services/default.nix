@@ -105,8 +105,8 @@
   assert rejects "duplicate x.RunAtLoad" (bad {RunAtLoad = true;});
   assert rejects "invalid plist identity" (bad {Label = "../unsafe";});
   assert rejects "invalid plist identity" (bad {LimitLoadToSessionType = "Aqua";});
-  assert rejects "unsupported plist value" (bad {ThrottleInterval = 0.25;});
-  assert rejects "unsupported plist value" (bad {Extra = [{nested = 1.5;}];});
+  assert rejects "unsupported plist value" (bad {ThrottleInterval = 1.0e308 * 10.0;});
+  assert rejects "unsupported plist value" (bad {Extra = [{nested = null;}];});
   assert lib.all (control: rejects "XML control characters" (bad {Extra = [{nested = control;}];})) controls;
   assert rejects "XML control characters" (bad {EnvironmentVariables."bad${builtins.head controls}" = "value";});
   assert rejects "XML control characters" {userServices.x.command = ["/bin/true" (builtins.head controls)];};

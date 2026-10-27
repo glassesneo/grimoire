@@ -368,28 +368,22 @@ end
 
 describe HjemDefaults::Plist do
   it "round-trips documents of every accepted value type" do
-    # Literal lib.generators.toPlist {escape = true;} output.
+    # Literal adapters/hjem/plist.nix toPlist output.
     xml = %(<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>A&amp;B</key>
-	<dict>
-		<key>nested</key>
-		<array>
-			<string>&lt;v&gt;</string>
-			<false/>
-		</array>
-	</dict>
-	<key>n</key>
-	<integer>-1</integer>
-	<key>t</key>
-	<true/>
-</dict>
-</plist>)
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>A&amp;B</key><dict><key>nested</key><array><string>&lt;v&gt;</string><false/></array></dict><key>n</key><integer>-1</integer><key>r</key><real>1e-07</real><key>t</key><true/></dict></plist>
+)
     HjemDefaults::Plist.parse(xml) do |value|
       HjemDefaults::Plist.parse(HjemDefaults::Plist.xml(value)) do |again|
         LibCF.CFEqual(value, again).should eq(1)
+      end
+    end
+    # The shortest round-trip form of a float parses to the same value as its full digits.
+    {"1e-07" => "0.0000001", "0.30000000000000004" => "0.300000000000000044408920985006"}.each do |short, full|
+      HjemDefaults::Plist.parse(%(<plist version="1.0"><real>#{short}</real></plist>)) do |a|
+        HjemDefaults::Plist.parse(%(<plist version="1.0"><real>#{full}</real></plist>)) do |b|
+          LibCF.CFEqual(a, b).should eq(1)
+        end
       end
     end
     expect_raises(Exception, /Invalid plist/) { HjemDefaults::Plist.parse("not a plist") { } }

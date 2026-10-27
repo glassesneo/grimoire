@@ -13,8 +13,8 @@
 # that moment, or its absence; removing the declaration restores that value, or
 # deletes the leaf and the dictionaries the declaration created once they are
 # empty. A leaf whose enclosing value is no longer a dictionary is left as it
-# is. Leaf values may be strings, booleans, integers or lists of plist values,
-# not floats. XML control characters in strings or keys are rejected, as are
+# is. Leaf values may be strings, booleans, integers, finite floats or lists of
+# plist values. XML control characters in strings or keys are rejected, as are
 # empty keys. Domain names must be unique ignoring case.
 #
 # `onChange` acts after a switch that wrote or restored a leaf of the domain,
@@ -82,7 +82,7 @@
       if lib.any (key: key == "" || !plist.xmlString key) path
       then ["${name}: invalid key in ${builtins.toJSON path}"]
       else if !plist.validValue value
-      then ["${at}: unsupported plist value (floats are not supported)"]
+      then ["${at}: unsupported plist value"]
       else if !plist.validXml value
       then ["${at}: XML control characters in plist keys or strings"]
       else [])
@@ -114,7 +114,7 @@
       domain = name;
       values = map (leaf: {
         inherit (leaf) path;
-        xml = lib.generators.toPlist {escape = true;} leaf.value;
+        xml = plist.toPlist leaf.value;
       }) (leaves [] entry.settings);
       actions = actions entry;
     })
