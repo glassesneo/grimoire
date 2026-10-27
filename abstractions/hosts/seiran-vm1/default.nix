@@ -6,6 +6,7 @@ delib.host {
 
   myconfig.ifEnabled = {
     shell.loginShell = "zsh";
+    zoom.enable = false;
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
