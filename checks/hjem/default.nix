@@ -64,6 +64,20 @@
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
   spaced = mkResult [{files."spaced.txt".source = spacedSource;}];
 
+  # An unfree package evaluates only when its name is listed, and listing it
+  # from two modules merges rather than conflicts.
+  unfreePackage = {pkgs, ...}: {
+    packages = [
+      (pkgs.stdenvNoCC.mkDerivation {
+        pname = "fixture-unfree";
+        version = "1";
+        meta.license = lib.licenses.unfree;
+      })
+    ];
+  };
+  allowUnfree = names: {nixpkgs.config.allowUnfreePackages = names;};
+  unfreeEvaluates = modules: (builtins.tryEval (builtins.deepSeq (mkResult modules).packages true)).success;
+
   manifest = result.manifest;
 
   pick = suffix:
@@ -90,6 +104,9 @@ in {
     && builtins.length result.packages == 1
   ) "Hjem adapter contract failed";
   assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, serviceApply, and defaultsApply";
+  assert lib.assertMsg (!unfreeEvaluates [unfreePackage]) "An unlisted unfree package must fail evaluation";
+  assert lib.assertMsg (!unfreeEvaluates [unfreePackage (allowUnfree ["other"])]) "Listing another name must not allow an unfree package";
+  assert lib.assertMsg (unfreeEvaluates [unfreePackage (allowUnfree ["fixture-unfree"]) (allowUnfree ["other"])]) "A listed unfree package must evaluate when definitions merge";
     pkgs.runCommand "hjem-adapter-test" {
       inherit manifestFile package;
       inherit (result) preflight;

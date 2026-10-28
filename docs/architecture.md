@@ -66,7 +66,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/module-checks.nix`: module-owned inline cases, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
-- `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define.
+- `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define and the unfree packages its `pkgs` may evaluate.
 - `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services/reconciler.cr`.
 - `adapters/hjem/defaults.nix`: Hjem-owned user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `adapters/hjem/defaults/reconciler.cr`. `adapters/hjem/plist.nix` holds the plist value validation it shares with services.
 - `adapters/hjem/nix-secrets.nix`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.

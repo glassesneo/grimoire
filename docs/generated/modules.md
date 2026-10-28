@@ -7,6 +7,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>agents</code> | Provide a shared configuration interface for LLM agents and configure the selected agent packages. | [<code>abstractions/modules/agents/default.nix</code>](../../abstractions/modules/agents/default.nix) |
 | <code>alacritty</code> | Provide Alacritty terminal emulator. | [<code>abstractions/modules/alacritty/default.nix</code>](../../abstractions/modules/alacritty/default.nix) |
 | <code>app-identity</code> | Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds. | [<code>abstractions/modules/app-identity/default.nix</code>](../../abstractions/modules/app-identity/default.nix) |
+| <code>appcleaner</code> | Provide AppCleaner. | [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstractions/modules/appcleaner/default.nix) |
 | <code>appearance</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. | [<code>abstractions/modules/appearance/default.nix</code>](../../abstractions/modules/appearance/default.nix) |
 | <code>assertions</code> | Enforce module-contributed assertions across module systems. | [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix) |
 | <code>bat</code> | Provide and configure bat for file display. | [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix) |
@@ -22,6 +23,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>files</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. | [<code>abstractions/modules/files/default.nix</code>](../../abstractions/modules/files/default.nix) |
 | <code>fzf</code> | Provide and configure fzf, including its Zsh integration. | [<code>abstractions/modules/fzf/default.nix</code>](../../abstractions/modules/fzf/default.nix) |
 | <code>gh</code> | Provide the GitHub CLI. | [<code>abstractions/modules/gh/default.nix</code>](../../abstractions/modules/gh/default.nix) |
+| <code>ghostty</code> | Provide Ghostty terminal emulator. | [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractions/modules/ghostty/default.nix) |
 | <code>git</code> | Provide Git and configure the user's Git environment. | [<code>abstractions/modules/git/default.nix</code>](../../abstractions/modules/git/default.nix) |
 | <code>git.include</code> | Configure Git settings through includes. | [<code>abstractions/modules/git/include/default.nix</code>](../../abstractions/modules/git/include/default.nix) |
 | <code>gomi</code> | Provide gomi and integrate it into Zsh. | [<code>abstractions/modules/gomi/default.nix</code>](../../abstractions/modules/gomi/default.nix) |
@@ -37,6 +39,7 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>nh</code> | Provide nh for package and option searches. | [<code>abstractions/modules/nh/default.nix</code>](../../abstractions/modules/nh/default.nix) |
 | <code>nix</code> | Configure Nix itself. | [<code>abstractions/modules/nix/default.nix</code>](../../abstractions/modules/nix/default.nix) |
 | <code>nixpkgs</code> | Configure Nixpkgs for the host. | [<code>abstractions/modules/nixpkgs/default.nix</code>](../../abstractions/modules/nixpkgs/default.nix) |
+| <code>notion</code> | Provide the Notion desktop app. | [<code>abstractions/modules/notion/default.nix</code>](../../abstractions/modules/notion/default.nix) |
 | <code>pay-respects</code> | Provide command typo recovery with pay-respects. | [<code>abstractions/modules/pay-respects/default.nix</code>](../../abstractions/modules/pay-respects/default.nix) |
 | <code>pay-respects.disrespectful</code> | Replace command typo recovery with a playful response. | [<code>abstractions/modules/pay-respects/disrespectful/default.nix</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) |
 | <code>phi</code> | Provide the Phi browser. | [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/modules/phi/default.nix) |
@@ -49,9 +52,11 @@ Generated from Denix module metadata. Do not edit; run `just docs`.
 | <code>shell</code> | Define a shared configuration interface for shells and configure the selected login shell. | [<code>abstractions/modules/shell/default.nix</code>](../../abstractions/modules/shell/default.nix) |
 | <code>shield</code> | Provide the SHIELD process hub and the keel agent screens it attaches. | [<code>abstractions/modules/agents/shield/default.nix</code>](../../abstractions/modules/agents/shield/default.nix) |
 | <code>skills</code> | Declare harness-independent skills and deploy them for agent use. | [<code>abstractions/modules/agents/skills/default.nix</code>](../../abstractions/modules/agents/skills/default.nix) |
+| <code>slack</code> | Provide the Slack desktop app. | [<code>abstractions/modules/slack/default.nix</code>](../../abstractions/modules/slack/default.nix) |
 | <code>sound</code> | Configure system sounds and alert feedback. | [<code>abstractions/modules/sound/default.nix</code>](../../abstractions/modules/sound/default.nix) |
 | <code>spaces</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. | [<code>abstractions/modules/spaces/default.nix</code>](../../abstractions/modules/spaces/default.nix) |
 | <code>ssh</code> | Configure the OpenSSH client and the user's personal key. | [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix) |
+| <code>tags</code> | Enable by default the modules that carry a tag selected for the host. | [<code>abstractions/modules/tags/default.nix</code>](../../abstractions/modules/tags/default.nix) |
 | <code>trackpad</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. | [<code>abstractions/modules/trackpad/default.nix</code>](../../abstractions/modules/trackpad/default.nix) |
 | <code>users</code> | Apply the host's declared user information to OS user configuration. | [<code>abstractions/modules/users/default.nix</code>](../../abstractions/modules/users/default.nix) |
 | <code>vicinae</code> | Provide the Vicinae launcher as a login service with a stable code-signing identity. | [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractions/modules/vicinae/default.nix) |

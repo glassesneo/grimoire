@@ -11,6 +11,10 @@
 # `xdg.<kind>.files`) must be defined from one location; a second module or host
 # defining it fails through the assertions. Locations are the origin labels of
 # `extensions/provenance.nix`.
+#
+# `pkgs` is Nixpkgs for the user's system. `nixpkgs.config.allowUnfreePackages`
+# names the unfree packages it may evaluate; every other unfree package fails
+# evaluation.
 {inputs, ...}: {
   moduleSystems.hjem = {
     flakeOutputs = {
@@ -79,11 +83,26 @@
         fileSetPaths;
       };
 
+      # Mirrors nix-darwin's `nixpkgs.config.allowUnfreePackages`, so a module
+      # allows the unfree packages it uses beside the use.
+      unfreePackages = {
+        options.nixpkgs.config.allowUnfreePackages = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [];
+          description = "Names of unfree packages that `pkgs` may evaluate; definitions from every module are merged.";
+        };
+      };
+
       evaluation = lib.evalModules {
         class = "hjem";
 
+        # Hjem imports from `pkgs.path`, so `pkgs` must be a special argument;
+        # the list stays lazy, so importing does not force the configuration.
         specialArgs = {
-          inherit pkgs;
+          pkgs = import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfreePackages = evaluation.config.nixpkgs.config.allowUnfreePackages;
+          };
           "hjem-lib" = hjemLib;
         };
 
@@ -97,6 +116,7 @@
               clobberFiles = false;
             }
             exclusiveFiles
+            unfreePackages
             ./services.nix
             ./defaults.nix
             (import ./nix-secrets.nix {inherit inputs;})
