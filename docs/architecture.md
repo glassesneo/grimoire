@@ -32,6 +32,12 @@ The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/def
 
 A module's name is its `myconfig` interface path, so choose it for the modules and hosts that reference it. Directory placement serves navigation and may differ from the name.
 
+## Declaring choices
+
+Whether a value is declared depends on whether its behavior was chosen, not on whether it differs from the default. A chosen behavior is declared even when its value equals the default.
+
+A setting affects only the scope that needs it. User preferences are declared in the user's domain through Hjem; a setting applied with root privileges is limited to what the user's domain cannot achieve.
+
 ## Directory ownership
 
 - `abstractions/hosts/` owns machine-specific facts and choices.
