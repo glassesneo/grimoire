@@ -1,34 +1,27 @@
 {
   inputs,
   pkgs,
-  system,
 }: let
   inherit (pkgs) lib;
-  makeSystem = (import ../../adapters/hjem {inherit inputs;}).moduleSystems.hjem.makeSystem;
-  evaluate = modules:
-    makeSystem {
-      inherit modules;
-      extraArgs = {
-        inherit system;
-        username = "fixture";
-        homeDirectory = "/tmp/nix-secrets-fixture";
-      };
-    };
+  fixtureArgs = {
+    inherit inputs;
+    username = "fixture";
+    homeDirectory = "/tmp/nix-secrets-fixture";
+  };
+  inherit (import ./fixture.nix fixtureArgs) evaluate;
   enabled = automatic: extraPackages:
-    import ./fixture.nix {
-      inherit inputs;
-      username = "fixture";
-      homeDirectory = "/tmp/nix-secrets-fixture";
-      extraModules = [
-        {
-          security.nix-secrets = {
-            activate.enable = automatic;
-            defaultGroup = 20;
-            inherit extraPackages;
-          };
-        }
-      ];
-    };
+    import ./fixture.nix (fixtureArgs
+      // {
+        extraModules = [
+          {
+            security.nix-secrets = {
+              activate.enable = automatic;
+              defaultGroup = 20;
+              inherit extraPackages;
+            };
+          }
+        ];
+      });
   fixture = enabled true [pkgs.coreutils];
   on = fixture.result;
   off = evaluate [];
@@ -52,12 +45,12 @@
   wiring = json on "wiring.json";
   activationManifest = pkgs.writeText "nix-secrets-manifest.json" manifest.text;
   package = builtins.appendContext wiring.package (builtins.getContext (source on "wiring.json").text);
-  automaticJob = builtins.head on.serviceApply.jobs;
-  productionJob = builtins.head production.serviceApply.jobs;
+  automaticJob = builtins.head on.apply.steps.services.jobs;
+  productionJob = builtins.head production.apply.steps.services.jobs;
   scriptWiring = result: path: let
     values = json result "wiring.json";
   in
-    lib.drop 4 (builtins.head result.serviceApply.jobs).config.ProgramArguments
+    lib.drop 4 (builtins.head result.apply.steps.services.jobs).config.ProgramArguments
     == [values.activateScript]
     && lib.all (line: lib.elem line (lib.splitString "\n" values.script)) [
       "export HOME=${lib.escapeShellArg "/tmp/nix-secrets-fixture"}"
@@ -71,13 +64,13 @@ in {
     # Keep static compatibility wiring at evaluation: disabled/manual jobs,
     # manifest/CLI commands and activation argv. Hjem owns generic lowering.
     # Shell-only HOME/PATH/lock wiring uses evaluated text, not source regexes.
-    assert off.serviceApply.jobs == [];
-    assert manual.serviceApply.jobs == [];
-    assert builtins.length on.serviceApply.jobs == 1;
+    assert off.apply.steps.services.jobs == [];
+    assert manual.apply.steps.services.jobs == [];
+    assert builtins.length on.apply.steps.services.jobs == 1;
     assert automaticJob.domain == "gui" && automaticJob.restart && automaticJob.runAtLoad;
     assert automaticJob.label == "org.hjem.nix-secrets-probe";
     assert automaticJob.config.Label == automaticJob.label;
-    assert builtins.length production.serviceApply.jobs == 1;
+    assert builtins.length production.apply.steps.services.jobs == 1;
     assert productionJob.label == "org.hjem.nix-secrets-activate";
     assert productionJob.label != automaticJob.label;
     assert wiring.command == "${wiring.package}/bin/nix-secrets activate ${activationManifest} --needed-for-users false";

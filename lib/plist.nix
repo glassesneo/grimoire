@@ -1,4 +1,4 @@
-# Owns the plist values that Hjem adapters accept and their XML serialization.
+# Owns the plist values that Hjem modules accept and their XML serialization.
 #
 # `validValue` accepts strings, booleans, integers, finite floats, lists and
 # dictionaries. `validXml` rejects XML control characters in strings and

@@ -16,7 +16,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption false;
-    package = packageOption myconfig.casks.packages.ghostty;
+    package = packageOption myconfig.casks.packages.ghostty {defaultText = lib.literalExpression "myconfig.casks.packages.ghostty";};
   };
 
   hjem.always = {pkgs, ...}: {

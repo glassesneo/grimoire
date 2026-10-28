@@ -4,7 +4,7 @@ This file describes the architecture of grimoire: its composition, the concepts 
 
 Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
 
-The framework composes, extends, verifies, and applies the configuration. Modules and hosts express the concrete environment built with it. See [Documentation Policy](documentation-policy.md) for how specifications and choices are documented.
+Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, and [the authoring reference](generated/authoring.md) for every option that modules and hosts write.
 
 ## Composition
 
@@ -18,7 +18,7 @@ The same composition publishes `packages.<system>`, merging feature-owned bundle
 
 ## Modules, hosts, and sections
 
-A module (`delib.module`) is a feature. It declares options under `myconfig.<name>` and configuration for each module system. A host (`delib.host`) holds the facts and choices of one machine.
+A module (`delib.module`) abstracts a capability. It declares options under `myconfig.<name>` and in each module system, and the configuration that implements them. A host (`delib.host`) holds the facts and choices of one machine.
 
 Both write configuration in sections per module system, such as `darwin.ifEnabled` or `hjem.always`:
 
@@ -41,9 +41,9 @@ A setting affects only the scope that needs it. User preferences are declared in
 ## Directory ownership
 
 - `abstractions/hosts/` owns machine-specific facts and choices.
-- `abstractions/modules/` owns reusable features. A feature keeps its Darwin, Hjem, and other module-system outputs together.
-- `adapters/` owns integrations for module systems that Denix does not provide. An adapter translates Denix modules into the external system's configuration result; it does not own user configuration policy.
-- `extensions/` owns extensions of Denix itself: host attributes and behavior applied to every module or host. Features that consume them live in `abstractions/modules/`.
+- `abstractions/modules/` owns modules: application features and the capabilities other modules use, such as user services, user defaults and single-definer files. A module keeps its options and its Darwin, Hjem, and other module-system outputs together.
+- `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
+- `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
 - `checks/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `checks/<name>/default.nix` is discovered automatically. The contract of a single module is checked inside that module instead; see Validation boundary.
 - `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
@@ -69,16 +69,18 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-checks.nix`: module-owned inline cases, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`.
+- `extensions/module-checks.nix`: module-owned inline cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
-- `adapters/hjem/default.nix`: the Hjem module system, including files that only one location may define and the unfree packages its `pkgs` may evaluate.
-- `adapters/hjem/services.nix`: Hjem-owned portable/native service declarations and Darwin lowering, with lifecycle reconciliation in `adapters/hjem/services/reconciler.cr`.
-- `adapters/hjem/defaults.nix`: Hjem-owned user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `adapters/hjem/defaults/reconciler.cr`. `adapters/hjem/plist.nix` holds the plist value validation it shares with services.
-- `adapters/hjem/nix-secrets.nix`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
+- `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in no specified order.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package; which bundles are published is chosen separately.
+- `abstractions/modules/services/`: portable/native user service declarations and Darwin lowering, with lifecycle reconciliation in `reconciler/reconciler.cr`.
+- `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service names resolve through the services module's read-only targets.
+- `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
+- `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
+- `lib/plist.nix`: the plist values that services and defaults accept and their serialization.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
-- `lib/module-docs.nix`: a module catalogue rendered from Denix metadata and declaration locations without generating a host configuration.
+- `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
 - `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, and `scripts/pre-push.nu` verifies outgoing tip trees.
 
@@ -95,7 +97,7 @@ Each kind of validation answers a different question:
 
 A module's own contract — what its options produce and reject — is checked by the module's `checks`, beside its definition. Each case uses the adapters and extensions of `flake.nix` with only that module, the modules explicitly named in `uses`, infrastructure, and fixture contributors. A case either compares an evaluated value, expects an evaluation/assertion failure, or builds a derivation from the fixture result. Platform filtering precedes fixture generation; supported cases aggregate into one check per module. Build cases stay with their owning feature rather than reading published packages to bypass the fixture.
 
-Commit automation builds selected checks on the final index snapshot, excluding formatting and catalogue freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and catalogue freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
+Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
 
 Mechanism checks use the smallest input boundary they own, without importing unrelated feature modules or extensions. Checks of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
 

@@ -12,7 +12,7 @@ def main [] {
       {name: empty, directory: abstractions/modules/empty, infrastructure: false, affectedChecks: []}
     ]
     directoryChecks: [{name: external, directory: checks/external}]
-    checkNames: [module-a module-b module-child external formatting module-docs]
+    checkNames: [module-a module-b module-child external formatting authoring-docs]
   }
   let all = [external module-a module-b module-child]
   for case in [

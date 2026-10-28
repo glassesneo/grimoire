@@ -6,7 +6,7 @@
   # Composes a Denix configuration from abstractions on top of the repository's
   # adapters and extensions.
   compose,
-  # Names of modules that the adapters and extensions contribute to, included in
+  # Names of modules providing capabilities that other modules use, included in
   # every fixture.
   infrastructure,
   configuration,
@@ -14,7 +14,7 @@
   system,
 }: let
   home = "/tmp/module-checks";
-  fields = ["host" "modules" "uses" "moduleSystem" "expr" "expected" "fails" "build" "platforms" "tsRoots"];
+  defines = case: field: lib.elem field case.defined;
 
   info = configuration.config.moduleCheckInfo {
     inherit pkgs system home infrastructure;
@@ -41,26 +41,28 @@
       }
       // attrs);
 
-  generate = name: case:
+  generate = name: case: let
+    fixtureSystem = case.host.system or system;
+  in
     (compose (
-      [(fileOf name) (host (case.host or {}))]
-      ++ map fileOf (lib.remove name (lib.unique (infrastructure ++ case.uses or [])))
-      ++ lib.mapAttrsToList contributor (case.modules or {})
+      [(fileOf name) (host case.host)]
+      ++ map fileOf (lib.remove name (lib.unique (infrastructure ++ case.uses)))
+      ++ lib.mapAttrsToList contributor case.modules
     )).genSystem {
-      moduleSystem = case.moduleSystem or "hjem";
+      inherit (case) moduleSystem;
       host = "fixture";
       # The arguments `flake.nix` passes when publishing each module system.
       extraArgs =
         {
           hjem = {
-            inherit system;
+            system = fixtureSystem;
             username = "fixture";
             homeDirectory = home;
           };
-          bundles = {inherit system;};
+          bundles.system = fixtureSystem;
         }
         .${
-          case.moduleSystem or "hjem"
+          case.moduleSystem
         }
         or {
         };
@@ -85,25 +87,21 @@
   # Returns null when the case passes, otherwise the reason it failed.
   run = name: caseName: case: let
     result = generate name case;
-    unknown = lib.subtractLists fields (builtins.attrNames case);
-    fails = case.fails or null;
+    has = defines case;
+    fails =
+      if has "fails"
+      then case.fails
+      else null;
     pretty = lib.generators.toPretty {};
   in
     builtins.addErrorContext "while evaluating check case '${caseName}' of module '${name}'" (
-      if unknown != []
-      then "unknown fields: ${lib.concatStringsSep ", " unknown}"
-      else if builtins.length (lib.filter (field: builtins.hasAttr field case) ["expected" "fails" "build"]) != 1
+      if builtins.length (lib.filter has ["expected" "fails" "build"]) != 1
       then "exactly one of expected/fails/build must be set"
-      else if case ? fails && !(fails == true || builtins.isString fails)
-      then "fails must be true or a string"
-      else if case ? build && case ? expr
+      else if has "build" && has "expr"
       then "build and expr cannot be combined"
-      else if case ? build
-      then
-        if lib.isDerivation (case.build result)
-        then null
-        else "build must return a derivation"
-      else if !(case ? expr) && !(builtins.isString fails)
+      else if has "build"
+      then builtins.seq (case.build result) null
+      else if !(has "expr") && !(builtins.isString fails)
       then "evaluation case requires expr"
       else if fails == true
       then
@@ -112,7 +110,7 @@
         else null
       else if builtins.isString fails
       then let
-        messages = failedAssertions (case.moduleSystem or "hjem") result;
+        messages = failedAssertions case.moduleSystem result;
       in
         if lib.any (lib.hasInfix fails) messages
         then null
@@ -131,7 +129,7 @@
     if failures == {}
     then
       pkgs.runCommand "module-${name}-check" {
-        builds = lib.mapAttrsToList (_: case: case.build (generate name case)) (lib.filterAttrs (_: case: case ? build) cases);
+        builds = lib.mapAttrsToList (_: case: case.build (generate name case)) (lib.filterAttrs (_: case: defines case "build") cases);
       } ''
         mkdir "$out"
         for build in $builds; do test -e "$build"; done

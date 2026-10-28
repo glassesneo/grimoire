@@ -6,25 +6,26 @@
   system,
   configuration,
   compose,
+  authoringDocs,
   formatting,
 }: let
   inherit (pkgs) lib;
+  infrastructure = ["assertions" "defaults" "exclusive" "services"];
   moduleCheckInfo = configuration.config.moduleCheckInfo {
     inherit pkgs system;
     home = "/tmp/module-checks";
     oxlintConfig = ../.oxlintrc.json;
     root = ../.;
-    infrastructure = ["assertions"];
+    inherit infrastructure;
   };
   directories = lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (./. + "/${name}/default.nix")) (builtins.readDir ./.);
   descriptors = builtins.mapAttrs (name: _:
     lib.callPackageWith {
-      inherit inputs denix pkgs system configuration compose moduleCheckInfo;
+      inherit inputs denix pkgs system configuration compose moduleCheckInfo authoringDocs;
     } (./. + "/${name}/default.nix") {})
   directories;
   moduleChecks = import ../lib/module-checks.nix {inherit lib;} {
-    inherit compose configuration pkgs system;
-    infrastructure = ["assertions"];
+    inherit compose configuration pkgs system infrastructure;
   };
   discovered = import ../lib/checks.nix {inherit lib;} {
     inherit descriptors moduleChecks system;

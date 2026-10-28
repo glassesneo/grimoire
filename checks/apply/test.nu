@@ -19,7 +19,7 @@ def main [script: string] {
   let applied = apply $script {}
   assert equal $applied.exit_code 0 $applied.stderr
   let calls = $applied.calls
-  let order = [darwinConfigurations "/activate" ".preflight" ".serviceApply" ".defaultsApply" "standalone switch"] | each {|pattern| index-of $calls $pattern }
+  let order = [darwinConfigurations "/activate" ".preflight" ".apply" "standalone switch"] | each {|pattern| index-of $calls $pattern }
   assert equal $order ($order | sort)
 
   for with_path in ["" "1"] {

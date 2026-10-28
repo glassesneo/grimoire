@@ -23,7 +23,7 @@ mod bun 'just/bun.just'
 fmt:
   nix fmt
 
-# Regenerate docs/generated/modules.md from module metadata without staging it.
+# Regenerate docs/generated/authoring.md from declarations without staging it.
 docs:
   nu --no-config-file scripts/docs.nu
 
@@ -36,7 +36,7 @@ eval:
 check name:
   nix build --no-link --no-update-lock-file '.#checks.{{ system }}."{{ name }}"'
 
-# Run all current-system checks, including formatting and catalogue freshness, on the tracked working tree.
+# Run all current-system checks, including formatting and reference freshness, on the tracked working tree.
 check-full:
   nix flake check --no-update-lock-file
 

@@ -1,5 +1,8 @@
 # Owns the bundles module system, bundle schema, publication filter, and result
-# contract: a name-to-package attrset guarded by common assertions.
+# contract. `packages` is the name-to-package attrset of published bundles,
+# guarded by common assertions; `failedAssertions`, the messages of the failed
+# ones, and `options`, the evaluated option declarations, stay readable when
+# assertions fail.
 {
   inputs,
   delib,
@@ -28,6 +31,7 @@
         modules =
           [
             {
+              _file = ./bundles.nix;
               options = {
                 bundles = lib.mkOption {
                   type = lib.types.attrsOf (lib.types.submodule {
@@ -58,9 +62,13 @@
       };
       cfg = evaluation.config;
       failedAssertions = map (x: x.message) (lib.filter (x: !x.assertion) cfg.assertions);
-    in
-      if failedAssertions != []
-      then throw "\nFailed assertions:\n${lib.concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
-      else lib.mapAttrs (_: bundle: bundle.package) (lib.filterAttrs (_: bundle: bundle.publish) cfg.bundles);
+    in {
+      packages =
+        if failedAssertions != []
+        then throw "\nFailed assertions:\n${lib.concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
+        else lib.mapAttrs (_: bundle: bundle.package) (lib.filterAttrs (_: bundle: bundle.publish) cfg.bundles);
+      inherit failedAssertions;
+      inherit (evaluation) options;
+    };
   };
 }

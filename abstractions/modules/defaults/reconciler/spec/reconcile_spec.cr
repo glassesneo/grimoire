@@ -368,7 +368,7 @@ end
 
 describe HjemDefaults::Plist do
   it "round-trips documents of every accepted value type" do
-    # Literal adapters/hjem/plist.nix toPlist output.
+    # Literal lib/plist.nix toPlist output.
     xml = %(<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>A&amp;B</key><dict><key>nested</key><array><string>&lt;v&gt;</string><false/></array></dict><key>n</key><integer>-1</integer><key>r</key><real>1e-07</real><key>t</key><true/></dict></plist>

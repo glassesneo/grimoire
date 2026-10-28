@@ -8,7 +8,7 @@
 
   # Keep the runner's repository-owned boundary: successful fixture values and
   # builds reach one aggregate; invalid modes, missing uses and mismatches fail
-  # evaluation. Also cover declaration-only discovery, conservative closure and
+  # evaluation; unknown fields fail discovery. Also cover declaration-only discovery, conservative closure and
   # coverage normalization: Nix types alone cannot detect those regressions.
   # Builder failure is exercised externally through failingAggregate below.
   compose = abstractions:
@@ -39,7 +39,6 @@
     mismatch = "{expr = _: 1; expected = 2;}";
     unmatched-assertion = ''{fails = "no such assertion";}'';
     no-throw = "{expr = _: 1; fails = true;}";
-    unknown-field = "{expr = _: 1; expected = 1; expectd = 1;}";
     ambiguous = ''{expr = _: 1; expected = 1; fails = "x";}'';
     neither = "{expr = _: 1;}";
     no-expr = "{expected = 1;}";
@@ -99,6 +98,8 @@
     compose = _: throw "fixture generated during graph discovery";
   };
   unknownGraph = infoFor (compose [(graphModule "unknown" ["absent"] [system])]);
+  # An unknown field is a declaration error, rejected when the cases are discovered.
+  unknownField = infoFor (compose [(failing "unknown-field" "{expr = _: 1; expected = 1; expectd = 1;}")]);
   coverage = (infoFor configuration).subject.tsRoots;
   lazyChecks = import ../../lib/module-checks.nix {inherit lib;} {
     inherit configuration pkgs system;
@@ -144,6 +145,7 @@ in {
   check = assert !(graphChecks ? module-branch);
   assert graph.c.affectedChecks == ["module-a" "module-b" "module-c" "module-leaf"];
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
+  assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;
   assert coverage == ["checks/module-checks" "checks/module-checks/sub/nested"];
   assert !(invalidRoot "../outside");

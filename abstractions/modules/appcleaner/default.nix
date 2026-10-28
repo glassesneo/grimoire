@@ -1,4 +1,8 @@
-{delib, ...}:
+{
+  delib,
+  lib,
+  ...
+}:
 delib.module ({cfg, ...}: {
   name = "appcleaner";
   meta = {
@@ -9,7 +13,7 @@ delib.module ({cfg, ...}: {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption pkgs.appcleaner;
+      package = packageOption pkgs.appcleaner {defaultText = lib.literalExpression "pkgs.appcleaner";};
     };
 
   hjem.ifEnabled = {

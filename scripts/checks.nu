@@ -20,5 +20,5 @@ export def select-checks [metadata: record, changes: list<record>] {
         if ($checks | is-not-empty) { $checks.name } else if ($path | str starts-with 'checks/') and (($path | split row '/' | length) >= 3) and not (($change.status in [A D]) and ($path | path basename) == 'default.nix') { [] } else if (within $path 'abstractions/hosts') or ($path in [README.org AGENTS.md]) or (within $path docs) or ((within $path .agents) and ($path | str ends-with '.md')) { [] } else { $all }
       }
     }
-  } | flatten | where {|name| $name in $all and $name not-in [formatting module-docs] } | uniq | sort
+  } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
 }

@@ -1,4 +1,8 @@
-{delib, ...}:
+{
+  delib,
+  lib,
+  ...
+}:
 delib.module ({
   cfg,
   myconfig,
@@ -12,7 +16,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption false;
-    package = packageOption myconfig.casks.taps.phibrowser.tap.phi;
+    package = packageOption myconfig.casks.taps.phibrowser.tap.phi {defaultText = lib.literalExpression "myconfig.casks.taps.phibrowser.tap.phi";};
   };
 
   hjem.ifEnabled.files."Applications/Phi.app" = {

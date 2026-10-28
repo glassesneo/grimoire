@@ -11,7 +11,7 @@ delib.module ({cfg, ...}: {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption true;
-      package = packageOption pkgs.zsh;
+      package = packageOption pkgs.zsh {defaultText = lib.literalExpression "pkgs.zsh";};
     };
 
   hjem.always.options.zsh.zshenv = mylib.fragments.option;

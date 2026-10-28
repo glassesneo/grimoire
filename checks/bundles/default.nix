@@ -12,11 +12,11 @@
   # Nix types cannot detect a dropped section, leaked private bundle, or bypassed
   # guard. Observe published names/packages at genSystem, not adapter internals.
   genBundles = genSystem: extraModules:
-    genSystem {
+    (genSystem {
       moduleSystem = "bundles";
       extraArgs = {inherit system;};
       inherit extraModules;
-    };
+    }).packages;
   evaluate = modules: extraModules:
     genBundles
     (denix.lib.denixConfiguration {

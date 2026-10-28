@@ -15,7 +15,7 @@ def --wrapped main [...args: string] {
       }
       eval => {
         assert equal (open --raw sample.nix) "formatted\n"
-        assert equal (open --raw docs/generated/modules.md) "generated catalogue\n"
+        assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
         if '--raw' in $args { print 'test-system' } else {
           let selective = $env.SELECTIVE? | is-not-empty
           let roots = if $selective {
@@ -23,23 +23,23 @@ def --wrapped main [...args: string] {
               {name: $path, directory: $path, infrastructure: false, affectedChecks: (if $path == 'hook-new.txt' { ['selected.case'] } else { [] })}
             }
           } else { [] }
-          {moduleRoots: $roots, directoryChecks: [], checkNames: (if ($env.ZERO_CHECKS? | is-not-empty) { [formatting module-docs] } else if $selective { ['selected.case' unselected formatting module-docs] } else { ['selected.case' formatting module-docs] })} | to json | print
+          {moduleRoots: $roots, directoryChecks: [], checkNames: (if ($env.ZERO_CHECKS? | is-not-empty) { [formatting authoring-docs] } else if $selective { ['selected.case' unselected formatting authoring-docs] } else { ['selected.case' formatting authoring-docs] })} | to json | print
         }
       }
       build => {
         if ($args | any {|arg| $arg | str contains '#checks.' }) {
           assert equal $args [build --no-link --no-update-lock-file 'path:.#checks.test-system."selected.case"']
           assert equal (open --raw sample.nix) "formatted\n"
-          assert equal (open --raw docs/generated/modules.md) "generated catalogue\n"
+          assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
           assert equal (open --raw other.txt) $env.EXPECT_OTHER
           assert (not ('later.txt' | path exists))
           assert (not ('ignored' | path exists))
           if ($env.FAIL_CHECK? | is-not-empty) { exit 1 }
           return
         }
-        let catalogue = mktemp --tmpdir
-        "generated catalogue\n" | save --force $catalogue
-        print $catalogue
+        let reference = mktemp --tmpdir
+        "generated reference\n" | save --force $reference
+        print $reference
       }
       flake => {
         assert equal $args [flake check path:. --no-update-lock-file]

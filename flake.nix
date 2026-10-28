@@ -38,6 +38,49 @@
     ));
 
     hosts = configuration.config.hosts;
+
+    # Declarations are evaluated for one system, so the reference is the same
+    # on every system that renders it. nix-darwin evaluates its options only
+    # for a host's system, so darwin reads them through a placeholder host.
+    authoringReference = import ./lib/authoring.nix {inherit lib;} (let
+      docsSystem = "aarch64-darwin";
+      placeholder = configuration.extendModules {
+        modules = [
+          ({delib, ...}:
+            delib.host {
+              name = "authoring";
+              system = docsSystem;
+              user.name = "user";
+            })
+        ];
+      };
+    in {
+      inherit configuration;
+      root = self;
+      pkgs = nixpkgs.legacyPackages.${docsSystem};
+      moduleSystems = {
+        hjem =
+          (configuration.genSystem {
+            moduleSystem = "hjem";
+            extraArgs = {
+              system = docsSystem;
+              username = "user";
+              homeDirectory = "/Users/user";
+            };
+          }).options;
+        darwin =
+          (placeholder.genSystem {
+            moduleSystem = "darwin";
+            host = "authoring";
+          }).options;
+        bundles =
+          (configuration.genSystem {
+            moduleSystem = "bundles";
+            extraArgs.system = docsSystem;
+          }).options;
+      };
+    });
+
     perSystem = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
       treefmt = treefmt-nix.lib.evalModule pkgs {
@@ -74,22 +117,20 @@
           includes = ["*.lua"];
         };
       };
-      publishedBundles = configuration.genSystem {
-        moduleSystem = "bundles";
-        extraArgs = {inherit system;};
-      };
+      publishedBundles =
+        (configuration.genSystem {
+          moduleSystem = "bundles";
+          extraArgs = {inherit system;};
+        }).packages;
       existingPackages = {
         hjem = inputs.hjem.packages.${system}.hjem;
-        module-docs = moduleDocs;
+        authoring-docs = authoringDocs;
       };
       packageCollisions = builtins.attrNames (builtins.intersectAttrs existingPackages publishedBundles);
 
-      moduleDocs = pkgs.writeText "modules.md" (import ./lib/module-docs.nix {inherit lib;} {
-        inherit configuration;
-        root = self;
-      });
+      authoringDocs = pkgs.writeText "authoring.md" authoringReference;
       checkOutputs = import ./checks {
-        inherit inputs denix pkgs system configuration compose;
+        inherit inputs denix pkgs system configuration compose authoringDocs;
         formatting = treefmt.config.build.check self;
       };
       commitHooks = import ./git-hooks.nix {
@@ -150,16 +191,18 @@
     hjemConfigurations =
       lib.mapAttrs'
       (hostName: host:
-        lib.nameValuePair "${host.user.name}@${hostName}" (configuration.genSystem {
-          moduleSystem = "hjem";
-          host = hostName;
+        # The Hjem CLI reads this attribute set as JSON; option declarations
+        # serve generated references only.
+          lib.nameValuePair "${host.user.name}@${hostName}" (builtins.removeAttrs (configuration.genSystem {
+            moduleSystem = "hjem";
+            host = hostName;
 
-          extraArgs = {
-            inherit (host) system;
-            inherit (host.user) homeDirectory;
-            username = host.user.name;
-          };
-        }))
+            extraArgs = {
+              inherit (host) system;
+              inherit (host.user) homeDirectory;
+              username = host.user.name;
+            };
+          }) ["options"]))
       hosts;
   };
 

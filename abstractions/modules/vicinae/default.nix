@@ -18,7 +18,7 @@ delib.module ({
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
+      package = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default {defaultText = lib.literalExpression "inputs.vicinae.packages.\${pkgs.stdenv.hostPlatform.system}.default";};
       sourceFiles =
         attrsOfOption (lib.types.uniq (lib.types.submodule {
           options = {
@@ -164,7 +164,7 @@ delib.module ({
         inherit package;
       };
       expr = result: let
-        job = lib.findFirst (job: job.name == "vicinae") (throw "Missing vicinae job") result.serviceApply.jobs;
+        job = lib.findFirst (job: job.name == "vicinae") (throw "Missing vicinae job") result.apply.steps.services.jobs;
         args = lib.drop 4 job.config.ProgramArguments;
       in {
         inherit (job) domain;
@@ -194,7 +194,7 @@ delib.module ({
           upstreamSha256 = lib.fixedWidthString 64 "0" "";
         };
       });
-      expr = result: result.serviceApply.jobs;
+      expr = result: result.apply.steps.services.jobs;
       fails = true;
     };
   };

@@ -1,16 +1,13 @@
 # Owns the Hjem module system and the contract of its result.
 #
 # `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
-# the packages, `serviceApply` and `defaultsApply` (each with bin/apply), and a
-# `preflight` derivation that realizes all file, package, service and defaults
-# closures. Assertions block every output
-# except `failedAssertions`, the messages of the failed ones, which module checks
-# read without forcing an output.
-#
-# A file declared with `exclusive = true` in any file set (`files` or
-# `xdg.<kind>.files`) must be defined from one location; a second module or host
-# defining it fails through the assertions. Locations are the origin labels of
-# `extensions/provenance.nix`.
+# the packages, `apply`, and a `preflight` derivation that realizes all file,
+# package and apply closures. `apply` runs, with bin/apply, every program
+# registered in `applySteps`; its `steps` passthru exposes them by name for
+# evaluation checks. Assertions block every output except `failedAssertions`,
+# the messages of the failed ones, which module checks read without forcing an
+# output, and `options`, the evaluated option declarations that generated
+# references read.
 #
 # `pkgs` is Nixpkgs for the user's system. `nixpkgs.config.allowUnfreePackages`
 # names the unfree packages it may evaluate; every other unfree package fails
@@ -40,56 +37,23 @@
         ["xdg" "state" "files"]
       ];
 
-      # Hjem merges `text` definitions silently, so exclusivity counts definition
-      # locations, excluding Hjem's own defaults at the option declarations.
-      exclusiveFiles = {config, ...}: let
-        fileExtension = {options, ...}: {
-          options = {
-            exclusive = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Whether a single location must define this file.";
-            };
-            definers = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              internal = true;
-              readOnly = true;
-              description = "Locations defining this file, excluding option declarations.";
-            };
-          };
-
-          config.definers = lib.unique (lib.concatMap
-            (option:
-              map (definition: definition.file)
-              (lib.filter
-                (definition: !(lib.elem definition.file option.declarations))
-                option.definitionsWithLocations))
-            (lib.collect lib.isOption (builtins.removeAttrs options ["_module" "exclusive" "definers"])));
-        };
-      in {
-        options = lib.foldl' lib.recursiveUpdate {} (map
-          (path:
-            lib.setAttrByPath path (lib.mkOption {
-              type = lib.types.attrsOf (lib.types.submodule fileExtension);
-            }))
-          fileSetPaths);
-
-        config.assertions = lib.concatMap (path:
-          lib.mapAttrsToList (name: file: {
-            assertion = !file.exclusive || builtins.length file.definers <= 1;
-            message = "${lib.concatStringsSep "." path}.\"${name}\" is exclusive but defined by: ${lib.concatStringsSep ", " file.definers}";
-          })
-          (lib.getAttrFromPath path config))
-        fileSetPaths;
-      };
-
       # Mirrors nix-darwin's `nixpkgs.config.allowUnfreePackages`, so a module
       # allows the unfree packages it uses beside the use.
       unfreePackages = {
+        _file = ./default.nix;
         options.nixpkgs.config.allowUnfreePackages = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [];
           description = "Names of unfree packages that `pkgs` may evaluate; definitions from every module are merged.";
+        };
+      };
+
+      applySteps = {
+        _file = ./default.nix;
+        options.applySteps = lib.mkOption {
+          type = lib.types.attrsOf lib.types.package;
+          default = {};
+          description = "Packages whose bin/apply the switch runs after Hjem activates files and packages. Steps run one at a time and the switch stops at the first failure; their order is unspecified, so a step does not rely on another having run.";
         };
       };
 
@@ -115,11 +79,8 @@
               directory = homeDirectory;
               clobberFiles = false;
             }
-            exclusiveFiles
             unfreePackages
-            ./services.nix
-            ./defaults.nix
-            (import ./nix-secrets.nix {inherit inputs;})
+            applySteps
             # standalone applies packages through current-profile; expose it on PATH.
             ({config, ...}: {
               environment.sessionVariables.PATH = lib.mkMerge [
@@ -147,7 +108,20 @@
         (source: source != null)
         (map (file: file.source) enabledFiles);
 
-      dependencies = sources ++ cfg.packages ++ [cfg.serviceApply cfg.defaultsApply];
+      apply =
+        pkgs.runCommand "hjem-apply" {
+          passthru.steps = cfg.applySteps;
+        } ''
+          mkdir -p "$out/bin"
+          cat > "$out/bin/apply" <<'EOF'
+          #!${pkgs.runtimeShell}
+          set -e
+          ${lib.concatMapStringsSep "\n" (step: lib.escapeShellArg "${step}/bin/apply") (builtins.attrValues cfg.applySteps)}
+          EOF
+          chmod +x "$out/bin/apply"
+        '';
+
+      dependencies = sources ++ cfg.packages ++ [apply];
 
       preflight =
         pkgs.runCommand
@@ -181,10 +155,11 @@
 
         packages = map toString cfg.packages;
 
-        inherit preflight;
-        serviceApply = cfg.serviceApply;
-        defaultsApply = cfg.defaultsApply;
+        inherit preflight apply;
       }
-      // {inherit failedAssertions;};
+      // {
+        inherit failedAssertions;
+        inherit (evaluation) options;
+      };
   };
 }

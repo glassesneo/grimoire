@@ -15,7 +15,7 @@ in
     meta.description = "Enable by default the modules that carry a tag selected for the host.";
 
     options = with delib; {
-      enabled = listOfOption (types.enum knownTags) [];
+      enabled = listOfOption (types.enum knownTags) [] "Tags whose modules are enabled by default.";
     };
 
     # A default only, so a host's own `enable = false` excludes a tagged module.

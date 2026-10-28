@@ -46,17 +46,16 @@ def apply-hjem [host: string, target: any, roots: string] {
   let attr = $'hjemConfigurations."($user)@($host)"'
 
   let preflight = realize "Hjem preflight build" $'($root)#($attr).preflight' ($roots | path join hjem-preflight)
-  let services = realize "Hjem service build" $'($root)#($attr).serviceApply' ($roots | path join hjem-services)
-  let defaults = realize "Hjem defaults build" $'($root)#($attr).defaultsApply' ($roots | path join hjem-defaults)
+  let apply = realize "Hjem apply build" $'($root)#($attr).apply' ($roots | path join hjem-apply)
   let hjem = realize "Hjem CLI build" $'($root)#hjem' ($roots | path join hjem-cli)
   let source = ^nix flake metadata --json $root | from json | get path
 
   if $target != null {
-    push "Hjem closure copy" $target $preflight $hjem $services $defaults
+    push "Hjem closure copy" $target $preflight $hjem $apply
     step "flake source copy" { ^nix flake archive --no-check-sigs --to $'ssh-ng://($target)' $root }
   }
 
-  run-on "Hjem activation" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($services)/bin/apply && ($defaults)/bin/apply"
+  run-on "Hjem activation" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($apply)/bin/apply"
 }
 
 def apply-darwin [host: string, target: any, roots: string] {

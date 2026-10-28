@@ -16,7 +16,7 @@ in
 
     options = with delib; {
       enable = boolOption true;
-      loginShell = enumOption availableShells;
+      loginShell = description (enumOption availableShells) "Shell that becomes the user's login shell.";
     };
 
     myconfig.ifEnabled =

@@ -1,4 +1,8 @@
-{delib, ...}:
+{
+  delib,
+  lib,
+  ...
+}:
 delib.module ({
   cfg,
   myconfig,
@@ -12,7 +16,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption false;
-    package = packageOption myconfig.casks.packages.grok-bot;
+    package = packageOption myconfig.casks.packages.grok-bot {defaultText = lib.literalExpression "myconfig.casks.packages.grok-bot";};
   };
 
   hjem.ifEnabled.files."Applications/Grok Bot.app" = {

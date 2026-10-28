@@ -13,7 +13,7 @@ delib.module ({cfg, ...}: {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption pkgs.alacritty;
+      package = packageOption pkgs.alacritty {defaultText = lib.literalExpression "pkgs.alacritty";};
     };
 
   hjem.always = {pkgs, ...}: {

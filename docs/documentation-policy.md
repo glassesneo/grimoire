@@ -2,15 +2,15 @@
 
 This file owns what the repository documents, where each kind of statement belongs, and when documentation changes.
 
-## Specifications and choices
+## What is documented
 
-This repository contains the framework used to compose and apply an environment, and the concrete choices made with it. Framework specifications guide implementation and use. Configuration values and the concepts grouped into individual Denix modules are choices expressed by their declarations; they do not require separate specifications.
+Whether a statement belongs in documentation depends on the reader's task, not on how rarely it changes. Document what is needed to write or change a declaration, or to use or change an adapter, extension, or module, without deriving it from the implementation. Leave concrete configuration values in code. Where each of them belongs follows the responsibilities in `docs/architecture.md`.
 
-Whether a statement belongs in documentation depends on the reader's task, not on how rarely it changes. Document the specifications needed to use or change a mechanism without deriving them from its implementation. Leave concrete configuration choices in code.
+The syntax that modules and hosts write is declared as options. A type states what a single value may be, so a constraint a type can express is not left to prose. An option description explains what a value means and the constraints needed to specify it that the type does not show. It is required on every option the authoring reference lists, except a module's `enable` and `package`, whose meaning follows from the module's responsibility and their types. A default that depends on the host, Nixpkgs, or another option declares `defaultText`, so the reference does not present one host's value as the default. Internal option descriptions address the mechanism's maintainers.
 
-A module's `meta.description` states its responsibility in one sentence, assuming familiarity with modules in this repository. It lets readers understand that responsibility without reading the implementation and judge whether a future feature belongs there. It is not an inventory of current settings. The generated module catalogue presents that same description with its source location.
+A module's `meta.description` states its responsibility in one sentence, assuming familiarity with modules in this repository. It lets readers understand that responsibility without reading the implementation and judge whether a future capability belongs there. It is not an inventory of current settings.
 
-Option descriptions explain what a value means and the constraints needed to specify it. Internal option descriptions address the mechanism's maintainers.
+`docs/generated/authoring.md` is generated from those declarations. It lists every module's responsibility, source, and options, and the options that adapters and extensions add, so writing a module or host needs no implementation reading. The evaluation rules a mechanism applies to existing syntax, and what its maintainers rely on, are contracts that options cannot carry; they stay beside the implementation.
 
 The absence of a written contract alone does not justify adding one. When a new criterion appears necessary, discuss that specific criterion with the maintainer rather than treating it as an existing requirement.
 
@@ -21,7 +21,7 @@ The absence of a written contract alone does not justify adding one. When a new 
 - A mechanism's contract belongs beside its implementation: its contract comment and option descriptions. Its checks exercise that contract.
 - `justfile` and `just/*.just` own recipe documentation and argument help, read through `just --list` and `just --usage`.
 - `docs/operations.md` owns operational information that does not belong to an individual recipe, including development-shell setup, commit automation, and live verification procedures.
-- `docs/generated/` holds generated references. Regenerate `modules.md` with `just docs`; edit its source metadata, not the generated file.
+- `docs/generated/` holds generated references. Regenerate `authoring.md` with `just docs`; edit its source declarations, not the generated file.
 - The root `AGENTS.md` owns agent-specific work rules and reading triggers not owned elsewhere. It may summarize the architecture concepts assumed in conversation.
 - A nested `AGENTS.md` owns agent-specific work rules limited to its directory.
 
@@ -29,7 +29,7 @@ A contract comment states a mechanism's supported behavior. An implementation co
 
 ## Updates
 
-Update a specification and its implementation together when the specified behavior changes. A change to a concrete choice does not require documenting that choice separately. Generated references follow their source metadata.
+Update a specification and its implementation together when the specified behavior changes. A change to a concrete value does not require documenting that value separately. Generated references follow their source declarations.
 
 Documentation and comments may also be corrected or clarified without changing code. Such edits do not by themselves establish a new contract.
 

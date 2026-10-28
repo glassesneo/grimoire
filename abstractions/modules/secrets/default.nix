@@ -24,7 +24,7 @@ in
 
     options = with delib; {
       enable = boolOption true;
-      names = listOfOption (types.enum secretNames) [];
+      names = listOfOption (types.enum secretNames) [] "Secrets, among those stored in this module, that are decrypted for the user.";
     };
 
     hjem.ifEnabled = {

@@ -6,7 +6,7 @@
 delib.module ({myconfig, ...}: {
   name = "assertions";
   meta.description = "Enforce module-contributed assertions across module systems.";
-  options = delib.listOfOption lib.types.unspecified [];
+  options = delib.listOfOption lib.types.unspecified [] "Assertions, each with `assertion` and `message`, that every module system enforces.";
 
   darwin.always = {
     inherit (myconfig) assertions;

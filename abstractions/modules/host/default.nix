@@ -1,6 +1,7 @@
 {
   delib,
   config,
+  lib,
   ...
 }: let
   inherit (config) host;
@@ -10,9 +11,18 @@ in
     meta.description = "Expose the selected host's information to modules and reflect its identity in OS host names.";
 
     options = with delib; {
-      name = readOnly (strOption host.name);
-      system = readOnly (strOption host.system);
-      user = readOnly (attrsOption host.user);
+      name = readOnly (strOption host.name {
+        defaultText = lib.literalMD "the host's name";
+        description = "Denix name of the host being built.";
+      });
+      system = readOnly (strOption host.system {
+        defaultText = lib.literalMD "the host's `system`";
+        description = "Nix system of the host being built.";
+      });
+      user = readOnly (attrsOption host.user {
+        defaultText = lib.literalMD "the host's `user`";
+        description = "The sole user of the host being built: `name`, `homeDirectory` and `uid`.";
+      });
     };
 
     # Host-less operator commands find the host through `hostname -s`, so the OS names follow the Denix host name.

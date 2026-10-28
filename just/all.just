@@ -12,8 +12,8 @@ build $host=`hostname -s`:
 [doc('''
   Apply nix-darwin, then Hjem, stopping at the first failure without rollback.
   Hjem preflight runs after nix-darwin activation: its failure leaves the home
-  unchanged, but the new system is already active. Hjem activation and service
-  failures can leave partial changes. Layer effects, remote transfer, and user
+  unchanged, but the new system is already active. Hjem activation and
+  reconciliation failures can leave partial changes. Layer effects, remote transfer, and user
   selection are described by just --list darwin and just --list hjem.
 ''')]
 switch $host=`hostname -s` $target='':

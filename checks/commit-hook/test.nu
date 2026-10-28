@@ -145,12 +145,12 @@ def main [hooks: string] {
         ($line | str contains user-change.txt) and ($line | str contains '|')
       }))
       assert equal (git show :sample.nix) "formatted\n"
-      assert equal (git show :docs/generated/modules.md) "generated catalogue\n"
+      assert equal (git show :docs/generated/authoring.md) "generated reference\n"
       assert equal (git show :hook-new.txt) "created by hook\n"
       assert equal (git show :other.txt) "other\n"
       assert equal (git ls-files obsolete.txt ignored later.txt) ""
       assert equal (open --raw sample.nix) "formatted\n"
-      assert equal (open --raw docs/generated/modules.md) "generated catalogue\n"
+      assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
       assert equal (open --raw hook-new.txt) "created by hook\n"
       assert (not ('obsolete.txt' | path exists))
       assert equal (open --raw other.txt) "unstaged edit\n"
@@ -161,7 +161,7 @@ def main [hooks: string] {
         assert (git diff --cached --name-only | is-not-empty)
       } else {
         assert equal (git status --porcelain) " M other.txt\n?? later.txt\n"
-        assert equal (git show HEAD:docs/generated/modules.md) "generated catalogue\n"
+        assert equal (git show HEAD:docs/generated/authoring.md) "generated reference\n"
       }
     }
   }
@@ -194,7 +194,7 @@ def main [hooks: string] {
     }
   }
 
-  # Empty selection never invokes a checks build (catalogue generation still builds).
+  # Empty selection never invokes a checks build (reference generation still builds).
   with-repo $hooks {
     let result = with-env {ZERO_CHECKS: '1'} { ^git commit -m zero | complete }
     assert equal $result.exit_code 0 ($result.stdout + $result.stderr)

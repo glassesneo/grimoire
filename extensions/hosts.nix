@@ -19,19 +19,19 @@
               name = description strOption "Unix account name of the person using this host.";
               homeDirectory =
                 description
-                (strOption (
+                (defaultText (strOption (
                   if isDarwin
                   then "/Users/${config.name}"
                   else "/home/${config.name}"
-                ))
+                )) (lib.literalMD "`/Users/<name>` on Darwin, otherwise `/home/<name>`"))
                 "Home directory of the user on this host.";
               uid =
                 description
-                (intOption (
+                (defaultText (intOption (
                   if isDarwin
                   then 501
                   else 1000
-                ))
+                )) (lib.literalMD "501 on Darwin, otherwise 1000"))
                 "Numeric user ID of the user's account on this host.";
             };
           });

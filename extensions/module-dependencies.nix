@@ -2,9 +2,9 @@
 #
 # `zsh.interactive` depends on `zsh` when that parent is registered and both
 # declare `enable`. The child's declared default becomes its original condition
-# AND the parent's enable value. Explicit child overrides are preserved; an
-# enabled child with a disabled parent fails through the shared assertions in
-# every module system. Missing parents and modules without `enable` are skipped;
+# AND the parent's enable value, and its `defaultText` says so. Explicit child
+# overrides are preserved; an enabled child with a disabled parent fails through
+# the shared assertions in every module system. Missing parents and modules without `enable` are skipped;
 # more distant ancestors are not searched, and unconditional sections are not
 # gated.
 {
@@ -41,6 +41,11 @@
                         if participates myoptions
                         then (delib.getAttrByStrPath myconfig "${parent}.enable" false) && declarations.enable.default
                         else declarations.enable.default;
+                    }
+                    // lib.optionalAttrs (participates myoptions) {
+                      defaultText = lib.literalExpression "myconfig.${parent}.enable && ${
+                        declarations.enable.defaultText.text or (lib.generators.toPretty {} declarations.enable.default)
+                      }";
                     };
                 }) (delib.callIfDenixArgs entry args));
         in

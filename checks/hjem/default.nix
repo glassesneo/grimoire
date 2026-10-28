@@ -57,8 +57,7 @@
     !(builtins.tryEval failing.manifest).success
     && !(builtins.tryEval failing.packages).success
     && !(builtins.tryEval failing.preflight).success
-    && !(builtins.tryEval failing.serviceApply).success
-    && !(builtins.tryEval failing.defaultsApply).success;
+    && !(builtins.tryEval failing.apply).success;
 
   # Preflight must not split a source path at its spaces.
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
@@ -77,6 +76,31 @@
   };
   allowUnfree = names: {nixpkgs.config.allowUnfreePackages = names;};
   unfreeEvaluates = modules: (builtins.tryEval (builtins.deepSeq (mkResult modules).packages true)).success;
+
+  # Each registered step logs its name; the failing one exits after logging, so
+  # no line may follow it whatever order the steps run in.
+  step = name: status:
+    pkgs.writeShellScriptBin "apply" ''
+      echo ${name} >> "$APPLY_LOG"
+      exit ${toString status}
+    '';
+  stepping = mkResult [
+    {
+      applySteps = {
+        first = step "first" 0;
+        second = step "second" 0;
+      };
+    }
+  ];
+  stopping = mkResult [
+    {
+      applySteps = {
+        first = step "first" 0;
+        failing = step "failing" 1;
+        last = step "last" 0;
+      };
+    }
+  ];
 
   manifest = result.manifest;
 
@@ -103,7 +127,8 @@ in {
     && lib.all (file: !lib.hasSuffix "/disabled.txt" file.target) manifest.files
     && builtins.length result.packages == 1
   ) "Hjem adapter contract failed";
-  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, serviceApply, and defaultsApply";
+  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and apply";
+  assert lib.assertMsg (builtins.attrNames stepping.apply.steps == ["first" "second"]) "Registered steps must be exposed by name";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage]) "An unlisted unfree package must fail evaluation";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage (allowUnfree ["other"])]) "Listing another name must not allow an unfree package";
   assert lib.assertMsg (unfreeEvaluates [unfreePackage (allowUnfree ["fixture-unfree"]) (allowUnfree ["other"])]) "A listed unfree package must evaluate when definitions merge";
@@ -112,6 +137,9 @@ in {
       inherit (result) preflight;
       inherit spacedSource;
       spacedPreflight = spaced.preflight;
+      steppingApply = stepping.apply;
+      steppingPreflight = stepping.preflight;
+      stoppingApply = stopping.apply;
 
       textPath = textFile.source;
       stringPath = stringFile.source;
@@ -130,6 +158,15 @@ in {
 
       test "$("$package/bin/fixture-tool")" = "fixture"
       grep -Fxq "$spacedSource" "$spacedPreflight"
+
+      grep -Fxq "$steppingApply" "$steppingPreflight"
+      export APPLY_LOG="$TMPDIR/stepping.log"
+      "$steppingApply/bin/apply"
+      test "$(sort "$APPLY_LOG")" = "$(printf 'first\nsecond')"
+
+      export APPLY_LOG="$TMPDIR/stopping.log"
+      if "$stoppingApply/bin/apply"; then exit 1; fi
+      test "$(tail -n 1 "$APPLY_LOG")" = failing
 
       mkdir "$out"
       touch "$out/passed"
