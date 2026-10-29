@@ -8,8 +8,9 @@ delib.module {
   hjem.ifEnabled = {pkgs, ...}: {
     packages = [pkgs.gomi];
 
-    zsh.zshrc.gomi.text = ''
-      alias rm='gomi'
-    '';
+    zsh.zabrze.snippets.gomi = {
+      trigger = "rm";
+      snippet = "gomi";
+    };
   };
 }

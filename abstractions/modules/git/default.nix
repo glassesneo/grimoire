@@ -76,5 +76,59 @@ delib.module ({myconfig, ...}: {
         '';
       };
     };
+
+    # In diff abbreviations, c is --cached and s is --stat, in typed order.
+    zsh.zabrze.snippets = {
+      "git status" = {
+        trigger = "gs";
+        snippet = "git status --short --branch";
+      };
+      "git add" = {
+        trigger = "ga";
+        snippet = "git add";
+      };
+      "git add -A" = {
+        trigger = "gaa";
+        snippet = "git add -A";
+      };
+      "git commit" = {
+        trigger = "gc";
+        snippet = "git commit";
+      };
+      "git diff" = {
+        trigger = "gd";
+        snippet = "git diff";
+      };
+      "git diff --cached" = {
+        trigger = "gdc";
+        snippet = "git diff --cached";
+      };
+      "git diff --stat" = {
+        trigger = "gds";
+        snippet = "git diff --stat";
+      };
+      "git diff --cached --stat" = {
+        trigger = "gdcs";
+        snippet = "git diff --cached --stat";
+      };
+      "git diff --stat --cached" = {
+        trigger = "gdsc";
+        snippet = "git diff --stat --cached";
+      };
+      "git log" = {
+        trigger = "gl";
+        snippet = "git log --graph --decorate";
+      };
+      "git log graph" = {
+        trigger = "glg";
+        snippet = "git log --oneline --graph --decorate -n 20";
+      };
+      "git push --force-with-lease" = {
+        trigger = "-f";
+        snippet = "--force-with-lease";
+        global = true;
+        context = ''^git\s+push\s'';
+      };
+    };
   };
 })

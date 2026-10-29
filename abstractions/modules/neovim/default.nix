@@ -33,6 +33,11 @@ delib.module ({cfg, ...}: {
     packages = [
       cfg.package
     ];
+
+    zsh.zabrze.snippets.neovim = {
+      trigger = "nv";
+      snippet = "nvim";
+    };
   };
 
   bundles.ifEnabled.neovim = {

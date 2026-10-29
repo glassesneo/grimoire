@@ -67,6 +67,11 @@ delib.module {
       ];
     };
 
+    zsh.zabrze.snippets."cd .." = {
+      trigger = "bd";
+      snippet = "cd ..";
+    };
+
     # Without secondary_theme.zsh, fsh downloads the upstream free theme at startup.
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
@@ -81,7 +86,7 @@ delib.module {
     stateDir = "${home}/fixture-state";
   in {
     startup = {
-      uses = ["zsh"];
+      uses = ["zsh" "zsh.interactive.zabrze"];
       modules.fixture.hjem.always = {
         xdg.config.directory = configDir;
         xdg.data.directory = dataDir;

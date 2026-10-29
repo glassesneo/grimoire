@@ -833,6 +833,31 @@ Source: [<code>abstractions/modules/shell/zsh/interactive/default.nix</code>](..
 | <code>zsh.zshrc.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
 | <code>zsh.zshrc.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 
+### <code>zsh.interactive.zabrze</code>
+
+Provide zabrze, expand the abbreviations features contribute in Zsh, and own its configuration file.
+
+Source: [<code>abstractions/modules/shell/zsh/interactive/zabrze/default.nix</code>](../../abstractions/modules/shell/zsh/interactive/zabrze/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>zsh.interactive.zabrze.enable</code> | <code>boolean</code> | <code>myconfig.zsh.interactive.enable &amp;&amp; true</code> |  |
+
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>zsh.zabrze.snippets</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | zabrze snippets by name. Of snippets sharing a trigger, those with `if` are tried first. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.abort-on-error</code> | <code>null or boolean</code> | <code>null</code> | Whether an evaluated snippet whose command fails aborts the expansion. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.context</code> | <code>null or string</code> | <code>null</code> | Regular expression that the current command must match, including the trigger. The current command is the line after its last `;`, `&amp;`, `&#124;`, `(` or backquote. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.cursor</code> | <code>null or string</code> | <code>null</code> | Marker in the snippet where the cursor is placed after expansion. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.evaluate</code> | <code>null or boolean</code> | <code>null</code> | Whether the snippet is evaluated by the shell before insertion. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.global</code> | <code>null or boolean</code> | <code>null</code> | Whether the snippet also expands as an argument, not only as the command. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;."if"</code> | <code>null or string</code> | <code>null</code> | Zsh condition under which the snippet expands. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.snippet</code> | <code>string</code> |  | Text that replaces the trigger. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.trigger</code> | <code>null or string</code> | <code>null</code> | Word that expands. Exactly one of `trigger` and `trigger-pattern` is set. |
+| <code>zsh.zabrze.snippets.&lt;name&gt;.trigger-pattern</code> | <code>null or string</code> | <code>null</code> | Regular expression matching the word that expands. |
+
 ### <code>zsh.login</code>
 
 Configure the behavior required to use Zsh as a login shell.
