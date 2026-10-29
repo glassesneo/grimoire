@@ -78,12 +78,13 @@
   unfreeEvaluates = modules: (builtins.tryEval (builtins.deepSeq (mkResult modules).packages true)).success;
 
   # Each registered step logs its name; the failing one exits after logging, so
-  # no line may follow it whatever order the steps run in.
-  step = name: status:
-    pkgs.writeShellScriptBin "apply" ''
+  # no line may follow it.
+  step = name: status: {
+    package = pkgs.writeShellScriptBin "apply" ''
       echo ${name} >> "$APPLY_LOG"
       exit ${toString status}
     '';
+  };
   stepping = mkResult [
     {
       applySteps = {
@@ -96,11 +97,23 @@
     {
       applySteps = {
         first = step "first" 0;
-        failing = step "failing" 1;
-        last = step "last" 0;
+        failing = step "failing" 1 // {after = ["first"];};
+        last = step "last" 0 // {after = ["failing"];};
       };
     }
   ];
+  # Only declared edges order steps; `b` is unrelated to the others.
+  ordering = mkResult [
+    {
+      applySteps = {
+        a = step "a" 0 // {after = ["c"];};
+        b = step "b" 0;
+        c = step "c" 0;
+        d = step "d" 0 // {before = ["c"];};
+      };
+    }
+  ];
+  applyFails = steps: !(builtins.tryEval (mkResult [{applySteps = steps;}]).apply.drvPath).success;
 
   manifest = result.manifest;
 
@@ -128,7 +141,12 @@ in {
     && builtins.length result.packages == 1
   ) "Hjem adapter contract failed";
   assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and apply";
-  assert lib.assertMsg (builtins.attrNames stepping.apply.steps == ["first" "second"]) "Registered steps must be exposed by name";
+  assert lib.assertMsg (builtins.attrNames stepping.apply.steps == ["first" "second"] && lib.all lib.isDerivation (builtins.attrValues stepping.apply.steps)) "Registered steps must be exposed by name as their packages";
+  assert lib.assertMsg (applyFails {a = step "a" 0 // {after = ["missing"];};}) "A reference to an unregistered step must fail";
+  assert lib.assertMsg (applyFails {
+    a = step "a" 0 // {after = ["b"];};
+    b = step "b" 0 // {after = ["a"];};
+  }) "A cycle of steps must fail";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage]) "An unlisted unfree package must fail evaluation";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage (allowUnfree ["other"])]) "Listing another name must not allow an unfree package";
   assert lib.assertMsg (unfreeEvaluates [unfreePackage (allowUnfree ["fixture-unfree"]) (allowUnfree ["other"])]) "A listed unfree package must evaluate when definitions merge";
@@ -140,6 +158,7 @@ in {
       steppingApply = stepping.apply;
       steppingPreflight = stepping.preflight;
       stoppingApply = stopping.apply;
+      orderingApply = ordering.apply;
 
       textPath = textFile.source;
       stringPath = stringFile.source;
@@ -166,7 +185,11 @@ in {
 
       export APPLY_LOG="$TMPDIR/stopping.log"
       if "$stoppingApply/bin/apply"; then exit 1; fi
-      test "$(tail -n 1 "$APPLY_LOG")" = failing
+      test "$(cat "$APPLY_LOG")" = "$(printf 'first\nfailing')"
+
+      export APPLY_LOG="$TMPDIR/ordering.log"
+      "$orderingApply/bin/apply"
+      test "$(grep -vx b "$APPLY_LOG")" = "$(printf 'd\nc\na')"
 
       mkdir "$out"
       touch "$out/passed"

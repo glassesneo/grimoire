@@ -19,8 +19,10 @@
 #
 # `onChange` acts after a switch that wrote or restored a leaf of the domain,
 # including the switch that restores leaves whose declarations were removed.
-# Restarting a service that is not loaded does nothing; restarting a `gui`
-# service without a GUI session is deferred to a later switch.
+# The step runs after the services step, so a restart reaches the job that
+# switch left loaded. Restarting a service that is not loaded does nothing;
+# restarting a `gui` service without a GUI session is deferred to a later
+# switch.
 #
 # Declarations are ignored on non-Darwin systems. Invalid declarations fail
 # through the assertions, which guard the Hjem result. Service names resolve
@@ -154,9 +156,12 @@ delib.module {
       };
     };
     config = {
-      applySteps.defaults = apply.overrideAttrs (_: {
-        passthru = {inherit domains;};
-      });
+      applySteps.defaults = {
+        package = apply.overrideAttrs (_: {
+          passthru = {inherit domains;};
+        });
+        after = ["services"];
+      };
       assertions =
         map (problem: {
           assertion = false;
@@ -281,9 +286,15 @@ delib.module {
         platforms = darwin;
         modules = good;
         build = result:
-          pkgs.runCommand "defaults-outputs" {defaults = result.apply.steps.defaults;} ''
+          pkgs.runCommand "defaults-outputs" {
+            inherit (result) apply;
+            inherit (result.apply.steps) defaults services;
+          } ''
             test -x "$defaults/bin/apply"
             test -f "$defaults/defaults.json"
+            # The switch runs the services step first.
+            line() { grep -Fn "$1/bin/apply" "$apply/bin/apply" | cut -d: -f1; }
+            test "$(line "$services")" -lt "$(line "$defaults")"
             touch "$out"
           '';
       };

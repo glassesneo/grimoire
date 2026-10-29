@@ -51,7 +51,10 @@ Options that adapters add to their module systems. Options that modules add are 
 
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
-| <code>applySteps</code> | <code>attribute set of package</code> | <code>{ }</code> | Packages whose bin/apply the switch runs after Hjem activates files and packages. Steps run one at a time and the switch stops at the first failure; their order is unspecified, so a step does not rely on another having run. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
+| <code>applySteps</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Steps the switch runs after Hjem activates files and packages. Steps run one at a time and the switch stops at the first failure; a step that relies on another having run declares it in `after` or `before`, and the order of steps without such a declaration is stable but unspecified. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
+| <code>applySteps.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Registered steps that run before this one. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
+| <code>applySteps.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Registered steps that run after this one. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
+| <code>applySteps.&lt;name&gt;.package</code> | <code>package</code> |  | Package whose bin/apply the step runs. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
 | <code>nixpkgs.config.allowUnfreePackages</code> | <code>list of string</code> | <code>[ ]</code> | Names of unfree packages that `pkgs` may evaluate; definitions from every module are merged. | [<code>adapters/hjem/default.nix</code>](../../adapters/hjem/default.nix) |
 
 ## Modules

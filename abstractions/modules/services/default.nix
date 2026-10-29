@@ -252,7 +252,7 @@ delib.module {
     };
     config = {
       platform.darwin.serviceTargets = lib.mapAttrs (_: entry: {inherit (entry.job) domain label;}) jobs;
-      applySteps.services = services.overrideAttrs (_: {
+      applySteps.services.package = services.overrideAttrs (_: {
         passthru = {
           jobs = serviceJobs;
           inherit plists;

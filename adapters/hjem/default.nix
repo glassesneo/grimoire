@@ -2,8 +2,9 @@
 #
 # `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
 # the packages, `apply`, and a `preflight` derivation that realizes all file,
-# package and apply closures. `apply` runs, with bin/apply, every program
-# registered in `applySteps`; its `steps` passthru exposes them by name for
+# package and apply closures. `apply` runs, with bin/apply, the package of every
+# step registered in `applySteps`, in the order their `after` and `before`
+# declare; a reference to an unregistered step or a cycle fails evaluation. Its `steps` passthru exposes the packages by name for
 # evaluation checks. Assertions block every output except `failedAssertions`,
 # the messages of the failed ones, which module checks read without forcing an
 # output, and `options`, the evaluated option declarations that generated
@@ -26,6 +27,7 @@
     }: let
       inherit (extraArgs) system username homeDirectory;
       lib = inputs.nixpkgs.lib;
+      mylib = import ../../lib {inherit lib;};
       pkgs = inputs.nixpkgs.legacyPackages.${system};
       hjemLib = inputs.hjem."hjem-lib".${system};
 
@@ -51,9 +53,26 @@
       applySteps = {
         _file = ./default.nix;
         options.applySteps = lib.mkOption {
-          type = lib.types.attrsOf lib.types.package;
+          type = lib.types.attrsOf (lib.types.submodule {
+            options = {
+              package = lib.mkOption {
+                type = lib.types.package;
+                description = "Package whose bin/apply the step runs.";
+              };
+              after = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [];
+                description = "Registered steps that run before this one.";
+              };
+              before = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [];
+                description = "Registered steps that run after this one.";
+              };
+            };
+          });
           default = {};
-          description = "Packages whose bin/apply the switch runs after Hjem activates files and packages. Steps run one at a time and the switch stops at the first failure; their order is unspecified, so a step does not rely on another having run.";
+          description = "Steps the switch runs after Hjem activates files and packages. Steps run one at a time and the switch stops at the first failure; a step that relies on another having run declares it in `after` or `before`, and the order of steps without such a declaration is stable but unspecified.";
         };
       };
 
@@ -110,13 +129,17 @@
 
       apply =
         pkgs.runCommand "hjem-apply" {
-          passthru.steps = cfg.applySteps;
+          passthru.steps = lib.mapAttrs (_: step: step.package) cfg.applySteps;
         } ''
           mkdir -p "$out/bin"
           cat > "$out/bin/apply" <<'EOF'
           #!${pkgs.runtimeShell}
           set -e
-          ${lib.concatMapStringsSep "\n" (step: lib.escapeShellArg "${step}/bin/apply") (builtins.attrValues cfg.applySteps)}
+          ${mylib.fragments.render (lib.mapAttrs (_: step: {
+              text = lib.escapeShellArg "${step.package}/bin/apply";
+              inherit (step) after before;
+            })
+            cfg.applySteps)}
           EOF
           chmod +x "$out/bin/apply"
         '';
