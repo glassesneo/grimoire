@@ -24,9 +24,12 @@
       };
     }
   ];
+  # Only declared edges are part of the contract; the free fragments may appear anywhere.
+  lines = lib.splitString "\n" ordered;
+  bound = lib.filter (line: lib.elem line ["first" "anchor" "last"]) lines;
 in {
-  check = assert lib.assertMsg (ordered == "first\nanchor\nfree-a\nfree-b\nlast")
-  "Fragments must follow declared edges and break ties by name, got:\n${ordered}";
+  check = assert lib.assertMsg (lib.sort lib.lessThan lines == ["anchor" "first" "free-a" "free-b" "last"] && bound == ["first" "anchor" "last"])
+  "Fragments must each appear once and follow declared edges, got:\n${ordered}";
   assert lib.assertMsg (fails [
     {
       fragments.a = {

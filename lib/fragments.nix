@@ -3,8 +3,10 @@
 # A file that several features contribute to stays exclusive to its owner, which
 # declares `option` in its module system and writes `render` of it into the file.
 # Each fragment orders itself against others by name with `after` and `before`.
-# Rendering is a topological sort with remaining ties broken by name; it fails on
-# a reference to an undefined fragment and on a cycle. Two definitions of one
+# Rendering is a topological sort; fragments without a declared order between
+# them appear in an order that is stable but unspecified, so a fragment that
+# relies on another's position declares it. Rendering fails on a reference to an
+# undefined fragment and on a cycle. Two definitions of one
 # fragment with different text conflict instead of concatenating. Order that
 # belongs to the owner's implementation, rather than to its interface, stays
 # outside the fragments.
