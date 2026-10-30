@@ -18,7 +18,7 @@ delib.module ({
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default {defaultText = lib.literalExpression "inputs.vicinae.packages.\${pkgs.stdenv.hostPlatform.system}.default";};
+      package = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
       sourceFiles =
         attrsOfOption (lib.types.uniq (lib.types.submodule {
           options = {

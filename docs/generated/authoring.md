@@ -59,6 +59,50 @@ Options that adapters add to their module systems. Options that modules add are 
 
 ## Modules
 
+Modules whose only option is `enable`:
+
+| Module | <code>enable</code> | Responsibility | Tags |
+| --- | --- | --- | --- |
+| [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
+| [<code>bat</code>](../../abstractions/modules/bat/default.nix) | <code>true</code> | Provide and configure bat for file display. |  |
+| [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | <code>true</code> | Provide batman and configure it as Zsh's manual page pager. |  |
+| [<code>claude-code</code>](../../abstractions/modules/agents/claude-code/default.nix) | <code>true</code> | Provide and configure Claude Code. |  |
+| [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |
+| [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | <code>true</code> | Provide and configure direnv, including its Zsh integration. |  |
+| [<code>dock</code>](../../abstractions/modules/dock/default.nix) | <code>true</code> | Configure the Dock and the actions of screen hot corners. |  |
+| [<code>eza</code>](../../abstractions/modules/eza/default.nix) | <code>true</code> | Provide eza for listing files and directories. |  |
+| [<code>fd</code>](../../abstractions/modules/fd/default.nix) | <code>true</code> | Provide fd for finding files and directories. |  |
+| [<code>files</code>](../../abstractions/modules/files/default.nix) | <code>true</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
+| [<code>fzf</code>](../../abstractions/modules/fzf/default.nix) | <code>true</code> | Provide and configure fzf, including its Zsh integration. |  |
+| [<code>gh</code>](../../abstractions/modules/gh/default.nix) | <code>true</code> | Provide the GitHub CLI. |  |
+| [<code>git.include</code>](../../abstractions/modules/git/include/default.nix) | <code>myconfig.git.enable &amp;&amp; true</code> | Configure Git settings through includes. |  |
+| [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | <code>true</code> | Provide gomi and integrate it into Zsh. |  |
+| [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | <code>true</code> | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
+| [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
+| [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
+| [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
+| [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
+| [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
+| [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
+| [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
+| [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
+| [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | <code>myconfig.pay-respects.enable &amp;&amp; true</code> | Replace command typo recovery with a playful response. |  |
+| [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | <code>true</code> | Limit what the system shares and what it opens without being asked. |  |
+| [<code>publication</code>](../../abstractions/modules/publication/default.nix) | <code>true</code> | Centralize publication choices for feature-owned bundles. |  |
+| [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | <code>true</code> | Provide ripgrep for searching file contents. |  |
+| [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | <code>true</code> | Configure where screenshots are saved and in which format. |  |
+| [<code>security</code>](../../abstractions/modules/security/default.nix) | <code>true</code> | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
+| [<code>sound</code>](../../abstractions/modules/sound/default.nix) | <code>true</code> | Configure system sounds and alert feedback. |  |
+| [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
+| [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
+| [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
+| [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae launcher window between its compact and expanded states. |  |
+| [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae selection highlight as it moves between list items. |  |
+| [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
+| [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
+| [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
+| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; false</code> | Configure the behavior required to use Zsh as a login shell. |  |
+
 ### <code>agents</code>
 
 Provide a shared configuration interface for LLM agents and configure the selected agent packages.
@@ -67,7 +111,7 @@ Source: [<code>abstractions/modules/agents/default.nix</code>](../../abstraction
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>agents.packages</code> | <code>lazy attribute set of package</code> | <code>inputs.llm-agents.packages.${myconfig.host.system}</code> | read-only; Agent packages of llm-agents.nix for the host's system, by name. |
+| <code>agents.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Agent packages of llm-agents.nix for the host's system, by name. |
 
 ### <code>alacritty</code>
 
@@ -78,7 +122,7 @@ Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstract
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>alacritty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>alacritty.package</code> | <code>package</code> | <code>pkgs.alacritty</code> |  |
+| <code>alacritty.package</code> | <code>package</code> | <code>alacritty</code> |  |
 
 <code>hjem</code> options:
 
@@ -106,17 +150,7 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>appcleaner.package</code> | <code>package</code> | <code>pkgs.appcleaner</code> |  |
-
-### <code>appearance</code>
-
-Configure the system's visual appearance: color scheme, menu bar, and menu bar clock.
-
-Source: [<code>abstractions/modules/appearance/default.nix</code>](../../abstractions/modules/appearance/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>appearance.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>appcleaner.package</code> | <code>package</code> | <code>appcleaner</code> |  |
 
 ### <code>assertions</code>
 
@@ -128,26 +162,6 @@ Source: [<code>abstractions/modules/assertions/default.nix</code>](../../abstrac
 | --- | --- | --- | --- |
 | <code>assertions</code> | <code>list of unspecified value</code> | <code>[ ]</code> | Assertions, each with `assertion` and `message`, that every module system enforces. |
 
-### <code>bat</code>
-
-Provide and configure bat for file display.
-
-Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>bat.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>batman</code>
-
-Provide batman and configure it as Zsh's manual page pager.
-
-Source: [<code>abstractions/modules/bat/batman/default.nix</code>](../../abstractions/modules/bat/batman/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>batman.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 ### <code>bettertouchtool</code>
 
 Provide BetterTouchTool.
@@ -157,7 +171,7 @@ Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../ab
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>bettertouchtool.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>bettertouchtool.package</code> | <code>package</code> | <code>myconfig.casks.packages.bettertouchtool</code> |  |
+| <code>bettertouchtool.package</code> | <code>package</code> | <code>bettertouchtool</code> |  |
 
 ### <code>casks</code>
 
@@ -167,28 +181,8 @@ Source: [<code>abstractions/modules/casks/default.nix</code>](../../abstractions
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>casks.packages</code> | <code>lazy attribute set of package</code> | the casks of the official `homebrew/cask` tap for the host's system | read-only; Casks of the official tap, by token. |
-| <code>casks.taps</code> | <code>lazy attribute set of lazy attribute set of lazy attribute set of package</code> | the casks of the third-party taps in brew-taps-api for the host's system | read-only; Casks of third-party taps, by tap owner, tap name and token. |
-
-### <code>claude-code</code>
-
-Provide and configure Claude Code.
-
-Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>cursor-agent</code>
-
-Provide the Cursor Agent CLI.
-
-Source: [<code>abstractions/modules/agents/cursor-agent/default.nix</code>](../../abstractions/modules/agents/cursor-agent/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>cursor-agent.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>casks.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Casks of the official tap, by token. |
+| <code>casks.taps</code> | <code>lazy attribute set of lazy attribute set of lazy attribute set of package</code> | (computed) | read-only; Casks of third-party taps, by tap owner, tap name and token. |
 
 ### <code>defaults</code>
 
@@ -205,26 +199,6 @@ Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstracti
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartProcesses</code> | <code>list of (one of "ControlCenter", "Dock", "Finder", "NotificationCenter", "SystemUIServer", "WindowManager")</code> | <code>[ ]</code> | System processes that launchd relaunches, killed so that they read the new values. |
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of user services (`userServices` or `platform.darwin.launchAgents`) to restart. |
 | <code>platform.darwin.defaults.&lt;name&gt;.settings</code> | <code>attribute set of anything</code> | <code>{ }</code> | Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole. |
-
-### <code>direnv</code>
-
-Provide and configure direnv, including its Zsh integration.
-
-Source: [<code>abstractions/modules/direnv/default.nix</code>](../../abstractions/modules/direnv/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>direnv.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>dock</code>
-
-Configure the Dock and the actions of screen hot corners.
-
-Source: [<code>abstractions/modules/dock/default.nix</code>](../../abstractions/modules/dock/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>dock.enable</code> | <code>boolean</code> | <code>true</code> |  |
 
 ### <code>exclusive</code>
 
@@ -248,56 +222,6 @@ Source: [<code>abstractions/modules/exclusive/default.nix</code>](../../abstract
 | <code>xdg.data.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 | <code>xdg.state.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 
-### <code>eza</code>
-
-Provide eza for listing files and directories.
-
-Source: [<code>abstractions/modules/eza/default.nix</code>](../../abstractions/modules/eza/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>eza.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>fd</code>
-
-Provide fd for finding files and directories.
-
-Source: [<code>abstractions/modules/fd/default.nix</code>](../../abstractions/modules/fd/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>fd.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>files</code>
-
-Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes.
-
-Source: [<code>abstractions/modules/files/default.nix</code>](../../abstractions/modules/files/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>files.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>fzf</code>
-
-Provide and configure fzf, including its Zsh integration.
-
-Source: [<code>abstractions/modules/fzf/default.nix</code>](../../abstractions/modules/fzf/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>fzf.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>gh</code>
-
-Provide the GitHub CLI.
-
-Source: [<code>abstractions/modules/gh/default.nix</code>](../../abstractions/modules/gh/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>gh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 ### <code>ghostty</code>
 
 Provide Ghostty terminal emulator.
@@ -307,7 +231,7 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>ghostty.package</code> | <code>package</code> | <code>myconfig.casks.packages.ghostty</code> |  |
+| <code>ghostty.package</code> | <code>package</code> | <code>ghostty</code> |  |
 
 <code>hjem</code> options:
 
@@ -331,26 +255,6 @@ Source: [<code>abstractions/modules/git/default.nix</code>](../../abstractions/m
 | --- | --- | --- | --- |
 | <code>git.settings</code> | <code>attribute set of attribute set of (INI atom (null, bool, int, float or string) or attribute set of (INI atom (null, bool, int, float or string)))</code> | <code>{ }</code> | Settings written to the user's Git configuration file. |
 
-### <code>git.include</code>
-
-Configure Git settings through includes.
-
-Source: [<code>abstractions/modules/git/include/default.nix</code>](../../abstractions/modules/git/include/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>git.include.enable</code> | <code>boolean</code> | <code>myconfig.git.enable &amp;&amp; true</code> |  |
-
-### <code>gomi</code>
-
-Provide gomi and integrate it into Zsh.
-
-Source: [<code>abstractions/modules/gomi/default.nix</code>](../../abstractions/modules/gomi/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>gomi.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 ### <code>grok-bot</code>
 
 Provide the Grok-bot desktop app.
@@ -360,7 +264,7 @@ Source: [<code>abstractions/modules/grok-bot/default.nix</code>](../../abstracti
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>grok-bot.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>grok-bot.package</code> | <code>package</code> | <code>myconfig.casks.packages.grok-bot</code> |  |
+| <code>grok-bot.package</code> | <code>package</code> | <code>grok-bot</code> |  |
 
 ### <code>host</code>
 
@@ -370,8 +274,8 @@ Source: [<code>abstractions/modules/host/default.nix</code>](../../abstractions/
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>host.name</code> | <code>string</code> | the host's name | read-only; Denix name of the host being built. |
-| <code>host.system</code> | <code>string</code> | the host's `system` | read-only; Nix system of the host being built. |
+| <code>host.name</code> | <code>string</code> | <code>"${myconfig.host.name}"</code> | read-only |
+| <code>host.system</code> | <code>string</code> | the host's `system` | read-only |
 | <code>host.user</code> | <code>attribute set of unspecified value</code> | the host's `user` | read-only; The sole user of the host being built: `name`, `homeDirectory` and `uid`. |
 
 ### <code>identity</code>
@@ -385,26 +289,6 @@ Source: [<code>abstractions/modules/identity/default.nix</code>](../../abstracti
 | <code>identity.email</code> | <code>string</code> | <code>"glassesneo@protonmail.com"</code> | read-only; Email address of the person. |
 | <code>identity.fullName</code> | <code>string</code> | <code>"Neo Kitani"</code> | read-only; Full name of the person. |
 
-### <code>keyboard</code>
-
-Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts.
-
-Source: [<code>abstractions/modules/keyboard/default.nix</code>](../../abstractions/modules/keyboard/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>keyboard.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>locale</code>
-
-Configure the languages and region used by the system and applications.
-
-Source: [<code>abstractions/modules/locale/default.nix</code>](../../abstractions/modules/locale/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>locale.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 ### <code>neovim</code>
 
 Provide and configure neovim
@@ -414,54 +298,8 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>neovim.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.package</code> | <code>package</code> | <code>inputs.mnw.lib.wrap pkgs myconfig.neovim.settings</code> |  |
+| <code>neovim.package</code> | <code>package</code> | <code>mnw</code> |  |
 | <code>neovim.settings</code> | <code>module</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
-
-### <code>neovim.completion</code>
-
-Provide insert-mode and command-line completion in Neovim.
-
-Source: [<code>abstractions/modules/neovim/completion/default.nix</code>](../../abstractions/modules/neovim/completion/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.completion.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-
-### <code>neovim.diagnostic</code>
-
-Display diagnostics in Neovim buffers.
-
-Source: [<code>abstractions/modules/neovim/diagnostic/default.nix</code>](../../abstractions/modules/neovim/diagnostic/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.diagnostic.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-
-### <code>neovim.lsp</code>
-
-Connect Neovim to language servers and format buffers through them.
-
-Source: [<code>abstractions/modules/neovim/lsp/default.nix</code>](../../abstractions/modules/neovim/lsp/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.lsp.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-
-### <code>nh</code>
-
-Provide nh for package and option searches.
-
-Source: [<code>abstractions/modules/nh/default.nix</code>](../../abstractions/modules/nh/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>nh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>nix</code>
-
-Configure Nix itself.
-
-Source: [<code>abstractions/modules/nix/default.nix</code>](../../abstractions/modules/nix/default.nix)
 
 ### <code>nix-secrets</code>
 
@@ -475,12 +313,6 @@ Source: [<code>abstractions/modules/nix-secrets/default.nix</code>](../../abstra
 | --- | --- | --- | --- |
 | <code>security.nix-secrets.activateScript</code> | <code>absolute path</code> |  | read-only; Darwin activation command, serialized with every other trigger that runs it. |
 
-### <code>nixpkgs</code>
-
-Configure Nixpkgs for the host.
-
-Source: [<code>abstractions/modules/nixpkgs/default.nix</code>](../../abstractions/modules/nixpkgs/default.nix)
-
 ### <code>notion</code>
 
 Provide the Notion desktop app.
@@ -490,27 +322,7 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>notion.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>notion.package</code> | <code>package</code> | <code>myconfig.casks.packages.notion</code> |  |
-
-### <code>pay-respects</code>
-
-Provide command typo recovery with pay-respects.
-
-Source: [<code>abstractions/modules/pay-respects/default.nix</code>](../../abstractions/modules/pay-respects/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>pay-respects.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>pay-respects.disrespectful</code>
-
-Replace command typo recovery with a playful response.
-
-Source: [<code>abstractions/modules/pay-respects/disrespectful/default.nix</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>pay-respects.disrespectful.enable</code> | <code>boolean</code> | <code>myconfig.pay-respects.enable &amp;&amp; true</code> |  |
+| <code>notion.package</code> | <code>package</code> | <code>notion</code> |  |
 
 ### <code>phi</code>
 
@@ -521,47 +333,7 @@ Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/m
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>phi.package</code> | <code>package</code> | <code>myconfig.casks.taps.phibrowser.tap.phi</code> |  |
-
-### <code>privacy</code>
-
-Limit what the system shares and what it opens without being asked.
-
-Source: [<code>abstractions/modules/privacy/default.nix</code>](../../abstractions/modules/privacy/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>privacy.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>publication</code>
-
-Centralize publication choices for feature-owned bundles.
-
-Source: [<code>abstractions/modules/publication/default.nix</code>](../../abstractions/modules/publication/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>publication.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>ripgrep</code>
-
-Provide ripgrep for searching file contents.
-
-Source: [<code>abstractions/modules/ripgrep/default.nix</code>](../../abstractions/modules/ripgrep/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>ripgrep.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>screenshots</code>
-
-Configure where screenshots are saved and in which format.
-
-Source: [<code>abstractions/modules/screenshots/default.nix</code>](../../abstractions/modules/screenshots/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>screenshots.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>phi.package</code> | <code>package</code> | <code>phi</code> |  |
 
 ### <code>secrets</code>
 
@@ -573,16 +345,6 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 | --- | --- | --- | --- |
 | <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>secrets.names</code> | <code>list of (one of "vercel-ai-gateway-api-key", "openrouter-api-key", "opencode-api-key", "mistral-api-key", "zai-api-key", "cohere-api-key", "brave-api-key", "brave-free-api-key", "parallel-api-key", "exa-api-key", "command-code-api-key", "iniad-gitconfig")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
-
-### <code>security</code>
-
-Configure how a person authenticates to the host: sudo, the login window, and the screen lock.
-
-Source: [<code>abstractions/modules/security/default.nix</code>](../../abstractions/modules/security/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>security.enable</code> | <code>boolean</code> | <code>true</code> |  |
 
 ### <code>services</code>
 
@@ -661,27 +423,7 @@ Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>slack.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>slack.package</code> | <code>package</code> | <code>pkgs.slack</code> |  |
-
-### <code>sound</code>
-
-Configure system sounds and alert feedback.
-
-Source: [<code>abstractions/modules/sound/default.nix</code>](../../abstractions/modules/sound/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>sound.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>spaces</code>
-
-Configure Spaces across displays and how the desktop and its widgets are revealed.
-
-Source: [<code>abstractions/modules/spaces/default.nix</code>](../../abstractions/modules/spaces/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>spaces.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>slack.package</code> | <code>package</code> | <code>slack</code> |  |
 
 ### <code>ssh</code>
 
@@ -704,22 +446,6 @@ Source: [<code>abstractions/modules/tags/default.nix</code>](../../abstractions/
 | --- | --- | --- | --- |
 | <code>tags.enabled</code> | <code>list of value "gui" (singular enum)</code> | <code>[ ]</code> | Tags whose modules are enabled by default. |
 
-### <code>trackpad</code>
-
-Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed.
-
-Source: [<code>abstractions/modules/trackpad/default.nix</code>](../../abstractions/modules/trackpad/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>trackpad.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>users</code>
-
-Apply the host's declared user information to OS user configuration.
-
-Source: [<code>abstractions/modules/users/default.nix</code>](../../abstractions/modules/users/default.nix)
-
 ### <code>vicinae</code>
 
 Provide the Vicinae launcher as a login service with a stable code-signing identity.
@@ -729,7 +455,7 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default</code> |  |
+| <code>vicinae.package</code> | <code>package</code> | <code>vicinae</code> |  |
 | <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
@@ -740,26 +466,6 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | --- | --- | --- | --- |
 | <code>vicinae.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings layered over Vicinae's own settings.json through VICINAE_OVERRIDES; keys set here take precedence over changes made in the app. |
 
-### <code>vicinae.compact-transition</code>
-
-Animate the Vicinae launcher window between its compact and expanded states.
-
-Source: [<code>abstractions/modules/vicinae/compact-transition/default.nix</code>](../../abstractions/modules/vicinae/compact-transition/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>vicinae.compact-transition.enable</code> | <code>boolean</code> | <code>myconfig.vicinae.enable &amp;&amp; false</code> |  |
-
-### <code>vicinae.selection-highlight</code>
-
-Animate the Vicinae selection highlight as it moves between list items.
-
-Source: [<code>abstractions/modules/vicinae/selection-highlight/default.nix</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>vicinae.selection-highlight.enable</code> | <code>boolean</code> | <code>myconfig.vicinae.enable &amp;&amp; false</code> |  |
-
 ### <code>xdg</code>
 
 Define the user's XDG base directories and export them to the user's environment.
@@ -768,11 +474,11 @@ Source: [<code>abstractions/modules/xdg/default.nix</code>](../../abstractions/m
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>xdg.cache</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.cache"</code> | read-only; The user's XDG cache directory. |
-| <code>xdg.config</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.config"</code> | read-only; The user's XDG configuration directory. |
-| <code>xdg.data</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share"</code> | read-only; The user's XDG data directory. |
+| <code>xdg.cache</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.cache"</code> | read-only |
+| <code>xdg.config</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.config"</code> | read-only |
+| <code>xdg.data</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share"</code> | read-only |
 | <code>xdg.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>xdg.state</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/state"</code> | read-only; The user's XDG state directory. |
+| <code>xdg.state</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/state"</code> | read-only |
 
 ### <code>zellij</code>
 
@@ -794,36 +500,6 @@ Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstraction
 | <code>zellij.keybinds.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 | <code>zellij.pluginPermissions</code> | <code>attribute set of list of (one of "ReadApplicationState", "ChangeApplicationState", "OpenFiles", "RunCommands", "OpenTerminalsOrPlugins", "WriteToStdin", "WebAccess", "ReadCliPipes", "MessageAndLaunchOtherPlugins", "Reconfigure", "FullHdAccess", "StartWebServer", "InterceptInput", "ReadPaneContents", "RunActionsAsUser", "WriteToClipboard", "ReadSessionEnvironmentVariables")</code> | <code>{ }</code> | Permissions granted to plugins, by the absolute path of the plugin's wasm file. When any are declared, they replace Zellij's permission cache, which Zellij can then no longer write, so a plugin that is not declared asks for its permissions in every session. |
 
-### <code>zellij.navigator</code>
-
-Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane.
-
-Source: [<code>abstractions/modules/zellij/navigator/default.nix</code>](../../abstractions/modules/zellij/navigator/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zellij.navigator.enable</code> | <code>boolean</code> | <code>myconfig.zellij.enable &amp;&amp; true</code> |  |
-
-### <code>zoom</code>
-
-Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window.
-
-Source: [<code>abstractions/modules/zoom/default.nix</code>](../../abstractions/modules/zoom/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zoom.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>zoxide</code>
-
-Provide zoxide and initialize its directory navigation in Zsh.
-
-Source: [<code>abstractions/modules/zoxide/default.nix</code>](../../abstractions/modules/zoxide/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zoxide.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 ### <code>zsh</code>
 
 Enable Zsh and provide the foundation required for its use.
@@ -833,7 +509,7 @@ Source: [<code>abstractions/modules/shell/zsh/default.nix</code>](../../abstract
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>zsh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>zsh.package</code> | <code>package</code> | <code>pkgs.zsh</code> |  |
+| <code>zsh.package</code> | <code>package</code> | <code>zsh</code> |  |
 
 <code>hjem</code> options:
 
@@ -887,13 +563,3 @@ Source: [<code>abstractions/modules/shell/zsh/interactive/zabrze/default.nix</co
 | <code>zsh.zabrze.snippets.&lt;name&gt;.snippet</code> | <code>string</code> |  | Text that replaces the trigger. |
 | <code>zsh.zabrze.snippets.&lt;name&gt;.trigger</code> | <code>null or string</code> | <code>null</code> | Word that expands. Exactly one of `trigger` and `trigger-pattern` is set. |
 | <code>zsh.zabrze.snippets.&lt;name&gt;.trigger-pattern</code> | <code>null or string</code> | <code>null</code> | Regular expression matching the word that expands. |
-
-### <code>zsh.login</code>
-
-Configure the behavior required to use Zsh as a login shell.
-
-Source: [<code>abstractions/modules/shell/zsh/login/default.nix</code>](../../abstractions/modules/shell/zsh/login/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zsh.login.enable</code> | <code>boolean</code> | <code>myconfig.zsh.enable &amp;&amp; false</code> |  |

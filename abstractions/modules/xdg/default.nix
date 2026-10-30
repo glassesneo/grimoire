@@ -22,22 +22,10 @@ in {
     home = myconfig.host.user.homeDirectory;
   in {
     enable = boolOption true;
-    cache = readOnly (strOption "${home}/.cache" {
-      defaultText = lib.literalExpression ''"''${myconfig.host.user.homeDirectory}/.cache"'';
-      description = "The user's XDG cache directory.";
-    });
-    config = readOnly (strOption "${home}/.config" {
-      defaultText = lib.literalExpression ''"''${myconfig.host.user.homeDirectory}/.config"'';
-      description = "The user's XDG configuration directory.";
-    });
-    data = readOnly (strOption "${home}/.local/share" {
-      defaultText = lib.literalExpression ''"''${myconfig.host.user.homeDirectory}/.local/share"'';
-      description = "The user's XDG data directory.";
-    });
-    state = readOnly (strOption "${home}/.local/state" {
-      defaultText = lib.literalExpression ''"''${myconfig.host.user.homeDirectory}/.local/state"'';
-      description = "The user's XDG state directory.";
-    });
+    cache = readOnly (strOption "${home}/.cache");
+    config = readOnly (strOption "${home}/.config");
+    data = readOnly (strOption "${home}/.local/share");
+    state = readOnly (strOption "${home}/.local/state");
   };
 
   # Hjem exports a variable only when its directory differs from Hjem's

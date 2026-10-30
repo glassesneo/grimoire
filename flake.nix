@@ -40,22 +40,30 @@
     hosts = configuration.config.hosts;
 
     # Declarations are evaluated for one system, so the reference is the same
-    # on every system that renders it. nix-darwin evaluates its options only
-    # for a host's system, so darwin reads them through a placeholder host.
+    # on every system that renders it. Defaults read a placeholder host whose
+    # values are the `myconfig.host` expressions they stand for; its system
+    # stays real because nix-darwin and packages are evaluated for it.
     authoringReference = import ./lib/authoring.nix {inherit lib;} (let
       docsSystem = "aarch64-darwin";
+      host = "\${myconfig.host.name}";
+      userName = "\${myconfig.host.user.name}";
+      homeDirectory = "\${myconfig.host.user.homeDirectory}";
       placeholder = configuration.extendModules {
         modules = [
           ({delib, ...}:
             delib.host {
-              name = "authoring";
+              name = host;
               system = docsSystem;
-              user.name = "user";
+              user = {
+                name = userName;
+                inherit homeDirectory;
+              };
             })
         ];
       };
     in {
-      inherit configuration;
+      inherit host;
+      configuration = placeholder;
       root = self;
       pkgs = nixpkgs.legacyPackages.${docsSystem};
       moduleSystems = {
@@ -63,15 +71,15 @@
           (configuration.genSystem {
             moduleSystem = "hjem";
             extraArgs = {
+              inherit homeDirectory;
               system = docsSystem;
-              username = "user";
-              homeDirectory = "/Users/user";
+              username = userName;
             };
           }).options;
         darwin =
           (placeholder.genSystem {
             moduleSystem = "darwin";
-            host = "authoring";
+            inherit host;
           }).options;
         bundles =
           (configuration.genSystem {

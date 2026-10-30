@@ -16,7 +16,7 @@ delib.module ({cfg, ...}: {
         default = {};
         description = "mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory.";
       };
-      package = packageOption (inputs.mnw.lib.wrap pkgs cfg.settings) {defaultText = lib.literalExpression "inputs.mnw.lib.wrap pkgs myconfig.neovim.settings";};
+      package = packageOption (inputs.mnw.lib.wrap pkgs cfg.settings);
     };
 
   myconfig.always.neovim.settings = {pkgs, ...}: {

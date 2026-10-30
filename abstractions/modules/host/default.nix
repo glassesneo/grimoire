@@ -11,14 +11,9 @@ in
     meta.description = "Expose the selected host's information to modules and reflect its identity in OS host names.";
 
     options = with delib; {
-      name = readOnly (strOption host.name {
-        defaultText = lib.literalMD "the host's name";
-        description = "Denix name of the host being built.";
-      });
-      system = readOnly (strOption host.system {
-        defaultText = lib.literalMD "the host's `system`";
-        description = "Nix system of the host being built.";
-      });
+      name = readOnly (strOption host.name);
+      # The reference evaluates a real system, so it names the source instead.
+      system = readOnly (strOption host.system {defaultText = lib.literalMD "the host's `system`";});
       user = readOnly (attrsOption host.user {
         defaultText = lib.literalMD "the host's `user`";
         description = "The sole user of the host being built: `name`, `homeDirectory` and `uid`.";

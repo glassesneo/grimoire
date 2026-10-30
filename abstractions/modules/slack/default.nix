@@ -1,8 +1,4 @@
-{
-  delib,
-  lib,
-  ...
-}:
+{delib, ...}:
 delib.module ({cfg, ...}: {
   name = "slack";
   meta = {
@@ -13,7 +9,7 @@ delib.module ({cfg, ...}: {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption pkgs.slack {defaultText = lib.literalExpression "pkgs.slack";};
+      package = packageOption pkgs.slack;
     };
 
   hjem.ifEnabled = {

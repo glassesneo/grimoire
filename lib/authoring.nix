@@ -1,21 +1,24 @@
-# Render the authoring reference from declarations, without generating a host.
+# Render the authoring reference from declarations, without generating a real host.
 #
 # The reference lists the options this repository adds to Denix module and host
 # declarations, the options adapters add to their module systems, and every
 # module, regardless of host enablement and sorted by Denix name, with its
 # responsibility (`meta.description`), tags, source, `myconfig` options and the
-# options it declares in each module system. An option is the repository's when
-# all of its declarations are repository files or module and host sections;
-# options that extend an upstream declaration are not listed. Internal options
-# are omitted.
+# options it declares in each module system. Modules whose only option is
+# `enable`, or that declare none, share one table; the others get a section. An
+# option is the repository's when all of its declarations are repository files
+# or module and host sections; options that extend an upstream declaration are
+# not listed. Internal options are omitted.
 #
-# Rendering enforces the description and `defaultText` requirements of
-# docs/documentation-policy.md where it can: a listed option without a
-# description, other than a `myconfig` `enable` or `package`, fails, and so
-# does a default without `defaultText` that contains a package or, evaluated
-# without a host, reads the host. A default that reads another option renders
-# that option's value here, so only its `defaultText` keeps it general. The
-# reference contains no generation timestamp.
+# Rendering enforces docs/documentation-policy.md where it can: an option of a
+# Denix declaration or of an adapter without a description fails; module options
+# need none. Defaults are rendered from the declarations: the caller selects a
+# host whose values are written as the `myconfig.host` expressions they stand
+# for, `defaultText` replaces a default, a `lazyAttrsOf` default is shown as
+# computed without being forced, a package default shows its name, and a
+# default that otherwise contains a package is shown as computed. A default that
+# reads another option renders that option's rendered value. The reference
+# contains no generation timestamp.
 {lib}: {
   # The Denix configuration whose declarations are rendered.
   configuration,
@@ -25,15 +28,16 @@
   pkgs,
   # Module system name to its evaluated option declarations.
   moduleSystems,
+  # Host selected while evaluating `myconfig` options, or null for none.
+  host ? null,
 }: let
   rootPrefix = "${toString root}/";
 
   escape = lib.replaceStrings ["&" "<" ">" "|" "\r\n" "\n" "\r"] ["&amp;" "&lt;" "&gt;" "&#124;" "<br>" "<br>" "<br>"];
   code = text: "<code>${escape text}</code>";
-  link = file: let
-    path = lib.removePrefix rootPrefix (toString file);
-    url = lib.concatMapStringsSep "/" lib.escapeURL (lib.splitString "/" path);
-  in "[${code path}](../../${url})";
+  relative = file: lib.removePrefix rootPrefix (toString file);
+  url = file: "../../${lib.concatMapStringsSep "/" lib.escapeURL (lib.splitString "/" (relative file))}";
+  link = file: "[${code (relative file)}](${url file})";
 
   inRepository = file: lib.hasPrefix rootPrefix file;
   # Provenance labels: `<module|host> <name> (<system>.<section>)`.
@@ -50,42 +54,52 @@
     || (builtins.isList value && lib.any hasPackage value)
     || (builtins.isAttrs value && lib.any hasPackage (builtins.attrValues value));
 
-  # optionAttrSetToDocList renders `defaultText` or else the value; read the raw
-  # value from the declaration to reject packages first.
-  rawDefault = options: loc: let
+  # optionAttrSetToDocList renders `defaultText` or else the value; read the
+  # declaration to render packages and lazy values without forcing them.
+  declarationOf = options: loc: let
     option = lib.attrByPath loc null options;
   in
-    if option != null && lib.isOption option && option ? default && !(option ? defaultText)
-    then option.default
+    if option != null && lib.isOption option
+    then option
     else null;
 
-  describe = exempt: option:
+  computed = lib.literalMD "(computed)";
+
+  describe = required: option:
     if option.description or null != null && option.description != ""
     then option.description
-    else if exempt option
-    then ""
-    else throw "authoring: option `${option.name}' needs a description";
+    else if required
+    then throw "authoring: option `${option.name}' needs a description"
+    else "";
 
   row = {
     options,
     strip,
-    exempt ? _: false,
+    required ? true,
     withSource ? false,
   }: option: let
-    raw = rawDefault options option.loc;
-    default = builtins.addErrorContext "while rendering the default of option `${option.name}'; a default that reads the host needs defaultText" (
-      if raw != null && hasPackage raw
-      then throw "authoring: the default of option `${option.name}' contains a package; declare defaultText"
+    declaration = declarationOf options option.loc;
+    raw = declaration.default;
+    default = builtins.addErrorContext "while rendering the default of option `${option.name}'; a default that cannot be rendered needs defaultText" (
+      if declaration == null || !(declaration ? default) || declaration ? defaultText
+      then option.default or null
+      else if declaration.type.name == "lazyAttrsOf"
+      then computed
+      else if lib.isDerivation raw
+      then lib.literalExpression (lib.getName raw)
+      else if hasPackage raw
+      then computed
       else option.default or null
     );
-    # A Markdown default is prose, not an expression.
+    # A Markdown default is prose, not an expression. Nix escapes the
+    # placeholder host's interpolations inside strings.
     renderedDefault =
       if default == null
       then ""
       else if default._type or null == "literalMD"
       then escape default.text
-      else code default.text;
-    description = describe exempt option;
+      else code (lib.replaceStrings ["\\\${myconfig.host."] ["\${myconfig.host."] default.text);
+    description = describe required option;
     flags = lib.optional (option.readOnly or false) "read-only";
   in "| ${code (strip option.name)} | ${code option.type} | ${renderedDefault} | ${escape (lib.concatStringsSep "; " (flags ++ lib.optional (description != "") description))} |${
     lib.optionalString withSource " ${lib.concatMapStringsSep "<br>" link option.declarations} |"
@@ -108,7 +122,7 @@
   myconfigOptions =
     (lib.evalModules {
       modules = [
-        (configuration.genModule {moduleSystem = "myconfig";})
+        (configuration.genModule ({moduleSystem = "myconfig";} // lib.optionalAttrs (host != null) {inherit host;}))
         {_module.args.pkgs = pkgs;}
       ];
     }).options;
@@ -139,10 +153,33 @@
     lib.unique (map (definition: definition.file)
       (builtins.filter (definition: builtins.hasAttr name definition.value) configuration.options.modules.definitionsWithLocations));
 
+  ownOf = name: myconfigByOwner.${name} or [];
+  declaredOf = name: lib.filterAttrs (_: entries: entries != []) (lib.genAttrs (builtins.attrNames systemEntries) (declaredBy name));
+  tagsOf = name: lib.concatMapStringsSep ", " code configuration.config.modules.${name}.meta.tags;
+  # A module whose only option is `enable` is a row of the shared table.
+  enableOnly = name: declaredOf name == {} && lib.all (option: option.loc == ["myconfig"] ++ lib.splitString "." name ++ ["enable"]) (ownOf name);
+  sectioned = lib.partition enableOnly moduleNames;
+
+  enableOnlyTable = lib.optionalString (sectioned.right != []) (lib.concatStringsSep "\n" ([
+      "Modules whose only option is `enable`:"
+      ""
+      "| Module | <code>enable</code> | Responsibility | Tags |"
+      "| --- | --- | --- | --- |"
+    ]
+    ++ map (name: let
+      enable = lib.findFirst (_: true) null (ownOf name);
+    in "| ${lib.concatMapStringsSep ", " (file: "[${code name}](${url file})") (sourcesOf name)} | ${
+      if enable == null
+      then ""
+      else code enable.default.text
+    } | ${escape configuration.config.modules.${name}.meta.description} | ${tagsOf name} |")
+    sectioned.right)
+  + "\n");
+
   moduleSection = name: let
     module = configuration.config.modules.${name};
-    own = myconfigByOwner.${name} or [];
-    declared = lib.filterAttrs (_: entries: entries != []) (lib.genAttrs (builtins.attrNames systemEntries) (declaredBy name));
+    own = ownOf name;
+    declared = declaredOf name;
   in
     lib.concatStringsSep "\n" (
       [
@@ -151,7 +188,7 @@
         (escape module.meta.description)
         ""
         "Source: ${lib.concatMapStringsSep ", " link (sourcesOf name)}${
-          lib.optionalString (module.meta.tags != []) "<br>Tags: ${lib.concatMapStringsSep ", " code module.meta.tags}"
+          lib.optionalString (module.meta.tags != []) "<br>Tags: ${tagsOf name}"
         }"
         ""
       ]
@@ -159,7 +196,7 @@
         (table {
             options = myconfigOptions;
             strip = lib.removePrefix "myconfig.";
-            exempt = option: lib.elem (lib.last option.loc) ["enable" "package"];
+            required = false;
           }
           own)
       ]
@@ -169,6 +206,7 @@
           (table {
               options = moduleSystems.${system};
               strip = lib.id;
+              required = false;
             }
             entries)
         ])
@@ -218,4 +256,5 @@ in
     ${lib.concatStringsSep "\n" (lib.filter (section: section != "") (map adapterSection (builtins.attrNames moduleSystems)))}
     ## Modules
 
-    ${lib.concatStringsSep "\n" (map moduleSection moduleNames)}''
+    ${enableOnlyTable}
+    ${lib.concatStringsSep "\n" (map moduleSection sectioned.wrong)}''

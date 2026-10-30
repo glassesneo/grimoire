@@ -1,8 +1,4 @@
-{
-  delib,
-  lib,
-  ...
-}:
+{delib, ...}:
 delib.module ({
   cfg,
   myconfig,
@@ -16,7 +12,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption false;
-    package = packageOption myconfig.casks.packages.bettertouchtool {defaultText = lib.literalExpression "myconfig.casks.packages.bettertouchtool";};
+    package = packageOption myconfig.casks.packages.bettertouchtool;
   };
 
   hjem.ifEnabled = {
