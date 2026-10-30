@@ -774,6 +774,35 @@ Source: [<code>abstractions/modules/xdg/default.nix</code>](../../abstractions/m
 | <code>xdg.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>xdg.state</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/state"</code> | read-only; The user's XDG state directory. |
 
+### <code>zellij</code>
+
+Provide and configure the Zellij terminal multiplexer, and own its configuration file.
+
+Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstractions/modules/zellij/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>zellij.enable</code> | <code>boolean</code> | <code>true</code> |  |
+
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>zellij.keybinds</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | KDL `bind` nodes rendered into the `shared` section of Zellij's keybindings, which replace Zellij's default keybindings. |
+| <code>zellij.keybinds.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must precede this one. |
+| <code>zellij.keybinds.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
+| <code>zellij.keybinds.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
+
+### <code>zellij.navigator</code>
+
+Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane.
+
+Source: [<code>abstractions/modules/zellij/navigator/default.nix</code>](../../abstractions/modules/zellij/navigator/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>zellij.navigator.enable</code> | <code>boolean</code> | <code>myconfig.zellij.enable &amp;&amp; true</code> |  |
+
 ### <code>zoom</code>
 
 Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window.

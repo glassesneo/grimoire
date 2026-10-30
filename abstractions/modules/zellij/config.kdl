@@ -1,0 +1,78 @@
+// Super bindings rely on the terminal reporting Cmd through the kitty
+// keyboard protocol.
+keybinds clear-defaults=true {
+    shared {
+        // NewPane only opens to the right or below; the pane is moved to
+        // open it on the left or above.
+        bind "Super h" { NewPane "Right"; MovePane "Left"; }
+        bind "Super j" { NewPane "Down"; }
+        bind "Super k" { NewPane "Down"; MovePane "Up"; }
+        bind "Super l" { NewPane "Right"; }
+
+        bind "Super t" { NewTab; }
+        bind "Super [" { GoToPreviousTab; }
+        bind "Super ]" { GoToNextTab; }
+        bind "Super g" {
+            LaunchOrFocusPlugin "zellij:session-manager" {
+                floating true
+                move_to_focused_tab true
+            }
+        }
+
+        bind "Super p" { ToggleFloatingPanes; }
+        bind "Super z" { ToggleFocusFullscreen; }
+        bind "Super u" { SwitchToMode "Scroll"; }
+        bind "Super f" { SwitchToMode "EnterSearch"; SearchInput 0; }
+
+@keybinds@
+    }
+
+    shared_among "scroll" "search" {
+        bind "j" { ScrollDown; }
+        bind "k" { ScrollUp; }
+        bind "d" { HalfPageScrollDown; }
+        bind "u" { HalfPageScrollUp; }
+        bind "Ctrl f" { PageScrollDown; }
+        bind "Ctrl b" { PageScrollUp; }
+        bind "g" { ScrollToTop; }
+        bind "G" { ScrollToBottom; }
+        bind "e" { EditScrollback; SwitchToMode "Normal"; }
+        bind "Esc" { ScrollToBottom; SwitchToMode "Normal"; }
+    }
+    scroll {
+        bind "[" { ScrollToPreviousPrompt; }
+        bind "]" { ScrollToNextPrompt; }
+        bind "/" { SwitchToMode "EnterSearch"; SearchInput 0; }
+    }
+    entersearch {
+        bind "Enter" { SwitchToMode "Search"; }
+        bind "Esc" { SwitchToMode "Normal"; }
+    }
+    search {
+        bind "n" { Search "down"; }
+        bind "N" { Search "up"; }
+    }
+}
+
+plugins {}
+load_plugins {}
+
+support_kitty_graphics_protocol true
+support_kitty_keyboard_protocol true
+styled_underlines true
+
+pane_frames true
+show_startup_tips false
+show_release_notes false
+mouse_hover_effects true
+mouse_hover_tips false
+
+session_serialization false
+// session-manager lists sessions and their tabs from this metadata.
+disable_session_metadata false
+auto_layout false
+stacked_resize false
+scroll_mode_sync true
+copy_on_select true
+mouse_mode true
+advanced_mouse_actions false
