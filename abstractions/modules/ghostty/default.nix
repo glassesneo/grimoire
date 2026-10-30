@@ -46,8 +46,6 @@ delib.module ({
         # Drops Ghostty's default keybindings before the ones below.
         "clear"
         "cmd+shift+,=reload_config"
-        "cmd+z=undo"
-        "cmd+shift+z=redo"
         "cmd+c=copy_to_clipboard"
         "cmd+shift+c=copy_url_to_clipboard"
         "cmd+v=paste_from_clipboard"
@@ -61,6 +59,10 @@ delib.module ({
       cursor-style-blink = false;
       shell-integration-features = "no-cursor";
     };
+
+    # The Hide menu item takes Cmd+H before Ghostty can pass it to the
+    # program; a zero-width space as its shortcut disables it.
+    platform.darwin.defaults."com.mitchellh.ghostty".settings.NSUserKeyEquivalents."Hide Ghostty" = builtins.fromJSON ''"\u200b"'';
 
     xdg.config.files."ghostty/config.ghostty" = {
       exclusive = true;
