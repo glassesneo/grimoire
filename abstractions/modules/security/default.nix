@@ -6,7 +6,7 @@ delib.module {
   options.enable = delib.boolOption true;
 
   darwin.ifEnabled = {
-    # reattach lets pam_tid reach the GUI session from inside tmux.
+    # reattach lets pam_tid reach the GUI session from inside Zellij.
     security.pam.services.sudo_local = {
       touchIdAuth = true;
       reattach = true;

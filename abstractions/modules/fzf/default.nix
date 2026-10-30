@@ -25,8 +25,8 @@ delib.module {
         "--no-separator"
         "--no-scrollbar"
       ];
-      FZF_TMUX = "1";
-      FZF_TMUX_OPTS = "-p 80%,50%";
+      FZF_CTRL_T_OPTS = "--popup=center,80%,50%";
+      FZF_CTRL_R_OPTS = "--popup=center,80%,50%";
     };
 
     zsh.zshrc.fzf = {
