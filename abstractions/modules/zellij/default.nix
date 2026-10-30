@@ -10,18 +10,63 @@ delib.module {
 
   options.enable = delib.boolOption true;
 
-  hjem.always.options.zellij.keybinds =
-    mylib.fragments.option
-    // {
-      description = "KDL `bind` nodes rendered into the `shared` section of Zellij's keybindings, which replace Zellij's default keybindings.";
+  hjem.always.options.zellij = {
+    keybinds =
+      mylib.fragments.option
+      // {
+        description = "KDL `bind` nodes rendered into the `shared` section of Zellij's keybindings, which replace Zellij's default keybindings.";
+      };
+    pluginPermissions = lib.mkOption {
+      type = with lib.types;
+        attrsOf (listOf (enum [
+          "ReadApplicationState"
+          "ChangeApplicationState"
+          "OpenFiles"
+          "RunCommands"
+          "OpenTerminalsOrPlugins"
+          "WriteToStdin"
+          "WebAccess"
+          "ReadCliPipes"
+          "MessageAndLaunchOtherPlugins"
+          "Reconfigure"
+          "FullHdAccess"
+          "StartWebServer"
+          "InterceptInput"
+          "ReadPaneContents"
+          "RunActionsAsUser"
+          "WriteToClipboard"
+          "ReadSessionEnvironmentVariables"
+        ]));
+      default = {};
+      description = "Permissions granted to plugins, by the absolute path of the plugin's wasm file. When any are declared, they replace Zellij's permission cache, which Zellij can then no longer write, so a plugin that is not declared asks for its permissions in every session.";
     };
+  };
 
   hjem.ifEnabled = {
     config,
     pkgs,
     ...
-  }: {
+  }: let
+    permissions = config.zellij.pluginPermissions;
+    permissionsFile = {
+      exclusive = true;
+      text = lib.concatStrings (lib.mapAttrsToList (plugin: granted:
+        "${builtins.toJSON plugin} {\n"
+        + lib.concatMapStrings (permission: "    ${permission}\n") granted
+        + "}\n")
+      permissions);
+    };
+  in {
     packages = [pkgs.zellij];
+
+    # Zellij keeps the cache in the platform's cache directory, which on
+    # Darwin is not XDG_CACHE_HOME.
+    files = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && permissions != {}) {
+      "Library/Caches/org.Zellij-Contributors.Zellij/permissions.kdl" = permissionsFile;
+    };
+    xdg.cache.files = lib.mkIf (!pkgs.stdenv.hostPlatform.isDarwin && permissions != {}) {
+      "zellij/permissions.kdl" = permissionsFile;
+    };
 
     xdg.config.files = {
       "zellij/config.kdl" = {
@@ -64,6 +109,28 @@ delib.module {
           export HOME=$TMPDIR
           zellij --config "$config" setup --check
           grep -F 'bind "Super x" { CloseFocus; }' "$config"
+          touch "$out"
+        '';
+    };
+
+    permissions-cache = {
+      modules.fixture.hjem.always.zellij.pluginPermissions."/fixture/plugin.wasm" = ["ReadApplicationState" "WriteToStdin"];
+      build = result: let
+        file =
+          lib.findFirst (file: lib.hasSuffix "/permissions.kdl" file.target)
+          (throw "Missing fixture permissions.kdl")
+          result.manifest.files;
+      in
+        pkgs.runCommand "zellij-permissions-cache" {
+          inherit (file) source;
+          expected = pkgs.writeText "expected" ''
+            "/fixture/plugin.wasm" {
+                ReadApplicationState
+                WriteToStdin
+            }
+          '';
+        } ''
+          diff -u "$expected" "$source"
           touch "$out"
         '';
     };

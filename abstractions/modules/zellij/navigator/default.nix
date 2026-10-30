@@ -27,6 +27,14 @@ delib.module {
       }
     '';
   in {
+    # Zellij keys the cache by the plugin's path. An attribute name cannot
+    # carry the store path's context; the keybindings keep the dependency.
+    zellij.pluginPermissions.${builtins.unsafeDiscardStringContext "${plugin}"} = [
+      "WriteToStdin"
+      "ChangeApplicationState"
+      "ReadApplicationState"
+    ];
+
     zellij.keybinds.navigator.text = lib.concatStrings [
       (bind "h" "left")
       (bind "j" "down")
@@ -46,19 +54,22 @@ delib.module {
       uses = ["zellij"];
       modules.fixture.hjem.always.xdg.config.directory = configDir;
       build = result: let
-        config =
-          (lib.findFirst (file: file.target == "${configDir}/zellij/config.kdl")
-            (throw "Missing fixture Zellij configuration")
+        source = description: match:
+          (lib.findFirst match
+            (throw "Missing fixture ${description}")
             result.manifest.files).source;
       in
         pkgs.runCommand "zellij-navigator-valid-config" {
-          inherit config;
+          config = source "Zellij configuration" (file: file.target == "${configDir}/zellij/config.kdl");
+          permissions = source "permissions.kdl" (file: lib.hasSuffix "/permissions.kdl" file.target);
           nativeBuildInputs = [pkgs.zellij];
         } ''
           export HOME=$TMPDIR
           zellij --config "$config" setup --check
           plugin=$(grep -o -m1 'file:/nix/store/[^"]*' "$config")
-          test -f "''${plugin#file:}"
+          plugin=''${plugin#file:}
+          test -f "$plugin"
+          grep -Fx "\"$plugin\" {" "$permissions"
           touch "$out"
         '';
     };
