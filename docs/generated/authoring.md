@@ -122,7 +122,7 @@ Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstract
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>alacritty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>alacritty.package</code> | <code>package</code> | <code>alacritty</code> |  |
+| <code>alacritty.package</code> | <code>package</code> | <code>nixpkgs: alacritty</code> |  |
 
 <code>hjem</code> options:
 
@@ -150,7 +150,7 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>appcleaner.package</code> | <code>package</code> | <code>appcleaner</code> |  |
+| <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
 
 ### <code>assertions</code>
 
@@ -171,7 +171,7 @@ Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../ab
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>bettertouchtool.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>bettertouchtool.package</code> | <code>package</code> | <code>bettertouchtool</code> |  |
+| <code>bettertouchtool.package</code> | <code>package</code> | <code>cask2nix: bettertouchtool</code> |  |
 
 ### <code>casks</code>
 
@@ -231,7 +231,7 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>ghostty.package</code> | <code>package</code> | <code>ghostty</code> |  |
+| <code>ghostty.package</code> | <code>package</code> | <code>cask2nix: ghostty</code> |  |
 
 <code>hjem</code> options:
 
@@ -264,7 +264,7 @@ Source: [<code>abstractions/modules/grok-bot/default.nix</code>](../../abstracti
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>grok-bot.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>grok-bot.package</code> | <code>package</code> | <code>grok-bot</code> |  |
+| <code>grok-bot.package</code> | <code>package</code> | <code>cask2nix: grok-bot</code> |  |
 
 ### <code>host</code>
 
@@ -298,7 +298,7 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>neovim.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.package</code> | <code>package</code> | <code>mnw</code> |  |
+| <code>neovim.package</code> | <code>package</code> | <code>mnw: mnw</code> |  |
 | <code>neovim.settings</code> | <code>module</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
 
 ### <code>nix-secrets</code>
@@ -322,7 +322,7 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>notion.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>notion.package</code> | <code>package</code> | <code>notion</code> |  |
+| <code>notion.package</code> | <code>package</code> | <code>cask2nix: notion</code> |  |
 
 ### <code>phi</code>
 
@@ -333,7 +333,7 @@ Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/m
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>phi.package</code> | <code>package</code> | <code>phi</code> |  |
+| <code>phi.package</code> | <code>package</code> | <code>cask2nix: phi</code> |  |
 
 ### <code>secrets</code>
 
@@ -423,7 +423,7 @@ Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>slack.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>slack.package</code> | <code>package</code> | <code>slack</code> |  |
+| <code>slack.package</code> | <code>package</code> | <code>nixpkgs: slack</code> |  |
 
 ### <code>ssh</code>
 
@@ -455,7 +455,7 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>vicinae</code> |  |
+| <code>vicinae.package</code> | <code>package</code> | <code>vicinae: vicinae</code> |  |
 | <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
@@ -509,7 +509,7 @@ Source: [<code>abstractions/modules/shell/zsh/default.nix</code>](../../abstract
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>zsh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>zsh.package</code> | <code>package</code> | <code>zsh</code> |  |
+| <code>zsh.package</code> | <code>package</code> | <code>nixpkgs: zsh</code> |  |
 
 <code>hjem</code> options:
 

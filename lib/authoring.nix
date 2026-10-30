@@ -15,8 +15,9 @@
 # need none. Defaults are rendered from the declarations: the caller selects a
 # host whose values are written as the `myconfig.host` expressions they stand
 # for, `defaultText` replaces a default, a `lazyAttrsOf` default is shown as
-# computed without being forced, a package default shows its name, and a
-# default that otherwise contains a package is shown as computed. A default that
+# computed without being forced, a package default shows its name after the
+# source whose files define it, and a default that otherwise contains a package
+# is shown as computed. A default that
 # reads another option renders that option's rendered value. The reference
 # contains no generation timestamp.
 {lib}: {
@@ -30,6 +31,9 @@
   moduleSystems,
   # Host selected while evaluating `myconfig` options, or null for none.
   host ? null,
+  # Source name to its store path, such as the flake's inputs, naming where a
+  # package default is defined through its `meta.position`.
+  sources ? {},
 }: let
   rootPrefix = "${toString root}/";
 
@@ -65,6 +69,22 @@
 
   computed = lib.literalMD "(computed)";
 
+  # The source whose path is the longest prefix of the package's position.
+  sourceOf = package: let
+    position = package.meta.position or "";
+    matches = lib.filter (name: lib.hasPrefix "${toString sources.${name}}/" position) (builtins.attrNames sources);
+  in
+    lib.foldl' (best: name:
+      if best == null || builtins.stringLength (toString sources.${name}) > builtins.stringLength (toString sources.${best})
+      then name
+      else best)
+    null
+    matches;
+  packageText = package: let
+    source = sourceOf package;
+  in
+    lib.optionalString (source != null) "${source}: " + lib.getName package;
+
   describe = required: option:
     if option.description or null != null && option.description != ""
     then option.description
@@ -86,7 +106,7 @@
       else if declaration.type.name == "lazyAttrsOf"
       then computed
       else if lib.isDerivation raw
-      then lib.literalExpression (lib.getName raw)
+      then lib.literalExpression (packageText raw)
       else if hasPackage raw
       then computed
       else option.default or null

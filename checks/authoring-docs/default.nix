@@ -2,7 +2,7 @@
 # also check that enable-only modules share a table and other module sections
 # are sorted, source links stay relative and Markdown-safe, declared options
 # and defaultText reach the reference, defaults read the placeholder host as
-# expressions, packages render by name, lazy defaults are not forced, module
+# expressions, packages render by source and name, lazy defaults are not forced, module
 # options need no description, and a Denix declaration option without one fails
 # rendering; Nix's option validation cannot detect broken rendered links, table
 # cells or omissions.
@@ -33,6 +33,7 @@
   in
     render {
       inherit configuration pkgs host;
+      sources.nixpkgs = pkgs.path;
       root = ../..;
       moduleSystems.hjem =
         (configuration.genSystem {
@@ -58,7 +59,7 @@ in {
   assert lib.hasInfix "| <code>a.host</code> | <code>string</code> | <code>\"\${myconfig.host.name}\"</code> |  |" example;
   assert lib.hasInfix "| <code>a.home</code> | <code>string</code> | <code>\"\${myconfig.host.user.homeDirectory}/.a\"</code> |  |" example;
   assert lib.hasInfix "| <code>a.named</code> | <code>string</code> | the host's name |  |" example;
-  assert lib.hasInfix "| <code>a.tool</code> | <code>package</code> | <code>hello</code> |  |" example;
+  assert lib.hasInfix "| <code>a.tool</code> | <code>package</code> | <code>nixpkgs: hello</code> |  |" example;
   assert lib.hasInfix "| <code>a.lazy</code> | <code>lazy attribute set of string</code> | (computed) |  |" example;
   assert lib.hasInfix "| <code>a.setting</code> |" example;
   assert fails ./fixture/undocumented/default.nix;

@@ -63,6 +63,7 @@
       };
     in {
       inherit host;
+      sources = lib.mapAttrs (_: input: input.outPath) (removeAttrs inputs ["self"]);
       configuration = placeholder;
       root = self;
       pkgs = nixpkgs.legacyPackages.${docsSystem};
