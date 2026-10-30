@@ -8,3 +8,6 @@ setopt SHARE_HISTORY
 setopt HIST_IGNORE_ALL_DUPS HIST_EXPIRE_DUPS_FIRST
 
 setopt NO_CLOBBER APPEND_CREATE
+
+# Exiting the shell takes an explicit exit rather than an EOF.
+setopt IGNORE_EOF
