@@ -12,12 +12,6 @@ keybinds clear-defaults=true {
         bind "Super t" { NewTab; }
         bind "Super [" { GoToPreviousTab; }
         bind "Super ]" { GoToNextTab; }
-        bind "Super g" {
-            LaunchOrFocusPlugin "zellij:session-manager" {
-                floating true
-                move_to_focused_tab true
-            }
-        }
 
         bind "Super p" { ToggleFloatingPanes; }
         bind "Super z" { ToggleFocusFullscreen; }
@@ -68,8 +62,7 @@ mouse_hover_effects true
 mouse_hover_tips false
 
 session_serialization false
-// session-manager lists sessions and their tabs from this metadata.
-disable_session_metadata false
+disable_session_metadata true
 auto_layout false
 stacked_resize false
 scroll_mode_sync true
