@@ -45,11 +45,11 @@
     "brew-api": {
       "flake": false,
       "locked": {
-        "lastModified": 1792859220,
-        "narHash": "sha256-ztxMhiCnqpXdwqmaOKgjh55F8oEI8tpaP01VlDwzUc4=",
+        "lastModified": 1793433670,
+        "narHash": "sha256-Xx87WYwG8uPtHhk06FkPA92n3wzAbJGZuvMI+Y3u32A=",
         "owner": "BatteredBunny",
         "repo": "brew-api",
-        "rev": "dded361add4527472e6d5a38c7fc5936364bd02d",
+        "rev": "a0b25d897a5cc8a7991e9b4011627937ce6331e2",
         "type": "github"
       },
       "original": {
@@ -61,11 +61,11 @@
     "brew-taps-api": {
       "flake": false,
       "locked": {
-        "lastModified": 1792944928,
-        "narHash": "sha256-VLOBx62fb02517UcR3t24E2If1YLNAnkK4TyK5aVyww=",
+        "lastModified": 1793419621,
+        "narHash": "sha256-KNKZgtRAoQvCuFlIjTNQCxh6SdVzE5we0petc1PKbIg=",
         "owner": "glassesneo",
         "repo": "brew-taps-api",
-        "rev": "98a99a4da1ca2f5a442062bd9162f1a1b6df442a",
+        "rev": "b4cadf87eee4d7e5f6410f64b787304ce34b4098",
         "type": "github"
       },
       "original": {
@@ -115,11 +115,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1792946644,
-        "narHash": "sha256-LcZ+ETksG39hNORIZ8cxqqKd58GhiKnmG70uVs6lDUA=",
+        "lastModified": 1793260894,
+        "narHash": "sha256-vKR7qfLA/kJocFNItCJyE2ZOWKfMswAHRU3pv2uhC0Q=",
         "owner": "glassesneo",
         "repo": "cask2nix",
-        "rev": "74df576f04b10bed7cb90d147637bf9e31d1d239",
+        "rev": "a5e165fe2d4eedbcfdb2dbd4a7da8d87b5d95b39",
         "type": "github"
       },
       "original": {
