@@ -3,7 +3,11 @@
   lib,
   ...
 }:
-delib.module ({cfg, ...}: {
+delib.module ({
+  cfg,
+  myconfig,
+  ...
+}: {
   name = "alacritty";
   meta = {
     description = "Provide Alacritty terminal emulator.";
@@ -28,14 +32,31 @@ delib.module ({cfg, ...}: {
     config,
     pkgs,
     ...
-  }: {
+  }: let
+    # stabilizeApp links bin/alacritty into the bundle, which loops through the
+    # nixpkgs bundle's Contents/MacOS symlink to bin, so the directory is made
+    # real first.
+    bundled = pkgs.runCommand cfg.package.name {} ''
+      cp -a ${cfg.package} "$out"
+      chmod -R u+w "$out"
+      macos="$out/Applications/Alacritty.app/Contents/MacOS"
+      if [ -L "$macos" ]; then
+        rm "$macos"
+        mkdir "$macos"
+        cp "$out/bin/alacritty" "$macos/"
+      fi
+    '';
+    # nixpkgs builds Alacritty ad-hoc signed, so its TCC grants would follow
+    # the cdhash and lapse on every rebuild.
+    package = myconfig.app-identity.stabilizeApp bundled;
+  in {
     packages = [
-      cfg.package
+      package
     ];
 
     files."Applications/Alacritty.app" = {
       exclusive = true;
-      source = "${cfg.package}/Applications/Alacritty.app";
+      source = "${package}/Applications/Alacritty.app";
     };
 
     alacritty.settings = {};
