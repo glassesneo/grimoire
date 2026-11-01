@@ -12,6 +12,17 @@
   # follow the declared types, so a higher source replaces only what it defines.
   # Observed through `myconfig` values of a bundles evaluation, the smallest
   # module system that reports its options.
+  nullable = lib.mkOption {
+    type = lib.types.nullOr (lib.types.submodule {
+      options = lib.genAttrs ["first" "second"] (_:
+        lib.mkOption {
+          type = lib.types.str;
+          default = "default";
+        });
+    });
+    default = null;
+  };
+
   probe = {delib, ...}:
     delib.module {
       name = "probe";
@@ -40,6 +51,17 @@
             };
           } {};
         } {};
+        # Nullable structured values, set and cleared across sources.
+        riceCleared = nullable;
+        hostCleared = nullable;
+        hostRestored = nullable;
+        # A module-valued submodule, as mnw's settings, whose definitions may import.
+        imported = lib.mkOption {
+          type = lib.types.submoduleWith {
+            modules = [{options = lib.genAttrs ["kept" "riceReplaced" "hostReplaced" "functionImported" "pathImported"] (_: strOption "default");}];
+          };
+          default = {};
+        };
         selection = mylib.atomicOption (submoduleOption {
           options = {
             name = strOption "default";
@@ -49,6 +71,19 @@
       };
 
       myconfig.always.probe = {
+        riceCleared.first = "module";
+        hostCleared.first = "module";
+        hostRestored.first = "module";
+        # Imported definitions keep the module's priority.
+        imported.imports = [
+          {
+            kept = "module";
+            riceReplaced = "module";
+            hostReplaced = "module";
+          }
+          ({lib, ...}: {functionImported = lib.mkIf true "module";})
+          ./imported.nix
+        ];
         scalar = "module";
         ricePreferred = "module";
         list = ["module"];
@@ -89,6 +124,9 @@
     };
 
   selected = rice "selected" {
+    riceCleared = null;
+    hostRestored = null;
+    imported.riceReplaced = "rice";
     scalar = "rice";
     ricePreferred = "rice";
     list = ["rice"];
@@ -117,6 +155,9 @@
       name = "fixture";
       rice = choice;
       myconfig.ifEnabled.probe = {
+        hostCleared = null;
+        hostRestored.second = "host";
+        imported.hostReplaced = "host";
         scalar = "host";
         conditional = "host";
         # Extends the rice's list explicitly; a bare list would replace it.
@@ -161,6 +202,20 @@
   withoutRice = evaluate "fixture" [(host null)];
 
   expected = {
+    riceCleared = null;
+    hostCleared = null;
+    # A nullable value is replaced whole, so nothing of the module's remains.
+    hostRestored = {
+      first = "default";
+      second = "host";
+    };
+    imported = {
+      kept = "module";
+      riceReplaced = "rice";
+      hostReplaced = "host";
+      functionImported = "module";
+      pathImported = "module";
+    };
     scalar = "host";
     ricePreferred = "rice";
     list = ["rice" "host"];

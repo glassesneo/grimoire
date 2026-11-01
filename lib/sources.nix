@@ -7,14 +7,19 @@
 # makes below the option tree `options` the priority of its source. The
 # priority is pushed down along the declared types, so a definition from a
 # higher source replaces only the values it defines: below a submodule, an
-# `attrsOf`, a `lazyAttrsOf` or a non-null `nullOr`, each option or attribute
-# keeps its own priority. Any other value, including lists, derivations and
-# values of types without such structure, is replaced as a whole. An option
-# declared with `atomicOption` stops the descent: a higher source replaces it as
-# a whole. `mkIf` and `mkMerge` are kept and descended into; a value the author
-# already gave an explicit priority keeps it. Function definitions of a
-# submodule are wrapped and still receive the arguments they request. Definitions of undeclared
-# attributes, such as freeform settings, receive the priority as a whole.
+# `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own
+# priority. Any other value, including lists, derivations and values of types
+# without such structure, is replaced as a whole. A `nullOr` is replaced as a
+# whole too, so a higher source can set or clear it: the module system filters
+# priorities per option before merging, so a nullable value cannot both merge
+# across sources and let `null` follow their order. An option declared with
+# `atomicOption` stops the descent: a higher source replaces it as a whole.
+# `mkIf` and `mkMerge` are kept and descended into; a value the author already
+# gave an explicit priority keeps it. Function definitions of a submodule are
+# wrapped and still receive the arguments they request. Modules a definition
+# imports, as attribute sets, functions or paths, receive the same priority.
+# Definitions of undeclared attributes, such as freeform settings, receive the
+# priority as a whole.
 {lib}: let
   # Internal marker; read only through `isAtomic`.
   marker = "_grimoireAtomic";
@@ -75,33 +80,45 @@
     in
       if property != null
       then property
-      else if type.name == "submodule"
+      else if type.name == "submodule" && (lib.isFunction value || isPlainAttrs value)
       then
-        if lib.isFunction value
-        then
-          # A real lambda: the module system loads a functor as an attribute
-          # set. Requested arguments resolve as `lib.modules` resolves them.
-          {config, ...} @ args:
-            module (type.getSubOptions []) (value (args
-                // builtins.mapAttrs (name: _: args.${name} or config._module.args.${name}) (lib.functionArgs value)))
-        else if isPlainAttrs value
-        then module (type.getSubOptions []) value
-        else wrap value
+        # With `shorthandOnlyDefinesConfig`, as `types.submodule` sets, an
+        # attribute set definition is configuration only, even `imports`.
+        if isPlainAttrs value && type.functor.payload.shorthandOnlyDefinesConfig or false
+        then attributes (type.getSubOptions []) value
+        else imported (type.getSubOptions []) value
       else if lib.elem type.name ["attrsOf" "lazyAttrsOf"] && isPlainAttrs value
       then lib.mapAttrs (_: typed elemType) value
-      else if type.name == "nullOr" && value != null
-      then typed elemType value
       else wrap value;
 
-    module = node: value:
+    # A module given as an attribute set, a function or a path.
+    imported = node: value:
+      if builtins.isPath value || builtins.isString value
+      then {
+        _file = toString value;
+        imports = [(imported node (import value))];
+      }
+      else if lib.isFunction value
+      then
+        # A real lambda: the module system loads a functor as an attribute
+        # set. Requested arguments resolve as `lib.modules` resolves them.
+        {config, ...} @ args:
+          module node (value (args
+              // builtins.mapAttrs (name: _: args.${name} or config._module.args.${name}) (lib.functionArgs value)))
+      else module node value;
+
+    module = node: value: let
+      imports = lib.optionalAttrs (value ? imports) {imports = map (imported node) value.imports;};
+    in
       if !isPlainAttrs value
       then tree node value
       else if value ? config || value ? options
-      then value // lib.optionalAttrs (value ? config) {config = tree node value.config;}
+      then value // lib.optionalAttrs (value ? config) {config = tree node value.config;} // imports
       else let
         configuration = removeAttrs value moduleAttributes;
       in
         lib.getAttrs (lib.intersectLists moduleAttributes (builtins.attrNames value)) value
+        // imports
         // attributes node configuration;
   in
     module;
