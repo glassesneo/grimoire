@@ -28,6 +28,7 @@ Options this repository adds to Denix declarations.
 
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
+| <code>rice</code> | <code>null or impossible (empty enum)</code> | <code>null</code> | Rice whose `myconfig` this host builds on; `null` selects none. | [<code>extensions/rices.nix</code>](../../extensions/rices.nix) |
 | <code>system</code> | <code>string</code> |  | Nix system of this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
 | <code>user</code> | <code>submodule</code> |  | The sole user of this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
 | <code>user.homeDirectory</code> | <code>string</code> | `/Users/&lt;name&gt;` on Darwin, otherwise `/home/&lt;name&gt;` | Home directory of the user on this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
@@ -101,7 +102,7 @@ Modules whose only option is `enable`:
 | [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
 | [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
 | [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
-| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; false</code> | Configure the behavior required to use Zsh as a login shell. |  |
+| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; myconfig.shell.loginShell == "zsh"</code> | Configure the behavior required to use Zsh as a login shell. |  |
 
 ### <code>agents</code>
 
@@ -151,16 +152,6 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | --- | --- | --- | --- |
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
-
-### <code>assertions</code>
-
-Enforce module-contributed assertions across module systems.
-
-Source: [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>assertions</code> | <code>list of unspecified value</code> | <code>[ ]</code> | Assertions, each with `assertion` and `message`, that every module system enforces. |
 
 ### <code>bettertouchtool</code>
 
@@ -379,7 +370,7 @@ Source: [<code>abstractions/modules/shell/default.nix</code>](../../abstractions
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>shell.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>shell.loginShell</code> | <code>value "zsh" (singular enum)</code> |  | Shell that becomes the user's login shell. |
+| <code>shell.loginShell</code> | <code>null or value "zsh" (singular enum)</code> | <code>null</code> | Shell that becomes the user's login shell; `null` leaves the login shell unmanaged. |
 
 ### <code>shield</code>
 

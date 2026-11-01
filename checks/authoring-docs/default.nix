@@ -14,10 +14,8 @@
   inherit (pkgs) lib;
   render = import ../../lib/authoring.nix {inherit lib;};
 
-  # Extensions contribute assertions, which the assertions module declares.
   renderModules = modules: let
     configuration = compose ([
-        ../../abstractions/modules/assertions/default.nix
         ../../abstractions/modules/host/default.nix
         ({delib, ...}:
           delib.host {
@@ -52,7 +50,7 @@
 in {
   check = assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
   assert lib.hasInfix "(../../checks/authoring-docs/fixture/a%20space/default.nix)" example;
-  assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" modulesPart)) == ["<code>a</code>" "<code>assertions</code>" "<code>host</code>"];
+  assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" modulesPart)) == ["<code>a</code>" "<code>host</code>"];
   assert lib.hasInfix "| [<code>z</code>](../../checks/authoring-docs/fixture/z/default.nix) |  | Last |  |" modulesPart;
   assert lib.hasInfix "| <code>a.value</code> | <code>string</code> | <code>\"x\"</code> | Value of a. |" example;
   assert lib.hasInfix "| <code>a.bare</code> | <code>string</code> | <code>\"y\"</code> |  |" example;

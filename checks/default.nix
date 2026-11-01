@@ -10,7 +10,7 @@
   formatting,
 }: let
   inherit (pkgs) lib;
-  infrastructure = ["assertions" "defaults" "exclusive" "services"];
+  infrastructure = ["defaults" "exclusive" "services"];
   moduleCheckInfo = configuration.config.moduleCheckInfo {
     inherit pkgs system;
     home = "/tmp/module-checks";

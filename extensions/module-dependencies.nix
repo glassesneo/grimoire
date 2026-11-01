@@ -4,7 +4,7 @@
 # declare `enable`. The child's declared default becomes its original condition
 # AND the parent's enable value, and its `defaultText` says so. Explicit child
 # overrides are preserved; an enabled child with a disabled parent fails through
-# the shared assertions in every module system. Missing parents and modules without `enable` are skipped;
+# the child's common assertions (`extensions/module-assertions.nix`) in every module system. Missing parents and modules without `enable` are skipped;
 # more distant ancestors are not searched, and unconditional sections are not
 # gated.
 {
@@ -55,17 +55,18 @@
         entries;
     };
 
-    config.myconfig.always = delib.toDenixArgs ({
+    # Checked whatever the child's enable, so an enabled child under a disabled
+    # parent is rejected.
+    config.assertions.always = lib.optional hasParent (delib.toDenixArgs ({
       myconfig,
       myoptions,
       ...
     }: {
-      assertions = lib.optional (participates myoptions) {
-        assertion =
-          !(delib.getAttrByStrPath myconfig "${name}.enable" false)
-          || delib.getAttrByStrPath myconfig "${parent}.enable" false;
-        message = "${name}.enable requires ${parent}.enable = true";
-      };
-    });
+      assertion =
+        !(participates myoptions)
+        || !(delib.getAttrByStrPath myconfig "${name}.enable" false)
+        || delib.getAttrByStrPath myconfig "${parent}.enable" false;
+      message = "${name}.enable requires ${parent}.enable = true";
+    }));
   };
 }

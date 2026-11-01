@@ -21,7 +21,6 @@
         ../../extensions/module-metadata.nix
         ../../extensions/module-checks.nix
         ../../extensions/provenance.nix
-        ../../abstractions/modules/assertions/default.nix
         ../../abstractions/modules/services/default.nix
         ../../abstractions/modules/nix-secrets/default.nix
         ({delib, ...}:
