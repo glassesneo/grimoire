@@ -70,11 +70,14 @@ in
     };
 
     bundles.ifEnabled = {pkgs, ...}: {
-      skills.package = pkgs.linkFarm "skills" (map (name: {
-          inherit name;
-          path = ./. + "/${name}";
-        })
-        ownSkills);
+      skills = {
+        package = pkgs.linkFarm "skills" (map (name: {
+            inherit name;
+            path = ./. + "/${name}";
+          })
+          ownSkills);
+        publish = true;
+      };
     };
 
     # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to

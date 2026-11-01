@@ -3,10 +3,10 @@ delib.host {
   name = "seiran";
   system = "aarch64-darwin";
   user.name = "neo";
+  rice = "default";
 
   myconfig.ifEnabled = {
     tags.enabled = ["gui"];
-    shell.loginShell = "zsh";
     vicinae = {
       compact-transition.enable = true;
       selection-highlight.enable = true;

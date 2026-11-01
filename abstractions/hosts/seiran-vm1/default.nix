@@ -3,9 +3,9 @@ delib.host {
   name = "seiran-vm1";
   system = "aarch64-darwin";
   user.name = "neo";
+  rice = "default";
 
   myconfig.ifEnabled = {
-    shell.loginShell = "zsh";
     zoom.enable = false;
     secrets.names = [
       "vercel-ai-gateway-api-key"

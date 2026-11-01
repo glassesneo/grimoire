@@ -3,12 +3,12 @@ delib.host {
   name = "kurogane";
   system = "aarch64-darwin";
   user.name = "neo";
+  rice = "default";
 
   myconfig.ifEnabled = {
     tags.enabled = ["gui"];
     slack.enable = false;
     notion.enable = false;
-    shell.loginShell = "zsh";
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
