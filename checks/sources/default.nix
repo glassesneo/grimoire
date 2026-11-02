@@ -31,6 +31,7 @@
         scalar = strOption "default";
         ricePreferred = strOption "default";
         list = listOfOption str [];
+        replacedList = listOfOption str [];
         forced = strOption "default";
         conditional = strOption "default";
         settings = lib.mkOption {
@@ -62,6 +63,14 @@
           };
           default = {};
         };
+        # A module-valued submodule defined by a function, as Neovim's mnw
+        # settings: other sources' definitions add to its nested attributes.
+        moduleValued = lib.mkOption {
+          type = lib.types.submoduleWith {
+            modules = [{options.plugins = attrsOfOption str {};}];
+          };
+          default = {};
+        };
         selection = mylib.atomicOption (submoduleOption {
           options = {
             name = strOption "default";
@@ -87,6 +96,8 @@
         scalar = "module";
         ricePreferred = "module";
         list = ["module"];
+        replacedList = ["module"];
+        moduleValued = {lib, ...}: {plugins.module = lib.mkIf true "module";};
         forced = lib.mkForce "module";
         settings = {
           kept = "module";
@@ -130,6 +141,8 @@
     scalar = "rice";
     ricePreferred = "rice";
     list = ["rice"];
+    replacedList = ["rice"];
+    moduleValued.plugins.rice = "rice";
     forced = "rice";
     conditional = "rice";
     settings.replaced = "rice";
@@ -162,6 +175,8 @@
         conditional = "host";
         # Extends the rice's list explicitly; a bare list would replace it.
         list = (riceConfig.probe.list or []) ++ ["host"];
+        replacedList = ["host"];
+        moduleValued.plugins.host = "host";
         settings.keys = ["host"];
         items.entry.second = "host";
         items.function.second = "host";
@@ -219,6 +234,12 @@
     scalar = "host";
     ricePreferred = "rice";
     list = ["rice" "host"];
+    replacedList = ["host"];
+    moduleValued.plugins = {
+      module = "module";
+      rice = "rice";
+      host = "host";
+    };
     forced = "module";
     conditional = "host";
     # Ghostty's settings type stores every value as a list of repetitions.

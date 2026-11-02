@@ -175,6 +175,19 @@ in
         expr = result: (resolved result).palette.background;
         expected = "#faf4ed";
       };
+      # A host naming only a scheme does not inherit a lower source's variant.
+      replaced-selection = {
+        modules.fixture.myconfig.always.colorscheme = {
+          schemes.fixture = variantScheme;
+          selection = {
+            name = "fixture";
+            variant = "light";
+          };
+        };
+        host.myconfig.ifEnabled.colorscheme.selection.name = "fixture";
+        expr = result: (resolved result).variant;
+        expected = "dark";
+      };
       combinations = withFixture {
         expr = result: lib.mapAttrs (_: combination: combination.variant) result.options.myconfig.colorscheme.combinations.value;
         expected = {

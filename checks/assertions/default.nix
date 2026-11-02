@@ -5,10 +5,11 @@
 }: let
   lib = pkgs.lib;
 
-  # The real composition must enforce modules' common assertions in Hjem's
-  # guard: `always` whatever the module's enable, `ifEnabled` only while it is
-  # enabled. Adapter-only checks cannot detect missing wiring.
-  probe = hostName: user: {
+  # The real composition must enforce modules' common assertions in every
+  # host's Hjem guard and in nix-darwin's assertions: `always` whatever the
+  # module's enable, `ifEnabled` only while it is enabled. Adapter-only checks
+  # cannot detect missing wiring.
+  probe = moduleSystem: hostName: user: {
     enable,
     always ? true,
     ifEnabled ? true,
@@ -36,42 +37,58 @@
             };
           })
       ];
-    }).genSystem {
-      moduleSystem = "hjem";
-      host = hostName;
-      extraArgs = {
-        system = configuration.config.hosts.${hostName}.system;
-        username = user.name;
-        inherit (user) homeDirectory;
-      };
-    };
+    }).genSystem ({
+        inherit moduleSystem;
+        host = hostName;
+      }
+      // lib.optionalAttrs (moduleSystem == "hjem") {
+        extraArgs = {
+          system = configuration.config.hosts.${hostName}.system;
+          username = user.name;
+          inherit (user) homeDirectory;
+        };
+      });
 
-  accepts = result: (builtins.tryEval result.manifest).success;
+  # nix-darwin refuses its system build on any failed assertion; evaluating
+  # that build for every case would cost a full system evaluation each.
+  acceptance = {
+    hjem = result: (builtins.tryEval result.manifest).success;
+    darwin = result: lib.all (assertion: assertion.assertion) result.config.assertions;
+  };
 
-  results = lib.mapAttrsToList (hostName: host: let
-    run = probe hostName host.user;
-  in
-    accepts (run {enable = true;})
-    && !(accepts (run {
-      enable = true;
-      always = false;
-    }))
-    && !(accepts (run {
-      enable = false;
-      always = false;
-    }))
-    && !(accepts (run {
-      enable = true;
-      ifEnabled = false;
-    }))
-    && accepts (run {
-      enable = false;
-      ifEnabled = false;
-    }))
-  configuration.config.hosts;
+  darwinHosts = lib.filterAttrs (_: host: (lib.systems.elaborate host.system).isDarwin) configuration.config.hosts;
+
+  verify = moduleSystem: hosts:
+    lib.mapAttrsToList (hostName: host: let
+      run = probe moduleSystem hostName host.user;
+      accepts = acceptance.${moduleSystem};
+    in
+      accepts (run {enable = true;})
+      && !(accepts (run {
+        enable = true;
+        always = false;
+      }))
+      && !(accepts (run {
+        enable = false;
+        always = false;
+      }))
+      && !(accepts (run {
+        enable = true;
+        ifEnabled = false;
+      }))
+      && accepts (run {
+        enable = false;
+        ifEnabled = false;
+      }))
+    hosts;
+
+  hjemResults = verify "hjem" configuration.config.hosts;
+  darwinResults = verify "darwin" darwinHosts;
 in {
-  check = assert lib.assertMsg (results != [] && lib.all (result: result) results)
-  "Real host configurations must enforce `always` assertions and enabled modules' `ifEnabled` assertions";
+  check = assert lib.assertMsg (hjemResults != [] && lib.all (result: result) hjemResults)
+  "Real Hjem configurations must enforce `always` assertions and enabled modules' `ifEnabled` assertions";
+  assert lib.assertMsg (lib.all (result: result) darwinResults)
+  "Real nix-darwin configurations must enforce `always` assertions and enabled modules' `ifEnabled` assertions";
     pkgs.runCommand "assertion-forwarding-test" {} ''
       mkdir "$out"
     '';
