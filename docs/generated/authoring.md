@@ -28,6 +28,7 @@ Options this repository adds to Denix declarations.
 
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
+| <code>rice</code> | <code>null or value "default" (singular enum)</code> | <code>null</code> | Rice whose `myconfig` this host builds on; `null` selects none. | [<code>extensions/rices.nix</code>](../../extensions/rices.nix) |
 | <code>system</code> | <code>string</code> |  | Nix system of this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
 | <code>user</code> | <code>submodule</code> |  | The sole user of this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
 | <code>user.homeDirectory</code> | <code>string</code> | `/Users/&lt;name&gt;` on Darwin, otherwise `/home/&lt;name&gt;` | Home directory of the user on this host. | [<code>extensions/hosts.nix</code>](../../extensions/hosts.nix) |
@@ -88,7 +89,6 @@ Modules whose only option is `enable`:
 | [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
 | [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | <code>myconfig.pay-respects.enable &amp;&amp; true</code> | Replace command typo recovery with a playful response. |  |
 | [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | <code>true</code> | Limit what the system shares and what it opens without being asked. |  |
-| [<code>publication</code>](../../abstractions/modules/publication/default.nix) | <code>true</code> | Centralize publication choices for feature-owned bundles. |  |
 | [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | <code>true</code> | Provide ripgrep for searching file contents. |  |
 | [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | <code>true</code> | Configure where screenshots are saved and in which format. |  |
 | [<code>security</code>](../../abstractions/modules/security/default.nix) | <code>true</code> | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
@@ -101,7 +101,7 @@ Modules whose only option is `enable`:
 | [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
 | [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
 | [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
-| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; false</code> | Configure the behavior required to use Zsh as a login shell. |  |
+| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; myconfig.shell.loginShell == "zsh"</code> | Configure the behavior required to use Zsh as a login shell. |  |
 
 ### <code>agents</code>
 
@@ -152,16 +152,6 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
 
-### <code>assertions</code>
-
-Enforce module-contributed assertions across module systems.
-
-Source: [<code>abstractions/modules/assertions/default.nix</code>](../../abstractions/modules/assertions/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>assertions</code> | <code>list of unspecified value</code> | <code>[ ]</code> | Assertions, each with `assertion` and `message`, that every module system enforces. |
-
 ### <code>bettertouchtool</code>
 
 Provide BetterTouchTool.
@@ -183,6 +173,70 @@ Source: [<code>abstractions/modules/casks/default.nix</code>](../../abstractions
 | --- | --- | --- | --- |
 | <code>casks.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Casks of the official tap, by token. |
 | <code>casks.taps</code> | <code>lazy attribute set of lazy attribute set of lazy attribute set of package</code> | (computed) | read-only; Casks of third-party taps, by tap owner, tap name and token. |
+
+### <code>colorscheme</code>
+
+Register color schemes and resolve the one selected for applications to share.
+
+Source: [<code>abstractions/modules/colorscheme/default.nix</code>](../../abstractions/modules/colorscheme/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>colorscheme.combinations</code> | <code>attribute set of raw value</code> | every registered scheme and variant, resolved | read-only; Every scheme and variant, resolved like `resolved`, by name: `&lt;scheme&gt;` for a scheme's default and `&lt;scheme&gt;-&lt;variant&gt;` for each variant. |
+| <code>colorscheme.resolved</code> | <code>null or raw value</code> | the resolved `colorscheme.selection` | read-only; The selected scheme as `{ name, variant, palette }`, or `null` without a selection. |
+| <code>colorscheme.schemes</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Registered schemes by name. A scheme has either a `palette` or `variants` with a `default`. |
+| <code>colorscheme.schemes.&lt;name&gt;.default</code> | <code>null or string</code> | <code>null</code> | Variant used when a selection names none; set exactly when `variants` is. |
+| <code>colorscheme.schemes.&lt;name&gt;.palette</code> | <code>null or (submodule)</code> | <code>null</code> | Palette of a scheme without variants. |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi</code> | <code>submodule</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Palettes of a scheme with variants, by variant name. |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi</code> | <code>submodule</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.selection</code> | <code>null or (submodule)</code> | <code>null</code> | Scheme that applications share; `null` selects none. A higher source replaces it whole, so a variant always comes with its scheme's name. |
+| <code>colorscheme.selection.name</code> | <code>string</code> |  |  |
+| <code>colorscheme.selection.variant</code> | <code>null or string</code> | <code>null</code> | Variant of the scheme; `null` uses the scheme's default. |
 
 ### <code>defaults</code>
 
@@ -232,12 +286,8 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | --- | --- | --- | --- |
 | <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>ghostty.package</code> | <code>package</code> | <code>cask2nix: ghostty</code> |  |
-
-<code>hjem</code> options:
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
 | <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. |
+| <code>ghostty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Ghostty takes its colors from `colorscheme.resolved`. |
 
 ### <code>git</code>
 
@@ -299,7 +349,42 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | --- | --- | --- | --- |
 | <code>neovim.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>neovim.package</code> | <code>package</code> | <code>mnw: mnw</code> |  |
-| <code>neovim.settings</code> | <code>module</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
+| <code>neovim.settings</code> | <code>submodule</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
+| <code>neovim.settings.aliases</code> | <code>list of string</code> | <code>[ ]</code> | Aliases to symlink nvim to. |
+| <code>neovim.settings.appName</code> | <code>null or string</code> | <code>"mnw"</code> | What to set $NVIM_APPNAME to |
+| <code>neovim.settings.appNameMethod</code> | <code>one of "set", "set-default"</code> | <code>"set"</code> | How to set `$NVIM_APPNAME` with `makeWrapper` |
+| <code>neovim.settings.desktopEntry</code> | <code>boolean</code> | <code>true</code> | Whether to enable neovim's desktop entry. |
+| <code>neovim.settings.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable mnw (Minimal Neovim Wrapper). |
+| <code>neovim.settings.extraBinPath</code> | <code>list of package</code> | <code>[ ]</code> | Extra packages to be put in neovim's PATH |
+| <code>neovim.settings.extraBuilderArgs</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra attributes to pass to mkDerivation.<br> |
+| <code>neovim.settings.extraLuaPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>ps: [ ]</code> | A function which returns a list of extra needed lua packages. |
+| <code>neovim.settings.finalPackage</code> | <code>package</code> |  | read-only; The final package to be consumed by the user |
+| <code>neovim.settings.initLua</code> | <code>strings concatenated with "\n"</code> | <code>""</code> | lua config text to load at startup |
+| <code>neovim.settings.initViml</code> | <code>strings concatenated with "\n"</code> | <code>""</code> | VimL config text to load at startup |
+| <code>neovim.settings.luaFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | lua config files to load at startup |
+| <code>neovim.settings.neovim</code> | <code>package</code> | <code>pkgs.neovim-unwrapped</code> | The neovim package to use. Must be unwrapped |
+| <code>neovim.settings.plugins.dev</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Plugins for use with devMode.<br>You most likely want to put your config here.<br>(automatically loaded)<br> |
+| <code>neovim.settings.plugins.dev.&lt;name&gt;.impure</code> | <code>absolute path</code> |  | The impure absolute paths to the nvim plugin.<br> |
+| <code>neovim.settings.plugins.dev.&lt;name&gt;.pure</code> | <code>path in the Nix store or attribute set with src</code> |  | The pure path to the nvim plugin.<br> |
+| <code>neovim.settings.plugins.opt</code> | <code>list of (path in the Nix store or attribute set with src)</code> | <code>[ ]</code> |  |
+| <code>neovim.settings.plugins.optAttrs</code> | <code>attribute set of (null or path in the Nix store or attribute set with src)</code> | <code>{ }</code> |  |
+| <code>neovim.settings.plugins.start</code> | <code>list of (path in the Nix store or attribute set with src)</code> | <code>[ ]</code> |  |
+| <code>neovim.settings.plugins.startAttrs</code> | <code>attribute set of (null or path in the Nix store or attribute set with src)</code> | <code>{ }</code> |  |
+| <code>neovim.settings.providers.nodeJs.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the Node.js provider. |
+| <code>neovim.settings.providers.nodeJs.neovimClientPackage</code> | <code>package</code> | <code>pkgs.neovim-node-client</code> | The neovim-node-client package to use. |
+| <code>neovim.settings.providers.nodeJs.package</code> | <code>package</code> | <code>pkgs.nodejs</code> | The Node.js package to use. |
+| <code>neovim.settings.providers.perl.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the perl provider. |
+| <code>neovim.settings.providers.perl.extraPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>p: [<br>  p.NeovimExt<br>  p.Appcpanminus<br>]<br></code> | Extra packages to be included in the perl environment.<br><br>Note: you probably want to include NeovimExt and Appcpanminus if you change this from it's default value.<br> |
+| <code>neovim.settings.providers.perl.package</code> | <code>package</code> | <code>pkgs.perl</code> | The perl package to use. |
+| <code>neovim.settings.providers.python3.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the python3 provider. |
+| <code>neovim.settings.providers.python3.extraPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>p: [ pynvim ]</code> | Extra packages to be included in the python3 environment.<br><br>Note: you probably want to include pynvim if you change this from it's default value.<br> |
+| <code>neovim.settings.providers.python3.package</code> | <code>package</code> | <code>pkgs.python3</code> | The python3 package to use. |
+| <code>neovim.settings.providers.ruby.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the ruby provider. |
+| <code>neovim.settings.providers.ruby.env</code> | <code>package</code> | <code>pkgs.bundlerEnv {<br>  name = "neovim-ruby-env";<br>  gemdir = ../ruby_provider;<br>  postBuild = '''<br>    rm $out/bin/{bundle,bundler}<br>  ''';<br>}<br></code> | The ruby bundlerEnv to use. |
+| <code>neovim.settings.providers.ruby.package</code> | <code>package</code> | <code>programs.mnw.providers.ruby.env.ruby</code> | The ruby package to use. |
+| <code>neovim.settings.vimlFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | VimL config files to load at startup |
+| <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
+| <code>neovim.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether the package takes its theme from `colorscheme.resolved`. |
 
 ### <code>nix-secrets</code>
 
@@ -379,7 +464,7 @@ Source: [<code>abstractions/modules/shell/default.nix</code>](../../abstractions
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>shell.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>shell.loginShell</code> | <code>value "zsh" (singular enum)</code> |  | Shell that becomes the user's login shell. |
+| <code>shell.loginShell</code> | <code>null or value "zsh" (singular enum)</code> | <code>null</code> | Shell that becomes the user's login shell; `null` leaves the login shell unmanaged. |
 
 ### <code>shield</code>
 

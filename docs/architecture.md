@@ -32,6 +32,16 @@ The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/def
 
 A module's name is its `myconfig` interface path, so choose it for the modules and hosts that reference it. Directory placement serves navigation and may differ from the name.
 
+A module also declares its common assertions at the top level: `assertions.always` is checked whatever its `enable`, `assertions.ifEnabled` while it is enabled. Each entry is an `{ assertion, message }` attribute set, or a function of the module's Denix arguments returning one, evaluated against the final `myconfig` and enforced by every module system. Assertions about one module system's outputs stay in that system's sections.
+
+## Rices and sources
+
+A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` choices spanning modules, on the same level as a host. It has no options, sections or `enable`. A host selects at most one with `rice`; only that rice joins the evaluation. A host extends a value its rice defines through the `riceConfig` argument of declaration files, which holds the rice's declarations as written.
+
+`myconfig` definitions are ordered by source: an option default < a module < the selected rice < the host. Authors write no `mkDefault` for this order. A higher source replaces only what it defines, following the declared types: below a submodule or an attribute set of values, each option or attribute keeps its own source, while a list or any other value is replaced whole. An option declared with `mylib.atomicOption` is replaced whole. A definition with an explicit priority keeps it. Sections of the other module systems keep their own merge rules.
+
+A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A role that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately.
+
 ## Declaring choices
 
 Whether a value is declared depends on whether its behavior was chosen, not on whether it differs from the default. A chosen behavior is declared even when its value equals the default.
@@ -41,6 +51,7 @@ A setting affects only the scope that needs it. User preferences are declared in
 ## Directory ownership
 
 - `abstractions/hosts/` owns machine-specific facts and choices.
+- `abstractions/rices/` owns rices: choices that span modules and that hosts select.
 - `abstractions/modules/` owns modules: application features and the capabilities other modules use, such as user services, user defaults and single-definer files. A module keeps its options and its Darwin, Hjem, and other module-system outputs together.
 - `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
@@ -67,15 +78,20 @@ These rules govern repository mechanisms, not feature applications or upstream i
 Each mechanism is specified at the top of its file and by its option descriptions.
 
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
+- `extensions/rices.nix`: rice registration, a host's `rice` selection, and `riceConfig`.
+- `extensions/module-assertions.nix`: modules' common assertions, enforced in every module system.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
 - `extensions/module-checks.nix`: module-owned inline cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
-- `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions.
+- `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
+- `lib/sources.nix`: source priorities, their descent along option types, and atomic options.
+- `lib/choice.nix`: single-choice options that candidates join by declaration.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
-- `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package; which bundles are published is chosen separately.
+- `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
 - `abstractions/modules/services/`: portable/native user service declarations and Darwin lowering, with lifecycle reconciliation in `reconciler/reconciler.cr`.
 - `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service names resolve through the services module's read-only targets.
+- `abstractions/modules/colorscheme/`: registered color schemes (data files in `schemes/`, with or without variants), the shared `colorscheme.selection`, and its validation and resolution to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, and a `useColorscheme` switch that leaves its colors unmanaged.
 - `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
 - `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `lib/plist.nix`: the plist values that services and defaults accept and their serialization.

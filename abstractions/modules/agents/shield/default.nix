@@ -90,11 +90,17 @@ in {
       };
   };
 
+  # Published where the packages build; whether they are available is read
+  # from their metadata without building them.
   bundles.ifEnabled = {pkgs, ...}: let
     packages = build pkgs;
+    bundle = package: {
+      inherit package;
+      publish = lib.meta.availableOn pkgs.stdenv.hostPlatform package;
+    };
   in {
-    shield.package = packages.shield;
-    keel.package = packages.keel;
+    shield = bundle packages.shield;
+    keel = bundle packages.keel;
   };
 
   checks = {
@@ -121,8 +127,9 @@ in {
       expr = result: map (name: deployed name result) (builtins.attrNames expected);
       expected = map (_: true) (builtins.attrNames expected);
     };
-    # A bundle is built for publication only when something publishes it.
-    publishKeel.bundles.always.keel.publish = true;
+    # The module publishes only where the packages build; these cases publish
+    # them anyway to inspect their derivations on every platform.
+    publishKeel.bundles.always.keel.publish = lib.mkForce true;
     declared = {
       settings = {
         defaultProvider = "fixture";
@@ -131,8 +138,8 @@ in {
       models.providers.fixture.baseUrl = "http://localhost:1/v1";
     };
     publishBoth.bundles.always = {
-      shield.publish = true;
-      keel.publish = true;
+      shield.publish = lib.mkForce true;
+      keel.publish = lib.mkForce true;
     };
   in
     # The Hjem configuration reads the secrets that nix-secrets declares.

@@ -58,16 +58,22 @@
   disabled = evaluate [feature] [{myconfig.fixture.enable = false;}];
   # Use the real bridge: a synthetic forwarder could hide missing wiring.
   assertionResult = assertion:
-    genBundles configuration.genSystem [
-      {
-        myconfig.assertions = [
-          {
-            inherit assertion;
-            message = "Bundle assertion probe";
-          }
-        ];
-      }
-    ];
+    genBundles
+    (configuration.extendModules {
+      modules = [
+        ({delib, ...}:
+          delib.module {
+            name = "assertion-probe";
+            meta.description = "Declare one common assertion.";
+            assertions.always = [
+              {
+                inherit assertion;
+                message = "Bundle assertion probe";
+              }
+            ];
+          })
+      ];
+    }).genSystem [];
   missingPackage = evaluate [
     ({delib, ...}:
       delib.module {
@@ -91,8 +97,7 @@
         private.package = pkgs.zsh;
       };
     };
-  # The assertions module declares the option the bundles adapter reads.
-  composed = genBundles (compose [../../abstractions/modules/assertions/default.nix probe]).genSystem [];
+  composed = genBundles (compose [probe]).genSystem [];
 
   # Force package values: attrNames alone would miss a lazy missing-option error.
   succeeds = result:

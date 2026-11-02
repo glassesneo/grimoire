@@ -18,6 +18,7 @@
     configuration = denix.lib.denixConfiguration {
       extraInputs = inputs;
       modules = [
+        ../../extensions/module-assertions.nix
         ../../extensions/module-dependencies.nix
         (feature "parent" true)
         ({delib, ...}:
@@ -44,20 +45,22 @@
           })
       ];
     };
-  in {
-    config =
+    evaluation =
       (lib.evalModules {
         modules = [
           (configuration.genModule {})
           {
-            options.myconfig.assertions = lib.mkOption {
+            options.assertions = lib.mkOption {
               type = lib.types.listOf lib.types.unspecified;
               default = [];
             };
           }
         ];
         specialArgs = {inherit pkgs;};
-      }).config.myconfig;
+      }).config;
+  in {
+    config = evaluation.myconfig;
+    inherit (evaluation) assertions;
   };
 
   normal = evaluate {};
@@ -84,9 +87,9 @@ in {
     && conflict.config.parent.child.enable
   ) "Module dependency defaults or overrides failed";
   assert lib.assertMsg (
-    lib.all (entry: entry.assertion) normal.config.assertions
-    && lib.all (entry: entry.assertion) disabled.config.assertions
-    && lib.any (entry: !entry.assertion) conflict.config.assertions
+    lib.all (entry: entry.assertion) normal.assertions
+    && lib.all (entry: entry.assertion) disabled.assertions
+    && lib.any (entry: !entry.assertion) conflict.assertions
   ) "An enabled child with a disabled parent must produce a failed assertion";
     pkgs.runCommand "module-dependencies-test" {} ''
       mkdir "$out"

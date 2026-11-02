@@ -37,7 +37,7 @@
         description = "Contributor modules by name: `delib.module` attributes without `name` or `meta.description`.";
       };
       moduleSystem = mkOption {
-        type = types.enum (lib.remove "myconfig" (builtins.attrNames config.moduleSystems));
+        type = types.enum (lib.subtractLists ["myconfig" "assertions"] (builtins.attrNames config.moduleSystems));
         default = "hjem";
         description = "Module system whose result the case observes.";
       };
