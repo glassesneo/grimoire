@@ -32,6 +32,8 @@
         ricePreferred = strOption "default";
         list = listOfOption str [];
         replacedList = listOfOption str [];
+        reports = mylib.accumulatingOption (listOfOption str []);
+        reportsByName = mylib.accumulatingOption (attrsOfOption str {});
         forced = strOption "default";
         conditional = strOption "default";
         settings = lib.mkOption {
@@ -59,7 +61,16 @@
         # A module-valued submodule, as mnw's settings, whose definitions may import.
         imported = lib.mkOption {
           type = lib.types.submoduleWith {
-            modules = [{options = lib.genAttrs ["kept" "riceReplaced" "hostReplaced" "functionImported" "pathImported"] (_: strOption "default");}];
+            modules = [
+              {options = lib.genAttrs ["kept" "riceReplaced" "hostReplaced" "functionImported" "pathImported"] (_: strOption "default");}
+              # An upstream option that its own module also defines, marked by
+              # the embedding module as collecting contributions.
+              {
+                options.reports = listOfOption str [];
+                config.reports = ["upstream"];
+              }
+              {options.reports = mylib.accumulatingOption (lib.mkOption {});}
+            ];
           };
           default = {};
         };
@@ -91,12 +102,15 @@
             hostReplaced = "module";
           }
           ({lib, ...}: {functionImported = lib.mkIf true "module";})
+          {reports = ["module"];}
           ./imported.nix
         ];
         scalar = "module";
         ricePreferred = "module";
         list = ["module"];
         replacedList = ["module"];
+        reports = lib.mkIf true ["module"];
+        reportsByName.module = "module";
         moduleValued = {lib, ...}: {plugins.module = lib.mkIf true "module";};
         forced = lib.mkForce "module";
         settings = {
@@ -142,6 +156,9 @@
     ricePreferred = "rice";
     list = ["rice"];
     replacedList = ["rice"];
+    reports = ["rice"];
+    reportsByName.rice = "rice";
+    imported.reports = ["rice"];
     moduleValued.plugins.rice = "rice";
     forced = "rice";
     conditional = "rice";
@@ -176,6 +193,9 @@
         # Extends the rice's list explicitly; a bare list would replace it.
         list = (riceConfig.probe.list or []) ++ ["host"];
         replacedList = ["host"];
+        reports = ["host"];
+        reportsByName.host = "host";
+        imported.reports = ["host"];
         moduleValued.plugins.host = "host";
         settings.keys = ["host"];
         items.entry.second = "host";
@@ -207,7 +227,16 @@
         }
         // lib.optionalAttrs (hostName != null) {host = hostName;})).options;
   in {
-    values = lib.mapAttrs (_: option: option.value) (removeAttrs options.myconfig.probe ["enable"]);
+    values = let
+      raw = lib.mapAttrs (_: option: option.value) (removeAttrs options.myconfig.probe ["enable"]);
+      sort = lib.sort lib.lessThan;
+    in
+      # The order of collected contributions is not part of the contract.
+      raw
+      // {
+        reports = sort raw.reports;
+        imported = raw.imported // {reports = sort raw.imported.reports;};
+      };
     # Only the definitions of the winning priority remain, so each source wins one.
     files = lib.concatMap (name: map (definition: definition.file) options.myconfig.probe.${name}.definitionsWithLocations) ["scalar" "ricePreferred" "forced"];
   };
@@ -230,11 +259,19 @@
       hostReplaced = "host";
       functionImported = "module";
       pathImported = "module";
+      reports = ["host" "module" "rice" "upstream"];
     };
     scalar = "host";
     ricePreferred = "rice";
     list = ["rice" "host"];
     replacedList = ["host"];
+    # Collected contributions: no source removes another's.
+    reports = ["host" "module" "rice"];
+    reportsByName = {
+      module = "module";
+      rice = "rice";
+      host = "host";
+    };
     moduleValued.plugins = {
       module = "module";
       rice = "rice";

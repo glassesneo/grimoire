@@ -64,7 +64,11 @@ in
               inherit pkgs;
               modulesPath = "${inputs.mnw}/modules";
             };
-            modules = ["${inputs.mnw}/modules/options.nix"];
+            modules = [
+              "${inputs.mnw}/modules/options.nix"
+              # Every source's assertions and warnings reach mnw beside its own.
+              {options = lib.genAttrs ["assertions" "warnings"] (_: mylib.accumulatingOption (lib.mkOption {}));}
+            ];
           };
           default = {};
           description = "mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory.";
@@ -153,6 +157,13 @@ in
         moduleSystem = "bundles";
         expr = result: result.packages.neovim.drvPath;
         fails = true;
+      };
+      lower-source-warnings-reported = {
+        uses = ["colorscheme"];
+        modules.fixture-feature.myconfig.always.neovim.settings.warnings = ["fixture"];
+        moduleSystem = "bundles";
+        expr = result: lib.elem "fixture" result.packages.neovim.config.warnings;
+        expected = true;
       };
       bundles = {
         uses = ["colorscheme"];

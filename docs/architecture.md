@@ -40,6 +40,8 @@ A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` c
 
 `myconfig` definitions are ordered by source: an option default < a module < the selected rice < the host. Authors write no `mkDefault` for this order. A higher source replaces only what it defines, following the declared types: below a submodule or an attribute set of values, each option or attribute keeps its own source, while a list or any other value is replaced whole. An option declared with `mylib.atomicOption` is replaced whole. A definition with an explicit priority keeps it. Sections of the other module systems keep their own merge rules.
 
+The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's. A module that embeds upstream options marks those that collect by applying it to a declaration without a type.
+
 A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A role that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately.
 
 ## Declaring choices
@@ -85,7 +87,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/module-checks.nix`: module-owned inline cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
-- `lib/sources.nix`: source priorities, their descent along option types, and atomic options.
+- `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
 - `lib/choice.nix`: single-choice options that candidates join by declaration.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.

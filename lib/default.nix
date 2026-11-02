@@ -5,6 +5,6 @@ in {
   fragments = import ./fragments.nix {inherit lib;};
   plist = import ./plist.nix {inherit lib;};
   inherit sources;
-  inherit (sources) atomicOption;
+  inherit (sources) accumulatingOption atomicOption;
   inherit (import ./rices.nix {}) rice;
 }

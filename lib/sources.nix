@@ -14,6 +14,17 @@
 # priorities per option before merging, so a nullable value cannot both merge
 # across sources and let `null` follow their order. An option declared with
 # `atomicOption` stops the descent: a higher source replaces it as a whole.
+#
+# Priorities order choices. An option that collects contributions instead,
+# such as assertions or warnings, is declared with `accumulatingOption` and
+# stays outside that order: its definitions from every source, and from the
+# module that declares it, receive no source priority and merge by its type,
+# so a higher source cannot remove a lower one's contribution. A type that
+# does not merge several definitions rejects them as conflicting. Applied to
+# a declaration without a type, `accumulatingOption` marks an option that
+# another module declares, such as an upstream option in a submodule; the
+# module embedding that upstream declares which of its options accumulate.
+#
 # `mkIf` and `mkMerge` are kept and descended into; a value the author already
 # gave an explicit priority keeps it. Function definitions of a submodule are
 # wrapped and still receive the arguments they request. Modules a definition
@@ -21,8 +32,9 @@
 # Definitions of undeclared attributes, such as freeform settings, receive the
 # priority as a whole.
 {lib}: let
-  # Internal marker; read only through `isAtomic`.
+  # Internal markers; read only through `isAtomic` and `isAccumulating`.
   marker = "_grimoireAtomic";
+  accumulatingMarker = "_grimoireAccumulating";
 
   # Attributes of a shorthand module that are not configuration.
   moduleAttributes = ["_class" "_file" "key" "disabledModules" "require" "imports" "freeformType"];
@@ -31,6 +43,7 @@
   isPlainAttrs = value: builtins.isAttrs value && !(value ? _type) && !lib.isDerivation value;
 
   isAtomic = option: option.${marker} or false;
+  isAccumulating = option: option.${accumulatingMarker} or false;
 
   prioritize = priority: let
     wrap = lib.mkOverride priority;
@@ -70,6 +83,8 @@
     in
       if property != null
       then property
+      else if isAccumulating declaration
+      then value
       else if isAtomic declaration
       then wrap value
       else typed declaration.type value;
@@ -123,7 +138,7 @@
   in
     module;
 in {
-  inherit isAtomic prioritize;
+  inherit isAccumulating isAtomic prioritize;
 
   priorities = {
     module = 1000;
@@ -132,4 +147,5 @@ in {
   };
 
   atomicOption = option: option // {${marker} = true;};
+  accumulatingOption = option: option // {${accumulatingMarker} = true;};
 }
