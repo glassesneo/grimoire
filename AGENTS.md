@@ -8,7 +8,7 @@ This file owns the agent rules no other document covers and summarizes the conce
 - A module declares options under `myconfig.<name>`, and its name is that interface path. A dotted module such as `zsh.interactive` is enabled only when its parent is.
 - Modules and hosts write configuration in sections per module system: `always`, `ifEnabled`, and `ifDisabled`. The module systems are `darwin` (nix-darwin), `hjem` (user files, through `adapters/hjem/default.nix`), `bundles` (published packages, through `adapters/bundles.nix`), and `myconfig`.
 - Adapters evaluate module systems and own the common contract of their results and application; extensions extend Denix's module and host declarations and evaluation rules; modules abstract capabilities, including those other modules use, such as user services, user defaults and single-definer files.
-- `myconfig` is merged into every module system's evaluation, so it carries choices that mean the same everywhere. Values one system computes stay in that system's sections.
+- `myconfig` is the input layer, merged into every module system's evaluation: it carries choices, data, and values derived from inputs alone, which each module system lowers into its own form. Values that depend on one system's evaluation stay in that system's sections.
 - A rice (`mylib.rice`, under `abstractions/rices/`) is a named set of `myconfig` choices that a host selects with `rice`. `myconfig` definitions are ordered option default < module < rice < host along the declared types, without `mkDefault`; a higher source replaces a list whole, and a host extends its rice's value through `riceConfig`. Options declared with `mylib.accumulatingOption`, such as assertions and warnings, collect every source's contributions outside this order.
 - A value is declared when its behavior was chosen, even if it equals the default. User preferences go through Hjem; settings applied with root privileges are limited to what the user's domain cannot achieve.
 - A feature keeps all of its module-system outputs together, and every shared output has one owner. Files several features contribute to are owned by one module and receive the others' contributions as ordered fragments.
@@ -29,7 +29,8 @@ For repository changes:
 
 1. Stage new files before flake evaluation; flakes read Git-tracked files.
 2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `checks/<name>`, or the `module-<name>` check for a module's checks.
-3. Before completion, run `nix flake check` (or `just check-full`). Commit runs only selected checks; pre-push runs the full gate on outgoing tip trees (`docs/operations.md`).
+3. When adding or changing a check case, confirm that it fails against an implementation that violates the statement it covers, such as the code before a fix or a deliberate breakage restored afterwards, and report the result.
+4. Before completion, run `nix flake check` (or `just check-full`). Commit runs only selected checks; pre-push runs the full gate on outgoing tip trees (`docs/operations.md`).
 
 For read-only work, report what was inspected and which behavior remains unverified; do not run a formatter as part of the inspection.
 
