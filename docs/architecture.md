@@ -4,7 +4,7 @@ This file describes the architecture of grimoire: its composition, the concepts 
 
 Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
 
-Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, and [the authoring reference](generated/authoring.md) for every option that modules and hosts write.
+Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, [the authoring reference](generated/authoring.md) for every option that modules and hosts write, and [Module Authoring](module-authoring.md) for the judgments made when designing and validating a module.
 
 ## Composition
 
@@ -28,7 +28,9 @@ Both write configuration in sections per module system, such as `darwin.ifEnable
 
 Option declarations go in `always`; a conditional section cannot declare options.
 
-The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/default.nix`), `bundles` (feature-owned packages selected for publication, through `adapters/bundles.nix`), and `myconfig`. `myconfig` is not evaluated on its own: Denix merges it into every other module system's evaluation under the `myconfig` prefix. A `myconfig` value is therefore seen by every module system and must mean the same in each. A value that only means something inside one system, such as a path or derivation that system computes, belongs to that system's sections.
+The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/default.nix`), `bundles` (feature-owned packages selected for publication, through `adapters/bundles.nix`), and `myconfig`. `myconfig` is not evaluated on its own: Denix merges it into every other module system's evaluation under the `myconfig` prefix. A `myconfig` value is therefore seen by every module system and must mean the same in each.
+
+`myconfig` is the input layer. A capability's choices and data are written there, and each module system reads them and lowers them into its own form. A `myconfig` value is determined by inputs alone: flake inputs, host facts, and the sources' choices. A value derived from them, however indirectly, belongs there too, including a package built from the `pkgs` that each system instantiates from those inputs. A value that depends on one module system's evaluation, such as a location Hjem decides for a file or nix-darwin's `config`, belongs to that system's sections.
 
 A module's name is its `myconfig` interface path, so choose it for the modules and hosts that reference it. Directory placement serves navigation and may differ from the name.
 
@@ -39,6 +41,8 @@ A module also declares its common assertions at the top level: `assertions.alway
 A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` choices spanning modules, on the same level as a host. It has no options, sections or `enable`. A host selects at most one with `rice`; only that rice joins the evaluation. A host extends a value its rice defines through the `riceConfig` argument of declaration files, which holds the rice's declarations as written.
 
 `myconfig` definitions are ordered by source: an option default < a module < the selected rice < the host. Authors write no `mkDefault` for this order. A higher source replaces only what it defines, following the declared types: below a submodule or an attribute set of values, each option or attribute keeps its own source, while a list or any other value is replaced whole. An option declared with `mylib.atomicOption` is replaced whole. A definition with an explicit priority keeps it. Sections of the other module systems keep their own merge rules.
+
+The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's. A module that embeds upstream options marks those that collect by applying it to a declaration without a type.
 
 A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A role that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately.
 
@@ -60,6 +64,8 @@ A setting affects only the scope that needs it. User preferences are declared in
 - `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
+
+A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
 
 A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its check fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
@@ -85,7 +91,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/module-checks.nix`: module-owned inline cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
-- `lib/sources.nix`: source priorities, their descent along option types, and atomic options.
+- `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
 - `lib/choice.nix`: single-choice options that candidates join by declaration.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
@@ -104,14 +110,7 @@ Each mechanism is specified at the top of its file and by its option description
 
 A check belongs under `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
 
-Each kind of validation answers a different question:
-
-- An option type rejects a single invalid value where it is defined.
-- An assertion rejects a configuration whose choices are invalid together. It runs on every evaluation of a real configuration and addresses whoever wrote those choices.
-- An inline check shows that a module's implementation is correct on chosen inputs. It runs only as a check and addresses the module's author. A condition that no configuration choice can break, only a defect in the module, belongs here rather than in an assertion.
-- A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations.
-
-A module's own contract — what its options produce and reject — is checked by the module's `checks`, beside its definition. Each case uses the adapters and extensions of `flake.nix` with only that module, the modules explicitly named in `uses`, infrastructure, and fixture contributors. A case either compares an evaluated value, expects an evaluation/assertion failure, or builds a derivation from the fixture result. Platform filtering precedes fixture generation; supported cases aggregate into one check per module. Build cases stay with their owning feature rather than reading published packages to bypass the fixture.
+A module's option types, assertions and `checks` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; an assertion runs on every evaluation of a real configuration, a check only as a check. A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's.
 
 Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
 

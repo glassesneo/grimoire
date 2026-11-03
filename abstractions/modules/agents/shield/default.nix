@@ -130,6 +130,13 @@ in {
     # The module publishes only where the packages build; these cases publish
     # them anyway to inspect their derivations on every platform.
     publishKeel.bundles.always.keel.publish = lib.mkForce true;
+    # Publication follows where the packages build, read for a fixture system.
+    publication = fixtureSystem: {
+      moduleSystem = "bundles";
+      host.system = fixtureSystem;
+      expr = result: builtins.attrNames result.packages;
+      expected = lib.optionals (lib.elem fixtureSystem (import ./platforms.nix)) ["keel" "shield"];
+    };
     declared = {
       settings = {
         defaultProvider = "fixture";
@@ -144,6 +151,8 @@ in {
   in
     # The Hjem configuration reads the secrets that nix-secrets declares.
     lib.mapAttrs (_: case: {uses = ["nix-secrets"];} // case) {
+      published-where-available = publication (builtins.head (import ./platforms.nix));
+      unpublished-elsewhere = publication "x86_64-linux";
       keel = {
         moduleSystem = "bundles";
         modules.publish = publishBoth;

@@ -18,6 +18,7 @@ The absence of a written contract alone does not justify adding one. When a new 
 
 - `README.org` introduces grimoire to third-party readers on GitHub. Working in the repository does not depend on reading it.
 - `docs/architecture.md` describes this repository's composition, concepts, directory responsibilities, and mechanism index. It assumes Nix knowledge and is not a general guide to Denix rewrite.
+- `docs/module-authoring.md` owns the judgments made when designing a module's interface and validating it. It applies the concepts of `docs/architecture.md` without restating their definitions.
 - A mechanism's contract belongs beside its implementation: its contract comment and option descriptions. Its checks exercise that contract.
 - `justfile` and `just/*.just` own recipe documentation and argument help, read through `just --list` and `just --usage`.
 - `docs/operations.md` owns operational information that does not belong to an individual recipe, including development-shell setup, commit automation, and live verification procedures.
