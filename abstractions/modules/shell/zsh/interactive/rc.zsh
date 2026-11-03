@@ -1,3 +1,7 @@
+# Zsh starts in the vi keymap when EDITOR names vi, as nvim does; bindings
+# made later go into the emacs keymap this selects.
+bindkey -e
+
 HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
 HISTSIZE=10000
 SAVEHIST=10000

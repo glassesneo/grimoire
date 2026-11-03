@@ -109,6 +109,8 @@ delib.module {
           test -f "$theme"
           grep -F '${stateDir}/hjem/standalone/current-profile' "$zshrc"
           grep -Fx 'source ${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh' "$zshrc"
+          HOME="$PWD" EDITOR=nvim zsh -fic "source $zshrc; bindkey -lL main" > keymap
+          grep -Fx 'bindkey -A emacs main' keymap
           touch "$out"
         '';
     };
