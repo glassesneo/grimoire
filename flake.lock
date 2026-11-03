@@ -152,6 +152,26 @@
         "type": "github"
       }
     },
+    "elio": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793659294,
+        "narHash": "sha256-NVgd4wHVdou578hwbOSUid/vyiKHrt/j823vQzTHjzw=",
+        "owner": "elio-fm",
+        "repo": "elio",
+        "rev": "3de54b906f0a276d77c9bd9e607373202c4905ba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "elio-fm",
+        "repo": "elio",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -588,6 +608,7 @@
         ],
         "cask2nix": "cask2nix",
         "denix": "denix",
+        "elio": "elio",
         "git-hooks": "git-hooks_2",
         "hjem": "hjem",
         "llm-agents": "llm-agents",

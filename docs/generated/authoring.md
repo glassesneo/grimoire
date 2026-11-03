@@ -254,6 +254,27 @@ Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstracti
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of user services (`userServices` or `platform.darwin.launchAgents`) to restart. |
 | <code>platform.darwin.defaults.&lt;name&gt;.settings</code> | <code>attribute set of anything</code> | <code>{ }</code> | Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole. |
 
+### <code>elio</code>
+
+Provide and publish elio, configure its settings and theme, and integrate it with Zsh.
+
+Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/modules/elio/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>elio.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>elio.package</code> | <code>package</code> | <code>elio: elio</code> |  |
+| <code>elio.settings</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> | Settings written to elio's `config.toml`, by table and key. |
+| <code>elio.theme</code> | <code>submodule</code> | <code>{ }</code> | Tables of elio's `theme.toml`, overriding elio's built-in theme; with every table empty, no file is written. |
+| <code>elio.theme.classes</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.directories</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.extensions</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.files</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.focused_entry</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.palette</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether elio takes its colors from `colorscheme.resolved`. |
+
 ### <code>exclusive</code>
 
 Reject a second definition of a file that one location must own.

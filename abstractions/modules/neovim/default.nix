@@ -98,6 +98,10 @@ in
         cfg.package
       ];
 
+      # A name rather than a store path: the session keeps the value it logged
+      # in with, and a path would go stale when the package is rebuilt.
+      environment.sessionVariables.EDITOR = "nvim";
+
       zsh.zabrze.snippets.neovim = {
         trigger = "nv";
         snippet = "nvim";

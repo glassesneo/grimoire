@@ -266,6 +266,11 @@
       url = "github:natsukium/nix-mac-app-identity";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # nixpkgs does not package elio.
+    elio = {
+      url = "github:elio-fm/elio";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     llm-agents.url = "github:numtide/llm-agents.nix";
     # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
     # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.
