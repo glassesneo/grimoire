@@ -2,4 +2,3 @@ logfile
 biome.json
 .direnv/
 node_modules/
-/abstractions/modules/agents/shield/dist/

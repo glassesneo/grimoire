@@ -537,21 +537,6 @@ Source: [<code>abstractions/modules/shell/default.nix</code>](../../abstractions
 | <code>shell.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>shell.loginShell</code> | <code>null or value "zsh" (singular enum)</code> | <code>null</code> | Shell that becomes the user's login shell; `null` leaves the login shell unmanaged. |
 
-### <code>shield</code>
-
-Provide the SHIELD process hub and the keel agent screens it attaches.
-
-Source: [<code>abstractions/modules/agents/shield/default.nix</code>](../../abstractions/modules/agents/shield/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>shield.defaultModel</code> | <code>null or string matching the pattern [^/]+/.+</code> | <code>"openai/gpt-6.1-sol"</code> | Model, as provider/id, that a new keel agent uses when `settings` names neither defaultProvider nor defaultModel; it is written into the deployed settings.json. null leaves the choice to Pi. |
-| <code>shield.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>shield.extensions</code> | <code>null or (list of non-empty string)</code> | <code>[<br>  "commands"<br>  "model"<br>  "timeline"<br>  "markdown"<br>  "tools"<br>  "codemode"<br>  "queue"<br>  "commandcode"<br>]</code> | Extensions keel loads, deployed read-only as keel/extensions.json. An entry of lowercase letters, digits, and hyphens names an extension keel ships; any other entry, such as `mine.ts` or `/abs/ext.ts`, is the path of an extension file, absolute or relative to the configuration directory. keel loads no other Pi extension. null leaves extensions.json unmanaged. |
-| <code>shield.extraPackages</code> | <code>list of package</code> | <code>[ ]</code> | Packages whose bin directories lead the PATH of a new agent, ahead of the PATH inherited from the keel screen that starts it, and which are not installed for the user. |
-| <code>shield.models</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Pi models.json content (providers and their models), deployed read-only as keel/models.json; an empty set is deployed as {"providers": {}}, the form Pi requires. A value written here is stored in the world-readable Nix store, so write a credential as a runtime reference such as `!&lt;absolute command&gt; &lt;quoted secret path&gt;` that Pi runs when it needs the key. When the Hjem configuration declares the secret command-code-api-key, providers.command-code.apiKey defaults to such a reference; a value written here takes precedence. |
-| <code>shield.settings</code> | <code>attribute set of JSON values without apiKeys</code> | <code>{ }</code> | Pi settings, deployed read-only as keel/settings.json under the XDG config directory, keel's default configuration directory. Pi's own keys pass through unchanged; the key `apiKeys` is rejected, because Pi would migrate it into auth.json by rewriting the file and its values would enter the Nix store. Give credentials through `models` as a runtime reference or through Pi's auth.json. Changing the model or thinking level in keel is stored in the conversation, never here. |
-
 ### <code>skills</code>
 
 Declare harness-independent skills and deploy them for agent use.

@@ -39,7 +39,3 @@ check name:
 # Run all current-system checks, including formatting and reference freshness, on the tracked working tree.
 check-full:
   nix flake check --no-update-lock-file
-
-# Regenerate SHIELD's contract schemas and their TypeScript modules from the TypeSpec sources; the shield module's contracts case checks they are current.
-shield-contracts:
-  out="$(nix build --no-link --print-out-paths --no-update-lock-file '.#shield.contracts')" && rm -rf abstractions/modules/agents/shield/contracts/generated && install -d abstractions/modules/agents/shield/contracts/generated && install -m 0644 "$out"/* abstractions/modules/agents/shield/contracts/generated/

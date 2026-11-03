@@ -100,16 +100,11 @@
         settings.global.excludes = ["**/bun.nix"];
         programs = {
           alejandra.enable = true;
-          # The SHIELD hub builds with this Elixir, so both agree on mix format's style.
           # JSON and Markdown stay out: Bun rewrites package.json, and
           # docs/generated is compared with `just docs` output.
           oxfmt = {
             enable = true;
             includes = ["*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs"];
-          };
-          mix-format = {
-            enable = true;
-            package = pkgs.beamPackages.elixir;
           };
           just = {
             enable = true;
@@ -156,24 +151,18 @@
         else existingPackages // publishedBundles;
 
       devShells.default = pkgs.mkShellNoCC {
-        packages =
-          [
-            pkgs.just
-            pkgs.nushell
-            pkgs.bun
-            pkgs.oxfmt
-            pkgs.oxlint
-            pkgs.tsgolint
-            inputs.bun2nix.packages.${system}.default
-            pkgs.emmylua-ls
-            pkgs.emmylua-check
-            self.packages.${system}.hjem
-          ]
-          ++ lib.optionals (self.packages.${system} ? shield) [
-            self.packages.${system}.shield
-            self.packages.${system}.keel
-            pkgs.beamPackages.elixir
-          ];
+        packages = [
+          pkgs.just
+          pkgs.nushell
+          pkgs.bun
+          pkgs.oxfmt
+          pkgs.oxlint
+          pkgs.tsgolint
+          inputs.bun2nix.packages.${system}.default
+          pkgs.emmylua-ls
+          pkgs.emmylua-check
+          self.packages.${system}.hjem
+        ];
         inherit (commitHooks) shellHook;
       };
 
