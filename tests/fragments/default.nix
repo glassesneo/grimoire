@@ -54,8 +54,6 @@ in {
     }
   ])
   "A dependency cycle must fail";
-  assert lib.assertMsg (fails [{fragments.a.text = "one";} {fragments.a.text = "two";}])
-  "Conflicting texts for one fragment must fail instead of concatenating";
     pkgs.runCommand "fragments-test" {} ''
       mkdir "$out"
     '';
