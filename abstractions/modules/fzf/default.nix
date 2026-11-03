@@ -36,7 +36,7 @@ in
       useColorscheme = boolOption true "Whether fzf takes its colors from `colorscheme.resolved`.";
     };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     hjem.ifEnabled = {pkgs, ...}: let
       fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix -E .agents -E .DS_Store -E .direnv -E .envrc -E var/";
@@ -71,7 +71,7 @@ in
       };
     };
 
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       host = extra: {
         uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
         host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;

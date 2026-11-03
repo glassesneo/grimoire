@@ -2,13 +2,13 @@
 # type/lint roots, or an unchecked directory with an explicit reason.
 {
   pkgs,
-  moduleCheckInfo,
+  moduleTestInfo,
   ...
 }: let
   inherit (pkgs) lib;
   root = ../..;
   unchecked = {};
-  roots = lib.concatMap (info: info.tsRoots) (builtins.attrValues moduleCheckInfo) ++ builtins.attrNames unchecked;
+  roots = lib.concatMap (info: info.tsRoots) (builtins.attrValues moduleTestInfo) ++ builtins.attrNames unchecked;
   covered = declared: file: lib.any (dir: dir == "." || lib.hasPrefix "${dir}/" file) declared;
   uncoveredFiles = declared: lib.filter (file: !covered declared file);
   files =

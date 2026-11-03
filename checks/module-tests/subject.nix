@@ -23,7 +23,7 @@ delib.module {
     files.${config.marker}.text = config.marker;
   };
 
-  checks = {
+  tests = {
     home,
     pkgs,
     ...

@@ -20,7 +20,7 @@ in
     myconfig.ifEnabled.elio.sourceFiles = sourceFiles;
 
     # The replacements were written against the files of the locked upstream source.
-    checks = _: {
+    tests = _: {
       upstream = mylib.sourceFiles.upstreamCase inputs.elio sourceFiles;
     };
   }

@@ -1,17 +1,18 @@
-# Owns the common assertions that modules declare.
+# Owns the constraints that modules declare.
 #
-# A module writes `assertions.always`, checked whatever its enable, and
-# `assertions.ifEnabled`, checked while its `enable` is true. Each entry is an
-# `{ assertion, message }` attribute set and receives the module's Denix
+# A module writes `constraints.always`, checked whatever its enable, and
+# `constraints.ifEnabled`, checked while its `enable` is true. Each entry is an
+# `{ assertion, message }` attribute set, the shape of module systems' own
+# `assertions`, and receives the module's Denix
 # arguments, such as `cfg` and `myconfig`, from the final `myconfig` of the
 # evaluation. Denix reads the number of entries before it has those arguments,
 # so the list's shape must not depend on them; a variable number of problems
 # goes into one entry. Every module system that Denix evaluates enforces them through
 # its own `assertions`, so an invalid combination of choices fails ordinary
-# configuration builds as well as checks. Assertions about one module system's
+# configuration builds as well as tests. Assertions about one module system's
 # outputs stay in that system's sections.
 #
-# `assertions` is registered as a module system only so that Denix gives its
+# `constraints` is registered as a module system only so that Denix gives its
 # sections the module's arguments; it is never evaluated or published, and
 # `ifDisabled` sections and host sections are rejected.
 {
@@ -25,10 +26,10 @@
 
   unsupported =
     lib.concatLists (lib.mapAttrsToList (name: module:
-      lib.optional (module.assertions.ifDisabled != []) "module ${name}: assertions.ifDisabled")
+      lib.optional (module.constraints.ifDisabled != []) "module ${name}: constraints.ifDisabled")
     config.modules)
     ++ lib.concatLists (lib.mapAttrsToList (name: host:
-      lib.optional (lib.any (section: host.assertions.${section} != []) ["always" "ifEnabled" "ifDisabled"]) "host ${name}: assertions")
+      lib.optional (lib.any (section: host.constraints.${section} != []) ["always" "ifEnabled" "ifDisabled"]) "host ${name}: constraints")
     config.hosts);
 
   enforce = {
@@ -58,19 +59,19 @@
         }
         entry;
     in {inherit (result) assertion message;};
-    moduleAssertions = name: module:
+    moduleConstraints = name: module:
       map (evaluate name) (
-        module.assertions.always
-        ++ lib.optionals (delib.getAttrByStrPath config "${withPrefix name}.enable" false) module.assertions.ifEnabled
+        module.constraints.always
+        ++ lib.optionals (delib.getAttrByStrPath config "${withPrefix name}.enable" false) module.constraints.ifEnabled
       );
   in {
-    _file = ./module-assertions.nix;
-    assertions = lib.concatLists (lib.mapAttrsToList moduleAssertions denixConfig.modules);
+    _file = ./module-constraints.nix;
+    assertions = lib.concatLists (lib.mapAttrsToList moduleConstraints denixConfig.modules);
   };
 
   denixConfig = config;
 in {
-  moduleSystems.assertions = {
+  moduleSystems.constraints = {
     flakeOutputs = {
       modules = null;
       systems = null;
@@ -80,9 +81,9 @@ in {
 
   # Joins only evaluations of a module system that declares `assertions`; a
   # `myconfig`-only evaluation, such as the authoring reference, has none.
-  rawModules.assertions = lib.optionals (config.moduleSystem.name or null != "myconfig") (
+  rawModules.constraints = lib.optionals (config.moduleSystem.name or null != "myconfig") (
     if unsupported != []
-    then throw "Common assertions support only module `always` and `ifEnabled` sections; found ${lib.concatStringsSep ", " unsupported}."
+    then throw "Constraints support only module `always` and `ifEnabled` sections; found ${lib.concatStringsSep ", " unsupported}."
     else [enforce]
   );
 }

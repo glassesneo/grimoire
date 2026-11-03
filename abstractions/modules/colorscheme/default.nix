@@ -139,14 +139,14 @@ in
 
     myconfig.always.colorscheme.schemes = builtinSchemes;
 
-    assertions.always = [
+    constraints.always = [
       {
         assertion = problems == [];
         message = lib.concatStringsSep "\n" problems;
       }
     ];
 
-    checks = _: let
+    tests = _: let
       variantScheme = {
         default = "dark";
         variants = {

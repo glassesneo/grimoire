@@ -19,7 +19,7 @@ delib.module ({myconfig, ...}: {
     system.defaults.smb.NetBIOSName = myconfig.host.user.name;
   };
 
-  checks = _: {
+  tests = _: {
     known-user = {
       uses = ["host" "nixpkgs"];
       host.user.uid = 502;

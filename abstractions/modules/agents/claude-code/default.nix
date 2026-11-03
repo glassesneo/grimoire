@@ -41,7 +41,7 @@ in
       useColorscheme = boolOption true "Whether Claude Code takes its theme from `colorscheme.resolved`.";
     };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     hjem.ifEnabled = {
       packages = [myconfig.agents.packages.claude-code];
@@ -52,7 +52,7 @@ in
       };
     };
 
-    checks = _: let
+    tests = _: let
       host = extra: {
         uses = ["agents" "colorscheme"];
         host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;

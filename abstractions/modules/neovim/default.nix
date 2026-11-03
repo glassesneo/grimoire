@@ -79,7 +79,7 @@ in
         package = packageOption (mkPackage pkgs colorscheme);
       };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
@@ -128,7 +128,7 @@ in
 
     # A fixture stands in for a feature module, so the case covers how
     # contributions reach the package rather than any particular feature.
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       hasTheme = package: lib.elem pkgs.vimPlugins.rose-pine package.config.plugins.start;
     in {
       feature-contribution = {

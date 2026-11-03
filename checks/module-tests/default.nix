@@ -19,7 +19,7 @@
           ../../adapters/hjem
           ../../extensions/hosts.nix
           ../../extensions/module-metadata.nix
-          ../../extensions/module-checks.nix
+          ../../extensions/module-tests.nix
         ]
         ++ abstractions;
     };
@@ -31,13 +31,13 @@
       delib.module {
         name = "${name}";
         meta.description = "Hold a test case that must not hold.";
-        checks = _: {case = ${case};};
+        tests = _: {case = ${case};};
       }
     '';
 
   failingModules = {
     mismatch = "{expr = _: 1; expected = 2;}";
-    unmatched-assertion = ''{fails = "no such assertion";}'';
+    unmatched-constraint = ''{fails = "no such constraint";}'';
     no-throw = "{expr = _: 1; fails = true;}";
     ambiguous = ''{expr = _: 1; expected = 1; fails = "x";}'';
     neither = "{expr = _: 1;}";
@@ -57,16 +57,16 @@
     ]
     ++ lib.mapAttrsToList failing failingModules);
 
-  checks = import ../../lib/module-checks.nix {inherit lib;} {
+  checks = import ../../lib/module-tests.nix {inherit lib;} {
     inherit compose configuration pkgs system;
     infrastructure = [];
   };
 
   evaluates = check: (builtins.tryEval (builtins.deepSeq check.drvPath true)).success;
   infoFor = configuration:
-    configuration.config.moduleCheckInfo {
+    configuration.config.moduleTestInfo {
       inherit pkgs system;
-      home = "/tmp/module-checks";
+      home = "/tmp/module-tests";
       root = ../..;
       oxlintConfig = ../../.oxlintrc.json;
       infrastructure = [];
@@ -75,7 +75,7 @@
     delib.module {
       inherit name;
       meta.description = "Exercise conservative dependency closure.";
-      checks = _: {
+      tests = _: {
         edge = {
           inherit uses platforms;
           expr = _: true;
@@ -91,7 +91,7 @@
     (graphModule "leaf" ["branch"] [system])
   ];
   graph = infoFor graphConfiguration;
-  graphChecks = import ../../lib/module-checks.nix {inherit lib;} {
+  graphChecks = import ../../lib/module-tests.nix {inherit lib;} {
     inherit pkgs system;
     configuration = graphConfiguration;
     infrastructure = [];
@@ -101,7 +101,7 @@
   # An unknown field is a declaration error, rejected when the cases are discovered.
   unknownField = infoFor (compose [(failing "unknown-field" "{expr = _: 1; expected = 1; expectd = 1;}")]);
   coverage = (infoFor configuration).subject.tsRoots;
-  lazyChecks = import ../../lib/module-checks.nix {inherit lib;} {
+  lazyChecks = import ../../lib/module-tests.nix {inherit lib;} {
     inherit configuration pkgs system;
     infrastructure = [];
     compose = _: throw "fixture generated while discovering names";
@@ -113,7 +113,7 @@
           delib.module {
             name = "coverage";
             meta.description = "Exercise invalid coverage roots.";
-            checks = _: {
+            tests = _: {
               case = {
                 tsRoots = [path];
                 platforms = [];
@@ -128,12 +128,12 @@
       {delib, ...}: delib.module {
         name = "build-failure";
         meta.description = "Exercise aggregate builder failure.";
-        checks = {pkgs, ...}: {failure.build = _: pkgs.runCommand "intentional-module-failure" {} "exit 1";};
+        tests = {pkgs, ...}: {failure.build = _: pkgs.runCommand "intentional-module-failure" {} "exit 1";};
       }
     '')
   ];
   failingAggregate =
-    (import ../../lib/module-checks.nix {inherit lib;} {
+    (import ../../lib/module-tests.nix {inherit lib;} {
       inherit compose pkgs system;
       configuration = failingConfiguration;
       infrastructure = [];
@@ -147,7 +147,7 @@ in {
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
   assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;
-  assert coverage == ["checks/module-checks" "checks/module-checks/sub/nested"];
+  assert coverage == ["checks/module-tests" "checks/module-tests/sub/nested"];
   assert !(invalidRoot "../outside");
   assert !(invalidRoot "/absolute");
   assert evaluates failingAggregate;

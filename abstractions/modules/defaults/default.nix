@@ -173,7 +173,7 @@ delib.module {
 
   # Lowering is observed before serialization; lib/plist.nix owns plist syntax.
   # The reconciler build runs its own specs for runtime transitions.
-  checks = {pkgs, ...}: let
+  tests = {pkgs, ...}: let
     inherit (pkgs) lib;
     darwin = ["aarch64-darwin"];
     inf = 1.0e308 * 10.0;

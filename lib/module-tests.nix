@@ -1,4 +1,4 @@
-# Evaluate applicable inline cases declared by `extensions/module-checks.nix`.
+# Evaluate applicable inline test cases declared by `extensions/module-tests.nix`.
 # Returns one module-<name> aggregate per module with applicable cases. Evaluation
 # mismatches throw with module/case context; build results are realized as actual
 # dependencies, so a failed builder fails the aggregate.
@@ -13,10 +13,10 @@
   pkgs,
   system,
 }: let
-  home = "/tmp/module-checks";
+  home = "/tmp/module-tests";
   defines = case: field: lib.elem field case.defined;
 
-  info = configuration.config.moduleCheckInfo {
+  info = configuration.config.moduleTestInfo {
     inherit pkgs system home infrastructure;
     oxlintConfig = ../.oxlintrc.json;
     root = ../.;
@@ -37,7 +37,7 @@
   contributor = name: attrs: {delib, ...}:
     delib.module ({
         inherit name;
-        meta.description = "Contribute to a module check fixture.";
+        meta.description = "Contribute to a module test fixture.";
       }
       // attrs);
 
@@ -94,7 +94,7 @@
       else null;
     pretty = lib.generators.toPretty {};
   in
-    builtins.addErrorContext "while evaluating check case '${caseName}' of module '${name}'" (
+    builtins.addErrorContext "while evaluating test case '${caseName}' of module '${name}'" (
       if builtins.length (lib.filter has ["expected" "fails" "build"]) != 1
       then "exactly one of expected/fails/build must be set"
       else if has "build" && has "expr"
@@ -135,7 +135,7 @@
         for build in $builds; do test -e "$build"; done
       ''
     else
-      throw "module '${name}' failed ${toString (builtins.length (builtins.attrNames failures))} check case(s):\n${
+      throw "module '${name}' failed ${toString (builtins.length (builtins.attrNames failures))} test case(s):\n${
         lib.concatStringsSep "\n" (lib.mapAttrsToList (caseName: reason: "- ${caseName}: ${reason}") failures)
       }";
 in

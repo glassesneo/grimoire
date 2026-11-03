@@ -8,7 +8,7 @@
 }: let
   lib = pkgs.lib;
 
-  # Section translation, filtering, and assertion forwarding are repository-owned:
+  # Section translation, filtering, and constraint forwarding are repository-owned:
   # Nix types cannot detect a dropped section, leaked private bundle, or bypassed
   # guard. Observe published names/packages at genSystem, not adapter internals.
   genBundles = genSystem: extraModules:
@@ -63,12 +63,12 @@
       modules = [
         ({delib, ...}:
           delib.module {
-            name = "assertion-probe";
-            meta.description = "Declare one common assertion.";
-            assertions.always = [
+            name = "constraint-probe";
+            meta.description = "Declare one constraint.";
+            constraints.always = [
               {
                 inherit assertion;
-                message = "Bundle assertion probe";
+                message = "Bundle constraint probe";
               }
             ];
           })
@@ -116,7 +116,7 @@ in {
   assert lib.assertMsg (
     succeeds (assertionResult true)
     && !(succeeds (assertionResult false))
-  ) "Common assertions must block the whole published bundle result";
+  ) "Constraints must block the whole published bundle result";
   assert lib.assertMsg (!succeeds missingPackage)
   "A published bundle without a package must fail when consumed";
   assert lib.assertMsg (

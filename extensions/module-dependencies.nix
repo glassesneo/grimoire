@@ -4,7 +4,7 @@
 # declare `enable`. The child's declared default becomes its original condition
 # AND the parent's enable value, and its `defaultText` says so. Explicit child
 # overrides are preserved; an enabled child with a disabled parent fails through
-# the child's common assertions (`extensions/module-assertions.nix`) in every module system. Missing parents and modules without `enable` are skipped;
+# the child's constraints (`extensions/module-constraints.nix`) in every module system. Missing parents and modules without `enable` are skipped;
 # more distant ancestors are not searched, and unconditional sections are not
 # gated.
 {
@@ -22,7 +22,7 @@
       && lib.hasAttrByPath (parts ++ ["enable"]) myoptions
       && lib.hasAttrByPath ((lib.splitString "." parent) ++ ["enable"]) myoptions;
   in {
-    # Transform option defaults, not values: explicit overrides still reach assertions.
+    # Transform option defaults, not values: explicit overrides still reach constraints.
     options.options = lib.mkOption {
       apply = entries:
         map (entry: let
@@ -57,7 +57,7 @@
 
     # Checked whatever the child's enable, so an enabled child under a disabled
     # parent is rejected.
-    config.assertions.always = lib.optional hasParent (delib.toDenixArgs ({
+    config.constraints.always = lib.optional hasParent (delib.toDenixArgs ({
       myconfig,
       myoptions,
       ...

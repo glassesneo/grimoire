@@ -6,10 +6,10 @@
 # returns the entry for a resolved scheme, or null for none or an absent
 # scheme. `select` returns the entry the module follows: null while its
 # `useColorscheme` is false or no scheme is selected. A followed scheme absent
-# from the table cannot be realized, so `assertion` rejects it and names
+# from the table cannot be realized, so `constraint` rejects it and names
 # `<name>.useColorscheme = false`, which leaves the application's colors
 # unmanaged. Bundles published per combination keep those `of` finds.
-# `unsupportedCase` is a module check case whose host follows a scheme absent
+# `unsupportedCase` is a module test case whose host follows a scheme absent
 # from every table, a copy of Rosé Pine registered as "fixture", and expects
 # that rejection.
 {lib}: {
@@ -28,7 +28,7 @@ in {
     then of resolved
     else null;
 
-  assertion = cfg: resolved: {
+  constraint = cfg: resolved: {
     assertion = !cfg.useColorscheme || resolved == null || of resolved != null;
     message = "${name} has no theme for colorscheme \"${resolved.name or ""}\"; set ${name}.useColorscheme = false to leave its colors unmanaged";
   };

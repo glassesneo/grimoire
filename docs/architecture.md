@@ -34,7 +34,7 @@ The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/def
 
 A module's name is its `myconfig` interface path, so choose it for the modules and hosts that reference it. Directory placement serves navigation and may differ from the name.
 
-A module also declares its common assertions at the top level: `assertions.always` is checked whatever its `enable`, `assertions.ifEnabled` while it is enabled. Each entry is an `{ assertion, message }` attribute set, or a function of the module's Denix arguments returning one, evaluated against the final `myconfig` and enforced by every module system. Assertions about one module system's outputs stay in that system's sections.
+A module also declares its constraints at the top level: `constraints.always` is checked whatever its `enable`, `constraints.ifEnabled` while it is enabled. Each entry is an `{ assertion, message }` attribute set, or a function of the module's Denix arguments returning one, evaluated against the final `myconfig` and enforced by every module system through its own `assertions`. Assertions about one module system's outputs stay in that system's sections.
 
 ## Rices and sources
 
@@ -60,14 +60,14 @@ A setting affects only the scope that needs it. User preferences are declared in
 - `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
-- `checks/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `checks/<name>/default.nix` is discovered automatically. The contract of a single module is checked inside that module instead; see Validation boundary.
+- `checks/` owns sandboxed checks of repository mechanisms and of the published configurations as a whole, exported through `checks.<system>`. Each immediate `checks/<name>/default.nix` is discovered automatically. The contract of a single module is tested inside that module instead; see Validation boundary.
 - `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
 
 A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
 
-A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its check fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
+A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its test fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
 Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Repository mechanisms use the language of the layer they own:
 
@@ -85,10 +85,10 @@ Each mechanism is specified at the top of its file and by its option description
 
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/rices.nix`: rice registration, a host's `rice` selection, and `riceConfig`.
-- `extensions/module-assertions.nix`: modules' common assertions, enforced in every module system.
+- `extensions/module-constraints.nix`: modules' constraints, enforced in every module system.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-checks.nix`: module-owned inline cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-checks.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
+- `extensions/module-tests.nix`: module-owned inline test cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
@@ -114,7 +114,7 @@ A check belongs under `checks/` only when it can run as a sandboxed flake check.
 
 The number of checks does not measure validation. A check is added only for behavior that a defect in repository code could break unnoticed; a check that restates its implementation or verifies trusted behavior is noise that hides the failures that matter.
 
-A module's option types, assertions and `checks` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; an assertion runs on every evaluation of a real configuration, a check only as a check. A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's.
+A module's option types, constraints and `tests` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; a constraint runs on every evaluation of a real configuration, a test only as a check. A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's tests.
 
 Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
 

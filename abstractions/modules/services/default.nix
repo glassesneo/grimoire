@@ -270,7 +270,7 @@ delib.module {
   # Lowering is observed before serialization; lib/plist.nix owns plist syntax.
   # The output build checks file placement, and the reconciler specs own
   # lifecycle transitions.
-  checks = {pkgs, ...}: let
+  tests = {pkgs, ...}: let
     inherit (pkgs) lib;
     darwin = ["aarch64-darwin"];
     jobsOf = result: lib.listToAttrs (map (job: lib.nameValuePair job.name job) result.apply.steps.services.jobs);

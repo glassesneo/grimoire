@@ -103,7 +103,7 @@ in {
     keel = bundle packages.keel;
   };
 
-  checks = {
+  tests = {
     pkgs,
     home,
     system,

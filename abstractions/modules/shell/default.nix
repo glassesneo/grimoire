@@ -19,7 +19,7 @@ delib.module ({
     loginShell = mylib.choice.option "Shell that becomes the user's login shell; `null` leaves the login shell unmanaged.";
   };
 
-  assertions.ifEnabled = [
+  constraints.ifEnabled = [
     {
       assertion = cfg.loginShell == null || myconfig.${cfg.loginShell}.enable;
       message = "shell.loginShell = \"${toString cfg.loginShell}\" requires ${toString cfg.loginShell}.enable = true";
@@ -37,7 +37,7 @@ delib.module ({
 
   # A distinct package shows that the selected shell module's package is
   # used, not a default that happens to equal it.
-  checks = {pkgs, ...}: let
+  tests = {pkgs, ...}: let
     package = pkgs.writeShellScriptBin "fixture-shell" "" // {shellPath = "/bin/fixture-shell";};
   in {
     login-shell = {

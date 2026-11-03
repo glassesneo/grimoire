@@ -76,7 +76,7 @@ delib.module {
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
 
-  checks = {
+  tests = {
     pkgs,
     home,
     ...

@@ -1,9 +1,9 @@
-# Owns inline checks, declaration ownership, and the conservative reverse uses
-# closure. checks {pkgs, lib, system, home, oxlintConfig} returns named cases,
+# Owns inline tests, declaration ownership, and the conservative reverse uses
+# closure. tests {pkgs, lib, system, home, oxlintConfig} returns named cases,
 # whose fields are the options declared below. Each case has exactly one mode:
 # expected, fails or build. Unknown fields and unknown uses are errors when the
 # cases are discovered. Coverage retains all cases.
-# moduleCheckInfo takes {pkgs,system,home,oxlintConfig,root,infrastructure} and
+# moduleTestInfo takes {pkgs,system,home,oxlintConfig,root,infrastructure} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
 # tsRoots, uses, infrastructure and affectedChecks. Declaration files must be
 # unique. Reverse closure unions uses from all cases, including excluded ones;
@@ -37,7 +37,7 @@
         description = "Contributor modules by name: `delib.module` attributes without `name` or `meta.description`.";
       };
       moduleSystem = mkOption {
-        type = types.enum (lib.subtractLists ["myconfig" "assertions"] (builtins.attrNames config.moduleSystems));
+        type = types.enum (lib.subtractLists ["myconfig" "constraints"] (builtins.attrNames config.moduleSystems));
         default = "hjem";
         description = "Module system whose result the case observes.";
       };
@@ -51,7 +51,7 @@
       };
       fails = mkOption {
         type = types.either (types.enum [true]) types.str;
-        description = "One of the modes: `true` requires `expr` to fail evaluation; a string requires a failed assertion containing it.";
+        description = "One of the modes: `true` requires `expr` to fail evaluation; a string requires a failed constraint or module-system assertion containing it.";
       };
       build = mkOption {
         type = types.functionTo types.package;
@@ -79,18 +79,18 @@
     config.defined = lib.filter (field: options.${field}.isDefined) (["expr"] ++ modes);
   };
 in {
-  config.settings.modules.extraSubmodules.options.checks = lib.mkOption {
+  config.settings.modules.extraSubmodules.options.tests = lib.mkOption {
     type = lib.types.functionTo (lib.types.attrsOf (lib.types.submodule case));
     default = _: {};
     defaultText = lib.literalExpression "_: { }";
     description = "Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration.";
   };
 
-  options.moduleCheckInfo = lib.mkOption {
+  options.moduleTestInfo = lib.mkOption {
     type = lib.types.raw;
     description = "Internal function returning module declarations, applicable cases, coverage roots and reverse uses check closure without generating fixtures.";
   };
-  config.moduleCheckInfo = {
+  config.moduleTestInfo = {
     pkgs,
     system,
     home,
@@ -106,16 +106,16 @@ in {
     in
       if builtins.length files == 1
       then builtins.head files
-      else throw "module-checks: module '${name}' must be declared in exactly one file, found: ${toString files}";
+      else throw "module-tests: module '${name}' must be declared in exactly one file, found: ${toString files}";
     declarations = lib.genAttrs names (name: let
       file = fileOf name;
       directory = lib.removePrefix "${toString root}/" (builtins.dirOf file);
-      cases = config.modules.${name}.checks {inherit pkgs lib system home oxlintConfig;};
+      cases = config.modules.${name}.tests {inherit pkgs lib system home oxlintConfig;};
       uses = lib.unique (lib.concatMap (case: case.uses) (builtins.attrValues cases));
       unknown = lib.subtractLists names uses;
       normalize = path: lib.concatStringsSep "/" ([directory] ++ lib.filter (part: part != "." && part != "") (lib.splitString "/" path));
     in
-      assert lib.assertMsg (unknown == []) "module-checks: unknown uses in '${name}': ${toString unknown}"; {
+      assert lib.assertMsg (unknown == []) "module-tests: unknown uses in '${name}': ${toString unknown}"; {
         inherit file directory cases uses;
         infrastructure = lib.elem name infrastructure;
         applicableCases = lib.filterAttrs (_: case: lib.elem system case.platforms) cases;

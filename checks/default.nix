@@ -11,9 +11,9 @@
 }: let
   inherit (pkgs) lib;
   infrastructure = ["defaults" "exclusive" "services"];
-  moduleCheckInfo = configuration.config.moduleCheckInfo {
+  moduleTestInfo = configuration.config.moduleTestInfo {
     inherit pkgs system;
-    home = "/tmp/module-checks";
+    home = "/tmp/module-tests";
     oxlintConfig = ../.oxlintrc.json;
     root = ../.;
     inherit infrastructure;
@@ -21,10 +21,10 @@
   directories = lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (./. + "/${name}/default.nix")) (builtins.readDir ./.);
   descriptors = builtins.mapAttrs (name: _:
     lib.callPackageWith {
-      inherit inputs denix pkgs system configuration compose moduleCheckInfo authoringDocs;
+      inherit inputs denix pkgs system configuration compose moduleTestInfo authoringDocs;
     } (./. + "/${name}/default.nix") {})
   directories;
-  moduleChecks = import ../lib/module-checks.nix {inherit lib;} {
+  moduleChecks = import ../lib/module-tests.nix {inherit lib;} {
     inherit compose configuration pkgs system infrastructure;
   };
   discovered = import ../lib/checks.nix {inherit lib;} {
@@ -39,7 +39,7 @@ in {
         inherit name;
         inherit (module) directory infrastructure affectedChecks;
       })
-      moduleCheckInfo;
+      moduleTestInfo;
     directoryChecks =
       map (name: {
         inherit name;

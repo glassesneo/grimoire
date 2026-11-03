@@ -268,7 +268,7 @@ in
         myconfig.colorscheme.combinations)
       ];
 
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       host = extra: expected: {
         inherit expected;
         uses = ["colorscheme"];

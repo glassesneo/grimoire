@@ -78,7 +78,7 @@ delib.module {
       invalid;
   };
 
-  checks = {
+  tests = {
     pkgs,
     home,
     ...

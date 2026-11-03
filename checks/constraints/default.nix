@@ -5,7 +5,7 @@
 }: let
   lib = pkgs.lib;
 
-  # The real composition must enforce modules' common assertions in every
+  # The real composition must enforce modules' constraints in every
   # host's Hjem guard and in nix-darwin's assertions: `always` whatever the
   # module's enable, `ifEnabled` only while it is enabled. Adapter-only checks
   # cannot detect missing wiring.
@@ -18,20 +18,20 @@
       modules = [
         ({delib, ...}:
           delib.module {
-            name = "assertion-probe";
-            meta.description = "Declare common assertions.";
+            name = "constraint-probe";
+            meta.description = "Declare common constraints.";
             options.enable = delib.boolOption enable;
-            assertions = {
+            constraints = {
               always = [
                 {
                   assertion = always;
-                  message = "Assertion probe (always)";
+                  message = "Constraint probe (always)";
                 }
               ];
               ifEnabled = [
                 ({cfg, ...}: {
                   assertion = ifEnabled && cfg.enable;
-                  message = "Assertion probe (ifEnabled)";
+                  message = "Constraint probe (ifEnabled)";
                 })
               ];
             };
@@ -86,10 +86,10 @@
   darwinResults = verify "darwin" darwinHosts;
 in {
   check = assert lib.assertMsg (hjemResults != [] && lib.all (result: result) hjemResults)
-  "Real Hjem configurations must enforce `always` assertions and enabled modules' `ifEnabled` assertions";
+  "Real Hjem configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
   assert lib.assertMsg (lib.all (result: result) darwinResults)
-  "Real nix-darwin configurations must enforce `always` assertions and enabled modules' `ifEnabled` assertions";
-    pkgs.runCommand "assertion-forwarding-test" {} ''
+  "Real nix-darwin configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
+    pkgs.runCommand "constraint-forwarding-test" {} ''
       mkdir "$out"
     '';
 }

@@ -6,7 +6,7 @@
 # step registered in `applySteps`, in the order their `after` and `before`
 # declare; a reference to an unregistered step or a cycle fails evaluation. Its `steps` passthru exposes the packages by name for
 # evaluation checks. Assertions block every output except `failedAssertions`,
-# the messages of the failed ones, which module checks read without forcing an
+# the messages of the failed ones, which module tests read without forcing an
 # output, and `options`, the evaluated option declarations that generated
 # references read.
 #

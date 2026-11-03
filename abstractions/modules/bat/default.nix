@@ -42,7 +42,7 @@ in
       useColorscheme = boolOption true "Whether bat takes its theme from `colorscheme.resolved`.";
     };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     hjem.ifEnabled = {pkgs, ...}: {
       packages = [pkgs.bat];
@@ -64,7 +64,7 @@ in
       };
     };
 
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       host = extra: {
         uses = ["colorscheme"];
         host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;

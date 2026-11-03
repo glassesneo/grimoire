@@ -144,7 +144,7 @@ in
       };
     };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     myconfig.ifEnabled.zellij = {
       settings = {
@@ -312,7 +312,7 @@ in
         (lib.filterAttrs (_: resolved: themes.of resolved != null) myconfig.colorscheme.combinations))
       ];
 
-    checks = {
+    tests = {
       pkgs,
       home,
       ...

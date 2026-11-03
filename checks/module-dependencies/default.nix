@@ -18,7 +18,7 @@
     configuration = denix.lib.denixConfiguration {
       extraInputs = inputs;
       modules = [
-        ../../extensions/module-assertions.nix
+        ../../extensions/module-constraints.nix
         ../../extensions/module-dependencies.nix
         (feature "parent" true)
         ({delib, ...}:

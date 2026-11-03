@@ -49,7 +49,7 @@ in
       ];
     };
 
-    checks = {
+    tests = {
       pkgs,
       home,
       ...

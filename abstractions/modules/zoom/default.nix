@@ -42,7 +42,7 @@ in
       '';
     };
 
-    checks = {pkgs, ...}: {
+    tests = {pkgs, ...}: {
       # Writing the size needs a user session, so the build only checks that
       # the program compiles and rejects an invalid size before touching it.
       pip-size = {

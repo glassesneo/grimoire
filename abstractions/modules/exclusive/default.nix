@@ -70,7 +70,7 @@ in
 
     # Definers are told apart by provenance labels, so each case defines the file
     # from a different module or host.
-    checks = _: let
+    tests = _: let
       owner = set: {
         always = lib.setAttrByPath set {
           exclusive = true;

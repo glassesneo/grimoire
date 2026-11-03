@@ -24,7 +24,7 @@ in
       (lib.mkIf (lib.any (tag: lib.elem tag cfg.enabled) (tagsOf name)) (lib.mkDefault true)))
     tagged);
 
-    checks = _: let
+    tests = _: let
       app = tags: {
         meta = {
           description = "Stand in for a tagged application.";

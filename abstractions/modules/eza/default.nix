@@ -31,7 +31,7 @@ in
       useColorscheme = boolOption true "Whether eza takes its colors from `colorscheme.resolved`.";
     };
 
-    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     hjem.ifEnabled = {
       config,
@@ -70,7 +70,7 @@ in
       };
     };
 
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       host = extra: {
         uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
         host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;

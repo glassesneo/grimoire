@@ -1,7 +1,7 @@
 # Owns the bundles module system, bundle schema, publication filter, and result
 # contract. `packages` is the name-to-package attrset of published bundles,
-# guarded by common assertions; `failedAssertions`, the messages of the failed
-# ones, and `options`, the evaluated option declarations, stay readable when
+# guarded by its assertions, which carry modules' constraints;
+# `failedAssertions`, the messages of the failed ones, and `options`, the evaluated option declarations, stay readable when
 # assertions fail.
 {
   inputs,

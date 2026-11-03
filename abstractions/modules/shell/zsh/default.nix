@@ -25,7 +25,7 @@ delib.module ({cfg, ...}: {
     };
   };
 
-  checks = {
+  tests = {
     pkgs,
     home,
     ...

@@ -33,7 +33,7 @@ in
       ];
     };
 
-    checks = {system, ...}: {
+    tests = {system, ...}: {
       # The replacements were written against the files of the locked upstream source.
       upstream = mylib.sourceFiles.upstreamCase inputs.vicinae.packages.${system}.default.src sourceFiles;
       requires-compact-mode = {

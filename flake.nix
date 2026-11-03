@@ -23,10 +23,10 @@
             ./adapters/hjem
             ./adapters/bundles.nix
             ./extensions/hosts.nix
-            ./extensions/module-assertions.nix
+            ./extensions/module-constraints.nix
             ./extensions/module-dependencies.nix
             ./extensions/module-metadata.nix
-            ./extensions/module-checks.nix
+            ./extensions/module-tests.nix
             ./extensions/provenance.nix
             ./extensions/rices.nix
           ]

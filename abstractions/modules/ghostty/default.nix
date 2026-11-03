@@ -85,7 +85,7 @@ in
       };
     };
 
-    checks = {pkgs, ...}: let
+    tests = {pkgs, ...}: let
       host = extra: {
         uses = ["colorscheme"];
         host.myconfig.ifEnabled =

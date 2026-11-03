@@ -32,7 +32,7 @@ in {
       useColorscheme = boolOption true "Whether Vicinae takes its theme from `colorscheme.resolved`.";
     };
 
-  assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+  constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
   hjem.always = {pkgs, ...}: {
     options.vicinae.settings = lib.mkOption {
@@ -139,7 +139,7 @@ in {
     extra-trusted-public-keys = ["vicinae.cachix.org-1:1kDrfienkGHPYbkpNj1mWTr7Fm1+zcenzgTizIcI3oc="];
   };
 
-  checks = {pkgs, ...}: let
+  tests = {pkgs, ...}: let
     # Stands in for the upstream build; evaluation cases never realize it.
     package = pkgs.runCommand "vicinae-fixture" {} "mkdir $out";
   in {

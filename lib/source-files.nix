@@ -6,7 +6,7 @@
 # against, and the build fails when the source holds a different file, so an
 # upstream change is merged by hand rather than overwritten. Without
 # replacements `apply` returns the package itself, which keeps its binary
-# cache. `upstreamCase` is a module check case comparing those hashes with the
+# cache. `upstreamCase` is a module test case comparing those hashes with the
 # locked source at evaluation time.
 {lib}: let
   inherit (lib) types;
