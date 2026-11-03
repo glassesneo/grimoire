@@ -110,7 +110,9 @@ Each mechanism is specified at the top of its file and by its option description
 
 ## Validation boundary
 
-A check belongs under `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
+A check belongs under `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers what this repository wrote or changed and trusts everything else. A program or module system that the repository configures behaves as its project publishes it, whether it comes from nixpkgs, an official flake, or a third-party flake; repository-owned code behaves as its contract states, because that code's own checks cover it. For a package the repository patches, a check covers only the patched behavior, and a guard that detects a change of the patched upstream file, as `lib/source-files.nix` provides, comes before re-verifying upstream behavior. A change of upstream behavior is caught by the pinned lock file and live verification, not by checks.
+
+The number of checks does not measure validation. A check is added only for behavior that a defect in repository code could break unnoticed; a check that restates its implementation or verifies trusted behavior is noise that hides the failures that matter.
 
 A module's option types, assertions and `checks` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; an assertion runs on every evaluation of a real configuration, a check only as a check. A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's.
 
