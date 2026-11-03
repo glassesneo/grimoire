@@ -2,6 +2,7 @@
   delib,
   inputs,
   lib,
+  mylib,
   ...
 }:
 delib.module ({
@@ -18,21 +19,9 @@ delib.module ({
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      package = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      sourceFiles =
-        attrsOfOption (lib.types.uniq (lib.types.submodule {
-          options = {
-            source = lib.mkOption {
-              type = lib.types.path;
-              description = "File that replaces the upstream one.";
-            };
-            upstreamSha256 = lib.mkOption {
-              type = lib.types.strMatching "[0-9a-f]{64}";
-              description = "Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten.";
-            };
-          };
-        })) {}
-        "Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only.";
+      upstreamPackage = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
+      package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
+      sourceFiles = mylib.sourceFiles.option "upstreamPackage";
     };
 
   hjem.always = {pkgs, ...}: {
@@ -48,33 +37,15 @@ delib.module ({
     pkgs,
     ...
   }: let
-    # Overriding without replacements would still change the derivation and miss
-    # the upstream binary cache.
-    patched =
-      if cfg.sourceFiles == {}
-      then cfg.package
-      else
-        cfg.package.overrideAttrs (old: {
-          postPatch =
-            (old.postPatch or "")
-            + lib.concatStrings (lib.mapAttrsToList (path: file: ''
-                if ! echo ${lib.escapeShellArg "${file.upstreamSha256}  ${path}"} | sha256sum --check --status; then
-                  echo ${lib.escapeShellArg "${path} differs from the upstream file its replacement was written against"} >&2
-                  exit 1
-                fi
-                cp ${file.source} ${lib.escapeShellArg path}
-              '')
-              cfg.sourceFiles);
-        });
     # stabilizeApp rejects the browser native-messaging host, a wrapper outside
     # the bundle that names the package's own store path. Browser integration is
     # not configured, so only the bundle and the CLI link are kept, repointed at
     # this copy; the equal-length name keeps Mach-O rewrites in place.
-    bundled = pkgs.runCommand (builtins.substring 33 (-1) (baseNameOf patched.outPath)) {nativeBuildInputs = [pkgs.perl];} ''
+    bundled = pkgs.runCommand (builtins.substring 33 (-1) (baseNameOf cfg.package.outPath)) {nativeBuildInputs = [pkgs.perl];} ''
       mkdir "$out"
-      cp -a ${patched}/Applications ${patched}/bin "$out/"
+      cp -a ${cfg.package}/Applications ${cfg.package}/bin "$out/"
       chmod -R u+w "$out"
-      find "$out" -type f -exec env SOURCE=${patched} OUT="$out" perl -0777 -pi -e 's/\Q$ENV{SOURCE}\E/$ENV{OUT}/g' {} +
+      find "$out" -type f -exec env SOURCE=${cfg.package} OUT="$out" perl -0777 -pi -e 's/\Q$ENV{SOURCE}\E/$ENV{OUT}/g' {} +
     '';
     # Source replacements go in before signing: stabilizeApp rewrites and re-signs its input's output.
     package = myconfig.app-identity.stabilizeApp bundled;
@@ -186,7 +157,7 @@ delib.module ({
       platforms = ["aarch64-darwin"];
       host.myconfig.ifEnabled.vicinae = {
         enable = true;
-        inherit package;
+        upstreamPackage = package;
       };
       modules = lib.genAttrs ["first" "second"] (name: {
         myconfig.always.vicinae.sourceFiles."file.qml" = {

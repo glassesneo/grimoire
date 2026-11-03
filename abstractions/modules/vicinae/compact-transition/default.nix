@@ -2,6 +2,7 @@
   delib,
   inputs,
   lib,
+  mylib,
   ...
 }: let
   sourceFiles = {
@@ -34,10 +35,7 @@ in
 
     checks = {system, ...}: {
       # The replacements were written against the files of the locked upstream source.
-      upstream = {
-        expr = _: lib.mapAttrs (path: _: builtins.hashFile "sha256" "${inputs.vicinae.packages.${system}.default.src}/${path}") sourceFiles;
-        expected = lib.mapAttrs (_: file: file.upstreamSha256) sourceFiles;
-      };
+      upstream = mylib.sourceFiles.upstreamCase inputs.vicinae.packages.${system}.default.src sourceFiles;
       requires-compact-mode = {
         uses = ["vicinae" "app-identity"];
         host.myconfig.ifEnabled.vicinae = {

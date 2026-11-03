@@ -71,6 +71,8 @@ Modules whose only option is `enable`:
 | [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |
 | [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | <code>true</code> | Provide and configure direnv, including its Zsh integration. |  |
 | [<code>dock</code>](../../abstractions/modules/dock/default.nix) | <code>true</code> | Configure the Dock and the actions of screen hot corners. |  |
+| [<code>elio.ctrl-np</code>](../../abstractions/modules/elio/ctrl-np/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Move through elio's search results and scroll its help with Ctrl-N and Ctrl-P, which elio hard-codes to the arrow keys. |  |
+| [<code>elio.quit-after-open</code>](../../abstractions/modules/elio/quit-after-open/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully. |  |
 | [<code>eza</code>](../../abstractions/modules/eza/default.nix) | <code>true</code> | Provide eza for listing files and directories. |  |
 | [<code>fd</code>](../../abstractions/modules/fd/default.nix) | <code>true</code> | Provide fd for finding files and directories. |  |
 | [<code>files</code>](../../abstractions/modules/files/default.nix) | <code>true</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
@@ -263,8 +265,11 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>elio.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>elio.package</code> | <code>package</code> | <code>elio: elio</code> |  |
+| <code>elio.package</code> | <code>package</code> | <code>elio: elio</code> | Package installed and published; setting it bypasses `sourceFiles`. |
 | <code>elio.settings</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> | Settings written to elio's `config.toml`, by table and key. |
+| <code>elio.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
+| <code>elio.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
+| <code>elio.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
 | <code>elio.theme</code> | <code>submodule</code> | <code>{ }</code> | Tables of elio's `theme.toml`, overriding elio's built-in theme; with every table empty, no file is written. |
 | <code>elio.theme.classes</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.directories</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
@@ -273,6 +278,7 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | <code>elio.theme.focused_entry</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.palette</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
+| <code>elio.upstreamPackage</code> | <code>package</code> | <code>elio: elio</code> | Package whose source `sourceFiles` patches. |
 | <code>elio.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether elio takes its colors from `colorscheme.resolved`. |
 
 ### <code>exclusive</code>
@@ -561,10 +567,11 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>vicinae: vicinae</code> |  |
-| <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
+| <code>vicinae.package</code> | <code>package</code> | <code>vicinae: vicinae</code> | Package installed as the app; setting it bypasses `sourceFiles`. |
+| <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
+| <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
 
 <code>hjem</code> options:
 

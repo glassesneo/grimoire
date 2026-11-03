@@ -1,0 +1,1163 @@
+use super::*;
+use crate::input_handling::text_editing::{
+    char_to_byte, insert_text_at_cursor, multiline_paste_text, single_line_paste_text,
+};
+
+const HELP_FALLBACK_SCROLL_MAX: usize = 64;
+const HELP_FALLBACK_PAGE_STEP: usize = 8;
+pub(super) const KEY_REPEAT_NAV_INTERVAL: Duration = Duration::from_millis(28);
+
+impl App {
+    pub fn handle_event(&mut self, event: Event) -> Result<()> {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        ))]
+        self.invalidate_pending_system_clipboard_text_read(&event);
+
+        let result = match event {
+            Event::Key(key) => self.handle_key(crate::config::normalize_caps_lock_character(key)),
+            Event::Mouse(mouse) => self.handle_mouse(mouse),
+            Event::Paste(text) => self.handle_paste(&text),
+            Event::FocusLost => {
+                self.cancel_scrollbar_drag();
+                Ok(())
+            }
+            Event::Resize(_, _) | Event::FocusGained => Ok(()),
+        };
+
+        if let Err(error) = result {
+            self.report_runtime_error("Action failed", &error);
+        }
+
+        Ok(())
+    }
+
+    fn handle_paste(&mut self, text: &str) -> Result<()> {
+        if let Some(save) = self.chooser.save_as_mut().filter(|save| save.is_open()) {
+            if !save.overwrite() {
+                let text = single_line_paste_text(text);
+                let (input, cursor) = save.input_mut();
+                insert_text_at_cursor(input, cursor, &text);
+                save.clear_error();
+            }
+            return Ok(());
+        }
+        if self.file_operations.trash_is_open() || self.file_operations.restore_is_open() {
+            return Ok(());
+        }
+
+        if self.file_operations.archive_password_is_open() {
+            return self.paste_into_archive_password(text);
+        }
+
+        if self.file_operations.archive_create_is_open() {
+            return self.paste_into_archive_create(text);
+        }
+
+        if self.file_operations.create_is_open() {
+            return self.paste_into_create(text);
+        }
+
+        if self.file_operations.rename_is_open() {
+            return self.paste_into_rename(text);
+        }
+
+        if self.file_operations.bulk_rename_is_open() {
+            return self.paste_into_bulk_rename(text);
+        }
+
+        if self.file_operations.editor_rename_confirm_is_open()
+            || self.overlays.goto.is_some()
+            || self.file_operations.copy_is_open()
+            || self.overlays.open_with.is_some()
+        {
+            return Ok(());
+        }
+
+        if self.fuzzy_finder.search.is_some() {
+            return self.paste_into_search(text);
+        }
+
+        if self.local_filter_is_editing() {
+            return self.paste_into_local_filter(text);
+        }
+
+        if !self.blocks_file_drag_and_drop() && !self.chooser_mode() && !self.preview_fullscreen() {
+            self.paste_system_file_clipboard()?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    fn text_input_is_open(&self) -> bool {
+        self.system_clipboard_text_target().is_some()
+    }
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
+    fn text_input_is_open(&self) -> bool {
+        self.chooser
+            .save_as()
+            .is_some_and(|save| save.is_open() && !save.overwrite())
+            || self.file_operations.archive_password_is_open()
+            || self.file_operations.archive_create_is_open()
+            || self.file_operations.create_is_open()
+            || self.file_operations.rename_is_open()
+            || self.file_operations.bulk_rename_is_open()
+            || self.fuzzy_finder.search.is_some()
+            || self.local_filter_is_editing()
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    fn request_system_clipboard_text_read(&mut self) {
+        let Some(target) = self.system_clipboard_text_target() else {
+            return;
+        };
+        let token = self.next_system_clipboard_read_token();
+        if self.job_scheduler.submit_system_clipboard_read(
+            crate::background_jobs::job_requests::SystemClipboardReadRequest::Text {
+                token,
+                target,
+                input_generation: self.input.system_clipboard_text_input_generation,
+            },
+        ) {
+            self.status = "Reading clipboard…".to_string();
+        } else {
+            self.status = "Clipboard unavailable".to_string();
+        }
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    pub(crate) fn apply_system_clipboard_text_read(
+        &mut self,
+        target: crate::background_jobs::job_requests::SystemClipboardTextTarget,
+        input_generation: u64,
+        text: Option<String>,
+    ) -> bool {
+        if self.system_clipboard_text_target() != Some(target)
+            || self.input.system_clipboard_text_input_generation != input_generation
+        {
+            return false;
+        }
+        self.status.clear();
+        if let Some(text) = text
+            && let Err(error) = self.handle_paste(&text)
+        {
+            self.report_runtime_error("Clipboard paste failed", &error);
+        }
+        true
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    fn invalidate_pending_system_clipboard_text_read(&mut self, event: &Event) {
+        let changes_input = match event {
+            Event::Key(_) | Event::Paste(_) => true,
+            Event::Mouse(mouse) => mouse.kind != MouseEventKind::Moved,
+            Event::Resize(_, _) | Event::FocusGained | Event::FocusLost => false,
+        };
+        if self.system_clipboard_text_target().is_some() && changes_input {
+            self.input.system_clipboard_text_input_generation = self
+                .input
+                .system_clipboard_text_input_generation
+                .wrapping_add(1);
+        }
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    fn system_clipboard_text_target(
+        &self,
+    ) -> Option<crate::background_jobs::job_requests::SystemClipboardTextTarget> {
+        use crate::background_jobs::job_requests::SystemClipboardTextTarget;
+
+        if self
+            .chooser
+            .save_as()
+            .is_some_and(|save| save.is_open() && !save.overwrite())
+        {
+            Some(SystemClipboardTextTarget::SaveAs)
+        } else if self.file_operations.archive_password_is_open() {
+            Some(SystemClipboardTextTarget::ArchivePassword)
+        } else if self.file_operations.archive_create_is_open() {
+            Some(SystemClipboardTextTarget::ArchiveCreate)
+        } else if self.file_operations.create_is_open() {
+            Some(SystemClipboardTextTarget::Create)
+        } else if self.file_operations.rename_is_open() {
+            Some(SystemClipboardTextTarget::Rename)
+        } else if self.file_operations.bulk_rename_is_open() {
+            Some(SystemClipboardTextTarget::BulkRename)
+        } else if self.fuzzy_finder.search.is_some() {
+            Some(SystemClipboardTextTarget::Search)
+        } else if self.local_filter_is_editing() {
+            Some(SystemClipboardTextTarget::LocalFilter)
+        } else {
+            None
+        }
+    }
+
+    fn paste_into_archive_password(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        if let Some(overlay) = self.file_operations.archive_password_overlay_mut() {
+            insert_text_at_cursor(&mut overlay.input, &mut overlay.cursor_col, &text);
+            overlay.error = None;
+        }
+        Ok(())
+    }
+
+    fn paste_into_archive_create(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        if let Some(overlay) = self.file_operations.archive_create_overlay_mut() {
+            insert_text_at_cursor(&mut overlay.input, &mut overlay.cursor_col, &text);
+            overlay.error = None;
+        }
+        Ok(())
+    }
+
+    fn paste_into_create(&mut self, text: &str) -> Result<()> {
+        let text = multiline_paste_text(text);
+        if text.is_empty() {
+            return Ok(());
+        }
+
+        for ch in text.chars() {
+            if ch == '\n' {
+                self.create_insert_newline();
+                continue;
+            }
+            if let Some(overlay) = self.file_operations.create_overlay_mut() {
+                let byte = char_to_byte(&overlay.lines[overlay.cursor_line], overlay.cursor_col);
+                overlay.lines[overlay.cursor_line].insert(byte, ch);
+                overlay.cursor_col += 1;
+                overlay.preferred_col = overlay.cursor_col;
+                overlay.line_errors[overlay.cursor_line] = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn paste_into_rename(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        if let Some(overlay) = self.file_operations.rename_overlay_mut() {
+            insert_text_at_cursor(&mut overlay.input, &mut overlay.cursor_col, &text);
+            overlay.error = None;
+        }
+        Ok(())
+    }
+
+    fn paste_into_bulk_rename(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        if let Some(overlay) = self.file_operations.bulk_rename_overlay_mut() {
+            insert_text_at_cursor(
+                &mut overlay.new_names[overlay.cursor_line],
+                &mut overlay.cursor_col,
+                &text,
+            );
+            overlay.preferred_col = overlay.cursor_col;
+            overlay.line_errors[overlay.cursor_line] = None;
+        }
+        Ok(())
+    }
+
+    fn paste_into_search(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        let previous_query = self
+            .fuzzy_finder
+            .search
+            .as_ref()
+            .map(|search| search.query.clone())
+            .unwrap_or_default();
+        if let Some(search) = &mut self.fuzzy_finder.search {
+            insert_text_at_cursor(&mut search.query, &mut search.query_cursor, &text);
+        }
+        self.refresh_search_matches(&previous_query);
+        Ok(())
+    }
+
+    fn paste_into_local_filter(&mut self, text: &str) -> Result<()> {
+        let text = single_line_paste_text(text);
+        insert_text_at_cursor(
+            &mut self.file_browser.local_filter.query,
+            &mut self.file_browser.local_filter.cursor,
+            &text,
+        );
+        self.apply_local_filter_preserving_selection();
+        Ok(())
+    }
+
+    fn help_scroll_max(&self) -> usize {
+        if self.input.screen_regions.help_rows_visible == 0 {
+            HELP_FALLBACK_SCROLL_MAX
+        } else {
+            self.input.screen_regions.help_scroll_max
+        }
+    }
+
+    fn help_page_step(&self) -> usize {
+        if self.input.screen_regions.help_rows_visible == 0 {
+            HELP_FALLBACK_PAGE_STEP
+        } else {
+            self.input
+                .screen_regions
+                .help_rows_visible
+                .saturating_sub(2)
+                .max(1)
+        }
+    }
+
+    fn cancel_active_file_job(&mut self) -> bool {
+        if let Some(token) = self.file_operations.cancel_trash_job() {
+            self.job_scheduler.cancel_trash(token);
+        } else if let Some(token) = self.file_operations.cancel_restore_job() {
+            self.job_scheduler.cancel_restore(token);
+        } else if let Some(token) = self.file_operations.cancel_archive_create_job() {
+            self.job_scheduler.cancel_archive_create(token);
+        } else if let Some(token) = self.file_operations.cancel_archive_extract_job() {
+            self.job_scheduler.cancel_archive_extract(token);
+        } else if let Some(token) = self.file_operations.cancel_paste_job() {
+            self.job_scheduler.cancel_paste(token);
+        } else {
+            return false;
+        }
+        true
+    }
+
+    pub(crate) fn scroll_help_by(&mut self, delta: isize) {
+        let max_scroll = self.help_scroll_max();
+        if delta.is_negative() {
+            self.overlays.help_scroll = self
+                .overlays
+                .help_scroll
+                .saturating_sub(delta.unsigned_abs());
+        } else {
+            self.overlays.help_scroll = self
+                .overlays
+                .help_scroll
+                .saturating_add(delta as usize)
+                .min(max_scroll);
+        }
+    }
+
+    pub(crate) fn scroll_item_details_by(&mut self, delta: isize) {
+        let max_scroll = self.input.screen_regions.item_details_scroll_max;
+        self.overlays.item_details_scroll = if delta.is_negative() {
+            self.overlays
+                .item_details_scroll
+                .saturating_sub(delta.unsigned_abs())
+        } else {
+            self.overlays
+                .item_details_scroll
+                .saturating_add(delta as usize)
+                .min(max_scroll)
+        };
+    }
+
+    fn handle_help_key(&mut self, key: KeyEvent) -> Result<()> {
+        if crate::config::key_bindings().matches_cancel_key(key) {
+            self.overlays.help = false;
+            return Ok(());
+        }
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.scroll_help_by(-1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.scroll_help_by(1);
+            }
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_help_by(-1);
+            }
+            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_help_by(1);
+            }
+            KeyCode::PageUp => {
+                self.scroll_help_by(-(self.help_page_step() as isize));
+            }
+            KeyCode::PageDown => {
+                self.scroll_help_by(self.help_page_step() as isize);
+            }
+            KeyCode::Home => self.overlays.help_scroll = 0,
+            KeyCode::End => self.overlays.help_scroll = self.help_scroll_max(),
+            _ if is_help_shortcut(key) => self.overlays.help = false,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
+        // The kitty keyboard protocol (enabled when the terminal supports it) emits
+        // Press, Repeat, and Release events. Ignore Release so each keystroke is only
+        // handled once. Repeat is kept so held navigation keys continue to scroll.
+        if key.kind == KeyEventKind::Release {
+            return Ok(());
+        }
+
+        if self.overlays.item_details.is_some() {
+            if crate::config::key_bindings().matches_cancel_key(key)
+                || crate::config::key_bindings().action_for_key_in_context(key, self.key_context())
+                    == Some(crate::config::Action::ToggleItemDetails)
+            {
+                self.overlays.item_details = None;
+            } else {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => self.scroll_item_details_by(-1),
+                    KeyCode::Down | KeyCode::Char('j') => self.scroll_item_details_by(1),
+                    KeyCode::PageUp => self.scroll_item_details_by(
+                        -(self
+                            .input
+                            .screen_regions
+                            .item_details_rows_visible
+                            .saturating_sub(2)
+                            .max(1) as isize),
+                    ),
+                    KeyCode::PageDown => self.scroll_item_details_by(
+                        self.input
+                            .screen_regions
+                            .item_details_rows_visible
+                            .saturating_sub(2)
+                            .max(1) as isize,
+                    ),
+                    KeyCode::Home => self.overlays.item_details_scroll = 0,
+                    KeyCode::End => {
+                        self.overlays.item_details_scroll =
+                            self.input.screen_regions.item_details_scroll_max
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(());
+        }
+
+        if self.text_input_is_open()
+            && crate::config::key_bindings().action_for_key_in_context(key, self.key_context())
+                == Some(crate::config::Action::PasteItem)
+        {
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd",
+                target_os = "dragonfly"
+            ))]
+            {
+                self.request_system_clipboard_text_read();
+            }
+            #[cfg(not(any(
+                target_os = "linux",
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd",
+                target_os = "dragonfly"
+            )))]
+            {
+                if let Some(text) = crate::system_clipboard::read_text() {
+                    self.handle_paste(&text)?;
+                }
+            }
+            return Ok(());
+        }
+
+        self.cancel_scrollbar_drag();
+
+        if self.file_operations.trash_is_open() {
+            return self.handle_trash_key(key);
+        }
+
+        if self.file_operations.restore_is_open() {
+            return self.handle_restore_key(key);
+        }
+
+        if self.file_operations.archive_password_is_open() {
+            return self.handle_archive_password_key(key);
+        }
+
+        if self.chooser.save_as().is_some_and(|state| state.is_open()) {
+            self.handle_save_as_key(key);
+            return Ok(());
+        }
+
+        if self.file_operations.archive_create_is_open() {
+            return self.handle_archive_create_key(key);
+        }
+
+        if self.file_operations.create_is_open() {
+            return self.handle_create_key(key);
+        }
+
+        if self.file_operations.rename_is_open() {
+            return self.handle_rename_key(key);
+        }
+
+        if self.file_operations.bulk_rename_is_open() {
+            return self.handle_bulk_rename_key(key);
+        }
+
+        if self.file_operations.editor_rename_confirm_is_open() {
+            return self.handle_editor_rename_confirm_key(key);
+        }
+
+        if self.overlays.goto.is_some() {
+            return self.handle_goto_key(key);
+        }
+
+        if self.file_operations.copy_is_open() {
+            return self.handle_copy_key(key);
+        }
+
+        if self.overlays.open_with.is_some() {
+            return self.handle_open_with_key(key);
+        }
+
+        if self.overlays.help {
+            return self.handle_help_key(key);
+        }
+
+        if self.duplicate_finder.session.is_some() {
+            return self.handle_duplicate_key(key);
+        }
+
+        if self.fuzzy_finder.search.is_some() {
+            return self.handle_search_key(key);
+        }
+
+        if self.local_filter_is_editing() {
+            return self.handle_local_filter_key(key);
+        }
+
+        let key_bindings = crate::config::key_bindings();
+        if key_bindings.matches_clear_selection_key(key)
+            && !self.file_browser.selected_paths.is_empty()
+        {
+            self.clear_selection();
+            return Ok(());
+        }
+
+        if self.should_debounce_navigation_key(key) {
+            return Ok(());
+        }
+
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    self.adjust_zoom(1);
+                    return Ok(());
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    self.adjust_zoom(-1);
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
+        let configured_action = if self.chooser_mode() {
+            match crate::config::key_bindings().chooser_action_for_key(key, self.key_context()) {
+                Some(crate::config::ChooserKeyAction::Choose) => {
+                    self.confirm_chooser();
+                    return Ok(());
+                }
+                Some(crate::config::ChooserKeyAction::Cancel) => {
+                    self.cancel_chooser();
+                    return Ok(());
+                }
+                Some(crate::config::ChooserKeyAction::Normal(action)) => {
+                    Some(self.resolve_clear_selection_cancel_action(key, action))
+                }
+                None => None,
+            }
+        } else {
+            crate::config::key_bindings()
+                .action_for_key_in_context(key, self.key_context())
+                .map(|action| self.resolve_clear_selection_cancel_action(key, action))
+        };
+
+        if self.preview_fullscreen() {
+            if is_help_shortcut(key) {
+                self.clear_wheel_scroll();
+                self.overlays.help_scroll = 0;
+                self.overlays.help = true;
+                return Ok(());
+            }
+
+            if let Some(action) = configured_action {
+                match fullscreen_preview_action_policy(self, action) {
+                    FullscreenPreviewActionPolicy::HandleInFullscreen => {
+                        self.dispatch_action(action)?;
+                    }
+                    FullscreenPreviewActionPolicy::ExitThenDispatch => {
+                        self.exit_fullscreen_preview();
+                        self.dispatch_action(action)?;
+                    }
+                    FullscreenPreviewActionPolicy::DispatchThenExit => {
+                        let status_before = self.status.clone();
+                        self.dispatch_action(action)?;
+                        if self.file_browser.directory_runtime.pending_load.is_some() {
+                            self.preview.exit_fullscreen_after_directory_load = true;
+                        } else if self.clear_fullscreen_preview() && self.status == status_before {
+                            self.status = "Exited fullscreen preview".to_string();
+                        }
+                    }
+                    FullscreenPreviewActionPolicy::DispatchAndStayInFullscreen => {
+                        self.dispatch_action(action)?;
+                        if self.file_browser.directory_runtime.pending_load.is_some() {
+                            self.preview.exit_fullscreen_after_directory_load = true;
+                        }
+                    }
+                    FullscreenPreviewActionPolicy::Block => {}
+                }
+                return Ok(());
+            }
+
+            return Ok(());
+        }
+
+        if should_use_grid_zoom_for_symlink_key(self, key, configured_action) {
+            self.adjust_zoom(-1);
+            return Ok(());
+        }
+
+        if self.input.wheel_profile == WheelProfile::HighFrequency
+            && should_handle_high_frequency_horizontal_key(key, configured_action)
+        {
+            match key.code {
+                KeyCode::Left if self.handle_horizontal_navigation_key(-1) => return Ok(()),
+                KeyCode::Right if self.handle_horizontal_navigation_key(1) => return Ok(()),
+                _ => {}
+            }
+        }
+
+        match key.code {
+            _ if is_help_shortcut(key) => {
+                self.clear_wheel_scroll();
+                self.overlays.help_scroll = 0;
+                self.overlays.help = true;
+            }
+            _ if configured_action.is_some() => {
+                let action = configured_action.expect("action was checked above");
+                self.dispatch_action(action)?;
+            }
+            KeyCode::Char('+') | KeyCode::Char('=')
+                if self.file_browser.view_mode == ViewMode::Grid =>
+            {
+                self.adjust_zoom(1);
+            }
+            KeyCode::Char('-') | KeyCode::Char('_')
+                if self.file_browser.view_mode == ViewMode::Grid =>
+            {
+                self.adjust_zoom(-1);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub(crate) fn dispatch_action(&mut self, action: crate::config::Action) -> Result<()> {
+        use crate::config::Action;
+        match action {
+            Action::Quit => self.should_quit = true,
+            Action::QuitWithoutCd => {
+                self.should_change_directory_on_quit = false;
+                self.should_quit = true;
+            }
+            Action::Cancel => self.cancel_browser_state(),
+            Action::ClearSelection => self.clear_selection(),
+            Action::Yank => self.yank(),
+            Action::Cut => self.cut(),
+            Action::Paste => self.paste()?,
+            Action::PasteItem => self.paste_system_file_clipboard()?,
+            Action::CopyItem => self.copy_items_to_system_clipboard(),
+            Action::CreateArchive => self.open_archive_create_prompt(),
+            Action::ExtractArchive => self.extract_focused_archive()?,
+            Action::SymlinkAbsolute => self.link_yanked(false)?,
+            Action::SymlinkRelative => self.link_yanked(true)?,
+            Action::Trash => self.open_trash_prompt(),
+            Action::DeletePermanently => self.open_delete_permanently_prompt(),
+            Action::Create => self.open_create_prompt(),
+            Action::Rename => {
+                if !self.file_browser.in_trash && !self.cwd_is_inside_trash_subfolder() {
+                    if !self.file_browser.selected_paths.is_empty() {
+                        self.open_bulk_rename_prompt();
+                    } else {
+                        self.open_rename_prompt();
+                    }
+                }
+            }
+            Action::RenameInEditor => self.open_editor_bulk_rename()?,
+            Action::RestoreFromTrash => {
+                if self.file_browser.in_trash {
+                    self.open_restore_prompt();
+                } else if self.cwd_is_inside_trash_subfolder() {
+                    self.status = "Cannot restore from inside a trashed folder \
+                                   — go up to the trash to restore the folder itself"
+                        .to_string();
+                }
+            }
+            Action::CopyToClipboard => self.open_copy_overlay(),
+            Action::SearchFolders => self.open_search_with_status(SearchScope::Folders),
+            Action::SearchFiles => self.open_search_with_status(SearchScope::Files),
+            Action::FilterDirectory => self.open_local_filter(),
+            Action::FindDuplicates => self.open_duplicate_finder(),
+            Action::Zoxide => {
+                self.pending_terminal_task = Some(PendingTerminalTask::Zoxide);
+                self.status.clear();
+            }
+            Action::ShellHere => {
+                self.pending_terminal_task = Some(PendingTerminalTask::ShellHere {
+                    cwd: self.file_browser.cwd.clone(),
+                });
+                self.status.clear();
+            }
+            Action::Open => self.open_in_system()?,
+            Action::OpenWith => self.open_open_with_overlay(),
+            Action::OpenOrEnter => self.open_selected()?,
+            Action::GoTo => self.open_goto_overlay(),
+            Action::ToggleSelection => self.toggle_selection(),
+            Action::CyclePlacesNext => self.step_sidebar_place(1)?,
+            Action::CyclePlacesPrevious => self.step_sidebar_place(-1)?,
+            Action::NewTab => self.new_tab()?,
+            Action::CloseTab => self.close_tab(self.tabs.active_index())?,
+            Action::CycleTabsNext => self.cycle_tabs(1)?,
+            Action::CycleTabsPrevious => self.cycle_tabs(-1)?,
+            Action::SwitchTab(index) => self.activate_tab(index as usize)?,
+            Action::GoParent => self.go_parent()?,
+            Action::PageUp => self.page(-1),
+            Action::PageDown => self.page(1),
+            Action::JumpFirst => self.select_index(0),
+            Action::JumpLast => self.jump_last(),
+            Action::SelectAll => self.select_all(),
+            Action::HistoryBack => return self.go_back(),
+            Action::HistoryForward => return self.go_forward(),
+            Action::Sort => self.cycle_sort_mode()?,
+            Action::ToggleView => self.toggle_view_mode(),
+            Action::TogglePreview => self.toggle_preview_pane(),
+            Action::FullscreenPreview => self.toggle_fullscreen_preview(),
+            Action::ToggleItemDetails => {
+                let details = self
+                    .selected_entry()
+                    .cloned()
+                    .map(|entry| self.build_item_details(&entry));
+                self.overlays.item_details = details;
+                self.overlays.item_details_scroll = 0;
+            }
+            Action::ToggleHidden => self.toggle_hidden_files()?,
+            Action::NavLeft => {
+                if self.file_browser.view_mode == ViewMode::Grid {
+                    self.move_by_keyboard(-1);
+                } else {
+                    self.go_parent()?;
+                }
+            }
+            Action::NavDown => self.move_vertical_keyboard(1),
+            Action::NavUp => self.move_vertical_keyboard(-1),
+            Action::NavRight => {
+                if self.file_browser.view_mode == ViewMode::Grid {
+                    self.move_by_keyboard(1);
+                } else if let Some(entry) = self.selected_entry().filter(|entry| entry.is_dir()) {
+                    self.set_dir(entry.path.clone())?;
+                }
+            }
+            Action::ScrollPreviewLeft => {
+                let _ = self.scroll_preview_columns(-1);
+            }
+            Action::ScrollPreviewRight => {
+                let _ = self.scroll_preview_columns(1);
+            }
+            Action::ScrollPreviewUp => {
+                if !self.step_epub_section(-1)
+                    && !self.step_comic_page(-1)
+                    && !self.step_pdf_page(-1)
+                {
+                    let _ = self.scroll_preview_lines(-1);
+                }
+            }
+            Action::ScrollPreviewDown => {
+                if !self.step_epub_section(1) && !self.step_comic_page(1) && !self.step_pdf_page(1)
+                {
+                    let _ = self.scroll_preview_lines(1);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn cancel_browser_state(&mut self) {
+        if self.preview_fullscreen() {
+            self.exit_fullscreen_preview();
+        } else if !self.cancel_active_file_job() {
+            self.file_operations.clear_clipboard();
+        }
+    }
+
+    fn resolve_clear_selection_cancel_action(
+        &self,
+        key: KeyEvent,
+        action: crate::config::Action,
+    ) -> crate::config::Action {
+        if action == crate::config::Action::ClearSelection
+            && crate::config::key_bindings().matches_cancel_key(key)
+        {
+            crate::config::Action::Cancel
+        } else {
+            action
+        }
+    }
+
+    pub(crate) fn key_context(&self) -> crate::config::KeyContext {
+        if self.file_browser.in_trash || self.cwd_is_inside_trash_subfolder() {
+            crate::config::KeyContext::Trash
+        } else {
+            crate::config::KeyContext::Normal
+        }
+    }
+
+    pub(crate) fn build_item_details(
+        &self,
+        entry: &crate::filesystem::Entry,
+    ) -> crate::item_details::ItemDetails {
+        let current_preview_matches = self.active_preview_entry().is_some_and(|active| {
+            active.path == entry.path
+                && active.size == entry.size
+                && active.modified == entry.modified
+        });
+        let current_preview = (current_preview_matches
+            && (self.preview_visible() || self.duplicate_preview_rendered())
+            && self.preview.state.load_state.is_none())
+        .then_some(&self.preview.state.content);
+        let cached_preview = current_preview.or_else(|| {
+            self.preview
+                .state
+                .result_order
+                .iter()
+                .rev()
+                .filter_map(|key| {
+                    let cached = self.preview.state.result_cache.get(key)?;
+                    (key.path == entry.path
+                        && cached.size == entry.size
+                        && cached.modified == entry.modified)
+                        .then_some(&cached.preview)
+                })
+                .next()
+        });
+        let document_preview = cached_preview.filter(|preview| {
+            matches!(
+                preview.kind,
+                crate::preview::PreviewKind::Document | crate::preview::PreviewKind::Comic
+            )
+        });
+        let pdf_document_key = crate::preview::PdfDocumentKey::from_entry(entry);
+        let document_author = self
+            .preview
+            .pdf
+            .document_authors
+            .get(&pdf_document_key)
+            .cloned()
+            .or_else(|| document_preview.and_then(|preview| preview.document_author.clone()));
+        let document_page_count = self
+            .preview
+            .pdf
+            .document_page_counts
+            .get(&pdf_document_key)
+            .map(usize::to_string)
+            .or_else(|| document_preview.and_then(|preview| preview.document_page_count.clone()));
+        let comic_session = self.preview.comic.session.as_ref().filter(|session| {
+            session.path == entry.path
+                && session.size == entry.size
+                && session.modified == entry.modified
+        });
+        let current_comic_preview = (comic_session.is_some()
+            && self.preview.state.load_state.is_none()
+            && self.preview.state.content.kind == crate::preview::PreviewKind::Comic)
+            .then_some(&self.preview.state.content);
+        let document_page_count = document_page_count.or_else(|| {
+            comic_session
+                .and_then(|session| session.total_pages)
+                .or_else(|| {
+                    current_comic_preview
+                        .and_then(|preview| preview.navigation_position.as_ref())
+                        .filter(|position| position.label == "Page")
+                        .map(|position| position.count)
+                })
+                .map(|count| count.to_string())
+        });
+        let comic_writer = document_preview
+            .and_then(|preview| preview.comic_writer.clone())
+            .or_else(|| current_comic_preview.and_then(|preview| preview.comic_writer.clone()));
+        let comic_penciller = document_preview
+            .and_then(|preview| preview.comic_penciller.clone())
+            .or_else(|| current_comic_preview.and_then(|preview| preview.comic_penciller.clone()));
+        let audio_preview =
+            cached_preview.filter(|preview| preview.kind == crate::preview::PreviewKind::Audio);
+        let media_preview =
+            cached_preview.filter(|preview| preview.kind == crate::preview::PreviewKind::Video);
+        let archive_preview =
+            cached_preview.filter(|preview| preview.kind == crate::preview::PreviewKind::Archive);
+        crate::item_details::ItemDetails::from_entry(
+            entry,
+            self.preview.terminal_images.protocol,
+            self.cached_terminal_window(),
+            crate::item_details::PreviewMetadata {
+                document_author,
+                document_page_count,
+                comic_writer,
+                comic_penciller,
+                audio_artist: audio_preview.and_then(|preview| preview.audio_artist.clone()),
+                audio_album: audio_preview.and_then(|preview| preview.audio_album.clone()),
+                media_duration: media_preview.and_then(|preview| preview.media_duration.clone()),
+                media_dimensions: media_preview
+                    .and_then(|preview| preview.media_dimensions.clone()),
+                media_codec: media_preview.and_then(|preview| preview.media_codec.clone()),
+                media_frame_rate: media_preview
+                    .and_then(|preview| preview.media_frame_rate.clone()),
+                archive_entry_count: archive_preview
+                    .and_then(|preview| preview.archive_entry_count),
+                archive_unpacked_size: archive_preview
+                    .and_then(|preview| preview.archive_unpacked_size),
+                archive_password_protected: archive_preview
+                    .and_then(|preview| preview.archive_password_protected),
+            },
+        )
+    }
+
+    fn should_debounce_navigation_key(&mut self, key: KeyEvent) -> bool {
+        let Some(navigation_key) = Self::navigation_repeat_key(key) else {
+            return false;
+        };
+
+        let now = Instant::now();
+        if self
+            .input
+            .last_navigation_key
+            .is_some_and(|(previous_key, previous_at)| {
+                previous_key == navigation_key
+                    && now.duration_since(previous_at) < KEY_REPEAT_NAV_INTERVAL
+            })
+        {
+            return true;
+        }
+
+        self.input.last_navigation_key = Some((navigation_key, now));
+        false
+    }
+
+    fn navigation_repeat_key(key: KeyEvent) -> Option<NavigationRepeatKey> {
+        if key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            return None;
+        }
+
+        match crate::config::key_bindings().action_for_key(key) {
+            Some(crate::config::Action::NavUp) => Some(NavigationRepeatKey::Up),
+            Some(crate::config::Action::NavDown) => Some(NavigationRepeatKey::Down),
+            Some(crate::config::Action::NavLeft) => Some(NavigationRepeatKey::Left),
+            Some(crate::config::Action::NavRight) => Some(NavigationRepeatKey::Right),
+            Some(crate::config::Action::PageUp) => Some(NavigationRepeatKey::PageUp),
+            Some(crate::config::Action::PageDown) => Some(NavigationRepeatKey::PageDown),
+            Some(crate::config::Action::JumpFirst) => Some(NavigationRepeatKey::Home),
+            Some(crate::config::Action::JumpLast) => Some(NavigationRepeatKey::End),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn open_selected(&mut self) -> Result<()> {
+        let Some(entry) = self.selected_entry() else {
+            if !self.file_browser.selected_paths.is_empty() {
+                return self.dispatch_action(crate::config::Action::Open);
+            }
+            return Ok(());
+        };
+        if entry.is_dir() {
+            return self.set_dir(entry.path.clone());
+        }
+
+        self.dispatch_action(crate::config::Action::Open)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FullscreenPreviewActionPolicy {
+    HandleInFullscreen,
+    ExitThenDispatch,
+    DispatchThenExit,
+    DispatchAndStayInFullscreen,
+    Block,
+}
+
+fn fullscreen_preview_action_policy(
+    app: &App,
+    action: crate::config::Action,
+) -> FullscreenPreviewActionPolicy {
+    use crate::config::Action;
+    match action {
+        Action::FullscreenPreview
+        | Action::TogglePreview
+        | Action::Cancel
+        | Action::Quit
+        | Action::QuitWithoutCd
+        | Action::ScrollPreviewLeft
+        | Action::ScrollPreviewRight
+        | Action::ScrollPreviewUp
+        | Action::ScrollPreviewDown => FullscreenPreviewActionPolicy::HandleInFullscreen,
+        Action::OpenOrEnter if app.selected_entry().is_some_and(|entry| entry.is_dir()) => {
+            FullscreenPreviewActionPolicy::DispatchThenExit
+        }
+        action if fullscreen_preview_dispatches_and_stays(action) => {
+            FullscreenPreviewActionPolicy::DispatchAndStayInFullscreen
+        }
+        Action::NavLeft | Action::NavRight if app.file_browser.view_mode == ViewMode::Grid => {
+            FullscreenPreviewActionPolicy::DispatchAndStayInFullscreen
+        }
+        action if fullscreen_preview_dispatches_then_exits(action) => {
+            FullscreenPreviewActionPolicy::DispatchThenExit
+        }
+        Action::OpenOrEnter => FullscreenPreviewActionPolicy::ExitThenDispatch,
+        action if fullscreen_preview_exits_then_dispatches(action) => {
+            FullscreenPreviewActionPolicy::ExitThenDispatch
+        }
+        _ => FullscreenPreviewActionPolicy::Block,
+    }
+}
+
+pub(super) fn fullscreen_preview_dispatches_then_exits(action: crate::config::Action) -> bool {
+    use crate::config::Action;
+    matches!(
+        action,
+        Action::CyclePlacesNext
+            | Action::CyclePlacesPrevious
+            | Action::GoParent
+            | Action::HistoryBack
+            | Action::HistoryForward
+            | Action::NewTab
+            | Action::CloseTab
+            | Action::CycleTabsNext
+            | Action::CycleTabsPrevious
+            | Action::SwitchTab(_)
+            | Action::NavLeft
+            | Action::NavRight
+    )
+}
+
+pub(super) fn fullscreen_preview_dispatches_and_stays(action: crate::config::Action) -> bool {
+    use crate::config::Action;
+    matches!(
+        action,
+        Action::ToggleSelection
+            | Action::PageUp
+            | Action::PageDown
+            | Action::JumpFirst
+            | Action::JumpLast
+            | Action::NavDown
+            | Action::NavUp
+    )
+}
+
+pub(super) fn fullscreen_preview_exits_then_dispatches(action: crate::config::Action) -> bool {
+    use crate::config::Action;
+    matches!(
+        action,
+        Action::Yank
+            | Action::Cut
+            | Action::Paste
+            | Action::PasteItem
+            | Action::Trash
+            | Action::DeletePermanently
+            | Action::SymlinkAbsolute
+            | Action::SymlinkRelative
+            | Action::SelectAll
+            | Action::CopyToClipboard
+            | Action::CopyItem
+            | Action::SearchFolders
+            | Action::SearchFiles
+            | Action::FilterDirectory
+            | Action::FindDuplicates
+            | Action::ToggleItemDetails
+            | Action::GoTo
+            | Action::OpenWith
+            | Action::Open
+            | Action::Zoxide
+            | Action::ShellHere
+            | Action::Create
+            | Action::Rename
+            | Action::RenameInEditor
+            | Action::CreateArchive
+            | Action::ExtractArchive
+            | Action::RestoreFromTrash
+    )
+}
+
+pub(super) fn should_handle_high_frequency_horizontal_key(
+    key: KeyEvent,
+    configured_action: Option<crate::config::Action>,
+) -> bool {
+    key.modifiers == KeyModifiers::ALT
+        && matches!(
+            (key.code, configured_action),
+            (KeyCode::Left, Some(crate::config::Action::HistoryBack))
+                | (KeyCode::Right, Some(crate::config::Action::HistoryForward))
+        )
+}
+
+fn should_use_grid_zoom_for_symlink_key(
+    app: &App,
+    key: KeyEvent,
+    configured_action: Option<crate::config::Action>,
+) -> bool {
+    app.file_browser.view_mode == ViewMode::Grid
+        && matches!(key.code, KeyCode::Char('-') | KeyCode::Char('_'))
+        && matches!(
+            configured_action,
+            Some(crate::config::Action::SymlinkAbsolute | crate::config::Action::SymlinkRelative)
+        )
+        && !app.file_operations.clipboard_has_yanked_paths()
+}
+
+fn is_help_shortcut(key: KeyEvent) -> bool {
+    if key
+        .modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        return false;
+    }
+
+    matches!(key.code, KeyCode::Char('?'))
+        || matches!(key.code, KeyCode::Char('/')) && key.modifiers.contains(KeyModifiers::SHIFT)
+}

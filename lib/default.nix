@@ -7,4 +7,5 @@ in {
   inherit sources;
   inherit (sources) accumulatingOption atomicOption;
   inherit (import ./rices.nix {}) rice;
+  sourceFiles = import ./source-files.nix {inherit lib;};
 }

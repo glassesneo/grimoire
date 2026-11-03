@@ -2,6 +2,7 @@
   delib,
   inputs,
   lib,
+  mylib,
   ...
 }: let
   # Surfaces the scheme lacks reuse its terminal roles; ANSI roles follow
@@ -120,7 +121,9 @@ in
     in
       with delib; {
         enable = boolOption true;
-        package = packageOption inputs.elio.packages.${pkgs.stdenv.hostPlatform.system}.elio;
+        upstreamPackage = packageOption inputs.elio.packages.${pkgs.stdenv.hostPlatform.system}.elio "Package whose source `sourceFiles` patches.";
+        package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed and published; setting it bypasses `sourceFiles`.";
+        sourceFiles = mylib.sourceFiles.option "upstreamPackage";
         useColorscheme = boolOption true "Whether elio takes its colors from `colorscheme.resolved`.";
         settings = lib.mkOption {
           type = tables;
@@ -273,6 +276,33 @@ in
               test "$(tail -1 themed)" = /start
               touch "$out"
             '';
+      };
+      # Stands in for elio's source build: the replacement reaches the
+      # published package.
+      source-files = let
+        upstream = "#!/bin/sh\necho upstream\n";
+        fake = pkgs.stdenv.mkDerivation {
+          name = "elio";
+          src = pkgs.writeTextDir "bin/elio" upstream;
+          dontBuild = true;
+          installPhase = "install -Dm755 bin/elio $out/bin/elio";
+          meta.mainProgram = "elio";
+        };
+      in {
+        moduleSystem = "bundles";
+        uses = ["colorscheme"];
+        modules.fixture.myconfig.always.elio = {
+          upstreamPackage = fake;
+          sourceFiles."bin/elio" = {
+            source = pkgs.writeText "elio" "#!/bin/sh\necho replaced\n";
+            upstreamSha256 = builtins.hashString "sha256" upstream;
+          };
+        };
+        build = result:
+          pkgs.runCommand "elio-source-files" {} ''
+            test "$(${lib.getExe result.packages.elio} --version)" = replaced
+            touch "$out"
+          '';
       };
       # Stands in for elio, whose own tests cover the function it prints.
       zshrc-sources-shell-integration = let
