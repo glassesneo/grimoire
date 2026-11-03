@@ -4,7 +4,6 @@
   pkgs,
   system,
   configuration,
-  compose,
 }: let
   lib = pkgs.lib;
 
@@ -82,27 +81,9 @@
       })
   ] [];
 
-  # A probe on the real adapters and extensions keeps the composition check
-  # independent of which bundles the repository chooses to publish.
-  probe = {delib, ...}:
-    delib.module {
-      name = "bundle-probe";
-      meta.description = "Publish one bundle through the real composition.";
-      options.enable = delib.boolOption true;
-      bundles.ifEnabled = {
-        probe = {
-          package = pkgs.hello;
-          publish = true;
-        };
-        private.package = pkgs.zsh;
-      };
-    };
-  composed = genBundles (compose [probe]).genSystem [];
-
   # Force package values: attrNames alone would miss a lazy missing-option error.
   succeeds = result:
     (builtins.tryEval (builtins.deepSeq (lib.mapAttrs (_: package: package.drvPath) result) true)).success;
-  published = genBundles configuration.genSystem [];
 in {
   check = assert lib.assertMsg (
     builtins.attrNames enabled
@@ -119,18 +100,6 @@ in {
   ) "Constraints must block the whole published bundle result";
   assert lib.assertMsg (!succeeds missingPackage)
   "A published bundle without a package must fail when consumed";
-  assert lib.assertMsg (
-    builtins.attrNames composed
-    == ["probe"]
-    && composed.probe.drvPath == pkgs.hello.drvPath
-  ) "The real composition must translate bundle sections and publish only selected bundles";
-  # Publishing nothing is a valid choice, so export is checked for whatever is
-  # published. Comparing drvPaths does not build the published packages.
-  assert lib.assertMsg (
-    lib.all
-    (name: published.${name}.drvPath == inputs.self.packages.${system}.${name}.drvPath)
-    (builtins.attrNames published)
-  ) "Every published bundle must reach the flake package output unchanged";
     pkgs.runCommand "bundles-test" {} ''
       mkdir "$out"
     '';

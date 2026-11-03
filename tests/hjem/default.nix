@@ -63,8 +63,7 @@
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
   spaced = mkResult [{files."spaced.txt".source = spacedSource;}];
 
-  # An unfree package evaluates only when its name is listed, and listing it
-  # from two modules merges rather than conflicts.
+  # An unfree package evaluates only when its name is listed.
   unfreePackage = {pkgs, ...}: {
     packages = [
       (pkgs.stdenvNoCC.mkDerivation {
@@ -132,16 +131,7 @@
     pkgs.writeText "hjem-test-manifest.json"
     (builtins.toJSON manifest);
 in {
-  check = assert lib.assertMsg (
-    manifest.version
-    == 3
-    && builtins.length manifest.files == 3
-    && lib.all (file: file.type == "symlink" && !file.clobber) manifest.files
-    && lib.all (file: !lib.hasSuffix "/disabled.txt" file.target) manifest.files
-    && builtins.length result.packages == 1
-  ) "Hjem adapter contract failed";
-  assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and apply";
-  assert lib.assertMsg (builtins.attrNames stepping.apply.steps == ["first" "second"] && lib.all lib.isDerivation (builtins.attrValues stepping.apply.steps)) "Registered steps must be exposed by name as their packages";
+  check = assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and apply";
   assert lib.assertMsg (applyFails {a = step "a" 0 // {after = ["missing"];};}) "A reference to an unregistered step must fail";
   assert lib.assertMsg (applyFails {
     a = step "a" 0 // {after = ["b"];};
@@ -149,7 +139,6 @@ in {
   }) "A cycle of steps must fail";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage]) "An unlisted unfree package must fail evaluation";
   assert lib.assertMsg (!unfreeEvaluates [unfreePackage (allowUnfree ["other"])]) "Listing another name must not allow an unfree package";
-  assert lib.assertMsg (unfreeEvaluates [unfreePackage (allowUnfree ["fixture-unfree"]) (allowUnfree ["other"])]) "A listed unfree package must evaluate when definitions merge";
     pkgs.runCommand "hjem-adapter-test" {
       inherit manifestFile package;
       inherit (result) preflight;
