@@ -464,6 +464,26 @@
         "type": "github"
       }
     },
+    "nix-wrapper-modules": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793683960,
+        "narHash": "sha256-0xLhR6xGbG2oC5RpJYf/o0Tl2nlUUh3H9pulE+ogK0k=",
+        "owner": "nix-community",
+        "repo": "nix-wrapper-modules",
+        "rev": "eb41f7cdde918a6467715b189cdadb6d476456c8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nix-wrapper-modules",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1764947035,
@@ -617,6 +637,7 @@
         "nix-darwin": "nix-darwin",
         "nix-mac-app-identity": "nix-mac-app-identity",
         "nix-secrets": "nix-secrets",
+        "nix-wrapper-modules": "nix-wrapper-modules",
         "nixpkgs": "nixpkgs_4",
         "treefmt-nix": "treefmt-nix_2",
         "vicinae": "vicinae"

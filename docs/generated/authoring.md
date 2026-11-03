@@ -595,22 +595,36 @@ Source: [<code>abstractions/modules/xdg/default.nix</code>](../../abstractions/m
 
 ### <code>zellij</code>
 
-Provide and configure the Zellij terminal multiplexer, and own its configuration file.
+Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file.
 
 Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstractions/modules/zellij/default.nix)
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>zellij.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>zellij.keybinds</code> | <code>submodule</code> | <code>{ }</code> | Actions bound by mode and key, replacing Zellij's default keybindings; `shared` binds in every mode, and `null` leaves a key unbound. An action is an attribute set of one action name to its arguments, or to `args` and `children` for an action with a block. |
+| <code>zellij.keybinds.entersearch</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.locked</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.move</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.normal</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.pane</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.prompt</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.renamepane</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.renametab</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.resize</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.scroll</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.search</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.session</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.shared</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.tab</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.keybinds.tmux</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
+| <code>zellij.settings</code> | <code>attribute set of (KDL node: arguments, or an attribute set of child nodes)</code> | <code>{ }</code> | Top-level nodes of Zellij's `config.kdl` other than `keybinds`; a list repeats the node's arguments. |
+| <code>zellij.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Zellij takes its colors from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>zellij.keybinds</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | KDL `bind` nodes rendered into the `shared` section of Zellij's keybindings, which replace Zellij's default keybindings. |
-| <code>zellij.keybinds.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must precede this one. |
-| <code>zellij.keybinds.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
-| <code>zellij.keybinds.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 | <code>zellij.pluginPermissions</code> | <code>attribute set of list of (one of "ReadApplicationState", "ChangeApplicationState", "OpenFiles", "RunCommands", "OpenTerminalsOrPlugins", "WriteToStdin", "WebAccess", "ReadCliPipes", "MessageAndLaunchOtherPlugins", "Reconfigure", "FullHdAccess", "StartWebServer", "InterceptInput", "ReadPaneContents", "RunActionsAsUser", "WriteToClipboard", "ReadSessionEnvironmentVariables")</code> | <code>{ }</code> | Permissions granted to plugins, by the absolute path of the plugin's wasm file. When any are declared, they replace Zellij's permission cache, which Zellij can then no longer write, so a plugin that is not declared asks for its permissions in every session. |
 
 ### <code>zsh</code>

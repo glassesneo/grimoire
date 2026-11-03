@@ -238,6 +238,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mnw.url = "github:Gerg-L/mnw";
+    nix-wrapper-modules = {
+      url = "github:nix-community/nix-wrapper-modules";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
     # nixpkgs only packages blink.cmp 1.x; the upstream flake builds v2 with
     # its Rust fuzzy matcher and blink.lib dependency.
