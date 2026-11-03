@@ -11,10 +11,10 @@ def main [] {
       {name: infra, directory: abstractions/modules/infra, infrastructure: true, affectedChecks: []}
       {name: empty, directory: abstractions/modules/empty, infrastructure: false, affectedChecks: []}
     ]
-    directoryChecks: [{name: external, directory: checks/external}]
-    checkNames: [module-a module-b module-child external formatting authoring-docs]
+    directoryChecks: [{name: external, directory: checks/external} {name: mechanism, directory: tests/mechanism}]
+    checkNames: [module-a module-b module-child external mechanism formatting authoring-docs]
   }
-  let all = [external module-a module-b module-child]
+  let all = [external mechanism module-a module-b module-child]
   for case in [
     {path: abstractions/modules/a/file, expected: [module-a module-b]}
     {path: abstractions/modules/a/child/file, expected: [module-child]}
@@ -24,6 +24,9 @@ def main [] {
     {path: checks/external/default.nix, expected: [external]}
     {path: checks/unsupported/default.nix, expected: []}
     {path: checks/root-file.nix, expected: $all}
+    {path: tests/mechanism/default.nix, expected: [mechanism]}
+    {path: tests/unsupported/default.nix, expected: []}
+    {path: tests/root-file.nix, expected: $all}
     {path: abstractions/hosts/host/default.nix, expected: []}
     {path: docs/guide.md, expected: []}
     {path: .agents/design.md, expected: []}
@@ -40,6 +43,7 @@ def main [] {
   }
   for status in [A D] {
     assert equal (select-checks $metadata [{status: $status, path: checks/unknown/default.nix}]) $all
+    assert equal (select-checks $metadata [{status: $status, path: tests/unknown/default.nix}]) $all
     assert equal (select-checks $metadata [{status: $status, path: abstractions/modules/a/default.nix}]) $all
   }
   assert equal (select-checks $metadata [{status: M, path: abstractions/modules/a/default.nix}]) [module-a module-b]

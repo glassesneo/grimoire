@@ -48,7 +48,7 @@ Live activation and platform behavior need explicit verification outside those c
 
 ## nix-secrets live verification
 
-`just check nix-secrets` runs the sandboxed compatibility check. It validates configuration/manifest wiring and the live script's syntax, checks that a missing identity prevents plaintext publication, and rejects an ordinary directory with a forged RAM-disk marker. It does not register LaunchAgents or create disk images. The sandboxed and live checks share `checks/nix-secrets/fixture.nix`.
+`just check nix-secrets` runs the sandboxed compatibility check. It validates configuration/manifest wiring and the live script's syntax, checks that a missing identity prevents plaintext publication, and rejects an ordinary directory with a forged RAM-disk marker. It does not register LaunchAgents or create disk images. The sandboxed and live checks share `tests/nix-secrets/fixture.nix`.
 
 On `seiran-vm1`, inside the development shell, `nu scripts/nix-secrets-smoke.nu` runs the explicit macOS compatibility check outside the Nix sandbox. It needs a GUI login session, because the activation LaunchAgent belongs to the GUI domain. It verifies user LaunchAgent activation, fresh RAM-disk creation, reuse and recreation, consumer-visible value updates and actual file ownership/mode. It also rejects a mounted disk-backed HFS image carrying the marker. These are observations of the current package, patches, Hjem backend and macOS environment, not a general security guarantee.
 

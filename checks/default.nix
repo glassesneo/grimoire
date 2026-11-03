@@ -1,4 +1,5 @@
-# Immediate check directories return lazy {platforms?, check} descriptors.
+# Immediate directories of `checks/` and `tests/` return lazy
+# {platforms?, check} descriptors.
 {
   inputs,
   denix,
@@ -18,17 +19,20 @@
     root = ../.;
     inherit infrastructure;
   };
-  directories = lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (./. + "/${name}/default.nix")) (builtins.readDir ./.);
-  descriptors = builtins.mapAttrs (name: _:
-    lib.callPackageWith {
-      inherit inputs denix pkgs system configuration compose moduleTestInfo authoringDocs;
-    } (./. + "/${name}/default.nix") {})
-  directories;
+  directoriesOf = root: lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (root + "/${name}/default.nix")) (builtins.readDir root);
+  descriptorsOf = root:
+    builtins.mapAttrs (name: _:
+      lib.callPackageWith {
+        inherit inputs denix pkgs system configuration compose moduleTestInfo authoringDocs;
+      } (root + "/${name}/default.nix") {})
+    (directoriesOf root);
   moduleChecks = import ../lib/module-tests.nix {inherit lib;} {
     inherit compose configuration pkgs system infrastructure;
   };
   discovered = import ../lib/checks.nix {inherit lib;} {
-    inherit descriptors moduleChecks system;
+    inherit moduleChecks system;
+    descriptors = descriptorsOf ./.;
+    testDescriptors = descriptorsOf ../tests;
     extraChecks = {inherit formatting;};
   };
 in {
@@ -45,7 +49,12 @@ in {
         inherit name;
         directory = "checks/${name}";
       })
-      discovered.directoryNames;
+      discovered.directoryNames
+      ++ map (name: {
+        inherit name;
+        directory = "tests/${name}";
+      })
+      discovered.testNames;
     inherit (discovered) checkNames;
   };
 }

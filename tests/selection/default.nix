@@ -5,7 +5,7 @@
   };
 in {
   check = pkgs.runCommand "selection" {nativeBuildInputs = [pkgs.nushell];} ''
-    nu --no-config-file ${source}/checks/selection/test.nu
+    nu --no-config-file ${source}/tests/selection/test.nu
     touch "$out"
   '';
 }

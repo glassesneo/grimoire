@@ -147,7 +147,7 @@ in {
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
   assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;
-  assert coverage == ["checks/module-tests" "checks/module-tests/sub/nested"];
+  assert coverage == ["tests/module-tests" "tests/module-tests/sub/nested"];
   assert !(invalidRoot "../outside");
   assert !(invalidRoot "/absolute");
   assert evaluates failingAggregate;

@@ -18,6 +18,7 @@
         check = poison;
       };
     };
+    testDescriptors.tested.check = poison;
     moduleChecks.module-poison = poison;
     extraChecks.formatting = poison;
   };
@@ -33,10 +34,12 @@
         // extra)).checkNames
       true)).success;
 in {
-  check = assert found.checkNames == ["formatting" "module-poison" "poison" "selected"];
+  check = assert found.checkNames == ["formatting" "module-poison" "poison" "selected" "tested"];
   assert found.directoryNames == ["poison" "selected"];
+  assert found.testNames == ["tested"];
   assert !(builtins.tryEval found.checks.poison).success;
   assert !(collision {moduleChecks.same = poison;});
+  assert !(collision {testDescriptors.same.check = poison;});
   assert !(collision {extraChecks.same = poison;});
     found.checks.selected;
 }
