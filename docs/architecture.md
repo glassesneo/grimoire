@@ -4,7 +4,7 @@ This file describes the architecture of grimoire: its composition, the concepts 
 
 Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
 
-Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, and [the authoring reference](generated/authoring.md) for every option that modules and hosts write.
+Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, [the authoring reference](generated/authoring.md) for every option that modules and hosts write, and [Module Authoring](module-authoring.md) for the judgments made when designing and validating a module.
 
 ## Composition
 
@@ -65,7 +65,7 @@ A setting affects only the scope that needs it. User preferences are declared in
 
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
 
-An application-specific translation belongs to the application's module, and more generally a translation into a format belongs to the module that owns that format. An application module maps shared data, such as the colorscheme palette or the user's identity, into its own configuration; a capability module, such as user services, lowers the declarations it receives into each platform's form. Other modules write only in the vocabulary of the options that the owner declares.
+A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
 
 A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its check fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
@@ -110,16 +110,7 @@ Each mechanism is specified at the top of its file and by its option description
 
 A check belongs under `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A check covers the contract of the code it belongs to and trusts the contracts that code depends on: an upstream project's as published, and repository-owned code's because that code's own checks cover it.
 
-Each kind of validation answers a different question:
-
-- An option type rejects a single invalid value where it is defined.
-- An assertion rejects a configuration whose choices are invalid together. It runs on every evaluation of a real configuration and addresses whoever wrote those choices.
-- An inline check shows that a module's implementation is correct on chosen inputs. It runs only as a check and addresses the module's author. A condition that no configuration choice can break, only a defect in the module, belongs here rather than in an assertion.
-- A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations.
-
-A case is written from the contract, not from the defect that revealed it. When a defect appears, identify the statement of the contract it violates, and write that statement first if none exists. Choose cases that cover the range of inputs the statement governs, not only the reported input. Observe only published results, such as evaluated values, failures, and published names, never priorities, wrapper shapes, or internal names, so that any implementation satisfying the contract passes. Name a case after the statement it shows, such as `host-list-replaces-rice`, not after the defect.
-
-A module's own contract — what its options produce and reject — is checked by the module's `checks`, beside its definition. Each case uses the adapters and extensions of `flake.nix` with only that module, the modules explicitly named in `uses`, infrastructure, and fixture contributors. A case either compares an evaluated value, expects an evaluation/assertion failure, or builds a derivation from the fixture result. Platform filtering precedes fixture generation; supported cases aggregate into one check per module. Build cases stay with their owning feature rather than reading published packages to bypass the fixture.
+A module's option types, assertions and `checks` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; an assertion runs on every evaluation of a real configuration, a check only as a check. A check under `checks/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's.
 
 Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. Host-only and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
 
