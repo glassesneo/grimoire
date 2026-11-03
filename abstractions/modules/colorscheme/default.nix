@@ -6,15 +6,24 @@
 }: let
   inherit (lib) types;
 
-  color = lib.mkOption {type = types.strMatching "#[0-9a-fA-F]{6}";};
+  colorType = types.strMatching "#[0-9a-fA-F]{6}";
+  color = lib.mkOption {type = colorType;};
   ansiNames = ["black" "red" "green" "yellow" "blue" "magenta" "cyan" "white" "brightBlack" "brightRed" "brightGreen" "brightYellow" "brightBlue" "brightMagenta" "brightCyan" "brightWhite"];
 
   # The contract between schemes and applications: terminal roles and the
-  # sixteen ANSI colors.
+  # sixteen ANSI colors. `named` carries a scheme's own vocabulary, which only
+  # scheme-specific mappings read.
   palette = types.submodule {
     options =
       lib.genAttrs ["background" "foreground" "cursor" "cursorText" "selectionBackground" "selectionForeground"] (_: color)
-      // {ansi = lib.mkOption {type = types.submodule {options = lib.genAttrs ansiNames (_: color);};};};
+      // {
+        ansi = lib.mkOption {type = types.submodule {options = lib.genAttrs ansiNames (_: color);};};
+        named = lib.mkOption {
+          type = types.attrsOf colorType;
+          default = {};
+          description = "Colors under the names the scheme itself gives them.";
+        };
+      };
   };
 
   scheme = types.submodule {

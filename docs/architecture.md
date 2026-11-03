@@ -97,11 +97,12 @@ Each mechanism is specified at the top of its file and by its option description
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
 - `abstractions/modules/services/`: portable/native user service declarations and Darwin lowering, with lifecycle reconciliation in `reconciler/reconciler.cr`.
 - `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service names resolve through the services module's read-only targets.
-- `abstractions/modules/colorscheme/`: registered color schemes (data files in `schemes/`, with or without variants), the shared `colorscheme.selection`, and its validation and resolution to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, and a `useColorscheme` switch that leaves its colors unmanaged.
+- `abstractions/modules/colorscheme/`: registered color schemes (data files in `schemes/`, with or without variants), the shared `colorscheme.selection`, and its validation and resolution to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, and a `useColorscheme` switch that leaves its colors unmanaged. An application with scheme-specific themes fails evaluation when it follows a scheme it has no theme for.
 - `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
 - `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `lib/plist.nix`: the plist values that services and defaults accept and their serialization.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
+- `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry it follows, and the rejection of a followed scheme absent from the table.
 - `lib/source-files.nix`: whole files of a package's source replaced before it is built, guarded by the hash of the upstream file each replacement was written against.
 - `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.

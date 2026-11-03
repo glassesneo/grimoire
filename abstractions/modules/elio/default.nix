@@ -5,9 +5,9 @@
   mylib,
   ...
 }: let
-  # Surfaces the scheme lacks reuse its terminal roles; ANSI roles follow
-  # upstream's terminal-ansi example theme.
-  colorschemeTheme = palette: let
+  # Any scheme's theme. Surfaces the palette lacks reuse its terminal roles;
+  # ANSI roles follow upstream's terminal-ansi example theme.
+  ansiTheme = palette: let
     a = palette.ansi;
   in {
     palette = {
@@ -73,6 +73,58 @@
       file = a.white;
     };
   };
+
+  # Schemes whose own vocabulary places elio's surfaces more precisely, by
+  # name, layered over the ANSI theme. Rosé Pine has no elio port: neutral
+  # roles follow the uses its palette assigns them, and the accent and code
+  # colors follow its TextMate port, whose buttons and badges are rose.
+  namedThemes.rose-pine = c: {
+    palette = {
+      bg = c.base;
+      chrome = c.surface;
+      chrome_alt = c.base;
+      chip_text = c.base;
+      panel = c.surface;
+      panel_alt = c.base;
+      surface = c.surface;
+      elevated = c.overlay;
+      border = c.highlightHigh;
+      text = c.text;
+      muted = c.subtle;
+      accent = c.rose;
+      accent_soft = c.overlay;
+      selected_bg = c.highlightMed;
+      selected_border = c.rose;
+      yank_bar = c.foam;
+      progress_bar = c.foam;
+      restore_bar = c.foam;
+      sidebar_active = c.overlay;
+      button_bg = c.surface;
+      button_disabled_bg = c.base;
+      path_bg = c.base;
+    };
+    preview.code = {
+      caret = c.highlightHigh;
+      line_highlight = c.highlightLow;
+      line_number = c.muted;
+      comment = c.muted;
+      string = c.gold;
+      constant = c.rose;
+      keyword = c.pine;
+      function = c.rose;
+      type = c.foam;
+      parameter = c.iris;
+      tag = c.foam;
+      operator = c.subtle;
+      macro = c.love;
+      invalid = c.love;
+    };
+    classes.directory.color = c.iris;
+  };
+
+  colorschemeTheme = resolved:
+    lib.recursiveUpdate (ansiTheme resolved.palette)
+    ((namedThemes.${resolved.name} or (_: {})) resolved.palette.named);
 in
   delib.module ({
     cfg,
@@ -168,7 +220,7 @@ in
       };
     };
 
-    myconfig.ifEnabled.elio.theme = lib.mkIf (cfg.useColorscheme && myconfig.colorscheme.resolved != null) (colorschemeTheme myconfig.colorscheme.resolved.palette);
+    myconfig.ifEnabled.elio.theme = lib.mkIf (cfg.useColorscheme && myconfig.colorscheme.resolved != null) (colorschemeTheme myconfig.colorscheme.resolved);
 
     hjem.ifEnabled = {pkgs, ...}: let
       toml = pkgs.formats.toml {};
@@ -210,7 +262,7 @@ in
         }
         (lib.mapAttrs' (combination: resolved:
           lib.nameValuePair "elio-${combination}" {
-            package = mkPackage pkgs (lib.recursiveUpdate (colorschemeTheme resolved.palette) theme);
+            package = mkPackage pkgs (lib.recursiveUpdate (colorschemeTheme resolved) theme);
             publish = true;
           })
         myconfig.colorscheme.combinations)
@@ -238,12 +290,23 @@ in
     in {
       colorscheme = host {} {
         bg = "#191724";
-        directory = "#9ccfd8";
+        directory = "#c4a7e7";
       };
       explicit-color = host {elio.theme.palette.bg = "#000000";} {
         bg = "#000000";
-        directory = "#9ccfd8";
+        directory = "#c4a7e7";
       };
+      # A scheme without named colors for elio takes the ANSI theme.
+      ansi-scheme =
+        host {colorscheme.selection.name = "fixture";} {
+          bg = "#191724";
+          directory = "#9ccfd8";
+        }
+        // {
+          modules.fixture.myconfig.always = {config, ...}: {
+            colorscheme.schemes.fixture.palette = config.myconfig.colorscheme.schemes.rose-pine.palette;
+          };
+        };
       without-colorscheme = host {elio.useColorscheme = false;} {
         bg = null;
         directory = null;

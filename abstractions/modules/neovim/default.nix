@@ -7,15 +7,18 @@
 }: let
   # Neovim's implementation of each scheme it supports, by scheme name: mnw
   # settings built from Nixpkgs and the resolved scheme.
-  themes = {
-    # The upstream colorscheme covers far more highlight groups than a palette
-    # carries; this scheme has only the main variant.
-    rose-pine = pkgs: _: {
-      plugins.start = [pkgs.vimPlugins.rose-pine];
-      initLua = ''
-        require("rose-pine").setup({ variant = "main", dark_variant = "main" })
-        vim.cmd.colorscheme("rose-pine")
-      '';
+  themes = mylib.schemeThemes {
+    name = "neovim";
+    themes = {
+      # The upstream colorscheme covers far more highlight groups than a palette
+      # carries; this scheme has only the main variant.
+      rose-pine = pkgs: _: {
+        plugins.start = [pkgs.vimPlugins.rose-pine];
+        initLua = ''
+          require("rose-pine").setup({ variant = "main", dark_variant = "main" })
+          vim.cmd.colorscheme("rose-pine")
+        '';
+      };
     };
   };
 in
@@ -37,7 +40,7 @@ in
         # the other modules' settings instead of replacing their lists.
         else
           base.extendModules {
-            modules = [(mylib.sources.prioritize mylib.sources.priorities.module base.options (themes.${resolved.name} pkgs resolved))];
+            modules = [(mylib.sources.prioritize mylib.sources.priorities.module base.options (themes.of resolved pkgs resolved))];
           };
       failedAssertions = map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) final.config.assertions);
     in
@@ -46,7 +49,7 @@ in
       else lib.showWarnings final.config.warnings (inputs.mnw.lib.uncheckedWrap pkgs final.config);
 
     colorscheme =
-      if cfg.useColorscheme
+      if themes.select cfg myconfig.colorscheme.resolved != null
       then myconfig.colorscheme.resolved
       else null;
   in {
@@ -76,12 +79,7 @@ in
         package = packageOption (mkPackage pkgs colorscheme);
       };
 
-    assertions.ifEnabled = [
-      {
-        assertion = colorscheme == null || themes ? ${colorscheme.name};
-        message = "neovim has no theme for colorscheme \"${colorscheme.name or ""}\"; set neovim.useColorscheme = false to leave Neovim's colors unmanaged";
-      }
-    ];
+    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
 
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
@@ -125,7 +123,7 @@ in
             package = mkPackage pkgs resolved;
             publish = true;
           })
-        (lib.filterAttrs (_: resolved: themes ? ${resolved.name}) myconfig.colorscheme.combinations))
+        (lib.filterAttrs (_: resolved: themes.of resolved != null) myconfig.colorscheme.combinations))
       ];
 
     # A fixture stands in for a feature module, so the case covers how
@@ -207,14 +205,11 @@ in
         expr = result: hasTheme result.options.myconfig.neovim.package.value;
         expected = false;
       };
-      unsupported-scheme = {
-        uses = ["colorscheme"];
-        moduleSystem = "bundles";
-        modules.fixture.myconfig.always = {config, ...}: {
-          colorscheme.schemes.fixture.palette = config.myconfig.colorscheme.schemes.rose-pine.palette;
+      unsupported-scheme =
+        themes.unsupportedCase
+        // {
+          uses = ["colorscheme"];
+          moduleSystem = "bundles";
         };
-        host.myconfig.ifEnabled.colorscheme.selection.name = "fixture";
-        fails = "neovim has no theme for colorscheme \"fixture\"";
-      };
     };
   })

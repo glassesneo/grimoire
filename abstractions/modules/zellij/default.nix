@@ -2,6 +2,7 @@
   delib,
   inputs,
   lib,
+  mylib,
   ...
 }: let
   inherit (lib) types;
@@ -12,7 +13,8 @@
       version = 1;
       indent = "    ";
       inherit content;
-    });
+    })
+    + "\n";
 
   argument = types.oneOf [types.bool types.int types.float types.str];
   arguments = types.either argument (types.listOf argument);
@@ -74,18 +76,19 @@
     };
   };
 
-  # Zellij's legacy theme format, which it converts to its UI components; the
-  # palette has no orange, so the nearest ANSI hue stands in.
-  colorschemeSettings = palette: let
-    a = palette.ansi;
-  in {
-    themes.colorscheme = {
-      fg = palette.foreground;
-      bg = palette.background;
-      inherit (a) black red green yellow blue magenta cyan white;
-      orange = a.yellow;
+  # Official ports by scheme name: the theme the file declares, and the file,
+  # which Zellij loads from the `themes` directory beside `config.kdl`.
+  themes = mylib.schemeThemes {
+    name = "zellij";
+    themes.rose-pine = {
+      name = "rose-pine";
+      source = pkgs: "${pkgs.fetchFromGitHub {
+        owner = "rose-pine";
+        repo = "zellij";
+        rev = "f4b7c27f9515d964a78e07da8332530a45f060d5";
+        hash = "sha256-eilCRSweo0wk4z6snBWFC67NMVvytfDfJqGWVXg6QRc=";
+      }}/dist/rose-pine.kdl";
     };
-    theme = "colorscheme";
   };
 in
   delib.module ({
@@ -93,18 +96,27 @@ in
     myconfig,
     ...
   }: let
-    # A configuration directory, as Zellij reads it with `--config-dir`.
-    configDir = pkgs: settings:
-      pkgs.linkFarm "zellij-config" {
-        "config.kdl" = pkgs.writeText "config.kdl" (toKdl [(renderKeybinds cfg.keybinds) settings]);
-        "layouts/default.kdl" = ./layouts/default.kdl;
+    theme = themes.select cfg myconfig.colorscheme.resolved;
+
+    # Zellij's configuration with a theme, or null for none: `config.kdl` as
+    # text, and the directory's other files by their relative path. A theme
+    # the settings name explicitly takes precedence.
+    configText = theme:
+      toKdl [
+        (renderKeybinds cfg.keybinds)
+        (lib.optionalAttrs (theme != null) {theme = theme.name;} // cfg.settings)
+      ];
+    files = pkgs: theme:
+      {"layouts/default.kdl" = ./layouts/default.kdl;}
+      // lib.optionalAttrs (theme != null) {
+        "themes/${theme.name}.kdl" = theme.source pkgs;
       };
 
-    mkPackage = pkgs: settings:
+    mkPackage = pkgs: theme:
       inputs.nix-wrapper-modules.lib.wrapPackage {
         inherit pkgs;
         package = pkgs.zellij;
-        flags."--config-dir" = configDir pkgs settings;
+        flags."--config-dir" = pkgs.linkFarm "zellij-config" (files pkgs theme // {"config.kdl" = pkgs.writeText "config.kdl" (configText theme);});
       };
   in {
     name = "zellij";
@@ -118,6 +130,7 @@ in
         default = {};
         description = "Top-level nodes of Zellij's `config.kdl` other than `keybinds`; a list repeats the node's arguments.";
       };
+
       keybinds = lib.mkOption {
         type = types.submodule {
           options = lib.genAttrs modes (_:
@@ -131,34 +144,32 @@ in
       };
     };
 
+    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+
     myconfig.ifEnabled.zellij = {
-      settings = lib.mkMerge [
-        {
-          plugins = {};
-          load_plugins = {};
+      settings = {
+        plugins = {};
+        load_plugins = {};
 
-          support_kitty_graphics_protocol = true;
-          support_kitty_keyboard_protocol = true;
-          styled_underlines = true;
+        support_kitty_graphics_protocol = true;
+        support_kitty_keyboard_protocol = true;
+        styled_underlines = true;
 
-          pane_frames = true;
-          show_startup_tips = false;
-          show_release_notes = false;
-          mouse_hover_effects = true;
-          mouse_hover_tips = false;
+        pane_frames = true;
+        show_startup_tips = false;
+        show_release_notes = false;
+        mouse_hover_effects = true;
+        mouse_hover_tips = false;
 
-          session_serialization = false;
-          disable_session_metadata = true;
-          auto_layout = false;
-          stacked_resize = false;
-          scroll_mode_sync = true;
-          copy_on_select = true;
-          mouse_mode = true;
-          advanced_mouse_actions = false;
-        }
-        (lib.mkIf (cfg.useColorscheme && myconfig.colorscheme.resolved != null)
-          (colorschemeSettings myconfig.colorscheme.resolved.palette))
-      ];
+        session_serialization = false;
+        disable_session_metadata = true;
+        auto_layout = false;
+        stacked_resize = false;
+        scroll_mode_sync = true;
+        copy_on_select = true;
+        mouse_mode = true;
+        advanced_mouse_actions = false;
+      };
 
       keybinds = let
         scrollAndSearch = {
@@ -264,36 +275,41 @@ in
         "zellij/permissions.kdl" = permissionsFile;
       };
 
-      xdg.config.files = {
-        "zellij/config.kdl" = {
-          exclusive = true;
-          text = toKdl [(renderKeybinds cfg.keybinds) cfg.settings];
-        };
-        # Replaces the built-in default layout, which also serves as the
-        # template of new tabs.
-        "zellij/layouts/default.kdl" = {
-          exclusive = true;
-          source = ./layouts/default.kdl;
-        };
-      };
+      # The default layout replaces the built-in one, which also serves as the
+      # template of new tabs.
+      xdg.config.files =
+        {
+          "zellij/config.kdl" = {
+            exclusive = true;
+            text = configText theme;
+          };
+        }
+        // lib.mapAttrs' (path: source:
+          lib.nameValuePair "zellij/${path}" {
+            exclusive = true;
+            inherit source;
+          }) (files pkgs theme);
     };
 
     # `zellij` carries no theme; `zellij-<combination>` follows each
-    # combination of `colorscheme.combinations`, whatever the host selects.
+    # combination of `colorscheme.combinations` that has a theme, whatever the
+    # host selects.
     bundles.ifEnabled = {pkgs, ...}:
       lib.mkMerge [
         {
           zellij = {
-            package = mkPackage pkgs cfg.settings;
+            package = mkPackage pkgs null;
             publish = true;
           };
         }
-        (lib.mapAttrs' (combination: resolved:
+        (lib.mapAttrs' (combination: resolved: let
+          theme = themes.of resolved;
+        in
           lib.nameValuePair "zellij-${combination}" {
-            package = mkPackage pkgs (lib.recursiveUpdate cfg.settings (colorschemeSettings resolved.palette));
+            package = mkPackage pkgs theme;
             publish = true;
           })
-        myconfig.colorscheme.combinations)
+        (lib.filterAttrs (_: resolved: themes.of resolved != null) myconfig.colorscheme.combinations))
       ];
 
     checks = {
@@ -322,6 +338,7 @@ in
           '';
       };
 
+      unsupported-scheme = themes.unsupportedCase // {uses = ["colorscheme"];};
       null-unbinds = {
         uses = ["colorscheme"];
         host.myconfig.ifEnabled.zellij.keybinds.shared."Super t" = null;
@@ -329,16 +346,15 @@ in
         expected = false;
       };
 
-      # The published configuration must be one Zellij accepts and carry the
-      # combination's colors only where a combination is named.
-      bundle-colors = {
+      # Each published configuration is one Zellij accepts; a combination's
+      # selects that scheme's official theme, which it carries.
+      bundle-themes = {
         uses = ["colorscheme"];
         moduleSystem = "bundles";
         build = result:
-          pkgs.runCommand "zellij-bundle-colors" {
+          pkgs.runCommand "zellij-bundle-themes" {
             plain = result.packages.zellij;
             themed = result.packages.zellij-rose-pine;
-            background = result.options.myconfig.colorscheme.combinations.value.rose-pine.palette.background;
           } ''
             export HOME=$TMPDIR
             for name in plain themed; do
@@ -346,10 +362,16 @@ in
               grep -F '[CONFIG FILE]: Well defined.' check
               dir=$(sed -n 's/^\[CONFIG DIR\]: "\(.*\)"$/\1/p' check)
               test -f "$dir/layouts/default.kdl"
-              cp "$dir/config.kdl" "$name.kdl"
+              cp -rL "$dir" "$name"
             done
-            if grep -Fi "$background" plain.kdl; then exit 1; fi
-            grep -Fi "$background" themed.kdl
+            if grep -F '"theme"' plain/config.kdl || test -e plain/themes; then exit 1; fi
+            grep -Fx '"theme" "rose-pine"' themed/config.kdl
+            # The port declares the theme under the name the configuration selects.
+            grep -Eq '^[[:space:]]*rose-pine \{' themed/themes/rose-pine.kdl
+            # The theme file parses as Zellij configuration.
+            cat themed/config.kdl themed/themes/rose-pine.kdl > combined.kdl
+            zellij=$themed/bin/zellij
+            "$zellij" --config combined.kdl setup --check | grep -F '[CONFIG FILE]: Well defined.'
             touch "$out"
           '';
       };

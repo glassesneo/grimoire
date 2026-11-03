@@ -9,7 +9,14 @@ delib.module ({
   cfg,
   myconfig,
   ...
-}: {
+}: let
+  # Themes Vicinae bundles, by scheme name.
+  themes = mylib.schemeThemes {
+    name = "vicinae";
+    themes.rose-pine = "rose-pine";
+  };
+  theme = themes.select cfg myconfig.colorscheme.resolved;
+in {
   name = "vicinae";
   meta = {
     description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
@@ -22,7 +29,10 @@ delib.module ({
       upstreamPackage = packageOption inputs.vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
       package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
       sourceFiles = mylib.sourceFiles.option "upstreamPackage";
+      useColorscheme = boolOption true "Whether Vicinae takes its theme from `colorscheme.resolved`.";
     };
+
+  assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
 
   hjem.always = {pkgs, ...}: {
     options.vicinae.settings = lib.mkOption {
@@ -87,6 +97,12 @@ delib.module ({
       onChange.activateSettings = true;
     };
 
+    # The scheme applies whatever the system appearance.
+    vicinae.settings.theme = lib.mkIf (theme != null) {
+      dark.name = theme;
+      light.name = theme;
+    };
+
     vicinae.settings = {
       telemetry.system_info = true;
       input_server.enabled = true;
@@ -128,7 +144,7 @@ delib.module ({
     package = pkgs.runCommand "vicinae-fixture" {} "mkdir $out";
   in {
     service = {
-      uses = ["app-identity"];
+      uses = ["app-identity" "colorscheme"];
       platforms = ["aarch64-darwin"];
       host.myconfig.ifEnabled.vicinae = {
         enable = true;
@@ -152,8 +168,46 @@ delib.module ({
         overrides = true;
       };
     };
+    colorscheme = {
+      uses = ["app-identity" "colorscheme"];
+      platforms = ["aarch64-darwin"];
+      host.myconfig.ifEnabled = {
+        vicinae = {
+          enable = true;
+          inherit package;
+        };
+        colorscheme.selection.name = "rose-pine";
+      };
+      expr = result: result.options.vicinae.settings.value.theme;
+      expected = {
+        dark.name = "rose-pine";
+        light.name = "rose-pine";
+      };
+    };
+    unsupported-scheme = lib.recursiveUpdate themes.unsupportedCase {
+      uses = ["app-identity" "colorscheme"];
+      platforms = ["aarch64-darwin"];
+      host.myconfig.ifEnabled.vicinae = {
+        enable = true;
+        inherit package;
+      };
+    };
+    without-colorscheme = {
+      uses = ["app-identity" "colorscheme"];
+      platforms = ["aarch64-darwin"];
+      host.myconfig.ifEnabled = {
+        vicinae = {
+          enable = true;
+          useColorscheme = false;
+          inherit package;
+        };
+        colorscheme.selection.name = "rose-pine";
+      };
+      expr = result: result.options.vicinae.settings.value ? theme;
+      expected = false;
+    };
     duplicate-source-file = {
-      uses = ["app-identity"];
+      uses = ["app-identity" "colorscheme"];
       platforms = ["aarch64-darwin"];
       host.myconfig.ifEnabled.vicinae = {
         enable = true;

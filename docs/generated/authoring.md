@@ -65,18 +65,14 @@ Modules whose only option is `enable`:
 | Module | <code>enable</code> | Responsibility | Tags |
 | --- | --- | --- | --- |
 | [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
-| [<code>bat</code>](../../abstractions/modules/bat/default.nix) | <code>true</code> | Provide and configure bat for file display. |  |
 | [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | <code>true</code> | Provide batman and configure it as Zsh's manual page pager. |  |
-| [<code>claude-code</code>](../../abstractions/modules/agents/claude-code/default.nix) | <code>true</code> | Provide and configure Claude Code. |  |
 | [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |
 | [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | <code>true</code> | Provide and configure direnv, including its Zsh integration. |  |
 | [<code>dock</code>](../../abstractions/modules/dock/default.nix) | <code>true</code> | Configure the Dock and the actions of screen hot corners. |  |
 | [<code>elio.ctrl-np</code>](../../abstractions/modules/elio/ctrl-np/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Move through elio's search results and scroll its help with Ctrl-N and Ctrl-P, which elio hard-codes to the arrow keys. |  |
 | [<code>elio.quit-after-open</code>](../../abstractions/modules/elio/quit-after-open/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully. |  |
-| [<code>eza</code>](../../abstractions/modules/eza/default.nix) | <code>true</code> | Provide eza for listing files and directories. |  |
 | [<code>fd</code>](../../abstractions/modules/fd/default.nix) | <code>true</code> | Provide fd for finding files and directories. |  |
 | [<code>files</code>](../../abstractions/modules/files/default.nix) | <code>true</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
-| [<code>fzf</code>](../../abstractions/modules/fzf/default.nix) | <code>true</code> | Provide and configure fzf, including its Zsh integration. |  |
 | [<code>gh</code>](../../abstractions/modules/gh/default.nix) | <code>true</code> | Provide the GitHub CLI. |  |
 | [<code>git.include</code>](../../abstractions/modules/git/include/default.nix) | <code>myconfig.git.enable &amp;&amp; true</code> | Configure Git settings through includes. |  |
 | [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | <code>true</code> | Provide gomi and integrate it into Zsh. |  |
@@ -125,6 +121,7 @@ Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstract
 | --- | --- | --- | --- |
 | <code>alacritty.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>alacritty.package</code> | <code>package</code> | <code>nixpkgs: alacritty</code> |  |
+| <code>alacritty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Alacritty takes its colors from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
@@ -154,6 +151,17 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
 
+### <code>bat</code>
+
+Provide and configure bat for file display.
+
+Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>bat.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>bat.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether bat takes its theme from `colorscheme.resolved`. |
+
 ### <code>bettertouchtool</code>
 
 Provide BetterTouchTool.
@@ -175,6 +183,17 @@ Source: [<code>abstractions/modules/casks/default.nix</code>](../../abstractions
 | --- | --- | --- | --- |
 | <code>casks.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Casks of the official tap, by token. |
 | <code>casks.taps</code> | <code>lazy attribute set of lazy attribute set of lazy attribute set of package</code> | (computed) | read-only; Casks of third-party taps, by tap owner, tap name and token. |
+
+### <code>claude-code</code>
+
+Provide and configure Claude Code.
+
+Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>claude-code.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Claude Code takes its theme from `colorscheme.resolved`. |
 
 ### <code>colorscheme</code>
 
@@ -210,6 +229,7 @@ Source: [<code>abstractions/modules/colorscheme/default.nix</code>](../../abstra
 | <code>colorscheme.schemes.&lt;name&gt;.palette.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.palette.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.palette.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.palette.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
 | <code>colorscheme.schemes.&lt;name&gt;.palette.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.palette.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.variants</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Palettes of a scheme with variants, by variant name. |
@@ -234,6 +254,7 @@ Source: [<code>abstractions/modules/colorscheme/default.nix</code>](../../abstra
 | <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
 | <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
 | <code>colorscheme.selection</code> | <code>null or (submodule)</code> | <code>null</code> | Scheme that applications share; `null` selects none. A higher source replaces it whole, so a variant always comes with its scheme's name. |
@@ -302,6 +323,28 @@ Source: [<code>abstractions/modules/exclusive/default.nix</code>](../../abstract
 | <code>xdg.config.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 | <code>xdg.data.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 | <code>xdg.state.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
+
+### <code>eza</code>
+
+Provide eza for listing files and directories.
+
+Source: [<code>abstractions/modules/eza/default.nix</code>](../../abstractions/modules/eza/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>eza.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>eza.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether eza takes its colors from `colorscheme.resolved`. |
+
+### <code>fzf</code>
+
+Provide and configure fzf, including its Zsh integration.
+
+Source: [<code>abstractions/modules/fzf/default.nix</code>](../../abstractions/modules/fzf/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>fzf.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>fzf.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether fzf takes its colors from `colorscheme.resolved`. |
 
 ### <code>ghostty</code>
 
@@ -572,6 +615,7 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
 | <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
+| <code>vicinae.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Vicinae takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 

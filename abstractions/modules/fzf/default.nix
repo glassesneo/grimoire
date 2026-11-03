@@ -1,41 +1,104 @@
 {
   delib,
   lib,
+  mylib,
   ...
-}:
-delib.module {
-  name = "fzf";
-  meta.description = "Provide and configure fzf, including its Zsh integration.";
-
-  options.enable = delib.boolOption true;
-
-  hjem.ifEnabled = {pkgs, ...}: let
-    fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix -E .agents -E .DS_Store -E .direnv -E .envrc -E var/";
-  in {
-    packages = [pkgs.fzf];
-
-    environment.sessionVariables = {
-      FZF_DEFAULT_COMMAND = fileCommand;
-      FZF_CTRL_T_COMMAND = fileCommand;
-      FZF_ALT_C_COMMAND = "";
-      FZF_DEFAULT_OPTS = lib.concatStringsSep " " [
-        "--color=bg:-1,list-bg:-1,preview-bg:-1,input-bg:-1,header-bg:-1,footer-bg:-1"
-        "--color=gutter:-1,border:-1"
-        "--border=sharp"
-        "--no-separator"
-        "--no-scrollbar"
-      ];
-      FZF_CTRL_T_OPTS = "--popup=center,80%,50%";
-      FZF_CTRL_R_OPTS = "--popup=center,80%,50%";
-    };
-
-    zsh.zshrc.fzf = {
-      after = ["compinit"];
-      text = ''
-        if [[ $options[zle] = on ]]; then
-          source <(${lib.getExe pkgs.fzf} --zsh)
-        fi
+}: let
+  # Official ports by scheme name, as an options file. The ports are scripts
+  # exporting FZF_DEFAULT_OPTS, whose quoted value is the file's content.
+  themes = mylib.schemeThemes {
+    name = "fzf";
+    themes.rose-pine = pkgs:
+      pkgs.runCommandLocal "fzf-rose-pine" {
+        src = pkgs.fetchFromGitHub {
+          owner = "rose-pine";
+          repo = "fzf";
+          rev = "9af300f871df52331c362ca58c73535f69b6fb03";
+          hash = "sha256-WKREw1qzjuURqrCS6LI5ySc924W8d2n0rlA6AV1K5OE=";
+        };
+      } ''
+        sed -e '1s/^export FZF_DEFAULT_OPTS="//' -e '$s/"$//' "$src/dist/rose-pine.sh" > "$out"
       '';
-    };
   };
-}
+in
+  delib.module ({
+    cfg,
+    myconfig,
+    ...
+  }: let
+    theme = themes.select cfg myconfig.colorscheme.resolved;
+  in {
+    name = "fzf";
+    meta.description = "Provide and configure fzf, including its Zsh integration.";
+
+    options = with delib; {
+      enable = boolOption true;
+      useColorscheme = boolOption true "Whether fzf takes its colors from `colorscheme.resolved`.";
+    };
+
+    assertions.ifEnabled = [(themes.assertion cfg myconfig.colorscheme.resolved)];
+
+    hjem.ifEnabled = {pkgs, ...}: let
+      fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix -E .agents -E .DS_Store -E .direnv -E .envrc -E var/";
+    in {
+      packages = [pkgs.fzf];
+
+      environment.sessionVariables =
+        {
+          FZF_DEFAULT_COMMAND = fileCommand;
+          FZF_CTRL_T_COMMAND = fileCommand;
+          FZF_ALT_C_COMMAND = "";
+          FZF_DEFAULT_OPTS = lib.concatStringsSep " " [
+            "--border=sharp"
+            "--no-separator"
+            "--no-scrollbar"
+          ];
+          FZF_CTRL_T_OPTS = "--popup=center,80%,50%";
+          FZF_CTRL_R_OPTS = "--popup=center,80%,50%";
+        }
+        // lib.optionalAttrs (theme != null) {
+          # fzf reads the file before FZF_DEFAULT_OPTS.
+          FZF_DEFAULT_OPTS_FILE = theme pkgs;
+        };
+
+      zsh.zshrc.fzf = {
+        after = ["compinit"];
+        text = ''
+          if [[ $options[zle] = on ]]; then
+            source <(${lib.getExe pkgs.fzf} --zsh)
+          fi
+        '';
+      };
+    };
+
+    checks = {pkgs, ...}: let
+      host = extra: {
+        uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
+        host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;
+      };
+      optsFile = result: result.options.environment.sessionVariables.value.FZF_DEFAULT_OPTS_FILE or null;
+    in {
+      # The official colors reach fzf as options it accepts.
+      colorscheme =
+        host {}
+        // {
+          build = result:
+            pkgs.runCommand "fzf-colorscheme" {
+              file = optsFile result;
+              nativeBuildInputs = [pkgs.fzf];
+            } ''
+              grep -F -- '--color=fg:#908caa,bg:#191724,hl:#ebbcba' "$file"
+              if grep -F '"' "$file"; then exit 1; fi
+              echo match | FZF_DEFAULT_OPTS_FILE=$file fzf --filter match | grep -Fx match
+              touch "$out"
+            '';
+        };
+      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
+      without-colorscheme =
+        host {fzf.useColorscheme = false;}
+        // {
+          expr = optsFile;
+          expected = null;
+        };
+    };
+  })

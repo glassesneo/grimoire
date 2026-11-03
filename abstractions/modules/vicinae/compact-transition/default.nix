@@ -37,7 +37,7 @@ in
       # The replacements were written against the files of the locked upstream source.
       upstream = mylib.sourceFiles.upstreamCase inputs.vicinae.packages.${system}.default.src sourceFiles;
       requires-compact-mode = {
-        uses = ["vicinae" "app-identity"];
+        uses = ["vicinae" "app-identity" "colorscheme"];
         host.myconfig.ifEnabled.vicinae = {
           enable = true;
           compact-transition.enable = true;
