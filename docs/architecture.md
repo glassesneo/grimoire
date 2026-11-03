@@ -116,7 +116,7 @@ The number of tests does not measure validation; a test that restates its implem
 
 - a guard that valid configurations never trip, such as the forwarding of constraints or the detection of a second definer;
 - an input or path that no published configuration exercises, such as a scheme variant no host selects or a bundle no host uses;
-- reliance on upstream internals that a lock update can change silently, such as the files a patch was written against or an upstream option set the repository embeds.
+- reliance on upstream internals that a lock update can change silently, such as an upstream option set the repository embeds. A patch's upstream files are compared when the patched package builds, not by a test.
 
 For a program the repository configures, a test stops at what a build can observe: passing a generated file to the program's own validator belongs to the build, while running the program to observe its behavior does not. A program the repository writes is covered by its own tests, which may exercise its runtime behavior.
 

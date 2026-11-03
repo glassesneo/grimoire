@@ -1,6 +1,5 @@
 {
   delib,
-  inputs,
   lib,
   mylib,
   ...
@@ -31,10 +30,5 @@ in
           message = "vicinae.compact-transition requires vicinae.settings.launcher_window.compact_mode.enabled; the transition has no effect without compact mode.";
         }
       ];
-    };
-
-    tests = {system, ...}: {
-      # The replacements were written against the files of the locked upstream source.
-      upstream = mylib.sourceFiles.upstreamCase inputs.vicinae.packages.${system}.default.src sourceFiles;
     };
   }

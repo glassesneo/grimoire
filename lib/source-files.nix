@@ -6,8 +6,7 @@
 # against, and the build fails when the source holds a different file, so an
 # upstream change is merged by hand rather than overwritten. Without
 # replacements `apply` returns the package itself, which keeps its binary
-# cache. `upstreamCase` is a module test case comparing those hashes with the
-# locked source at evaluation time.
+# cache.
 {lib}: let
   inherit (lib) types;
 in {
@@ -45,10 +44,4 @@ in {
             '')
             files);
       });
-
-  upstreamCase = source: files: {
-    protects = "the replaced files are unchanged in the locked upstream source";
-    expr = _: lib.mapAttrs (path: _: builtins.hashFile "sha256" "${source}/${path}") files;
-    expected = lib.mapAttrs (_: file: file.upstreamSha256) files;
-  };
 }

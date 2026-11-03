@@ -1,6 +1,5 @@
 {
   delib,
-  inputs,
   mylib,
   ...
 }: let
@@ -18,9 +17,4 @@ in
     options.enable = delib.boolOption true;
 
     myconfig.ifEnabled.elio.sourceFiles = sourceFiles;
-
-    # The replacements were written against the files of the locked upstream source.
-    tests = _: {
-      upstream = mylib.sourceFiles.upstreamCase inputs.elio sourceFiles;
-    };
   }

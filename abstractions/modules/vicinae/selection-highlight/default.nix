@@ -1,6 +1,5 @@
 {
   delib,
-  inputs,
   mylib,
   ...
 }: let
@@ -22,9 +21,4 @@ in
     options.enable = delib.boolOption false;
 
     myconfig.ifEnabled.vicinae.sourceFiles = sourceFiles;
-
-    tests = {system, ...}: {
-      # The replacements were written against the files of the locked upstream source.
-      upstream = mylib.sourceFiles.upstreamCase inputs.vicinae.packages.${system}.default.src sourceFiles;
-    };
   }
