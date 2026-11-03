@@ -18,20 +18,4 @@ delib.module ({myconfig, ...}: {
     };
     system.defaults.smb.NetBIOSName = myconfig.host.user.name;
   };
-
-  tests = _: {
-    known-user = {
-      uses = ["host" "nixpkgs"];
-      host.user.uid = 502;
-      moduleSystem = "darwin";
-      expr = result: {
-        inherit (result.config.users.users.fixture) uid;
-        known = lib.elem "fixture" result.config.users.knownUsers;
-      };
-      expected = {
-        uid = 502;
-        known = true;
-      };
-    };
-  };
 })

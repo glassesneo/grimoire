@@ -47,6 +47,7 @@ in {
       });
 
   upstreamCase = source: files: {
+    protects = "the replaced files are unchanged in the locked upstream source";
     expr = _: lib.mapAttrs (path: _: builtins.hashFile "sha256" "${source}/${path}") files;
     expected = lib.mapAttrs (_: file: file.upstreamSha256) files;
   };

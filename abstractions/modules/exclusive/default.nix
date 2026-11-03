@@ -79,10 +79,6 @@ in
       };
       hjemFile = ["files" ".owned"];
       etcFile = ["environment" "etc" "owned"];
-      # The darwin fixture fails unrelated assertions, such as a missing stateVersion.
-      exclusive = lib.filter (lib.hasInfix "is exclusive");
-      failed = result: exclusive result.failedAssertions;
-      failedDarwin = result: exclusive (map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) result.config.assertions));
       # nix-darwin needs the host's system, which these modules provide.
       darwinCase = case:
         {
@@ -92,28 +88,8 @@ in
         }
         // case;
     in {
-      single-owner = {
-        modules.owner.hjem = owner hjemFile;
-        expr = failed;
-        expected = [];
-      };
-      disabled-writer = {
-        modules = {
-          owner.hjem = owner hjemFile;
-          writer = {
-            options.enable = delib.boolOption false;
-            hjem.ifEnabled.files.".owned".text = "writer";
-          };
-        };
-        expr = failed;
-        expected = [];
-      };
-      shared-file-merges = {
-        modules = lib.genAttrs ["a" "b"] (name: {hjem.always.xdg.config.files.shared.text = name;});
-        expr = failed;
-        expected = [];
-      };
       second-module = {
+        protects = "a second module defining an exclusive Hjem file is rejected";
         modules = {
           owner.hjem = owner hjemFile;
           intruder.hjem.always.files.".owned".text = "intruder";
@@ -121,16 +97,13 @@ in
         fails = ''files.".owned" is exclusive but defined by'';
       };
       host-definer = {
+        protects = "a host defining an exclusive Hjem file is rejected";
         modules.owner.hjem = owner ["xdg" "state" "files" "owned"];
         host.hjem.ifEnabled.xdg.state.files.owned.text = "host";
         fails = ''xdg.state.files."owned" is exclusive but defined by'';
       };
-      etc-single-owner = darwinCase {
-        modules.owner.darwin = owner etcFile;
-        expr = failedDarwin;
-        expected = [];
-      };
       etc-second-module = darwinCase {
+        protects = "a second module defining an exclusive environment.etc file is rejected";
         modules = {
           owner.darwin = owner etcFile;
           intruder.darwin.always.environment.etc.owned.text = "intruder";

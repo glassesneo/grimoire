@@ -1,8 +1,9 @@
 # Owns inline tests, declaration ownership, and the conservative reverse uses
 # closure. tests {pkgs, lib, system, home, oxlintConfig} returns named cases,
-# whose fields are the options declared below. Each case has exactly one mode:
-# expected, fails or build. Unknown fields and unknown uses are errors when the
-# cases are discovered. Coverage retains all cases.
+# whose fields are the options declared below. Each case states what it
+# protects and has exactly one mode: expected, fails or build. Unknown fields,
+# unknown uses and a missing `protects` are errors when the cases are
+# discovered. Coverage retains all cases.
 # moduleTestInfo takes {pkgs,system,home,oxlintConfig,root,infrastructure} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
 # tsRoots, uses, infrastructure and affectedChecks. Declaration files must be
@@ -21,6 +22,10 @@
 
   case = {options, ...}: {
     options = {
+      protects = mkOption {
+        type = types.nonEmptyStr;
+        description = "What this repository wrote or changed that the case protects, and the behavior it keeps. Required.";
+      };
       uses = mkOption {
         type = types.listOf types.str;
         default = [];
@@ -69,6 +74,12 @@
         default = [];
         description = "TypeScript roots whose coverage this case provides, relative to the module directory; `.` is the module directory.";
       };
+      documented = mkOption {
+        type = types.bool;
+        internal = true;
+        readOnly = true;
+        description = "Whether the case defines `protects`.";
+      };
       defined = mkOption {
         type = types.listOf (types.enum (["expr"] ++ modes));
         internal = true;
@@ -76,7 +87,10 @@
         description = "The fields among `expr` and the modes that the case defines.";
       };
     };
-    config.defined = lib.filter (field: options.${field}.isDefined) (["expr"] ++ modes);
+    config = {
+      documented = options.protects.isDefined;
+      defined = lib.filter (field: options.${field}.isDefined) (["expr"] ++ modes);
+    };
   };
 in {
   config.settings.modules.extraSubmodules.options.tests = lib.mkOption {
@@ -113,9 +127,11 @@ in {
       cases = config.modules.${name}.tests {inherit pkgs lib system home oxlintConfig;};
       uses = lib.unique (lib.concatMap (case: case.uses) (builtins.attrValues cases));
       unknown = lib.subtractLists names uses;
+      undocumented = builtins.attrNames (lib.filterAttrs (_: case: !case.documented) cases);
       normalize = path: lib.concatStringsSep "/" ([directory] ++ lib.filter (part: part != "." && part != "") (lib.splitString "/" path));
     in
-      assert lib.assertMsg (unknown == []) "module-tests: unknown uses in '${name}': ${toString unknown}"; {
+      assert lib.assertMsg (unknown == []) "module-tests: unknown uses in '${name}': ${toString unknown}";
+      assert lib.assertMsg (undocumented == []) "module-tests: cases without protects in '${name}': ${toString undocumented}"; {
         inherit file directory cases uses;
         infrastructure = lib.elem name infrastructure;
         applicableCases = lib.filterAttrs (_: case: lib.elem system case.platforms) cases;

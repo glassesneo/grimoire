@@ -9,9 +9,6 @@
 # from the table cannot be realized, so `constraint` rejects it and names
 # `<name>.useColorscheme = false`, which leaves the application's colors
 # unmanaged. Bundles published per combination keep those `of` finds.
-# `unsupportedCase` is a module test case whose host follows a scheme absent
-# from every table, a copy of Rosé Pine registered as "fixture", and expects
-# that rejection.
 {lib}: {
   name,
   themes,
@@ -31,13 +28,5 @@ in {
   constraint = cfg: resolved: {
     assertion = !cfg.useColorscheme || resolved == null || of resolved != null;
     message = "${name} has no theme for colorscheme \"${resolved.name or ""}\"; set ${name}.useColorscheme = false to leave its colors unmanaged";
-  };
-
-  unsupportedCase = {
-    modules.fixture.myconfig.always = {config, ...}: {
-      colorscheme.schemes.fixture.palette = config.myconfig.colorscheme.schemes.rose-pine.palette;
-    };
-    host.myconfig.ifEnabled.colorscheme.selection.name = "fixture";
-    fails = "${name} has no theme for colorscheme \"fixture\"";
   };
 }

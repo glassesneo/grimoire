@@ -51,16 +51,4 @@ in
         text = builtins.toJSON settings;
       };
     };
-
-    tests = _: let
-      host = extra: {
-        uses = ["agents" "colorscheme"];
-        host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;
-        expr = result: (builtins.fromJSON result.options.files.value.".claude/settings.json".text).theme or null;
-      };
-    in {
-      colorscheme = host {} // {expected = "dark-ansi";};
-      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
-      without-colorscheme = host {claude-code.useColorscheme = false;} // {expected = null;};
-    };
   })

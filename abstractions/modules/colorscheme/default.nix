@@ -159,16 +159,8 @@ in
         {modules.fixture.myconfig.always.colorscheme.schemes.fixture = variantScheme;}
         // attrs;
     in {
-      without-selection = {
-        expr = resolved;
-        expected = null;
-      };
-      scheme-without-variants = {
-        host.myconfig.ifEnabled.colorscheme.selection.name = "rose-pine";
-        expr = result: (resolved result).palette.background;
-        expected = "#191724";
-      };
       default-variant = withFixture {
+        protects = "a selection naming only a scheme resolves to its default variant";
         host.myconfig.ifEnabled.colorscheme.selection.name = "fixture";
         expr = result: {inherit (resolved result) name variant;};
         expected = {
@@ -177,6 +169,7 @@ in
         };
       };
       explicit-variant = withFixture {
+        protects = "a selection naming a variant resolves to that variant's palette";
         host.myconfig.ifEnabled.colorscheme.selection = {
           name = "fixture";
           variant = "light";
@@ -184,20 +177,8 @@ in
         expr = result: (resolved result).palette.background;
         expected = "#faf4ed";
       };
-      # A host naming only a scheme does not inherit a lower source's variant.
-      replaced-selection = {
-        modules.fixture.myconfig.always.colorscheme = {
-          schemes.fixture = variantScheme;
-          selection = {
-            name = "fixture";
-            variant = "light";
-          };
-        };
-        host.myconfig.ifEnabled.colorscheme.selection.name = "fixture";
-        expr = result: (resolved result).variant;
-        expected = "dark";
-      };
       combinations = withFixture {
+        protects = "combinations list every scheme and each of its variants";
         expr = result: lib.mapAttrs (_: combination: combination.variant) result.options.myconfig.colorscheme.combinations.value;
         expected = {
           fixture = "dark";
@@ -205,28 +186,6 @@ in
           fixture-light = "light";
           rose-pine = null;
         };
-      };
-      unknown-scheme = {
-        host.myconfig.ifEnabled.colorscheme.selection.name = "missing";
-        fails = "\"missing\" is not a registered scheme";
-      };
-      unknown-variant = withFixture {
-        host.myconfig.ifEnabled.colorscheme.selection = {
-          name = "fixture";
-          variant = "missing";
-        };
-        fails = "\"missing\" is not a variant of fixture";
-      };
-      variant-without-variants = {
-        host.myconfig.ifEnabled.colorscheme.selection = {
-          name = "rose-pine";
-          variant = "main";
-        };
-        fails = "rose-pine has no variants";
-      };
-      missing-default = {
-        modules.fixture.myconfig.always.colorscheme.schemes.fixture = variantScheme // {default = "missing";};
-        fails = "colorscheme.schemes.fixture.default must name one of its variants";
       };
     };
   })

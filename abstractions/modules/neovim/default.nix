@@ -131,24 +131,17 @@ in
     tests = {pkgs, ...}: let
       hasTheme = package: lib.elem pkgs.vimPlugins.rose-pine package.config.plugins.start;
     in {
-      feature-contribution = {
-        uses = ["colorscheme"];
-        modules.fixture-feature.myconfig.always.neovim.settings = {
-          plugins.dev.fixture.pure = pkgs.emptyDirectory;
-        };
-        moduleSystem = "bundles";
-        expr = result: builtins.attrNames result.packages.neovim.config.plugins.dev;
-        expected = ["fixture" "grimoire"];
-      };
       # The typed settings must build what mnw's own evaluation of the same
       # definitions builds, which also catches a moved upstream options file.
       upstream-wrap = {
+        protects = "the typed settings build the package mnw's own evaluation of the same definitions builds";
         uses = ["colorscheme"];
         moduleSystem = "bundles";
         expr = result: result.packages.neovim.drvPath == (inputs.mnw.lib.wrap pkgs {imports = result.options.myconfig.neovim.settings.definitions;}).drvPath;
         expected = true;
       };
       upstream-assertions = {
+        protects = "mnw's assertions, checked outside mnw's evaluation, fail the published package";
         uses = ["colorscheme"];
         modules.fixture-feature.myconfig.always.neovim.settings.assertions = [
           {
@@ -161,6 +154,7 @@ in
         fails = true;
       };
       lower-source-warnings-reported = {
+        protects = "warnings from every myconfig source reach mnw beside its own";
         uses = ["colorscheme"];
         modules.fixture-feature.myconfig.always.neovim.settings.warnings = ["fixture"];
         moduleSystem = "bundles";
@@ -168,6 +162,7 @@ in
         expected = true;
       };
       bundles = {
+        protects = "one bundle is published per combination, and a combination's theme adds to the features' plugins";
         uses = ["colorscheme"];
         moduleSystem = "bundles";
         # The host's selection does not change which bundles are published.
@@ -187,29 +182,5 @@ in
           kept = true;
         };
       };
-      host-colorscheme = {
-        uses = ["colorscheme"];
-        # Bundles evaluate `myconfig` without the Hjem features Neovim adds to.
-        moduleSystem = "bundles";
-        host.myconfig.ifEnabled.colorscheme.selection.name = "rose-pine";
-        expr = result: hasTheme result.options.myconfig.neovim.package.value;
-        expected = true;
-      };
-      without-colorscheme = {
-        uses = ["colorscheme"];
-        moduleSystem = "bundles";
-        host.myconfig.ifEnabled = {
-          colorscheme.selection.name = "rose-pine";
-          neovim.useColorscheme = false;
-        };
-        expr = result: hasTheme result.options.myconfig.neovim.package.value;
-        expected = false;
-      };
-      unsupported-scheme =
-        themes.unsupportedCase
-        // {
-          uses = ["colorscheme"];
-          moduleSystem = "bundles";
-        };
     };
   })

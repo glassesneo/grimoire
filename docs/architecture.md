@@ -112,7 +112,13 @@ Each mechanism is specified at the top of its file and by its option description
 
 A test or check belongs under `tests/` or `checks/` only when it can run as a sandboxed flake check. Use Nix option validation, evaluation, or a consumer validator before adding a behavioral test at a higher layer. A test covers what this repository wrote or changed and trusts everything else. A program or module system that the repository configures behaves as its project publishes it, whether it comes from nixpkgs, an official flake, or a third-party flake; repository-owned code behaves as its contract states, because that code's own tests cover it. For a package the repository patches, a test covers only the patched behavior, and a guard that detects a change of the patched upstream file, as `lib/source-files.nix` provides, comes before re-verifying upstream behavior. A change of upstream behavior is caught by the pinned lock file and live verification, not by tests.
 
-The number of tests does not measure validation. A test is added only for behavior that a defect in repository code could break unnoticed; a test that restates its implementation or verifies trusted behavior is noise that hides the failures that matter.
+The number of tests does not measure validation; a test that restates its implementation or verifies trusted behavior is noise that hides the failures that matter. Nix evaluation is pure, so a result that the published configurations produce is verified by reading that result, not by a test restating it. A test covers only what evaluating the published configurations cannot show:
+
+- a guard that valid configurations never trip, such as the forwarding of constraints or the detection of a second definer;
+- an input or path that no published configuration exercises, such as a scheme variant no host selects or a bundle no host uses;
+- reliance on upstream internals that a lock update can change silently, such as the files a patch was written against or an upstream option set the repository embeds.
+
+For a program the repository configures, a test stops at what a build can observe: passing a generated file to the program's own validator belongs to the build, while running the program to observe its behavior does not. A program the repository writes is covered by its own tests, which may exercise its runtime behavior.
 
 A module's option types, constraints and `tests` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; a constraint runs on every evaluation of a real configuration, a test only as a check. A test under `tests/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's tests.
 

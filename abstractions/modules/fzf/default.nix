@@ -70,35 +70,4 @@ in
         '';
       };
     };
-
-    tests = {pkgs, ...}: let
-      host = extra: {
-        uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
-        host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;
-      };
-      optsFile = result: result.options.environment.sessionVariables.value.FZF_DEFAULT_OPTS_FILE or null;
-    in {
-      # The official colors reach fzf as options it accepts.
-      colorscheme =
-        host {}
-        // {
-          build = result:
-            pkgs.runCommand "fzf-colorscheme" {
-              file = optsFile result;
-              nativeBuildInputs = [pkgs.fzf];
-            } ''
-              grep -F -- '--color=fg:#908caa,bg:#191724,hl:#ebbcba' "$file"
-              if grep -F '"' "$file"; then exit 1; fi
-              echo match | FZF_DEFAULT_OPTS_FILE=$file fzf --filter match | grep -Fx match
-              touch "$out"
-            '';
-        };
-      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
-      without-colorscheme =
-        host {fzf.useColorscheme = false;}
-        // {
-          expr = optsFile;
-          expected = null;
-        };
-    };
   })

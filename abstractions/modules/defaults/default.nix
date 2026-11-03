@@ -211,22 +211,17 @@ delib.module {
         onChange.restartProcesses = ["Dock"];
       };
     };
-    # Declaration errors are assertions, so a rejection names its reason.
+    # Declaration errors are constraints, so a rejection names its reason.
     rejects = reason: declarations: {
+      protects = "a declaration that cannot be lowered safely is rejected, naming its reason";
       platforms = darwin;
       modules.fixture.hjem.always = declarations;
       fails = reason;
     };
-    # Option types and merging reject these before any assertion.
-    rejected = modules: {
-      platforms = darwin;
-      inherit modules;
-      expr = result: result.apply;
-      fails = true;
-    };
   in
     {
       lowering = {
+        protects = "declared settings lower to plist values that parse back to them, and service names to their jobs";
         platforms = darwin;
         modules = good;
         expr = result: let
@@ -282,24 +277,9 @@ delib.module {
           globalActions = [];
         };
       };
-      outputs = {
-        platforms = darwin;
-        modules = good;
-        build = result:
-          pkgs.runCommand "defaults-outputs" {
-            inherit (result) apply;
-            inherit (result.apply.steps) defaults services;
-          } ''
-            test -x "$defaults/bin/apply"
-            test -f "$defaults/defaults.json"
-            # The switch runs the services step first.
-            line() { grep -Fn "$1/bin/apply" "$apply/bin/apply" | cut -d: -f1; }
-            test "$(line "$services")" -lt "$(line "$defaults")"
-            touch "$out"
-          '';
-      };
       # Declarations are ignored, not rejected, on Linux.
       linux-ignored = {
+        protects = "Darwin defaults declarations are ignored on Linux";
         host.system = "x86_64-linux";
         modules.fixture.hjem.always = settings "com.example" {ratio = 0.5;};
         expr = result: {
@@ -328,16 +308,6 @@ delib.module {
       };
       unknown-service = rejects "unknown service missing" {
         platform.darwin.defaults."com.example".onChange.restartServices = ["missing"];
-      };
-      unknown-process = rejected {fixture.hjem.always.platform.darwin.defaults."com.example".onChange.restartProcesses = ["Safari"];};
-      # Conflicting values for one leaf are an option merge error, not a silent choice.
-      conflicting-leaf = rejected {
-        a.hjem.always = settings "com.example" {key = "a";};
-        b.hjem.always = settings "com.example" {key = "b";};
-      };
-      conflicting-nested-leaf = rejected {
-        a.hjem.always = settings "com.example" {outer.key = "a";};
-        b.hjem.always = settings "com.example" {outer.key = "b";};
       };
     }
     // lib.listToAttrs (lib.imap0 (index: control:

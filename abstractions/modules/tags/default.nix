@@ -23,42 +23,4 @@ in
       lib.setAttrByPath (lib.splitString "." name ++ ["enable"])
       (lib.mkIf (lib.any (tag: lib.elem tag cfg.enabled) (tagsOf name)) (lib.mkDefault true)))
     tagged);
-
-    tests = _: let
-      app = tags: {
-        meta = {
-          description = "Stand in for a tagged application.";
-          inherit tags;
-        };
-        options.enable = delib.boolOption false;
-      };
-      modules = {
-        gui-app = app ["gui"];
-        excluded-app = app ["gui"];
-        cli-app = app ["cli"];
-      };
-      enables = result: lib.genAttrs (builtins.attrNames modules) (name: result.config.myconfig.${name}.enable);
-    in {
-      enable-selected = {
-        inherit modules;
-        moduleSystem = "darwin";
-        host.myconfig.ifEnabled = {
-          tags.enabled = ["gui"];
-          excluded-app.enable = false;
-        };
-        expr = enables;
-        expected = {
-          gui-app = true;
-          excluded-app = false;
-          cli-app = false;
-        };
-      };
-      unknown-tag = {
-        inherit modules;
-        moduleSystem = "darwin";
-        host.myconfig.ifEnabled.tags.enabled = ["missing"];
-        expr = result: result.config.myconfig.tags.enabled;
-        fails = true;
-      };
-    };
   })

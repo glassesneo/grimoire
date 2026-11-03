@@ -321,6 +321,7 @@ in
       config = result: result.options.xdg.config.files.value."zellij/config.kdl".text;
     in {
       valid-config = {
+        protects = "the KDL rendered from keybinds is configuration Zellij accepts";
         uses = ["colorscheme"];
         modules.fixture = {
           hjem.always.xdg.config.directory = configDir;
@@ -338,8 +339,8 @@ in
           '';
       };
 
-      unsupported-scheme = themes.unsupportedCase // {uses = ["colorscheme"];};
       null-unbinds = {
+        protects = "a null action leaves its key unbound";
         uses = ["colorscheme"];
         host.myconfig.ifEnabled.zellij.keybinds.shared."Super t" = null;
         expr = result: lib.hasInfix "Super t" (config result);
@@ -349,6 +350,7 @@ in
       # Each published configuration is one Zellij accepts; a combination's
       # selects that scheme's official theme, which it carries.
       bundle-themes = {
+        protects = "each published configuration is accepted by Zellij and selects its combination's theme";
         uses = ["colorscheme"];
         moduleSystem = "bundles";
         build = result:

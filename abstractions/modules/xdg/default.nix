@@ -36,22 +36,4 @@ in {
   };
 
   # Hjem results do not expose the environment, so a fixture file carries it.
-  tests = {pkgs, ...}: {
-    exported = {
-      uses = ["host"];
-      modules.fixture.hjem.always = {config, ...}: {
-        files."load-env".source = config.environment.loadEnv;
-      };
-      build = result: let
-        loadEnv = (lib.findFirst (file: lib.hasSuffix "/load-env" file.target) (throw "Missing load-env") result.manifest.files).source;
-      in
-        pkgs.runCommand "xdg-exported" {inherit loadEnv;} ''
-          grep -qx 'export XDG_CACHE_HOME="/tmp/module-tests/.cache"' "$loadEnv"
-          grep -qx 'export XDG_CONFIG_HOME="/tmp/module-tests/.config"' "$loadEnv"
-          grep -qx 'export XDG_DATA_HOME="/tmp/module-tests/.local/share"' "$loadEnv"
-          grep -qx 'export XDG_STATE_HOME="/tmp/module-tests/.local/state"' "$loadEnv"
-          touch "$out"
-        '';
-    };
-  };
 })

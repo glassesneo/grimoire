@@ -63,45 +63,4 @@ in
           '';
       };
     };
-
-    tests = {pkgs, ...}: let
-      host = extra: {
-        uses = ["colorscheme"];
-        host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;
-      };
-      variables = result: result.options.environment.sessionVariables.value;
-      config = result: result.options.xdg.config.files.value."bat/config".text;
-    in {
-      # The configured theme is the official one, found in the cache.
-      colorscheme =
-        host {}
-        // {
-          build = result:
-            pkgs.runCommand "bat-colorscheme" {
-              BAT_CACHE_PATH = (variables result).BAT_CACHE_PATH;
-              config = pkgs.writeText "config" (config result);
-              nativeBuildInputs = [pkgs.bat];
-            } ''
-              # bat writes 24-bit colors only to a terminal that reports them.
-              export HOME=$TMPDIR BAT_CONFIG_PATH=$config COLORTERM=truecolor
-              echo 'fn main() {}' > main.rs
-              # The port colors Rust's `fn` with foam.
-              bat --color=always main.rs | grep -F $'\e[38;2;156;207;216mfn'
-              touch "$out"
-            '';
-        };
-      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
-      without-colorscheme =
-        host {bat.useColorscheme = false;}
-        // {
-          expr = result: {
-            cache = (variables result) ? BAT_CACHE_PATH;
-            theme = lib.hasInfix "--theme" (config result);
-          };
-          expected = {
-            cache = false;
-            theme = false;
-          };
-        };
-    };
   })

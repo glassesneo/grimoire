@@ -46,6 +46,7 @@ in
       # Writing the size needs a user session, so the build only checks that
       # the program compiles and rejects an invalid size before touching it.
       pip-size = {
+        protects = "zoom-pip-size compiles and rejects an invalid size before touching Zoom";
         platforms = lib.platforms.darwin;
         build = _:
           pkgs.runCommand "zoom-pip-size-usage" {} ''

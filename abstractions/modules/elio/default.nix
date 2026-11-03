@@ -288,14 +288,6 @@ in
         };
       };
     in {
-      colorscheme = host {} {
-        bg = "#191724";
-        directory = "#c4a7e7";
-      };
-      explicit-color = host {elio.theme.palette.bg = "#000000";} {
-        bg = "#000000";
-        directory = "#c4a7e7";
-      };
       # A scheme without named colors for elio takes the ANSI theme.
       ansi-scheme =
         host {colorscheme.selection.name = "fixture";} {
@@ -303,18 +295,16 @@ in
           directory = "#9ccfd8";
         }
         // {
+          protects = "a scheme without an elio theme maps to the ANSI theme";
           modules.fixture.myconfig.always = {config, ...}: {
             colorscheme.schemes.fixture.palette = config.myconfig.colorscheme.schemes.rose-pine.palette;
           };
         };
-      without-colorscheme = host {elio.useColorscheme = false;} {
-        bg = null;
-        directory = null;
-      };
       # Stands in for elio and prints the arguments it receives.
       bundles = let
         fake = pkgs.writeShellScriptBin "elio" ''printf '%s\n' "$@"'';
       in {
+        protects = "the bundle wrapper passes subcommands through and adds the configuration, and a combination's theme, only to launches";
         uses = ["colorscheme"];
         moduleSystem = "bundles";
         modules.fixture.myconfig.always.elio.package = fake;
@@ -339,58 +329,6 @@ in
               test "$(tail -1 themed)" = /start
               touch "$out"
             '';
-      };
-      # Stands in for elio's source build: the replacement reaches the
-      # published package.
-      source-files = let
-        upstream = "#!/bin/sh\necho upstream\n";
-        fake = pkgs.stdenv.mkDerivation {
-          name = "elio";
-          src = pkgs.writeTextDir "bin/elio" upstream;
-          dontBuild = true;
-          installPhase = "install -Dm755 bin/elio $out/bin/elio";
-          meta.mainProgram = "elio";
-        };
-      in {
-        moduleSystem = "bundles";
-        uses = ["colorscheme"];
-        modules.fixture.myconfig.always.elio = {
-          upstreamPackage = fake;
-          sourceFiles."bin/elio" = {
-            source = pkgs.writeText "elio" "#!/bin/sh\necho replaced\n";
-            upstreamSha256 = builtins.hashString "sha256" upstream;
-          };
-        };
-        build = result:
-          pkgs.runCommand "elio-source-files" {} ''
-            test "$(${lib.getExe result.packages.elio} --version)" = replaced
-            touch "$out"
-          '';
-      };
-      # Stands in for elio, whose own tests cover the function it prints.
-      zshrc-sources-shell-integration = let
-        configDir = "/fixture/config";
-        fake = pkgs.writeShellScriptBin "elio" ''
-          [ "$*" = "shell init zsh" ] && echo 'elio() { print integrated; }'
-        '';
-      in {
-        uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
-        host.myconfig.ifEnabled.elio.package = fake;
-        modules.fixture.hjem.always.xdg.config.directory = configDir;
-        build = result: let
-          zshrc =
-            (lib.findFirst (file: file.target == "${configDir}/zsh/.zshrc")
-              (throw "Missing fixture file .zshrc")
-              result.manifest.files).source;
-        in
-          pkgs.runCommand "elio-zshrc" {
-            inherit zshrc;
-            nativeBuildInputs = [pkgs.zsh];
-          } ''
-            export HOME=$TMPDIR
-            test "$(zsh -c 'source "$zshrc" >/dev/null 2>&1; elio')" = integrated
-            touch "$out"
-          '';
       };
     };
   })

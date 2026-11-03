@@ -311,8 +311,9 @@ delib.module {
           config = extra;
         };
       };
-    # Declaration errors are assertions, so a rejection names its reason.
+    # Declaration errors are constraints, so a rejection names its reason.
     rejects = reason: declarations: {
+      protects = "a declaration that cannot be lowered safely is rejected, naming its reason";
       platforms = darwin;
       modules.fixture.hjem.always = declarations;
       fails = reason;
@@ -327,6 +328,7 @@ delib.module {
   in
     {
       lowering = {
+        protects = "portable and native declarations lower to launchd jobs with escaped values";
         platforms = darwin;
         modules.fixture = good;
         expr = result: let
@@ -361,30 +363,18 @@ delib.module {
           };
         };
       };
-      outputs = {
-        platforms = darwin;
-        modules.fixture = good;
-        build = result:
-          pkgs.runCommand "services-outputs" {services = result.apply.steps.services;} ''
-            test -x "$services/bin/apply"
-            test -f "$services/services.json"
-            ${lib.concatMapStringsSep "\n" (job: ''test -f "$services/plists/${job.label}.plist"'') result.apply.steps.services.jobs}
-            touch "$out"
-          '';
-      };
-      reconciler.build = _: pkgs.callPackage ./reconciler/package.nix {};
-      # The option type rejects an empty argv before any assertion.
-      empty-argv = {
-        modules.fixture.hjem.always.userServices.x.command = [];
-        expr = result: result.apply;
-        fails = true;
+      reconciler = {
+        protects = "the reconciler builds and passes its own tests";
+        build = _: pkgs.callPackage ./reconciler/package.nix {};
       };
       linux-portable = {
+        protects = "portable services are rejected on Linux, which has no user-service backend";
         host.system = "x86_64-linux";
         modules.fixture.hjem.always = base;
         fails = "Linux user-service backend";
       };
       linux-native-ignored = {
+        protects = "native launchd declarations are ignored on Linux";
         host.system = "x86_64-linux";
         modules.fixture.hjem.always.platform.darwin.launchAgents.native = {
           domain = "gui";

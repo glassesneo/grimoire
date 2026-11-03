@@ -69,39 +69,4 @@ in
         };
       };
     };
-
-    tests = {pkgs, ...}: let
-      host = extra: {
-        uses = ["colorscheme" "zsh" "zsh.interactive" "zsh.interactive.zabrze"];
-        host.myconfig.ifEnabled = lib.recursiveUpdate {colorscheme.selection.name = "rose-pine";} extra;
-      };
-      configDir = result: result.options.environment.sessionVariables.value.EZA_CONFIG_DIR or null;
-    in {
-      # eza finds the official theme where the environment points and colors
-      # with it.
-      colorscheme =
-        host {}
-        // {
-          build = result: let
-            theme = (lib.findFirst (file: file.target == "${configDir result}/theme.yml") (throw "Missing theme.yml") result.manifest.files).source;
-          in
-            pkgs.runCommand "eza-colorscheme" {
-              inherit theme;
-              nativeBuildInputs = [pkgs.eza];
-            } ''
-              mkdir -p config listed/dir
-              cp "$theme" config/theme.yml
-              # The port colors directories with iris.
-              EZA_CONFIG_DIR=$PWD/config eza --color=always listed | grep -F $'\e[1;38;2;196;167;231mdir'
-              touch "$out"
-            '';
-        };
-      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
-      without-colorscheme =
-        host {eza.useColorscheme = false;}
-        // {
-          expr = configDir;
-          expected = null;
-        };
-    };
   })

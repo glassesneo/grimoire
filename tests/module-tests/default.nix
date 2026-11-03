@@ -31,7 +31,7 @@
       delib.module {
         name = "${name}";
         meta.description = "Hold a test case that must not hold.";
-        tests = _: {case = ${case};};
+        tests = _: {case = {protects = "fixture";} // ${case};};
       }
     '';
 
@@ -77,6 +77,7 @@
       meta.description = "Exercise conservative dependency closure.";
       tests = _: {
         edge = {
+          protects = "fixture";
           inherit uses platforms;
           expr = _: true;
           expected = true;
@@ -100,6 +101,20 @@
   unknownGraph = infoFor (compose [(graphModule "unknown" ["absent"] [system])]);
   # An unknown field is a declaration error, rejected when the cases are discovered.
   unknownField = infoFor (compose [(failing "unknown-field" "{expr = _: 1; expected = 1; expectd = 1;}")]);
+  # A case must state what it protects, rejected when the cases are discovered.
+  undocumented = infoFor (compose [
+    ({delib, ...}:
+      delib.module {
+        name = "undocumented";
+        meta.description = "Hold a case without protects.";
+        tests = _: {
+          case = {
+            expr = _: 1;
+            expected = 1;
+          };
+        };
+      })
+  ]);
   coverage = (infoFor configuration).subject.tsRoots;
   lazyChecks = import ../../lib/module-tests.nix {inherit lib;} {
     inherit configuration pkgs system;
@@ -115,6 +130,7 @@
             meta.description = "Exercise invalid coverage roots.";
             tests = _: {
               case = {
+                protects = "fixture";
                 tsRoots = [path];
                 platforms = [];
                 build = _: throw "excluded";
@@ -128,7 +144,12 @@
       {delib, ...}: delib.module {
         name = "build-failure";
         meta.description = "Exercise aggregate builder failure.";
-        tests = {pkgs, ...}: {failure.build = _: pkgs.runCommand "intentional-module-failure" {} "exit 1";};
+        tests = {pkgs, ...}: {
+          failure = {
+            protects = "fixture";
+            build = _: pkgs.runCommand "intentional-module-failure" {} "exit 1";
+          };
+        };
       }
     '')
   ];
@@ -146,6 +167,7 @@ in {
   assert graph.c.affectedChecks == ["module-a" "module-b" "module-c" "module-leaf"];
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
   assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
+  assert !(builtins.tryEval (builtins.attrNames undocumented.undocumented.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;
   assert coverage == ["tests/module-tests" "tests/module-tests/sub/nested"];
   assert !(invalidRoot "../outside");

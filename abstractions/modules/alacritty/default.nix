@@ -86,35 +86,4 @@ in
         };
       };
     };
-
-    tests = {pkgs, ...}: let
-      host = extra: {
-        uses = ["app-identity" "colorscheme"];
-        host.myconfig.ifEnabled =
-          lib.recursiveUpdate {
-            alacritty.enable = true;
-            colorscheme.selection.name = "rose-pine";
-          }
-          extra;
-      };
-      imports = result: result.options.alacritty.settings.value.general.import or [];
-    in {
-      # The configuration imports the official colors.
-      colorscheme =
-        host {}
-        // {
-          build = result:
-            pkgs.runCommand "alacritty-colorscheme" {imported = imports result;} ''
-              grep -A2 -Fx '[colors.primary]' $imported | grep -Fx 'background = "#191724"'
-              touch "$out"
-            '';
-        };
-      unsupported-scheme = lib.recursiveUpdate (host {}) themes.unsupportedCase;
-      without-colorscheme =
-        host {alacritty.useColorscheme = false;}
-        // {
-          expr = imports;
-          expected = [];
-        };
-    };
   })

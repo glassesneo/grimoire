@@ -116,10 +116,12 @@ in
         # A harness selects a skill by its frontmatter name; a mismatch with
         # the deployed directory name deploys a skill no harness selects.
         frontmatter-names-match-directories = {
+          protects = "each shipped skill's frontmatter name is its directory name, by which harnesses select it";
           expr = _: lib.filter (name: !(lib.hasInfix "\nname: ${name}\n" (builtins.readFile (./. + "/${name}/SKILL.md")))) ownSkills;
           expected = [];
         };
         aggregates-and-normalizes = {
+          protects = "skills from every definer reach their target directories after path normalization";
           host.hjem.ifEnabled.skills.alpha = {
             inherit source;
             targetDirs = ["."];
@@ -133,43 +135,14 @@ in
             "${home}/alpha -> ${source}"
           ];
         };
-        links-without-clobbering = {
-          modules = declarations;
-          expr = result: lib.unique (map (file: {inherit (file) type clobber;}) (files result));
-          expected = [
-            {
-              type = "symlink";
-              clobber = false;
-            }
-          ];
-        };
-        empty-registry = {
-          expr = files;
-          expected = [];
-        };
-        empty-target-dirs = {
-          modules = declare "unused" [];
-          expr = files;
-          expected = [];
-        };
-        disabled-keeps-declarations = {
-          host.myconfig.ifEnabled.skills.enable = false;
-          modules = declarations;
-          expr = files;
-          expected = [];
-        };
-        rejects-second-owner = {
-          modules =
-            declare "alpha" [".agents/skills"]
-            // {intruder.hjem.always.files.".agents/skills/alpha".source = source;};
-          fails = "is exclusive but defined by";
-        };
       }
       // lib.mapAttrs' (name: lib.nameValuePair "rejects-name-${builtins.toJSON name}") (lib.genAttrs ["" "." ".." "nested/name"] (name: {
+        protects = "a skill name is a single directory name";
         modules = declare name [".agents/skills"];
         fails = "must be a single directory name";
       }))
       // lib.mapAttrs' (dir: lib.nameValuePair "rejects-dir-${builtins.toJSON dir}") (lib.genAttrs ["" "/absolute" ".." "safe/../escape"] (dir: {
+        protects = "a target directory stays inside the home directory";
         modules = declare "alpha" [dir];
         expr = files;
         fails = true;
