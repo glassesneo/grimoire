@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "a0b25d897a5cc8a7991e9b4011627937ce6331e2",
-      "url": "https://github.com/BatteredBunny/brew-api/archive/a0b25d897a5cc8a7991e9b4011627937ce6331e2.tar.gz",
-      "hash": "sha256-Xx87WYwG8uPtHhk06FkPA92n3wzAbJGZuvMI+Y3u32A="
+      "revision": "475c589cf705b334a078d4b069e17b22f6d11c05",
+      "url": "https://github.com/BatteredBunny/brew-api/archive/475c589cf705b334a078d4b069e17b22f6d11c05.tar.gz",
+      "hash": "sha256-hdm6kVflttecrKUNJi1M0Kk4y/PuEAaHA9NLrVCHcBM="
     },
     "brew-taps-api": {
       "type": "Git",

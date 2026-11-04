@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "5e0ff58c226c9a2deffe01f5f711b3216928bfc4",
-      "url": "https://github.com/vicinaehq/vicinae/archive/5e0ff58c226c9a2deffe01f5f711b3216928bfc4.tar.gz",
-      "hash": "sha256-FhsaXTMLJ4NdPzPa5OE9DEczfMesBIDAZRmAAgzyFQA="
+      "revision": "0ed7dcce1f530067aa251d1beab1a57760e385b4",
+      "url": "https://github.com/vicinaehq/vicinae/archive/0ed7dcce1f530067aa251d1beab1a57760e385b4.tar.gz",
+      "hash": "sha256-23OEQBhC7AlNGPV6B/zl/tEvcMuHPbk5NWmIVq9szdw="
     }
   },
   "version": 8
