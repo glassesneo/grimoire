@@ -410,6 +410,55 @@ Source: [<code>abstractions/modules/identity/default.nix</code>](../../abstracti
 | <code>identity.email</code> | <code>string</code> | <code>"glassesneo@protonmail.com"</code> | read-only; Email address of the person. |
 | <code>identity.fullName</code> | <code>string</code> | <code>"Neo Kitani"</code> | read-only; Full name of the person. |
 
+### <code>kanata</code>
+
+Remap keyboard input with Kanata, generating its configuration from actions declared per layer and key.
+
+Source: [<code>abstractions/modules/kanata/default.nix</code>](../../abstractions/modules/kanata/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>kanata.aliases</code> | <code>attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Actions that expressions reference as `@&lt;name&gt;`. |
+| <code>kanata.chords</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Chords (`defchordsv2`), named by contribution. |
+| <code>kanata.chords.&lt;name&gt;.action</code> | <code>Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> |  |  |
+| <code>kanata.chords.&lt;name&gt;.disabledLayers</code> | <code>list of string</code> | <code>[ ]</code> |  |
+| <code>kanata.chords.&lt;name&gt;.keys</code> | <code>list of string</code> | <code>[ ]</code> | Keys that, pressed together, activate the chord. |
+| <code>kanata.chords.&lt;name&gt;.release</code> | <code>one of "all-released", "first-release"</code> |  | Whether the action is released when every key or the first key is released. |
+| <code>kanata.chords.&lt;name&gt;.timeout</code> | <code>positive integer, meaning &gt;0</code> |  | Milliseconds from the first key within which every key must be pressed. |
+| <code>kanata.configFile</code> | <code>package</code> | the configuration rendered from these options | read-only; Kanata configuration rendered from these options, built only if `kanata --check` accepts it. |
+| <code>kanata.defaultLayer</code> | <code>string</code> | <code>"base"</code> | Layer active at startup. A key another layer leaves unmapped acts as on the layer below it, and finally as on this one; a key this layer leaves unmapped keeps its own function. |
+| <code>kanata.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>kanata.layers</code> | <code>attribute set of attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Actions by layer and key name. |
+| <code>kanata.package</code> | <code>package</code> | <code>nixpkgs: kanata</code> |  |
+| <code>kanata.profile</code> | <code>null or value "default" (singular enum)</code> | <code>null</code> | Keymap from `profiles.nix` whose values this module contributes; `null` contributes none. |
+| <code>kanata.settings</code> | <code>attribute set of (boolean or Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions))</code> | <code>{ }</code> | Entries of `defcfg`; `true` and `false` render as `yes` and `no`. `delegate-to-first-layer` is always enabled. |
+| <code>kanata.virtualKeys</code> | <code>attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Virtual keys that actions press, release or test by name. |
+
+<code>darwin</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>services.kanata.configFile</code> | <code>string</code> | <code>"/Users/${myconfig.host.user.name}/.config/kanata/kanata.kbd"</code> | Path to kanata configuration file. |
+| <code>services.kanata.configSource</code> | <code>null or absolute path or string</code> | <code>null</code> | If set, configFile will be symlinked to this path.<br>Use a string for an out-of-store symlink (edits take effect without rebuild):<br>  configSource = "/Users/you/.nix-config/kanata.kbd";<br>Use a path to copy into the nix store (immutable, requires rebuild):<br>  configSource = ./kanata.kbd;<br> |
+| <code>services.kanata.daemon.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable headless kanata launchd service. |
+| <code>services.kanata.daemon.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
+| <code>services.kanata.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata keyboard remapper with Karabiner DriverKit. |
+| <code>services.kanata.kanata-bar.autostart</code> | <code>boolean</code> | <code>true</code> | Whether to create a launchd user agent that starts kanata-bar automatically at login.<br>When false, you can start it manually from /Applications/Nix Apps/.<br> |
+| <code>services.kanata.kanata-bar.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-bar GUI launcher. |
+| <code>services.kanata.kanata-bar.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
+| <code>services.kanata.kanata-bar.icons</code> | <code>attribute set of absolute path</code> | <code>{ }</code> | Map of kanata layer names to icon files (PNG recommended).<br>Use `mkLayerIcons` to generate icons from font glyphs.<br> |
+| <code>services.kanata.kanata-bar.package</code> | <code>package</code> | <code>kanata-darwin: kanata-bar-app</code> | The kanata-bar .app package. |
+| <code>services.kanata.kanata-bar.settings</code> | <code>TOML value</code> | <code>{ }</code> | Settings merged into kanata-bar config.toml.<br>Auto-propagated defaults: kanata.{path,config,port,extra_args}, kanata_bar.{autostart_kanata,autorestart_kanata,pam_touchid}.<br> |
+| <code>services.kanata.kanata-tray.autostart</code> | <code>boolean</code> | <code>true</code> | Whether to create a launchd user agent that starts kanata-tray automatically at login.<br>When false, the .app bundle is still available in /Applications/Nix Apps/.<br> |
+| <code>services.kanata.kanata-tray.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-tray GUI launcher. |
+| <code>services.kanata.kanata-tray.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
+| <code>services.kanata.kanata-tray.icons</code> | <code>attribute set of absolute path</code> | <code>{ }</code> | Map of kanata layer names to icon files (PNG recommended).<br>Use `mkLayerIcons` to generate icons from font glyphs.<br> |
+| <code>services.kanata.kanata-tray.package</code> | <code>package</code> | <code>kanata-tray</code> | The kanata-tray package. |
+| <code>services.kanata.kanata-tray.settings</code> | <code>TOML value</code> | <code>{ }</code> | Extra settings merged into kanata-tray.toml. |
+| <code>services.kanata.package</code> | <code>package</code> | <code>pkgs.kanata-with-cmd</code> | The kanata package to use. |
+| <code>services.kanata.sudoers</code> | <code>boolean</code> | <code>true</code> | Add NOPASSWD sudoers entry for kanata.<br>Defaults to `true`. Required for clean process termination in tray mode<br>and to avoid the fragile TCC sqlite3 hack in daemon mode.<br> |
+| <code>services.kanata.user</code> | <code>string</code> | <code>"${myconfig.host.user.name}"</code> | Username for sudoers, user agent, and file paths. Defaults to system.primaryUser. |
+
 ### <code>neovim</code>
 
 Provide and configure neovim

@@ -259,6 +259,12 @@
       url = "github:natsukium/nix-mac-app-identity";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Installs the Karabiner VirtualHID driver Kanata needs on macOS and
+    # runs Kanata through kanata-bar.
+    kanata-darwin = {
+      url = "github:not-in-stock/kanata-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # nixpkgs does not package elio.
     elio = {
       url = "github:elio-fm/elio";

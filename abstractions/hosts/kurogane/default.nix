@@ -7,6 +7,10 @@ delib.host {
 
   myconfig.ifEnabled = {
     tags.enabled = ["gui"];
+    kanata = {
+      enable = true;
+      profile = "default";
+    };
     slack.enable = false;
     notion.enable = false;
     secrets.names = [
