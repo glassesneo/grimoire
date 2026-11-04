@@ -173,7 +173,7 @@ Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../ab
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>bettertouchtool.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>bettertouchtool.package</code> | <code>package</code> | <code>cask2nix: bettertouchtool</code> |  |
+| <code>bettertouchtool.package</code> | <code>package</code> | <code>casks/cask2nix: bettertouchtool</code> |  |
 
 ### <code>casks</code>
 
@@ -357,7 +357,7 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>ghostty.package</code> | <code>package</code> | <code>cask2nix: ghostty</code> |  |
+| <code>ghostty.package</code> | <code>package</code> | <code>casks/cask2nix: ghostty</code> |  |
 | <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. |
 | <code>ghostty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Ghostty takes its colors from `colorscheme.resolved`. |
 
@@ -386,7 +386,7 @@ Source: [<code>abstractions/modules/grok-bot/default.nix</code>](../../abstracti
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>grok-bot.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>grok-bot.package</code> | <code>package</code> | <code>cask2nix: grok-bot</code> |  |
+| <code>grok-bot.package</code> | <code>package</code> | <code>casks/cask2nix: grok-bot</code> |  |
 
 ### <code>host</code>
 
@@ -528,7 +528,7 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>notion.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>notion.package</code> | <code>package</code> | <code>cask2nix: notion</code> |  |
+| <code>notion.package</code> | <code>package</code> | <code>casks/cask2nix: notion</code> |  |
 
 ### <code>phi</code>
 
@@ -539,7 +539,7 @@ Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/m
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>phi.package</code> | <code>package</code> | <code>cask2nix: phi</code> |  |
+| <code>phi.package</code> | <code>package</code> | <code>casks/cask2nix: phi</code> |  |
 
 ### <code>secrets</code>
 

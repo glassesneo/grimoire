@@ -250,12 +250,6 @@
       url = "github:unnamed-systems/nix-secrets/151f264a22b595802647db8fac09a2dbd6cb202c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Stays here until cask2nix exposes `mkTaps` outside its flake outputs,
-    # which evaluate it with the flake's own nixpkgs.
-    cask2nix = {
-      url = "github:glassesneo/cask2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     llm-agents.url = "github:numtide/llm-agents.nix";
     # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
     # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.

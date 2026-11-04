@@ -34,26 +34,6 @@
         "type": "github"
       }
     },
-    "cask2nix": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1793260894,
-        "narHash": "sha256-vKR7qfLA/kJocFNItCJyE2ZOWKfMswAHRU3pv2uhC0Q=",
-        "owner": "glassesneo",
-        "repo": "cask2nix",
-        "rev": "a5e165fe2d4eedbcfdb2dbd4a7da8d87b5d95b39",
-        "type": "github"
-      },
-      "original": {
-        "owner": "glassesneo",
-        "repo": "cask2nix",
-        "type": "github"
-      }
-    },
     "denix": {
       "inputs": {
         "git-hooks": "git-hooks",
@@ -347,7 +327,6 @@
           "llm-agents",
           "bun2nix"
         ],
-        "cask2nix": "cask2nix",
         "denix": "denix",
         "git-hooks": "git-hooks_2",
         "hjem": "hjem",

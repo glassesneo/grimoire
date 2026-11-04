@@ -25,6 +25,19 @@
       "revision": "b4cadf87eee4d7e5f6410f64b787304ce34b4098",
       "url": "https://github.com/glassesneo/brew-taps-api/archive/b4cadf87eee4d7e5f6410f64b787304ce34b4098.tar.gz",
       "hash": "sha256-KNKZgtRAoQvCuFlIjTNQCxh6SdVzE5we0petc1PKbIg="
+    },
+    "cask2nix": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "glassesneo",
+        "repo": "cask2nix"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "2475275c4549e6b313bbcd8a4cc3aaad4ad79e34",
+      "url": "https://github.com/glassesneo/cask2nix/archive/2475275c4549e6b313bbcd8a4cc3aaad4ad79e34.tar.gz",
+      "hash": "sha256-80gcShFFuXF8SFOfX2kSaO11oNv0Ro/nnptQ0pZa/cI="
     }
   },
   "version": 8
