@@ -4,7 +4,7 @@
   pkgs,
   system,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   mylib = import ../../lib {inherit lib;};
 
   # Repository-owned contract of source priorities and rice selection: a module
@@ -142,7 +142,7 @@
       };
     };
 
-  rice = name: value: {...}:
+  rice = name: value: _:
     mylib.rice {
       inherit name;
       myconfig.probe = value;
@@ -220,12 +220,12 @@
         ]
         ++ modules;
     };
-    options =
-      (configuration.genSystem ({
-          moduleSystem = "bundles";
-          extraArgs = {inherit system;};
-        }
-        // lib.optionalAttrs (hostName != null) {host = hostName;})).options;
+    bundles = configuration.genSystem ({
+        moduleSystem = "bundles";
+        extraArgs = {inherit system;};
+      }
+      // lib.optionalAttrs (hostName != null) {host = hostName;});
+    inherit (bundles) options;
   in {
     values = let
       raw = lib.mapAttrs (_: option: option.value) (removeAttrs options.myconfig.probe ["enable"]);

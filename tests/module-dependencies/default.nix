@@ -3,7 +3,7 @@
   denix,
   pkgs,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Repository-owned contract: disabling a parent gates child defaults without
   # masking explicit child overrides, and conflicts produce failed assertions.

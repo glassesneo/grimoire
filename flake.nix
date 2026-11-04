@@ -100,6 +100,13 @@
         settings.global.excludes = ["**/bun.nix"];
         programs = {
           alejandra.enable = true;
+          deadnix.enable = true;
+          # Modules write each module system's sections as separate
+          # `<system>.always`/`<system>.ifEnabled` keys.
+          statix = {
+            enable = true;
+            disabled-lints = ["repeated_keys"];
+          };
           # JSON and Markdown stay out: Bun rewrites package.json, and
           # docs/generated is compared with `just docs` output.
           oxfmt = {
@@ -111,6 +118,10 @@
             indentation = "  ";
           };
         };
+        # Lint fixes run before alejandra, which formats their rewrites.
+        settings.formatter.statix.priority = 1;
+        settings.formatter.deadnix.priority = 2;
+        settings.formatter.alejandra.priority = 3;
         settings.formatter.crystal = {
           command = "${pkgs.crystal}/bin/crystal";
           options = ["tool" "format"];
@@ -168,7 +179,7 @@
 
       formatter = treefmt.config.build.wrapper;
       inherit checkOutputs;
-      checks = checkOutputs.checks;
+      inherit (checkOutputs) checks;
     });
   in {
     packages = lib.mapAttrs (_: outputs: outputs.packages) perSystem;

@@ -9,7 +9,7 @@
 # from the table cannot be realized, so `constraint` rejects it and names
 # `<name>.useColorscheme = false`, which leaves the application's colors
 # unmanaged. Bundles published per combination keep those `of` finds.
-{lib}: {
+{
   name,
   themes,
 }: let

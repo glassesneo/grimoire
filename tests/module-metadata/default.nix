@@ -3,7 +3,7 @@
   denix,
   pkgs,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Repository-owned boundary: generated modules must reject missing metadata,
   # including on disabled features. Nix types validate strings once forced;

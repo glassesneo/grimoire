@@ -4,7 +4,7 @@
   pkgs,
   system,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Keep the runner's repository-owned boundary: successful fixture values and
   # builds reach one aggregate; invalid modes, missing uses and mismatches fail

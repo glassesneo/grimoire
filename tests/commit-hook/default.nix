@@ -28,7 +28,7 @@
         nix = fakeNix;
         git = fakeGit;
       };
-    git-hooks = inputs.git-hooks;
+    inherit (inputs) git-hooks;
     inherit system;
     src = ../..;
   };

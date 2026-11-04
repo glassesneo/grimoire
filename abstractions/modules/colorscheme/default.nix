@@ -62,7 +62,7 @@ in
         ++ lib.optional (!(scheme.variants ? ${toString scheme.default})) "colorscheme.schemes.${name}.default must name one of its variants: ${lib.concatStringsSep ", " (builtins.attrNames scheme.variants)}")
     cfg.schemes);
 
-    selection = cfg.selection;
+    inherit (cfg) selection;
     selected = cfg.schemes.${selection.name};
     selectionProblems =
       if selection == null

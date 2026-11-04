@@ -1,5 +1,5 @@
 {pkgs, ...}: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   mylib = import ../../lib {inherit lib;};
 
   # Fragment definitions go through the option so its merge rules apply.

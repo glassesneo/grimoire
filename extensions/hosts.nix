@@ -7,7 +7,7 @@
   ...
 }: {
   settings.hosts.extraSubmodules = {config, ...}: let
-    isDarwin = (lib.systems.elaborate config.system).isDarwin;
+    inherit (lib.systems.elaborate config.system) isDarwin;
   in
     with delib; {
       options = {

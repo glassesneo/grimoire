@@ -86,10 +86,10 @@
       chip_text = c.base;
       panel = c.surface;
       panel_alt = c.base;
-      surface = c.surface;
+      inherit (c) surface;
       elevated = c.overlay;
       border = c.highlightHigh;
-      text = c.text;
+      inherit (c) text;
       muted = c.subtle;
       accent = c.rose;
       accent_soft = c.overlay;

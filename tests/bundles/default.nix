@@ -5,7 +5,7 @@
   system,
   configuration,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Section translation, filtering, and constraint forwarding are repository-owned:
   # Nix types cannot detect a dropped section, leaked private bundle, or bypassed

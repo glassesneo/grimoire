@@ -82,7 +82,7 @@ in
         # by hand on first activation to kanata and to Kanata Bar, which
         # launches it. A bundle identity keeps kanata's grants across rebuilds.
         package = myconfig.app-identity.mkAppBundle {
-          package = cfg.package;
+          inherit (cfg) package;
           identifier = "com.github.jtroo.kanata";
         };
         sudoers = true;

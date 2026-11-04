@@ -3,7 +3,7 @@
   pkgs,
   ...
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # The real composition must enforce modules' constraints in every
   # host's Hjem guard and in nix-darwin's assertions: `always` whatever the

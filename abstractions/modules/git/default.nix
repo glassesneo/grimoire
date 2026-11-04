@@ -11,7 +11,7 @@ delib.module ({myconfig, ...}: {
 
   hjem.always = {pkgs, ...}: {
     options.git.settings = lib.mkOption {
-      type = (pkgs.formats.gitIni {}).type;
+      inherit (pkgs.formats.gitIni {}) type;
       default = {};
       description = "Settings written to the user's Git configuration file.";
     };

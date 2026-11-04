@@ -3,7 +3,7 @@
   pkgs,
   system,
 }: let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Test the adapter's output and assertion guard at its Hjem input boundary.
   # Denix assertion forwarding is covered separately against the real composition.
@@ -114,7 +114,7 @@
   ];
   applyFails = steps: !(builtins.tryEval (mkResult [{applySteps = steps;}]).apply.drvPath).success;
 
-  manifest = result.manifest;
+  inherit (result) manifest;
 
   pick = suffix:
     lib.findFirst

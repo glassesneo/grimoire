@@ -8,6 +8,6 @@ in {
   inherit sources;
   inherit (sources) accumulatingOption atomicOption;
   inherit (import ./rices.nix) rice;
-  schemeThemes = import ./scheme-themes.nix {inherit lib;};
+  schemeThemes = import ./scheme-themes.nix;
   sourceFiles = import ./source-files.nix {inherit lib;};
 }
