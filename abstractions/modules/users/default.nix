@@ -1,8 +1,4 @@
-{
-  delib,
-  lib,
-  ...
-}:
+{delib, ...}:
 delib.module ({myconfig, ...}: {
   name = "users";
   meta.description = "Apply the host's declared user information to OS user configuration.";

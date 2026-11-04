@@ -1,8 +1,4 @@
-{
-  delib,
-  mylib,
-  ...
-}: let
+{delib, ...}: let
   sourceFiles = {
     "src/input_handling/fuzzy_finder.rs" = {
       source = ./src/input_handling/fuzzy_finder.rs;

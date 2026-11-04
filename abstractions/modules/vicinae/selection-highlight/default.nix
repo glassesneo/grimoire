@@ -1,8 +1,4 @@
-{
-  delib,
-  mylib,
-  ...
-}: let
+{delib, ...}: let
   sourceFiles = {
     "src/server/src/ui/qml/list/SelectableDelegate.qml" = {
       source = ./src/server/src/ui/qml/list/SelectableDelegate.qml;

@@ -42,7 +42,7 @@ in
           base.extendModules {
             modules = [(mylib.sources.prioritize mylib.sources.priorities.module base.options (themes.of resolved pkgs resolved))];
           };
-      failedAssertions = map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) final.config.assertions);
+      failedAssertions = mylib.assertions.failed final.config.assertions;
     in
       if failedAssertions != []
       then throw "\nFailed mnw assertions:\n${lib.concatMapStrings (message: "- ${message}\n") failedAssertions}"

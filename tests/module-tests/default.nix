@@ -57,20 +57,23 @@
     ]
     ++ lib.mapAttrsToList failing failingModules);
 
-  checks = import ../../lib/module-tests.nix {inherit lib;} {
-    inherit compose configuration pkgs system;
-    infrastructure = [];
-  };
-
-  evaluates = check: (builtins.tryEval (builtins.deepSeq check.drvPath true)).success;
+  home = "/tmp/module-tests";
   infoFor = configuration:
     configuration.config.moduleTestInfo {
-      inherit pkgs system;
-      home = "/tmp/module-tests";
+      inherit pkgs system home;
       root = ../..;
       oxlintConfig = ../../.oxlintrc.json;
       infrastructure = [];
     };
+  checksFor = configuration: compose:
+    import ../../lib/module-tests.nix {inherit lib;} {
+      inherit compose pkgs system home;
+      info = infoFor configuration;
+      infrastructure = [];
+    };
+  checks = checksFor configuration compose;
+
+  evaluates = check: (builtins.tryEval (builtins.deepSeq check.drvPath true)).success;
   graphModule = name: uses: platforms: {delib, ...}:
     delib.module {
       inherit name;
@@ -92,12 +95,7 @@
     (graphModule "leaf" ["branch"] [system])
   ];
   graph = infoFor graphConfiguration;
-  graphChecks = import ../../lib/module-tests.nix {inherit lib;} {
-    inherit pkgs system;
-    configuration = graphConfiguration;
-    infrastructure = [];
-    compose = _: throw "fixture generated during graph discovery";
-  };
+  graphChecks = checksFor graphConfiguration (_: throw "fixture generated during graph discovery");
   unknownGraph = infoFor (compose [(graphModule "unknown" ["absent"] [system])]);
   # An unknown field is a declaration error, rejected when the cases are discovered.
   unknownField = infoFor (compose [(failing "unknown-field" "{expr = _: 1; expected = 1; expectd = 1;}")]);
@@ -116,11 +114,7 @@
       })
   ]);
   coverage = (infoFor configuration).subject.tsRoots;
-  lazyChecks = import ../../lib/module-tests.nix {inherit lib;} {
-    inherit configuration pkgs system;
-    infrastructure = [];
-    compose = _: throw "fixture generated while discovering names";
-  };
+  lazyChecks = checksFor configuration (_: throw "fixture generated while discovering names");
   invalidRoot = path:
     (builtins.tryEval (builtins.deepSeq
       (infoFor (compose [
@@ -153,12 +147,7 @@
       }
     '')
   ];
-  failingAggregate =
-    (import ../../lib/module-tests.nix {inherit lib;} {
-      inherit compose pkgs system;
-      configuration = failingConfiguration;
-      infrastructure = [];
-    }).module-build-failure;
+  failingAggregate = (checksFor failingConfiguration compose).module-build-failure;
 in {
   # Intentionally not published under flake checks. Build this descriptor field
   # externally to observe the returned builder failing through its aggregate.

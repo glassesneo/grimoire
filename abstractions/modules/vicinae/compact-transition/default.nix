@@ -1,9 +1,4 @@
-{
-  delib,
-  lib,
-  mylib,
-  ...
-}: let
+{delib, ...}: let
   sourceFiles = {
     "src/server/src/ui/qml/launcher/LauncherWindow.qml" = {
       source = ./src/server/src/ui/qml/launcher/LauncherWindow.qml;

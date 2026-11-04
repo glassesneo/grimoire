@@ -14,10 +14,12 @@
   availableIn = lib.filterAttrs (_: descriptor: lib.elem system (descriptor.platforms or lib.platforms.all));
   available = availableIn descriptors;
   availableTests = availableIn testDescriptors;
+  checks = builtins.mapAttrs (_: descriptor: descriptor.check) (available // availableTests) // moduleChecks // extraChecks;
 in
   assert lib.assertMsg (collisions == []) "Check name collisions: ${toString collisions}"; {
     directoryNames = builtins.attrNames available;
     testNames = builtins.attrNames availableTests;
-    checks = builtins.mapAttrs (_: descriptor: descriptor.check) (available // availableTests) // moduleChecks // extraChecks;
-    checkNames = lib.sort lib.lessThan (builtins.attrNames available ++ builtins.attrNames availableTests ++ builtins.attrNames moduleChecks ++ builtins.attrNames extraChecks);
+    inherit checks;
+    # Sorted, and without duplicates because names do not collide.
+    checkNames = builtins.attrNames checks;
   }

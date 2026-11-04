@@ -7,7 +7,11 @@
 crystal.buildCrystalPackage {
   pname = "hjem-defaults-reconcile";
   version = "1";
-  src = ./.;
+  # The sources and specs, so editing this file does not rebuild the binary.
+  src = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.difference ./. ./package.nix;
+  };
   format = "crystal";
   crystalBinaries.hjem-defaults-reconcile.src = "main.cr";
   doCheck = true;

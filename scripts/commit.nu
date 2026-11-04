@@ -18,7 +18,9 @@ export def main [] {
       ^git checkout-index --all --prefix $"($snapshot)/"
       do {
         cd $snapshot
-        ^nix fmt --no-update-lock-file
+        # The snapshot's root is new on every commit, so a treefmt cache would
+        # never be reused and would only accumulate.
+        ^nix fmt --no-update-lock-file -- --no-cache
       }
       docs --root $snapshot
 

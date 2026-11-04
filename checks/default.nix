@@ -12,9 +12,9 @@
 }: let
   inherit (pkgs) lib;
   infrastructure = ["defaults" "exclusive" "services"];
+  home = "/tmp/module-tests";
   moduleTestInfo = configuration.config.moduleTestInfo {
-    inherit pkgs system;
-    home = "/tmp/module-tests";
+    inherit pkgs system home;
     oxlintConfig = ../.oxlintrc.json;
     root = ../.;
     inherit infrastructure;
@@ -27,7 +27,8 @@
       } (root + "/${name}/default.nix") {})
     (directoriesOf root);
   moduleChecks = import ../lib/module-tests.nix {inherit lib;} {
-    inherit compose configuration pkgs system infrastructure;
+    inherit compose pkgs system infrastructure home;
+    info = moduleTestInfo;
   };
   discovered = import ../lib/checks.nix {inherit lib;} {
     inherit moduleChecks system;

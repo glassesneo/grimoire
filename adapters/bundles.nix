@@ -61,12 +61,10 @@
           ++ modules;
       };
       cfg = evaluation.config;
-      failedAssertions = map (x: x.message) (lib.filter (x: !x.assertion) cfg.assertions);
+      assertions = import ../lib/assertions.nix {inherit lib;};
+      failedAssertions = assertions.failed cfg.assertions;
     in {
-      packages =
-        if failedAssertions != []
-        then throw "\nFailed assertions:\n${lib.concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
-        else lib.mapAttrs (_: bundle: bundle.package) (lib.filterAttrs (_: bundle: bundle.publish) cfg.bundles);
+      packages = assertions.guard failedAssertions (lib.mapAttrs (_: bundle: bundle.package) (lib.filterAttrs (_: bundle: bundle.publish) cfg.bundles));
       inherit failedAssertions;
       inherit (evaluation) options;
     };

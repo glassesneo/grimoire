@@ -85,9 +85,9 @@
   hjemResults = verify "hjem" configuration.config.hosts;
   darwinResults = verify "darwin" darwinHosts;
 in {
-  check = assert lib.assertMsg (hjemResults != [] && lib.all (result: result) hjemResults)
+  check = assert lib.assertMsg (hjemResults != [] && lib.all lib.id hjemResults)
   "Real Hjem configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
-  assert lib.assertMsg (lib.all (result: result) darwinResults)
+  assert lib.assertMsg (lib.all lib.id darwinResults)
   "Real nix-darwin configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
     pkgs.runCommand "constraint-forwarding-test" {} ''
       mkdir "$out"

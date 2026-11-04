@@ -6,6 +6,17 @@ def within [path: string, directory: string] {
   $path == $directory or ($path | str starts-with $"($directory)/")
 }
 
+# A file inside a check or test directory that does not change discovery.
+def in-check-directory [change: record] {
+  let path = $change.path
+  (($path | str starts-with 'checks/') or ($path | str starts-with 'tests/')) and (($path | split row '/' | length) >= 3) and not (($change.status in [A D]) and ($path | path basename) == 'default.nix')
+}
+
+# A file that no check reads.
+def unchecked [path: string] {
+  (within $path 'abstractions/hosts') or ($path in [README.org AGENTS.md]) or (within $path docs) or ((within $path .agents) and ($path | str ends-with '.md'))
+}
+
 export def select-checks [metadata: record, changes: list<record>] {
   let all = $metadata.checkNames
   $changes | each {|change|
@@ -17,7 +28,7 @@ export def select-checks [metadata: record, changes: list<record>] {
       let owners = $metadata.moduleRoots | where {|root| within $path $root.directory } | sort-by {|root| $root.directory | str length } --reverse
       if ($owners | is-not-empty) { $owners.0.affectedChecks } else {
         let checks = $metadata.directoryChecks | where {|check| within $path $check.directory }
-        if ($checks | is-not-empty) { $checks.name } else if (($path | str starts-with 'checks/') or ($path | str starts-with 'tests/')) and (($path | split row '/' | length) >= 3) and not (($change.status in [A D]) and ($path | path basename) == 'default.nix') { [] } else if (within $path 'abstractions/hosts') or ($path in [README.org AGENTS.md]) or (within $path docs) or ((within $path .agents) and ($path | str ends-with '.md')) { [] } else { $all }
+        if ($checks | is-not-empty) { $checks.name } else if (in-check-directory $change) or (unchecked $path) { [] } else { $all }
       }
     }
   } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort

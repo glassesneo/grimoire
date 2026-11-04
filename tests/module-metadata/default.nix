@@ -2,7 +2,6 @@
   inputs,
   denix,
   pkgs,
-  system,
 }: let
   lib = pkgs.lib;
 

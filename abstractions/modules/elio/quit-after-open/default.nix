@@ -1,8 +1,4 @@
-{
-  delib,
-  mylib,
-  ...
-}: let
+{delib, ...}: let
   sourceFiles = {
     "src/terminal_runtime/tui_event_loop.rs" = {
       source = ./src/terminal_runtime/tui_event_loop.rs;

@@ -9,18 +9,17 @@
   # Names of modules providing capabilities that other modules use, included in
   # every fixture.
   infrastructure,
-  configuration,
+  # The configuration's `moduleTestInfo`, computed with the same `home` and
+  # `infrastructure`.
+  info,
+  # The fixture user's home directory.
+  home,
   pkgs,
   system,
 }: let
-  home = "/tmp/module-tests";
+  assertions = import ./assertions.nix {inherit lib;};
   defines = case: field: lib.elem field case.defined;
 
-  info = configuration.config.moduleTestInfo {
-    inherit pkgs system home infrastructure;
-    oxlintConfig = ../.oxlintrc.json;
-    root = ../.;
-  };
   fileOf = name: info.${name}.file;
 
   host = attrs: {delib, ...}:
@@ -43,6 +42,15 @@
 
   generate = name: case: let
     fixtureSystem = case.host.system or system;
+    # The arguments `flake.nix` passes when publishing each module system.
+    extraArgs = {
+      hjem = {
+        system = fixtureSystem;
+        username = "fixture";
+        homeDirectory = home;
+      };
+      bundles.system = fixtureSystem;
+    };
   in
     (compose (
       [(fileOf name) (host case.host)]
@@ -51,26 +59,12 @@
     )).genSystem {
       inherit (case) moduleSystem;
       host = "fixture";
-      # The arguments `flake.nix` passes when publishing each module system.
-      extraArgs =
-        {
-          hjem = {
-            system = fixtureSystem;
-            username = "fixture";
-            homeDirectory = home;
-          };
-          bundles.system = fixtureSystem;
-        }
-        .${
-          case.moduleSystem
-        }
-        or {
-        };
+      extraArgs = extraArgs.${case.moduleSystem} or {};
     };
 
   failedAssertions = moduleSystem: result:
     if moduleSystem == "darwin"
-    then map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) result.config.assertions)
+    then assertions.failed result.config.assertions
     else result.failedAssertions;
 
   # Forces a value deeply, but a derivation only to its output path: deepSeq would
@@ -85,8 +79,7 @@
     else builtins.seq value true;
 
   # Returns null when the case passes, otherwise the reason it failed.
-  run = name: caseName: case: let
-    result = generate name case;
+  run = name: caseName: case: result: let
     has = defines case;
     fails =
       if has "fails"
@@ -124,12 +117,14 @@
     );
 
   check = name: cases: let
-    failures = lib.filterAttrs (_: reason: reason != null) (lib.mapAttrs (run name) cases);
+    # Generated once per case: `run` and the aggregate's `builds` share them.
+    results = lib.mapAttrs (_: generate name) cases;
+    failures = lib.filterAttrs (_: reason: reason != null) (lib.mapAttrs (caseName: case: run name caseName case results.${caseName}) cases);
   in
     if failures == {}
     then
       pkgs.runCommand "module-${name}-check" {
-        builds = lib.mapAttrsToList (_: case: case.build (generate name case)) (lib.filterAttrs (_: case: defines case "build") cases);
+        builds = lib.mapAttrsToList (caseName: case: case.build results.${caseName}) (lib.filterAttrs (_: case: defines case "build") cases);
       } ''
         mkdir "$out"
         for build in $builds; do test -e "$build"; done

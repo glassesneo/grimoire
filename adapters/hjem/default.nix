@@ -163,14 +163,9 @@
 
       # Hjem's per-user module imports nixpkgs' assertions module, so `assertions`
       # is already declared in this evaluation.
-      failedAssertions = map (x: x.message) (lib.filter (x: !x.assertion) cfg.assertions);
-
-      throwAssertions = res:
-        if failedAssertions != []
-        then throw "\nFailed assertions:\n${lib.concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
-        else res;
+      failedAssertions = mylib.assertions.failed cfg.assertions;
     in
-      lib.mapAttrs (_: throwAssertions) {
+      lib.mapAttrs (_: mylib.assertions.guard failedAssertions) {
         manifest = {
           version = 3;
           files = map hjemLib.fileToJson enabledFiles;

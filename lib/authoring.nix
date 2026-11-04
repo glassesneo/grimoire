@@ -63,7 +63,7 @@
   declarationOf = options: loc: let
     option = lib.attrByPath loc null options;
   in
-    if option != null && lib.isOption option
+    if lib.isOption option
     then option
     else null;
 

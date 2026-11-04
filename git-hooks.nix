@@ -7,11 +7,16 @@
   src,
 }: let
   inherit (pkgs) lib;
+  # Only the scripts the hooks run, so editing another script keeps the hooks.
+  scripts = lib.fileset.toSource {
+    root = ./scripts;
+    fileset = lib.fileset.unions [./scripts/commit.nu ./scripts/docs.nu ./scripts/checks.nu ./scripts/pre-push.nu];
+  };
   runner = pkgs.writeShellApplication {
     name = "repository-hook";
     runtimeInputs = [pkgs.git pkgs.nix pkgs.nushell];
     text = ''
-      exec nu --no-config-file ${./scripts}/commit.nu
+      exec nu --no-config-file ${scripts}/commit.nu
     '';
   };
   hooks = git-hooks.lib.${system}.run {
@@ -33,7 +38,7 @@
     name = "pre-push";
     runtimeInputs = [pkgs.git pkgs.nix pkgs.nushell pkgs.gnutar];
     text = ''
-      exec nu --no-config-file --stdin ${./scripts}/pre-push.nu
+      exec nu --no-config-file --stdin ${scripts}/pre-push.nu
     '';
   };
   directory = pkgs.runCommand "repository-git-hooks" {} ''

@@ -20,7 +20,7 @@
     participates = myoptions:
       hasParent
       && lib.hasAttrByPath (parts ++ ["enable"]) myoptions
-      && lib.hasAttrByPath ((lib.splitString "." parent) ++ ["enable"]) myoptions;
+      && lib.hasAttrByPath (lib.init parts ++ ["enable"]) myoptions;
   in {
     # Transform option defaults, not values: explicit overrides still reach constraints.
     options.options = lib.mkOption {
@@ -30,7 +30,9 @@
               myconfig,
               myoptions,
               ...
-            } @ args:
+            } @ args: let
+              gated = participates myoptions;
+            in
               delib.processModule (declarations:
                 declarations
                 // lib.optionalAttrs (declarations ? enable && declarations.enable ? default) {
@@ -38,11 +40,11 @@
                     declarations.enable
                     // {
                       default =
-                        if participates myoptions
+                        if gated
                         then (delib.getAttrByStrPath myconfig "${parent}.enable" false) && declarations.enable.default
                         else declarations.enable.default;
                     }
-                    // lib.optionalAttrs (participates myoptions) {
+                    // lib.optionalAttrs gated {
                       defaultText = lib.literalExpression "myconfig.${parent}.enable && ${
                         declarations.enable.defaultText.text or (lib.generators.toPretty {} declarations.enable.default)
                       }";

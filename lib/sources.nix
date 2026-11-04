@@ -138,7 +138,7 @@
   in
     module;
 in {
-  inherit isAccumulating isAtomic prioritize;
+  inherit prioritize;
 
   priorities = {
     module = 1000;
