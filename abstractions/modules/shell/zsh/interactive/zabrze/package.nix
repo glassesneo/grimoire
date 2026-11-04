@@ -1,21 +1,16 @@
-# Owns the zabrze build, which nixpkgs does not provide.
+# Owns the zabrze build, which nixpkgs does not provide, from the release
+# source `zabrze` that the module pins.
 {
-  fetchFromGitHub,
   lib,
   rustPlatform,
+  zabrze,
 }:
-rustPlatform.buildRustPackage (finalAttrs: {
+rustPlatform.buildRustPackage {
   pname = "zabrze";
-  version = "0.7.3";
+  version = lib.removePrefix "v" zabrze.version;
 
-  src = fetchFromGitHub {
-    owner = "Ryooooooga";
-    repo = "zabrze";
-    tag = "v${finalAttrs.version}";
-    hash = "sha256-OmwU7/SQqEAzZo7/Eix3yc+VLEU6+/NIiALvpU3PlKA=";
-  };
-
-  cargoHash = "sha256-9UZSOXTWvX9jPE0crGb/hUpemuVhEGgyzs+HL3QwIgg=";
+  src = zabrze;
+  cargoLock.lockFile = "${zabrze}/Cargo.lock";
 
   # These tests pass EDITOR to `zsh -c`, which the build machine's /etc/zshenv
   # can override on Darwin.
@@ -30,4 +25,4 @@ rustPlatform.buildRustPackage (finalAttrs: {
     license = lib.licenses.mit;
     mainProgram = "zabrze";
   };
-})
+}

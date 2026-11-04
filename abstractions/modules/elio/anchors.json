@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "elio": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "elio-fm",
+        "repo": "elio"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "3de54b906f0a276d77c9bd9e607373202c4905ba",
+      "url": "https://github.com/elio-fm/elio/archive/3de54b906f0a276d77c9bd9e607373202c4905ba.tar.gz",
+      "hash": "sha256-NVgd4wHVdou578hwbOSUid/vyiKHrt/j823vQzTHjzw="
+    }
+  },
+  "version": 8
+}

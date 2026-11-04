@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "nix-mac-app-identity": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "natsukium",
+        "repo": "nix-mac-app-identity"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "ef92c08e661250b481ec459405235f3756433ad5",
+      "url": "https://github.com/natsukium/nix-mac-app-identity/archive/ef92c08e661250b481ec459405235f3756433ad5.tar.gz",
+      "hash": "sha256-c5eNvzqDaGHfH/NS0eNZnYPMxXAEVlMy3XIqyCLR5PY="
+    }
+  },
+  "version": 8
+}

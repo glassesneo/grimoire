@@ -4,7 +4,7 @@ This file covers working-environment setup, commit and push gates, service and d
 
 ## Development environment
 
-Enter `nix develop` before using repository commands. The shell provides the command tools, including `just`, Nushell, Bun, and bun2nix.
+Enter `nix develop` before using repository commands. The shell provides the command tools, including `just`, Nushell, Bun, bun2nix, and npins.
 
 Entering `nix develop`, or entering through an allowed direnv environment, installs the git-hooks.nix runner and sets this repository's `core.hooksPath`. Installation replaces the configured hooks path; existing hooks are not chained. The installed tools are GC-rooted in the Git common directory. A fresh clone has no hooks until the development shell has been entered; re-enter it after changing the hook configuration or scripts. Hooks then also work outside the development shell, with access to Nix and its daemon still required.
 

@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "rose-pine": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "rose-pine",
+        "repo": "fzf"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "9af300f871df52331c362ca58c73535f69b6fb03",
+      "url": "https://github.com/rose-pine/fzf/archive/9af300f871df52331c362ca58c73535f69b6fb03.tar.gz",
+      "hash": "sha256-WKREw1qzjuURqrCS6LI5ySc924W8d2n0rlA6AV1K5OE="
+    }
+  },
+  "version": 8
+}

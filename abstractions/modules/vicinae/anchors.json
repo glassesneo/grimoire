@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "vicinae": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "vicinaehq",
+        "repo": "vicinae"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "5e0ff58c226c9a2deffe01f5f711b3216928bfc4",
+      "url": "https://github.com/vicinaehq/vicinae/archive/5e0ff58c226c9a2deffe01f5f711b3216928bfc4.tar.gz",
+      "hash": "sha256-FhsaXTMLJ4NdPzPa5OE9DEczfMesBIDAZRmAAgzyFQA="
+    }
+  },
+  "version": 8
+}

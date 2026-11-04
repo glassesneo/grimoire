@@ -1,0 +1,31 @@
+{
+  "pins": {
+    "mnw": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "Gerg-L",
+        "repo": "mnw"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "a582dbedf7c8ec7effa6939ac5bdd23b27267d1b",
+      "url": "https://github.com/Gerg-L/mnw/archive/a582dbedf7c8ec7effa6939ac5bdd23b27267d1b.tar.gz",
+      "hash": "sha256-6IWPAMEotKY/nQvs1kU6qwMwCXTeW5HlOhw2RwFHFdI="
+    },
+    "neovim-nightly-overlay": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "nix-community",
+        "repo": "neovim-nightly-overlay"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "42252f1d108c3e2051539162e1fb79e76f645af3",
+      "url": "https://github.com/nix-community/neovim-nightly-overlay/archive/42252f1d108c3e2051539162e1fb79e76f645af3.tar.gz",
+      "hash": "sha256-J2lxNdGQN/0HtxJN7hImgcKFUFkIT+/VIZLlgdnR2TY="
+    }
+  },
+  "version": 8
+}

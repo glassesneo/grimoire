@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "rose-pine": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "rose-pine",
+        "repo": "alacritty"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "a6f7c8245e5bba639befe52e1e025f84ba8b3ee5",
+      "url": "https://github.com/rose-pine/alacritty/archive/a6f7c8245e5bba639befe52e1e025f84ba8b3ee5.tar.gz",
+      "hash": "sha256-eVQjH5TrMLP9FdxIovnH9ulxTr6uw82Dt8PGGvpF94k="
+    }
+  },
+  "version": 8
+}

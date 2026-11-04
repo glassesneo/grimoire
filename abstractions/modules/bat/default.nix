@@ -4,17 +4,14 @@
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.sources ./anchors.json) rose-pine;
+
   # Official ports by scheme name: bat names a theme after its file.
   themes = mylib.schemeThemes {
     name = "bat";
     themes.rose-pine = {
       name = "rose-pine";
-      source = pkgs: "${pkgs.fetchFromGitHub {
-        owner = "rose-pine";
-        repo = "tm-theme";
-        rev = "6d556734541ccb04172e81fd58de4a35fff72d19";
-        hash = "sha256-5+fG21KbB7bdPvszkz9Ftl6fCDGs17fJNTAXFRFWZGo=";
-      }}/dist/rose-pine.tmTheme";
+      source = _: "${rose-pine}/dist/rose-pine.tmTheme";
     };
   };
 

@@ -288,7 +288,7 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>elio.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>elio.package</code> | <code>package</code> | <code>elio: elio</code> | Package installed and published; setting it bypasses `sourceFiles`. |
+| <code>elio.package</code> | <code>package</code> | <code>elio/elio: elio</code> | Package installed and published; setting it bypasses `sourceFiles`. |
 | <code>elio.settings</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> | Settings written to elio's `config.toml`, by table and key. |
 | <code>elio.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>elio.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
@@ -301,7 +301,7 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | <code>elio.theme.focused_entry</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.palette</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
-| <code>elio.upstreamPackage</code> | <code>package</code> | <code>elio: elio</code> | Package whose source `sourceFiles` patches. |
+| <code>elio.upstreamPackage</code> | <code>package</code> | <code>elio/elio: elio</code> | Package whose source `sourceFiles` patches. |
 | <code>elio.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether elio takes its colors from `colorscheme.resolved`. |
 
 ### <code>exclusive</code>
@@ -448,7 +448,7 @@ Source: [<code>abstractions/modules/kanata/default.nix</code>](../../abstraction
 | <code>services.kanata.kanata-bar.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-bar GUI launcher. |
 | <code>services.kanata.kanata-bar.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
 | <code>services.kanata.kanata-bar.icons</code> | <code>attribute set of absolute path</code> | <code>{ }</code> | Map of kanata layer names to icon files (PNG recommended).<br>Use `mkLayerIcons` to generate icons from font glyphs.<br> |
-| <code>services.kanata.kanata-bar.package</code> | <code>package</code> | <code>kanata-darwin: kanata-bar-app</code> | The kanata-bar .app package. |
+| <code>services.kanata.kanata-bar.package</code> | <code>package</code> | <code>kanata/kanata-darwin: kanata-bar-app</code> | The kanata-bar .app package. |
 | <code>services.kanata.kanata-bar.settings</code> | <code>TOML value</code> | <code>{ }</code> | Settings merged into kanata-bar config.toml.<br>Auto-propagated defaults: kanata.{path,config,port,extra_args}, kanata_bar.{autostart_kanata,autorestart_kanata,pam_touchid}.<br> |
 | <code>services.kanata.kanata-tray.autostart</code> | <code>boolean</code> | <code>true</code> | Whether to create a launchd user agent that starts kanata-tray automatically at login.<br>When false, the .app bundle is still available in /Applications/Nix Apps/.<br> |
 | <code>services.kanata.kanata-tray.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-tray GUI launcher. |
@@ -469,7 +469,7 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>neovim.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.package</code> | <code>package</code> | <code>mnw: mnw</code> |  |
+| <code>neovim.package</code> | <code>package</code> | <code>neovim/mnw: mnw</code> |  |
 | <code>neovim.settings</code> | <code>submodule</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
 | <code>neovim.settings.aliases</code> | <code>list of string</code> | <code>[ ]</code> | Aliases to symlink nvim to. |
 | <code>neovim.settings.appName</code> | <code>null or string</code> | <code>"mnw"</code> | What to set $NVIM_APPNAME to |
@@ -647,11 +647,11 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>vicinae: vicinae</code> | Package installed as the app; setting it bypasses `sourceFiles`. |
+| <code>vicinae.package</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package installed as the app; setting it bypasses `sourceFiles`. |
 | <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
-| <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
+| <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
 | <code>vicinae.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Vicinae takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:

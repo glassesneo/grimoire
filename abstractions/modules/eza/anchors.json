@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "rose-pine": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "rose-pine",
+        "repo": "eza"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "ffd796b8265cc6395231f4ad663e6749f34fc897",
+      "url": "https://github.com/rose-pine/eza/archive/ffd796b8265cc6395231f4ad663e6749f34fc897.tar.gz",
+      "hash": "sha256-UNdszLPp2IOAUydJQgoa3WwCr99dpD7bju0ktAtVS1I="
+    }
+  },
+  "version": 8
+}

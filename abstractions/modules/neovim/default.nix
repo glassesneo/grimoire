@@ -1,10 +1,11 @@
 {
   delib,
-  inputs,
   lib,
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.flakes ./anchors.json) mnw neovim-nightly-overlay;
+
   # Neovim's implementation of each scheme it supports, by scheme name: mnw
   # settings built from Nixpkgs and the resolved scheme.
   themes = mylib.schemeThemes {
@@ -46,7 +47,7 @@ in
     in
       if failedAssertions != []
       then throw "\nFailed mnw assertions:\n${lib.concatMapStrings (message: "- ${message}\n") failedAssertions}"
-      else lib.showWarnings final.config.warnings (inputs.mnw.lib.uncheckedWrap pkgs final.config);
+      else lib.showWarnings final.config.warnings (mnw.lib.uncheckedWrap pkgs final.config);
 
     colorscheme =
       if themes.select cfg myconfig.colorscheme.resolved != null
@@ -65,10 +66,10 @@ in
           type = lib.types.submoduleWith {
             specialArgs = {
               inherit pkgs;
-              modulesPath = "${inputs.mnw}/modules";
+              modulesPath = "${mnw}/modules";
             };
             modules = [
-              "${inputs.mnw}/modules/options.nix"
+              "${mnw}/modules/options.nix"
               # Every source's assertions and warnings reach mnw beside its own.
               {options = lib.genAttrs ["assertions" "warnings"] (_: mylib.accumulatingOption (lib.mkOption {}));}
             ];
@@ -83,7 +84,7 @@ in
 
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
-      neovim = inputs.neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
+      neovim = neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
       plugins.dev.grimoire = {
         pure = ./config;
         # Read by the devMode package so Lua edits apply without a rebuild.
@@ -137,7 +138,7 @@ in
         protects = "the typed settings build the package mnw's own evaluation of the same definitions builds";
         uses = ["colorscheme"];
         moduleSystem = "bundles";
-        expr = result: result.packages.neovim.drvPath == (inputs.mnw.lib.wrap pkgs {imports = result.options.myconfig.neovim.settings.definitions;}).drvPath;
+        expr = result: result.packages.neovim.drvPath == (mnw.lib.wrap pkgs {imports = result.options.myconfig.neovim.settings.definitions;}).drvPath;
         expected = true;
       };
       upstream-assertions = {

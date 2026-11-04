@@ -10,6 +10,8 @@ Adapters evaluate module systems and apply their results, extensions extend Deni
 
 `flake.nix` is the composition root. It selects inputs, loads adapters and extensions, discovers Denix abstractions, passes `lib/` to them as `mylib`, and publishes configurations, checks, formatting, and the development shell.
 
+Its inputs are the dependencies of the composition and its mechanisms, and those a module receives with another flake's `nixpkgs` through `follows`. A dependency that one module uses is an anchor of that module instead: pinned in the module's `anchors.json` and read with `mylib.anchors`. It has one owning module; another module that needs it receives it through the owner's options, as `casks.packages` provides casks. A flake anchor keeps the `nixpkgs` its own lock file pins, so a module that needs the dependency built with its own `nixpkgs` uses an entry point taking `pkgs`, such as a package file, a library, or an overlay.
+
 Denix receives every `default.nix` below `abstractions/`. Files in that tree declare independent Denix abstractions; they do not form manual import chains. New files must be Git-tracked before flake evaluation can discover them.
 
 `flake.nix` publishes one nix-darwin configuration per Darwin host and one Hjem configuration per user of each host. Each configuration evaluates independently because each is activated separately.
@@ -56,7 +58,7 @@ A setting affects only the scope that needs it. User preferences are declared in
 
 - `abstractions/hosts/` owns machine-specific facts and choices.
 - `abstractions/rices/` owns rices: choices that span modules and that hosts select.
-- `abstractions/modules/` owns modules: application features and the capabilities other modules use, such as user services, user defaults and single-definer files. A module keeps its options and its Darwin, Hjem, and other module-system outputs together.
+- `abstractions/modules/` owns modules: application features and the capabilities other modules use, such as user services, user defaults and single-definer files. A module keeps its options and its Darwin, Hjem, and other module-system outputs together, with the anchors it pins.
 - `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
@@ -104,6 +106,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
 - `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry it follows, and the rejection of a followed scheme absent from the table.
 - `lib/source-files.nix`: whole files of a package's source replaced before it is built, guarded by the hash of the upstream file each replacement was written against.
+- `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` updates them.
 - `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
 - `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, and `scripts/pre-push.nu` verifies outgoing tip trees.

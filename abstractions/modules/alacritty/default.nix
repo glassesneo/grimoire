@@ -4,15 +4,12 @@
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.sources ./anchors.json) rose-pine;
+
   # Official ports by scheme name, imported by the configuration file.
   themes = mylib.schemeThemes {
     name = "alacritty";
-    themes.rose-pine = pkgs: "${pkgs.fetchFromGitHub {
-      owner = "rose-pine";
-      repo = "alacritty";
-      rev = "a6f7c8245e5bba639befe52e1e025f84ba8b3ee5";
-      hash = "sha256-eVQjH5TrMLP9FdxIovnH9ulxTr6uw82Dt8PGGvpF94k=";
-    }}/dist/rose-pine.toml";
+    themes.rose-pine = _: "${rose-pine}/dist/rose-pine.toml";
   };
 in
   delib.module ({

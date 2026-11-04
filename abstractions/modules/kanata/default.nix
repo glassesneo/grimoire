@@ -1,9 +1,11 @@
 {
   delib,
-  inputs,
   lib,
+  mylib,
   ...
 }: let
+  inherit (mylib.anchors.flakes ./anchors.json) kanata-darwin;
+
   kbd = import ./kbd.nix {inherit lib;};
 
   chord = lib.types.submodule {
@@ -72,7 +74,9 @@ in
       ]
     );
 
-    darwin.always.imports = [inputs.kanata-darwin.darwinModules.default];
+    # Installs the Karabiner VirtualHID driver Kanata needs on macOS and runs
+    # Kanata through kanata-bar.
+    darwin.always.imports = [kanata-darwin.darwinModules.default];
 
     darwin.ifEnabled = {
       services.kanata = {

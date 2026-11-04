@@ -4,18 +4,15 @@
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.sources ./anchors.json) rose-pine;
+
   # Official ports by scheme name, as an options file. The ports are scripts
   # exporting FZF_DEFAULT_OPTS, whose quoted value is the file's content.
   themes = mylib.schemeThemes {
     name = "fzf";
     themes.rose-pine = pkgs:
       pkgs.runCommandLocal "fzf-rose-pine" {
-        src = pkgs.fetchFromGitHub {
-          owner = "rose-pine";
-          repo = "fzf";
-          rev = "9af300f871df52331c362ca58c73535f69b6fb03";
-          hash = "sha256-WKREw1qzjuURqrCS6LI5ySc924W8d2n0rlA6AV1K5OE=";
-        };
+        src = rose-pine;
       } ''
         sed -e '1s/^export FZF_DEFAULT_OPTS="//' -e '$s/"$//' "$src/dist/rose-pine.sh" > "$out"
       '';

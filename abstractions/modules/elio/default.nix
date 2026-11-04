@@ -1,10 +1,11 @@
 {
   delib,
-  inputs,
   lib,
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.sources ./anchors.json) elio;
+
   # Any scheme's theme. Surfaces the palette lacks reuse its terminal roles;
   # ANSI roles follow upstream's terminal-ansi example theme.
   ansiTheme = palette: let
@@ -173,7 +174,8 @@ in
     in
       with delib; {
         enable = boolOption true;
-        upstreamPackage = packageOption inputs.elio.packages.${pkgs.stdenv.hostPlatform.system}.elio "Package whose source `sourceFiles` patches.";
+        # nixpkgs does not package elio.
+        upstreamPackage = packageOption (pkgs.callPackage "${elio}/nix/package.nix" {}) "Package whose source `sourceFiles` patches.";
         package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed and published; setting it bypasses `sourceFiles`.";
         sourceFiles = mylib.sourceFiles.option "upstreamPackage";
         useColorscheme = boolOption true "Whether elio takes its colors from `colorscheme.resolved`.";

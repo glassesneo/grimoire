@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "kanata-darwin": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "not-in-stock",
+        "repo": "kanata-darwin"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "f7e3b58e872837cf494ec83457d2a0f228ea0295",
+      "url": "https://github.com/not-in-stock/kanata-darwin/archive/f7e3b58e872837cf494ec83457d2a0f228ea0295.tar.gz",
+      "hash": "sha256-oCe5avBeP6zrVjAhm0188D1bWpQ0dOoxSfMHvP70cYI="
+    }
+  },
+  "version": 8
+}

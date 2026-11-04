@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "rose-pine": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "rose-pine",
+        "repo": "tm-theme"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "6d556734541ccb04172e81fd58de4a35fff72d19",
+      "url": "https://github.com/rose-pine/tm-theme/archive/6d556734541ccb04172e81fd58de4a35fff72d19.tar.gz",
+      "hash": "sha256-5+fG21KbB7bdPvszkz9Ftl6fCDGs17fJNTAXFRFWZGo="
+    }
+  },
+  "version": 8
+}

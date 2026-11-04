@@ -1,15 +1,17 @@
 {
   delib,
-  inputs,
   lib,
   mylib,
   ...
 }: let
   inherit (lib) types;
 
+  inherit (mylib.anchors.sources ./anchors.json) nix-wrapper-modules rose-pine;
+  wrapperLib = import "${nix-wrapper-modules}/lib" {inherit lib;};
+
   # Zellij parses KDL v1 only.
   toKdl = content:
-    inputs.nix-wrapper-modules.lib.toKdl (_: {
+    wrapperLib.toKdl (_: {
       version = 1;
       indent = "    ";
       inherit content;
@@ -82,12 +84,7 @@
     name = "zellij";
     themes.rose-pine = {
       name = "rose-pine";
-      source = pkgs: "${pkgs.fetchFromGitHub {
-        owner = "rose-pine";
-        repo = "zellij";
-        rev = "f4b7c27f9515d964a78e07da8332530a45f060d5";
-        hash = "sha256-eilCRSweo0wk4z6snBWFC67NMVvytfDfJqGWVXg6QRc=";
-      }}/dist/rose-pine.kdl";
+      source = _: "${rose-pine}/dist/rose-pine.kdl";
     };
   };
 in
@@ -113,7 +110,7 @@ in
       };
 
     mkPackage = pkgs: theme:
-      inputs.nix-wrapper-modules.lib.wrapPackage {
+      wrapperLib.wrapPackage {
         inherit pkgs;
         package = pkgs.zellij;
         flags."--config-dir" = pkgs.linkFarm "zellij-config" (files pkgs theme // {"config.kdl" = pkgs.writeText "config.kdl" (configText theme);});

@@ -1,0 +1,31 @@
+{
+  "pins": {
+    "nix-wrapper-modules": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "nix-community",
+        "repo": "nix-wrapper-modules"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "eb41f7cdde918a6467715b189cdadb6d476456c8",
+      "url": "https://github.com/nix-community/nix-wrapper-modules/archive/eb41f7cdde918a6467715b189cdadb6d476456c8.tar.gz",
+      "hash": "sha256-0xLhR6xGbG2oC5RpJYf/o0Tl2nlUUh3H9pulE+ogK0k="
+    },
+    "rose-pine": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "rose-pine",
+        "repo": "zellij"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "f4b7c27f9515d964a78e07da8332530a45f060d5",
+      "url": "https://github.com/rose-pine/zellij/archive/f4b7c27f9515d964a78e07da8332530a45f060d5.tar.gz",
+      "hash": "sha256-eilCRSweo0wk4z6snBWFC67NMVvytfDfJqGWVXg6QRc="
+    }
+  },
+  "version": 8
+}

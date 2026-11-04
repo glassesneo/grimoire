@@ -1,0 +1,11 @@
+{
+  "pins": {
+    "vim-zellij-navigator": {
+      "type": "Url",
+      "url": "https://github.com/hiasr/vim-zellij-navigator/releases/download/0.3.0/vim-zellij-navigator.wasm",
+      "unpack": false,
+      "hash": "sha256-d+Wi9i98GmmMryV0ST1ddVh+D9h3z7o0xIyvcxwkxY0="
+    }
+  },
+  "version": 8
+}

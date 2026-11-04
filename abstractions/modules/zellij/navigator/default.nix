@@ -1,14 +1,11 @@
 {
   delib,
   lib,
+  mylib,
   ...
 }: let
   # Pinned instead of the release URL, which Zellij would fetch at run time.
-  plugin = pkgs:
-    pkgs.fetchurl {
-      url = "https://github.com/hiasr/vim-zellij-navigator/releases/download/0.3.0/vim-zellij-navigator.wasm";
-      hash = "sha256-d+Wi9i98GmmMryV0ST1ddVh+D9h3z7o0xIyvcxwkxY0=";
-    };
+  inherit (mylib.anchors.sources ./anchors.json) vim-zellij-navigator;
 in
   delib.module {
     name = "zellij.navigator";
@@ -18,12 +15,12 @@ in
 
     # Every call repeats the configuration because the plugin keeps the one
     # it was first loaded with.
-    myconfig.ifEnabled = {pkgs, ...}: {
+    myconfig.ifEnabled = {
       zellij.keybinds.shared = lib.mapAttrs' (key: direction:
         lib.nameValuePair "Ctrl ${key}" [
           {
             MessagePlugin = {
-              args = ["file:${plugin pkgs}"];
+              args = ["file:${vim-zellij-navigator}"];
               children = {
                 name = "move_focus";
                 payload = direction;
@@ -41,8 +38,8 @@ in
 
     # Zellij keys the cache by the plugin's path. An attribute name cannot
     # carry the store path's context; the keybindings keep the dependency.
-    hjem.ifEnabled = {pkgs, ...}: {
-      zellij.pluginPermissions.${builtins.unsafeDiscardStringContext "${plugin pkgs}"} = [
+    hjem.ifEnabled = {
+      zellij.pluginPermissions.${builtins.unsafeDiscardStringContext "${vim-zellij-navigator}"} = [
         "WriteToStdin"
         "ChangeApplicationState"
         "ReadApplicationState"

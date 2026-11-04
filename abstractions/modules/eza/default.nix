@@ -4,16 +4,13 @@
   mylib,
   ...
 }: let
+  inherit (mylib.anchors.sources ./anchors.json) rose-pine;
+
   # Official ports by scheme name. eza considers theme.yml unstable; the
   # port states the eza release it was tested against.
   themes = mylib.schemeThemes {
     name = "eza";
-    themes.rose-pine = pkgs: "${pkgs.fetchFromGitHub {
-      owner = "rose-pine";
-      repo = "eza";
-      rev = "ffd796b8265cc6395231f4ad663e6749f34fc897";
-      hash = "sha256-UNdszLPp2IOAUydJQgoa3WwCr99dpD7bju0ktAtVS1I=";
-    }}/dist/rose-pine.yml";
+    themes.rose-pine = _: "${rose-pine}/dist/rose-pine.yml";
   };
 in
   delib.module ({

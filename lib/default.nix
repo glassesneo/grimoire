@@ -1,6 +1,14 @@
-{lib}: let
+# `anchorRoot` is the directory whose anchors `anchors` evaluates once.
+{
+  lib,
+  anchorRoot ? null,
+}: let
   sources = import ./sources.nix {inherit lib;};
 in {
+  anchors = import ./anchors.nix {
+    inherit lib;
+    root = anchorRoot;
+  };
   assertions = import ./assertions.nix {inherit lib;};
   choice = import ./choice.nix {inherit lib;};
   fragments = import ./fragments.nix {inherit lib;};

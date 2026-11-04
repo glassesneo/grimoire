@@ -1,0 +1,31 @@
+{
+  "pins": {
+    "brew-api": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "BatteredBunny",
+        "repo": "brew-api"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "a0b25d897a5cc8a7991e9b4011627937ce6331e2",
+      "url": "https://github.com/BatteredBunny/brew-api/archive/a0b25d897a5cc8a7991e9b4011627937ce6331e2.tar.gz",
+      "hash": "sha256-Xx87WYwG8uPtHhk06FkPA92n3wzAbJGZuvMI+Y3u32A="
+    },
+    "brew-taps-api": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "glassesneo",
+        "repo": "brew-taps-api"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "b4cadf87eee4d7e5f6410f64b787304ce34b4098",
+      "url": "https://github.com/glassesneo/brew-taps-api/archive/b4cadf87eee4d7e5f6410f64b787304ce34b4098.tar.gz",
+      "hash": "sha256-KNKZgtRAoQvCuFlIjTNQCxh6SdVzE5we0petc1PKbIg="
+    }
+  },
+  "version": 8
+}

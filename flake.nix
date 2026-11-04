@@ -8,6 +8,10 @@
     ...
   }: let
     inherit (nixpkgs) lib;
+    mylib = import ./lib {
+      inherit lib;
+      anchorRoot = ./abstractions/modules;
+    };
     systems = ["aarch64-darwin" "aarch64-linux" "x86_64-linux"];
     forAllSystems = lib.genAttrs systems;
 
@@ -15,7 +19,7 @@
     compose = abstractions:
       denix.lib.denixConfiguration {
         extraInputs = inputs;
-        specialArgs.mylib = import ./lib {inherit lib;};
+        specialArgs = {inherit mylib;};
 
         modules =
           [
@@ -65,7 +69,12 @@
       };
     in {
       inherit host;
-      sources = lib.mapAttrs (_: input: input.outPath) (removeAttrs inputs ["self"]);
+      # Anchors are named by module directory, as pin names repeat across modules.
+      sources =
+        lib.mapAttrs (_: input: input.outPath) (removeAttrs inputs ["self"])
+        // lib.concatMapAttrs (directory: file:
+          lib.mapAttrs' (pin: source: lib.nameValuePair "${directory}/${pin}" source.outPath) (mylib.anchors.sources file))
+        (mylib.anchors.discover ./abstractions/modules);
       configuration = placeholder;
       root = self;
       pkgs = nixpkgs.legacyPackages.${docsSystem};
@@ -164,6 +173,7 @@
       devShells.default = pkgs.mkShellNoCC {
         packages = [
           pkgs.just
+          pkgs.npins
           pkgs.nushell
           pkgs.bun
           pkgs.oxfmt
@@ -240,48 +250,10 @@
       url = "github:unnamed-systems/nix-secrets/151f264a22b595802647db8fac09a2dbd6cb202c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    mnw.url = "github:Gerg-L/mnw";
-    nix-wrapper-modules = {
-      url = "github:nix-community/nix-wrapper-modules";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
-    # nixpkgs only packages blink.cmp 1.x; the upstream flake builds v2 with
-    # its Rust fuzzy matcher and blink.lib dependency.
-    blink-cmp = {
-      url = "github:saghen/blink.cmp";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Stays here until cask2nix exposes `mkTaps` outside its flake outputs,
+    # which evaluate it with the flake's own nixpkgs.
     cask2nix = {
       url = "github:glassesneo/cask2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # Cask data for the official homebrew/cask tap, bound to cask2nix by the casks module.
-    brew-api = {
-      url = "github:BatteredBunny/brew-api";
-      flake = false;
-    };
-    # Cask data for third-party taps, bound to cask2nix by the casks module.
-    brew-taps-api = {
-      url = "github:glassesneo/brew-taps-api";
-      flake = false;
-    };
-    # Not following nixpkgs keeps the dependencies upstream CI pushes to
-    # vicinae.cachix substitutable.
-    vicinae.url = "github:vicinaehq/vicinae";
-    nix-mac-app-identity = {
-      url = "github:natsukium/nix-mac-app-identity";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # Installs the Karabiner VirtualHID driver Kanata needs on macOS and
-    # runs Kanata through kanata-bar.
-    kanata-darwin = {
-      url = "github:not-in-stock/kanata-darwin";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # nixpkgs does not package elio.
-    elio = {
-      url = "github:elio-fm/elio";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     llm-agents.url = "github:numtide/llm-agents.nix";

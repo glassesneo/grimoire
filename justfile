@@ -7,6 +7,9 @@ mod darwin 'just/darwin.just'
 # Build or apply every layer of a host in order: just all <build|switch> [host]
 mod all 'just/all.just'
 
+# Update modules' pinned dependencies: just anchors update [module]
+mod anchors 'just/anchors.just'
+
 [doc('''
   Change a Bun project's dependencies and regenerate its bun.nix.
   Requires bun and bun2nix from the development shell and contacts the npm registry.
