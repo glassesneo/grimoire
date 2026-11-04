@@ -176,6 +176,9 @@
     formatter = lib.mapAttrs (_: outputs: outputs.formatter) perSystem;
     checks = lib.mapAttrs (_: outputs: outputs.checks) perSystem;
     lib.checks = lib.mapAttrs (_: outputs: outputs.checkOutputs.metadata) perSystem;
+    # Composes abstractions as module test fixtures are; the live nix-secrets
+    # check composes its probe with it.
+    lib.compose = compose;
 
     darwinConfigurations =
       builtins.mapAttrs

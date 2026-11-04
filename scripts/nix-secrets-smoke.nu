@@ -2,7 +2,7 @@
 # Synthetic input crosses the actual Hjem backend; a separate consumer reads the
 # configured output. Native plutil decodes disk metadata; finally owns cleanup.
 # Wiring, missing keys and ordinary-directory markers are covered by the
-# sandboxed nix-secrets check; this script needs actual launchd and mounts.
+# sandboxed module-nix-secrets check; this script needs actual launchd and mounts.
 use std/assert
 
 # `checked` keeps synthetic plaintext, which commands print, out of errors.
@@ -65,7 +65,7 @@ def main [] {
   let home = checked /usr/bin/mktemp -d /tmp/hjem-nix-secrets-XXXXXXXX | path expand
   try {
     let fields = $'homeDirectory = ($home | to json -r); username = ($username | to json -r);'
-    let expr = '(import ./tests/nix-secrets/fixture.nix { inputs = (builtins.getFlake (toString ./.)).inputs; ' + $fields + ' }).probe'
+    let expr = 'import ./scripts/nix-secrets-smoke.nix { flake = builtins.getFlake (toString ./.); ' + $fields + ' }'
     let probe = checked nix build --impure --no-link --print-out-paths --expr $expr
     let secret = open --raw ($probe | path join secret-path)
     mkdir ($home | path join storage)

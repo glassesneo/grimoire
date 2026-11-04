@@ -81,4 +81,144 @@ delib.module {
       })
     ]);
   };
+
+  # The cases observe the wiring that no published host varies: disabled and
+  # manual activation, the probe's own job, the CLI commands, and the
+  # activation script's environment. The build runs the package this module
+  # patches against the probe's manifest without launchd or mounts.
+  tests = {
+    pkgs,
+    lib,
+    home,
+    ...
+  }: let
+    probe = import ./probe.nix;
+    # The probe with `settings` added to its Hjem configuration.
+    probed = settings: {
+      hjem.always.imports = [(probe.module home) {security.nix-secrets = settings;}];
+    };
+    case = attrs:
+      {
+        uses = ["services"];
+        platforms = ["aarch64-darwin"];
+      }
+      // attrs;
+    jobs = result: result.apply.steps.services.jobs;
+    source = result: name: (lib.findFirst (file: lib.hasSuffix "/${name}" file.target) (throw "Missing fixture output ${name}") result.manifest.files).source;
+    # writeText's evaluation-time text avoids reading generated files (IFD).
+    json = result: name: builtins.fromJSON (builtins.unsafeDiscardStringContext (source result name).text);
+    automatic = extraPackages:
+      probed {
+        activate.enable = true;
+        defaultGroup = 20;
+        inherit extraPackages;
+      };
+    # The activation job runs the activation script, which sets HOME and PATH
+    # and serializes runs under the state directory's lock.
+    scriptWiring = path: result: let
+      values = json result "wiring.json";
+    in
+      lib.drop 4 (builtins.head (jobs result)).config.ProgramArguments
+      == [values.activateScript]
+      && lib.all (line: lib.elem line (lib.splitString "\n" values.script)) [
+        "export HOME=${lib.escapeShellArg home}"
+        "export PATH=${lib.escapeShellArg path}"
+        "mkdir -p ${lib.escapeShellArg "${values.stateDirectory}/nix-secrets"}"
+        "exec /usr/bin/lockf -k ${lib.escapeShellArg "${values.stateDirectory}/nix-secrets/activate.lock"} ${values.command}"
+      ];
+  in {
+    disabled-registers-no-job = case {
+      protects = "Without `security.nix-secrets.enable`, the module registers no activation service.";
+      expr = jobs;
+      expected = [];
+    };
+    manual-activation-registers-no-job = case {
+      protects = "With `activate.enable = false`, secrets are activated only on demand, so no service is registered.";
+      modules.probe = probed {activate.enable = false;};
+      expr = jobs;
+      expected = [];
+    };
+    automatic-activation-job = case {
+      protects = "Automatic activation registers one gui-domain job that runs at load and restarts on switch, under the Label its configuration declares.";
+      modules.probe = automatic [pkgs.coreutils];
+      expr = result: let
+        job = builtins.head (jobs result);
+      in {
+        count = builtins.length (jobs result);
+        inherit (job) domain restart runAtLoad label;
+        configLabel = job.config.Label;
+      };
+      expected = {
+        count = 1;
+        domain = "gui";
+        restart = true;
+        runAtLoad = true;
+        label = "org.hjem.nix-secrets-probe";
+        configLabel = "org.hjem.nix-secrets-probe";
+      };
+    };
+    activation-job-label = case {
+      protects = "The module's own activation job carries the Label `org.hjem.nix-secrets-activate`.";
+      modules.probe.hjem.always.security.nix-secrets = {
+        enable = true;
+        installPackage = false;
+        storage = "${home}/storage";
+        secrets.dummy = {};
+      };
+      expr = result: map (job: job.label) (jobs result);
+      expected = ["org.hjem.nix-secrets-activate"];
+    };
+    cli-commands = case {
+      protects = "Activation and the CLI read this Hjem user's generated manifest, and generators are realized with nix-store.";
+      modules.probe = automatic [pkgs.coreutils];
+      expr = result: let
+        wiring = json result "wiring.json";
+        environment = json result "cli-env.json";
+        manifest = pkgs.writeText "nix-secrets-manifest.json" (source result "manifest.json").text;
+      in {
+        command = wiring.command == "${wiring.package}/bin/nix-secrets activate ${manifest} --needed-for-users false";
+        eval = environment.NIX_SECRETS_NIX_EVAL_COMMAND == "${pkgs.coreutils}/bin/cat ${manifest}";
+        generator = environment.NIX_SECRETS_GENERATOR_BUILD_COMMAND;
+        secrets = builtins.length (json result "manifest.json").secrets;
+      };
+      expected = {
+        command = true;
+        eval = true;
+        generator = "${pkgs.nix}/bin/nix-store --realise {{input}}";
+        secrets = 1;
+      };
+    };
+    activation-script-extra-packages = case {
+      protects = "The activation script's PATH puts `extraPackages` before the system directories.";
+      modules.probe = automatic [pkgs.coreutils];
+      expr = scriptWiring "${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+      expected = true;
+    };
+    activation-script-default-path = case {
+      protects = "Without `extraPackages`, the activation script's PATH holds only the system directories.";
+      modules.probe = automatic [];
+      expr = scriptWiring "/usr/bin:/bin:/usr/sbin:/sbin";
+      expected = true;
+    };
+    package-execution = case {
+      protects = "The CLI's manifest lookup returns the generated manifest, and the patched package publishes no plaintext on a missing key or a forged RAM-disk anchor; the live check's script parses.";
+      modules.probe = automatic [pkgs.coreutils];
+      build = result: let
+        wiring = json result "wiring.json";
+        package = builtins.appendContext wiring.package (builtins.getContext (source result "wiring.json").text);
+        manifest = pkgs.writeText "nix-secrets-manifest.json" (source result "manifest.json").text;
+        scripts = lib.fileset.toSource {
+          root = ../../../scripts;
+          fileset = lib.fileset.unions [../../../scripts/nix-secrets-smoke.nu ../../../scripts/run.nu];
+        };
+      in
+        pkgs.runCommand "nix-secrets-package-execution" {
+          nativeBuildInputs = [pkgs.nushell];
+        } ''
+          nu --no-config-file -c 'use std/assert; assert (nu-check --debug ${scripts}/nix-secrets-smoke.nu)'
+          nu --no-config-file ${./test.nu} ${manifest} ${source result "cli-env.json"} ${probe.farm pkgs result} ${package}/bin/nix-secrets
+          touch "$out"
+        '';
+    };
+  };
 }
