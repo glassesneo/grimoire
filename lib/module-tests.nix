@@ -6,11 +6,7 @@
   # Composes a Denix configuration from abstractions on top of the repository's
   # adapters and extensions.
   compose,
-  # Names of modules providing capabilities that other modules use, included in
-  # every fixture.
-  infrastructure,
-  # The configuration's `moduleTestInfo`, computed with the same `home` and
-  # `infrastructure`.
+  # The configuration's `moduleTestInfo`, computed with the same `home`.
   info,
   # The fixture user's home directory.
   home,
@@ -19,6 +15,8 @@
 }: let
   assertions = import ./assertions.nix {inherit lib;};
   defines = case: field: lib.elem field case.defined;
+  # Modules providing capabilities that other modules use, included in every fixture.
+  infrastructure = builtins.attrNames (lib.filterAttrs (_: module: module.infrastructure) info);
 
   fileOf = name: info.${name}.file;
 

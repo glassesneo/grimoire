@@ -63,13 +63,11 @@
       inherit pkgs system home;
       root = ../..;
       oxlintConfig = ../../.oxlintrc.json;
-      infrastructure = [];
     };
   checksFor = configuration: compose:
     import ../../lib/module-tests.nix {inherit lib;} {
       inherit compose pkgs system home;
       info = infoFor configuration;
-      infrastructure = [];
     };
   checks = checksFor configuration compose;
 

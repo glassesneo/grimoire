@@ -88,7 +88,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/module-constraints.nix`: modules' constraints, enforced in every module system.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-tests.nix`: module-owned inline test cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use enter every fixture as infrastructure, listed in `checks/default.nix`.
+- `extensions/module-tests.nix`: module-owned inline test cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use declare `meta.infrastructure` and enter every fixture.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery of `checks/` and `tests/` that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.

@@ -15,7 +15,7 @@ delib.module ({cfg, ...}: {
       packages = [pkgs.pay-respects];
 
       zsh.zshrc.pay-respects.text = ''
-        eval "$(${lib.getExe pkgs.pay-respects} zsh)"
+        source ${pkgs.runCommand "pay-respects-init.zsh" {} "${lib.getExe pkgs.pay-respects} zsh > $out"}
       '';
     };
 })

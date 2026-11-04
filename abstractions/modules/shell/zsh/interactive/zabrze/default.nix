@@ -60,7 +60,7 @@ delib.module {
     packages = [package];
 
     zsh.zshrc.zabrze.text = ''
-      eval "$(${lib.getExe package} init --bind-keys)"
+      source ${pkgs.runCommand "zabrze-init.zsh" {} "${lib.getExe package} init --bind-keys > $out"}
     '';
 
     xdg.config.files."zabrze/config.toml" = {

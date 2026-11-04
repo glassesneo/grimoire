@@ -5,12 +5,8 @@
 # sandboxed nix-secrets check; this script needs actual launchd and mounts.
 use std/assert
 
-# Capture output without logging synthetic plaintext; propagate command failure.
-def --wrapped checked [...args: string]: any -> string {
-  let result = $in | run-external ...$args | complete
-  if $result.exit_code != 0 { error make {msg: $result.stderr} }
-  $result.stdout | str trim
-}
+# `checked` keeps synthetic plaintext, which commands print, out of errors.
+use ./run.nu checked
 
 def apply [probe: path, domain: string, expected: int] {
   let services = $probe | path join services | path expand

@@ -4,9 +4,9 @@
 # protects and has exactly one mode: expected, fails or build. Unknown fields,
 # unknown uses and a missing `protects` are errors when the cases are
 # discovered. Coverage retains all cases.
-# moduleTestInfo takes {pkgs,system,home,oxlintConfig,root,infrastructure} and
+# moduleTestInfo takes {pkgs,system,home,oxlintConfig,root} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
-# tsRoots, uses, infrastructure and affectedChecks. Declaration files must be
+# tsRoots, uses, infrastructure (its meta.infrastructure) and affectedChecks. Declaration files must be
 # unique. Reverse closure unions uses from all cases, including excluded ones;
 # duplicates, self edges and cycles terminate. Only applicable check names enter
 # affectedChecks. Discovery never generates fixtures or forces check builders.
@@ -110,7 +110,6 @@ in {
     home,
     oxlintConfig,
     root,
-    infrastructure,
   }: let
     names = builtins.attrNames config.modules;
     fileOf = name: let
@@ -133,7 +132,7 @@ in {
       assert lib.assertMsg (unknown == []) "module-tests: unknown uses in '${name}': ${toString unknown}";
       assert lib.assertMsg (undocumented == []) "module-tests: cases without protects in '${name}': ${toString undocumented}"; {
         inherit file directory cases uses;
-        infrastructure = lib.elem name infrastructure;
+        inherit (config.modules.${name}.meta) infrastructure;
         applicableCases = lib.filterAttrs (_: case: lib.elem system case.platforms) cases;
         tsRoots = lib.sort lib.lessThan (lib.unique (lib.concatMap (case: map normalize case.tsRoots) (builtins.attrValues cases)));
       });

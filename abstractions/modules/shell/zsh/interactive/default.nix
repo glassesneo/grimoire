@@ -26,6 +26,7 @@ delib.module {
       "${config.xdg.state.directory}/hjem/standalone/current-profile"
       "/nix/var/nix/profiles/default"
     ];
+    compdumpDir = "${config.xdg.cache.directory}/zsh";
   in {
     zsh.zshenv.zdotdir.text = ''
       ZDOTDIR="${dotDir}"
@@ -39,7 +40,24 @@ delib.module {
             fpath+=($profile/share/zsh/site-functions $profile/share/zsh/vendor-completions)
           done
         }
-        autoload -Uz compinit && compinit
+        # `-C` trusts the dump instead of auditing and rescanning `fpath`, so the
+        # dump is named by the store hashes of what decides its contents: this
+        # file, which carries every fpath entry it adds, and the profiles. A new
+        # name rebuilds it and removes the stale ones.
+        () {
+          local dump=${lib.escapeShellArg compdumpDir}/zcompdump
+          local entry
+          for entry in ''${(%):-%x} ${lib.escapeShellArgs completionProfiles}; do
+            dump+=-''${''${''${(s:/:)entry:A}[3]}[1,32]}
+          done
+          if [[ ! -e $dump ]]; then
+            mkdir -p ${lib.escapeShellArg compdumpDir}
+            local stale=(${lib.escapeShellArg compdumpDir}/zcompdump-*(N))
+            zmodload -F zsh/files b:zf_rm
+            (( $#stale )) && zf_rm -f $stale
+          fi
+          autoload -Uz compinit && compinit -C -d $dump
+        }
       '';
       pure.text = ''
         fpath+=(${pkgs.pure-prompt}/share/zsh/site-functions)

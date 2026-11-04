@@ -3,6 +3,10 @@
   pkgs,
 }: let
   inherit (pkgs) lib;
+  scripts = lib.fileset.toSource {
+    root = ../../scripts;
+    fileset = lib.fileset.unions [../../scripts/nix-secrets-smoke.nu ../../scripts/run.nu];
+  };
   fixtureArgs = {
     inherit inputs;
     username = "fixture";
@@ -83,7 +87,7 @@ in {
         meta.platforms = lib.platforms.darwin;
         nativeBuildInputs = [pkgs.nushell];
       } ''
-        nu --no-config-file -c 'use std/assert; assert (nu-check --debug ${../../scripts/nix-secrets-smoke.nu})'
+        nu --no-config-file -c 'use std/assert; assert (nu-check --debug ${scripts}/nix-secrets-smoke.nu)'
         nu --no-config-file ${./test.nu} ${manifest} ${source on "cli-env.json"} ${fixture.probe} ${package}/bin/nix-secrets
         touch "$out"
       '';

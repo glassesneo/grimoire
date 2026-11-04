@@ -1,12 +1,6 @@
 # Validate sent commit trees, not the checkout. Non-commit tags and deletions
 # have no configuration to validate; distinct commits sharing a tree run once.
-def --wrapped checked [command: string, ...args: string] {
-  let result = ^$command ...$args | complete
-  if $result.exit_code != 0 {
-    error make {msg: $"($command) failed: ($result.stderr)($result.stdout)"}
-  }
-  $result.stdout
-}
+use ./run.nu checked
 
 def main [] {
   let updates = $in | lines | where {|line| $line | str trim | is-not-empty }

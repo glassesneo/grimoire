@@ -30,10 +30,16 @@ def run-on [stage: string, target: any, command: string] {
   }
 }
 
-# Realize ATTR and keep it alive under ROOT until the procedure finishes.
-# `lines` would discard the build's exit code; `str trim` propagates it.
-def realize [stage: string, attr: string, root: string]: nothing -> string {
-  step $stage { ^nix build --print-out-paths --out-link $root $attr | str trim }
+# Realize ATTRS in one build, which evaluates the flake once, and keep them
+# alive under ROOT until the procedure finishes. Returns one path per attribute,
+# in their order. `lines` alone would discard the build's exit code; `str trim`
+# propagates it.
+def realize [stage: string, root: string, ...attrs: string]: nothing -> list<string> {
+  let paths = step $stage { ^nix build --print-out-paths --out-link $root ...$attrs | str trim | lines }
+  if ($paths | length) != ($attrs | length) {
+    error make {msg: $"($stage) printed ($paths | length) paths for ($attrs | length) attributes"}
+  }
+  $paths
 }
 
 def push [stage: string, target: string, ...paths: string] {
@@ -45,9 +51,11 @@ def apply-hjem [host: string, target: any, roots: string] {
   let user = if $target == null { $env.USER } else { ^ssh $target whoami | str trim }
   let attr = $'hjemConfigurations."($user)@($host)"'
 
-  let preflight = realize "Hjem preflight build" $'($root)#($attr).preflight' ($roots | path join hjem-preflight)
-  let apply = realize "Hjem apply build" $'($root)#($attr).apply' ($roots | path join hjem-apply)
-  let hjem = realize "Hjem CLI build" $'($root)#hjem' ($roots | path join hjem-cli)
+  # The preflight realizes every closure the activation uses, `apply` included.
+  let paths = realize "Hjem build" ($roots | path join hjem) $'($root)#($attr).preflight' $'($root)#($attr).apply' $'($root)#hjem'
+  let preflight = $paths.0
+  let apply = $paths.1
+  let hjem = $paths.2
   let source = ^nix flake metadata --json $root | from json | get path
 
   if $target != null {
@@ -59,7 +67,7 @@ def apply-hjem [host: string, target: any, roots: string] {
 }
 
 def apply-darwin [host: string, target: any, roots: string] {
-  let system = realize "nix-darwin build" $'(flake-root)#darwinConfigurations."($host)".system' ($roots | path join darwin-system)
+  let system = realize "nix-darwin build" ($roots | path join darwin-system) $'(flake-root)#darwinConfigurations."($host)".system' | first
 
   if $target != null {
     push "nix-darwin closure copy" $target $system

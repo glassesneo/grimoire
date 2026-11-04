@@ -65,7 +65,7 @@ in
         after = ["compinit"];
         text = ''
           if [[ $options[zle] = on ]]; then
-            source <(${lib.getExe pkgs.fzf} --zsh)
+            source ${pkgs.runCommand "fzf-init.zsh" {} "${lib.getExe pkgs.fzf} --zsh > $out"}
           fi
         '';
       };

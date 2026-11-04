@@ -18,9 +18,9 @@ in
       enabled = listOfOption (types.enum knownTags) [] "Tags whose modules are enabled by default.";
     };
 
-    # A default only, so a host's own `enable = false` excludes a tagged module.
+    # A module's definition, so a host's own `enable = false` excludes a tagged module.
     myconfig.always = lib.foldl' lib.recursiveUpdate {} (map (name:
       lib.setAttrByPath (lib.splitString "." name ++ ["enable"])
-      (lib.mkIf (lib.any (tag: lib.elem tag cfg.enabled) (tagsOf name)) (lib.mkDefault true)))
+      (lib.mkIf (lib.any (tag: lib.elem tag cfg.enabled) (tagsOf name)) true))
     tagged);
   })

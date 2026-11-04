@@ -15,7 +15,7 @@ delib.module {
     zsh.zshrc.zoxide = {
       after = ["compinit"];
       text = ''
-        eval "$(${lib.getExe pkgs.zoxide} init zsh)"
+        source ${pkgs.runCommand "zoxide-init.zsh" {} "${lib.getExe pkgs.zoxide} init zsh > $out"}
       '';
     };
   };

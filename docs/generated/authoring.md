@@ -11,6 +11,7 @@ Options this repository adds to Denix declarations.
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
 | <code>meta.description</code> | <code>string</code> |  | One-sentence responsibility of this module, not an inventory of its current settings. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
+| <code>meta.infrastructure</code> | <code>boolean</code> | <code>false</code> | Whether this module provides a capability other modules use, so that every module test fixture includes it and a change to it selects every check. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
 | <code>meta.tags</code> | <code>list of string</code> | <code>[ ]</code> | Classification labels declared for this module. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
 | <code>tests</code> | <code>function that evaluates to a(n) attribute set of (submodule)</code> | <code>_: { }</code> | Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.&lt;function body&gt;.&lt;name&gt;.build</code> | <code>function that evaluates to a(n) package</code> |  | One of the modes: maps the fixture's result to a derivation that the module's check builds. Cannot be combined with `expr`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
@@ -549,7 +550,8 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>secrets.names</code> | <code>list of (one of "vercel-ai-gateway-api-key", "openrouter-api-key", "opencode-api-key", "mistral-api-key", "zai-api-key", "cohere-api-key", "brave-api-key", "brave-free-api-key", "parallel-api-key", "exa-api-key", "command-code-api-key", "iniad-gitconfig")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
+| <code>secrets.names</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
+| <code>secrets.required</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
 

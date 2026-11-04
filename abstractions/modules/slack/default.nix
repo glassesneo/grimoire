@@ -1,4 +1,8 @@
-{delib, ...}:
+{
+  delib,
+  mylib,
+  ...
+}:
 delib.module ({cfg, ...}: {
   name = "slack";
   meta = {
@@ -24,7 +28,7 @@ delib.module ({cfg, ...}: {
   # Placed for manual installation from System Settings; profiles cannot be
   # installed non-interactively.
   darwin.ifEnabled = {pkgs, ...}: {
-    environment.etc."slack-no-autoupdate.mobileconfig".source = (pkgs.formats.plist {}).generate "slack-no-autoupdate.mobileconfig" {
+    environment.etc."slack-no-autoupdate.mobileconfig".source = pkgs.writeText "slack-no-autoupdate.mobileconfig" (mylib.plist.toPlist {
       PayloadType = "Configuration";
       PayloadVersion = 1;
       PayloadIdentifier = "local.slack.no-autoupdate";
@@ -42,6 +46,6 @@ delib.module ({cfg, ...}: {
           AutoUpdate = false;
         }
       ];
-    };
+    });
   };
 })

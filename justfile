@@ -1,5 +1,3 @@
-system := `nix eval --impure --raw --expr builtins.currentSystem`
-
 # Build or apply the standalone Hjem configuration: just hjem <build|switch> [host]
 mod hjem 'just/hjem.just'
 
@@ -34,7 +32,7 @@ eval:
 # Build one flake check for the current system; see docs/operations.md for platform and live-check limits.
 [arg('name', help='Check name under checks.<system>, including module-<name> for inline module checks')]
 check name:
-  nix build --no-link --no-update-lock-file '.#checks.{{ system }}."{{ name }}"'
+  nix build --no-link --no-update-lock-file ".#checks.$(nix eval --impure --raw --expr builtins.currentSystem).\"{{ name }}\""
 
 # Run all current-system checks, including formatting and reference freshness, on the tracked working tree.
 check-full:

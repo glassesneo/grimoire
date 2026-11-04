@@ -1,5 +1,6 @@
-# Records each call in $env.CALLS. A build whose arguments contain
-# $env.FAIL_ON fails, printing a path first when $env.FAIL_WITH_PATH is set.
+# Records each call in $env.CALLS. A build prints one path per installable; one
+# whose arguments contain $env.FAIL_ON fails, printing a path first when
+# $env.FAIL_WITH_PATH is set.
 def --wrapped main [command: string, ...args: string] {
   $"($command) ($args | str join ' ')\n" | save --append $env.CALLS
   match [$command ($args | first)] {
@@ -9,7 +10,7 @@ def --wrapped main [command: string, ...args: string] {
         if ($env.FAIL_WITH_PATH? | is-not-empty) { print /nix/store/fake-partial }
         exit 1
       }
-      print /nix/store/fake-output
+      $args | where {|arg| $arg | str contains '#' } | each {|attr| $"/nix/store/fake-($attr | hash md5)" } | str join "\n" | print
     }
     [nix flake] => {
       if ($args | get 1) == metadata { print '{"path": "/nix/store/fake-source"}' }

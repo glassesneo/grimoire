@@ -8,6 +8,8 @@ delib.module {
   hjem.ifEnabled = {pkgs, ...}: {
     packages = [pkgs.bat-extras.batman];
 
-    zsh.zshrc.batman.text = pkgs.bat-extras.batman.shellInit "zsh";
+    zsh.zshrc.batman.text = ''
+      source ${pkgs.runCommand "batman-env.zsh" {} "${pkgs.bat-extras.batman}/bin/batman --export-env > $out"}
+    '';
   };
 }

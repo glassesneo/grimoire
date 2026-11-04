@@ -38,7 +38,10 @@
 }:
 delib.module {
   name = "defaults";
-  meta.description = "Declare the current user's preferences and reconcile them with the platform's preferences store.";
+  meta = {
+    description = "Declare the current user's preferences and reconcile them with the platform's preferences store.";
+    infrastructure = true;
+  };
 
   hjem.always = {
     config,

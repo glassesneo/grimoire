@@ -33,7 +33,10 @@
 }:
 delib.module {
   name = "services";
-  meta.description = "Declare user services and reconcile them with the platform's service manager.";
+  meta = {
+    description = "Declare user services and reconcile them with the platform's service manager.";
+    infrastructure = true;
+  };
 
   hjem.always = {
     config,

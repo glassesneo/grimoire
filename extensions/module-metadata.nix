@@ -1,4 +1,5 @@
-# Owns module responsibility descriptions and classification tags, not host metadata.
+# Owns module responsibility descriptions, classification tags and the
+# infrastructure flag, not host metadata.
 # Every module must declare a non-blank meta.description, even when disabled.
 # Force descriptions when generating modules so lazy evaluation cannot skip them.
 # meta.tags describes only the declaring module; tags are not inherited. Consumers
@@ -18,6 +19,11 @@
         type = lib.types.listOf lib.types.str;
         default = [];
         description = "Classification labels declared for this module.";
+      };
+      infrastructure = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Whether this module provides a capability other modules use, so that every module test fixture includes it and a change to it selects every check.";
       };
     };
   };

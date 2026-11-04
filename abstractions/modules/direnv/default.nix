@@ -18,7 +18,7 @@ delib.module {
     };
 
     zsh.zshrc.direnv.text = ''
-      eval "$(${lib.getExe pkgs.direnv} hook zsh)"
+      source ${pkgs.runCommand "direnv-hook.zsh" {} "${lib.getExe pkgs.direnv} hook zsh > $out"}
     '';
   };
 }

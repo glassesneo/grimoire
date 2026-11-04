@@ -11,13 +11,11 @@
   formatting,
 }: let
   inherit (pkgs) lib;
-  infrastructure = ["defaults" "exclusive" "services"];
   home = "/tmp/module-tests";
   moduleTestInfo = configuration.config.moduleTestInfo {
     inherit pkgs system home;
     oxlintConfig = ../.oxlintrc.json;
     root = ../.;
-    inherit infrastructure;
   };
   directoriesOf = root: lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (root + "/${name}/default.nix")) (builtins.readDir root);
   descriptorsOf = root:
@@ -27,7 +25,7 @@
       } (root + "/${name}/default.nix") {})
     (directoriesOf root);
   moduleChecks = import ../lib/module-tests.nix {inherit lib;} {
-    inherit compose pkgs system infrastructure home;
+    inherit compose pkgs system home;
     info = moduleTestInfo;
   };
   discovered = import ../lib/checks.nix {inherit lib;} {
