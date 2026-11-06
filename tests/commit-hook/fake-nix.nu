@@ -6,6 +6,8 @@ def --wrapped main [...args: string] {
     let command = $args.0
     $"($command)\n" | save --append $env.NIX_CALLS
     $"($env.PWD)\n" | save --append $env.SNAPSHOTS
+    # Every invocation reads a settled snapshot: no mtime after the fixed one.
+    assert equal (^find . -newermt '@1' | lines) []
     match $command {
       fmt => {
         "formatted\n" | save --force sample.nix

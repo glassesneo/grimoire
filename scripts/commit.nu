@@ -4,6 +4,7 @@
 # Fixes are refused before any mutation when they would overwrite such work.
 use ./docs.nu
 use ./checks.nu select-checks
+use ./snapshot.nu settle
 
 const empty = "0000000000000000000000000000000000000000"
 
@@ -16,13 +17,16 @@ export def main [] {
     let snapshot = mktemp --directory --tmpdir repository-hook.XXXXXX
     try {
       ^git checkout-index --all --prefix $"($snapshot)/"
+      settle $snapshot
       do {
         cd $snapshot
         # The snapshot's root is new on every commit, so a treefmt cache would
         # never be reused and would only accumulate.
         ^nix fmt --no-update-lock-file -- --no-cache
       }
+      settle $snapshot
       docs --root $snapshot
+      settle $snapshot
 
       # Stage the snapshot into a copy of the index to learn the fixes.
       let scratch = $"($snapshot).index"

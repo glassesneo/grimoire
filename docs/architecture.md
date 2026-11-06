@@ -109,7 +109,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` updates them.
 - `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
-- `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, and `scripts/pre-push.nu` verifies outgoing tip trees.
+- `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, `scripts/pre-push.nu` verifies outgoing tip trees, and `scripts/snapshot.nu` gives their snapshots a content-only identity for Nix's evaluation cache.
 
 ## Validation boundary
 

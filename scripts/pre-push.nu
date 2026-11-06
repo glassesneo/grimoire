@@ -1,6 +1,7 @@
 # Validate sent commit trees, not the checkout. Non-commit tags and deletions
 # have no configuration to validate; distinct commits sharing a tree run once.
 use ./run.nu checked
+use ./snapshot.nu settle
 
 def main [] {
   let updates = $in | lines | where {|line| $line | str trim | is-not-empty }
@@ -24,6 +25,7 @@ def main [] {
         # Separate commands ensure archive failure cannot be hidden by tar.
         checked git archive --format=tar --output $"($snapshot).tar" $tree | ignore
         checked tar -xf $"($snapshot).tar" -C $snapshot | ignore
+        settle $snapshot
         do {
           cd $snapshot
           checked nix flake check path:. --no-update-lock-file | print

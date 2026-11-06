@@ -81,11 +81,24 @@
 
         # Hjem imports from `pkgs.path`, so `pkgs` must be a special argument;
         # the list stays lazy, so importing does not force the configuration.
+        # Without unfree names, the shared Nixpkgs serves every evaluation in
+        # the process instead of re-evaluating stdenv in a fresh instance. The
+        # choice reads the configuration, so `path` and the attribute names
+        # come from the shared instance and only values come from the choice.
         specialArgs = {
-          pkgs = import inputs.nixpkgs {
-            inherit system;
-            config.allowUnfreePackages = evaluation.config.nixpkgs.config.allowUnfreePackages;
-          };
+          pkgs = let
+            shared = inputs.nixpkgs.legacyPackages.${system};
+            unfree = evaluation.config.nixpkgs.config.allowUnfreePackages;
+            chosen =
+              if unfree == []
+              then shared
+              else
+                import inputs.nixpkgs {
+                  inherit system;
+                  config.allowUnfreePackages = unfree;
+                };
+          in
+            builtins.mapAttrs (name: _: chosen.${name}) shared // {inherit (shared) path;};
           "hjem-lib" = hjemLib;
         };
 
