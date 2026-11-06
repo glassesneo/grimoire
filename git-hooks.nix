@@ -11,7 +11,7 @@
   # Only the scripts the hooks run, so editing another script keeps the hooks.
   scripts = lib.fileset.toSource {
     root = ./scripts;
-    fileset = lib.fileset.unions [./scripts/commit.nu ./scripts/docs.nu ./scripts/checks.nu ./scripts/pre-push.nu ./scripts/run.nu ./scripts/snapshot.nu];
+    fileset = lib.fileset.unions [./scripts/commit.nu ./scripts/docs.nu ./scripts/checks.nu ./scripts/pre-push.nu ./scripts/run.nu ./scripts/snapshot.nu ./scripts/gate.nu];
   };
   runner = pkgs.writeShellApplication {
     name = "repository-hook";

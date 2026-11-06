@@ -1,5 +1,9 @@
 # Immediate directories of `checks/` and `tests/` return lazy
-# {platforms?, check} descriptors.
+# {platforms?, check} descriptors. `outputs` checks that the current system's
+# packages, development shells and formatter evaluate to derivations; each
+# `host-<name>` checks that a host of the current system has no failed
+# assertion and that its published Hjem preflight and nix-darwin system
+# evaluate. Neither builds what it evaluates.
 {
   inputs,
   denix,
@@ -9,6 +13,8 @@
   compose,
   authoringDocs,
   formatting,
+  outputs,
+  hosts,
 }: let
   inherit (pkgs) lib;
   home = "/tmp/module-tests";
@@ -28,11 +34,32 @@
     inherit compose pkgs system home;
     info = moduleTestInfo;
   };
+  # Instantiating a derivation evaluates it; depending on the .drv file alone
+  # keeps the check from building it.
+  evaluated = name: derivations:
+    pkgs.runCommand "${name}-check" {
+      derivations = map (derivation: builtins.unsafeDiscardOutputDependency derivation.drvPath) derivations;
+    } ''
+      touch "$out"
+    '';
+  hostDirectory = name: "abstractions/hosts/${name}";
+  hostChecks = lib.mapAttrs' (name: host:
+    lib.nameValuePair "host-${name}" (
+      assert lib.assertMsg (builtins.pathExists (../. + "/${hostDirectory name}")) "Host ${name} is not declared in ${hostDirectory name}";
+      assert lib.assertMsg (host.hjem.failedAssertions == []) "Host ${name} fails assertions:\n${lib.concatStringsSep "\n" host.hjem.failedAssertions}";
+        evaluated "host-${name}" ([host.hjem.preflight] ++ lib.optional (host.darwin != null) host.darwin.config.system.build.toplevel)
+    ))
+  hosts;
   discovered = import ../lib/checks.nix {inherit lib;} {
     inherit moduleChecks system;
     descriptors = descriptorsOf ./.;
     testDescriptors = descriptorsOf ../tests;
-    extraChecks = {inherit formatting;};
+    extraChecks =
+      {
+        inherit formatting;
+        outputs = evaluated "outputs" (builtins.attrValues outputs.packages ++ builtins.attrValues outputs.devShells ++ [outputs.formatter]);
+      }
+      // hostChecks;
   };
 in {
   inherit (discovered) checks;
@@ -54,6 +81,12 @@ in {
         directory = "tests/${name}";
       })
       discovered.testNames;
+    hostChecks =
+      lib.mapAttrsToList (name: _: {
+        name = "host-${name}";
+        directory = hostDirectory name;
+      })
+      hosts;
     inherit (discovered) checkNames;
   };
 }

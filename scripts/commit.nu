@@ -3,7 +3,7 @@
 # work stays out of the snapshot, so a change can be split over several commits.
 # Fixes are refused before any mutation when they would overwrite such work.
 use ./docs.nu
-use ./checks.nu select-checks
+use ./checks.nu [select-checks build-checks]
 use ./snapshot.nu settle
 
 const empty = "0000000000000000000000000000000000000000"
@@ -76,17 +76,7 @@ export def main [] {
         let metadata = ^nix eval --json --no-update-lock-file $"path:.#lib.checks.($system)" | from json
         let selected = select-checks $metadata $changes
         print $"Selected checks: ($selected | str join ', ')"
-        # Check time is evaluation, which one Nix process runs on one core;
-        # a process per check spreads it. Beyond 4 processes, measured wall
-        # time no longer fell.
-        let failures = $selected | par-each --threads 4 {|name|
-          let result = ^nix build --no-link --no-update-lock-file $"path:.#checks.($system).($name | to json --raw)" | complete
-          if $result.exit_code != 0 { {name: $name, stderr: $result.stderr} }
-        } | compact
-        if ($failures | is-not-empty) {
-          $failures | each {|failure| print --stderr $"Check ($failure.name) failed:\n($failure.stderr)" } | ignore
-          error make {msg: $"Failed checks: ($failures.name | sort | str join ', ')"}
-        }
+        build-checks 'path:.' $system $selected
       }
     } finally {
       rm --recursive --force $snapshot $"($snapshot).index"

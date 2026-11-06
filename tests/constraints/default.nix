@@ -5,12 +5,14 @@
 }: let
   inherit (pkgs) lib;
 
-  # The real composition must enforce modules' constraints in every
-  # host's Hjem guard and in nix-darwin's assertions: `always` whatever the
-  # module's enable, `ifEnabled` only while it is enabled. Adapter-only checks
-  # cannot detect missing wiring. One evaluation per host declares an enabled
-  # and a disabled probe whose constraints all fail, and reads which messages
-  # fail; tests/hjem covers the guard that blocks outputs on them.
+  # The real composition must enforce modules' constraints in the Hjem guard
+  # and in nix-darwin's assertions: `always` whatever the module's enable,
+  # `ifEnabled` only while it is enabled. Adapter-only checks cannot detect
+  # missing wiring. Hosts share that wiring, so one real host, a nix-darwin one
+  # where there is one, is evaluated per module system with an enabled and a
+  # disabled probe whose constraints all fail, reading which messages fail;
+  # tests/hjem covers the guard that blocks outputs on them, and each host's
+  # own check covers that its configuration has no failed assertion.
   probe = name: enable: {delib, ...}:
     delib.module {
       inherit name;
@@ -58,13 +60,14 @@
   expected = ["probe-off (always)" "probe-on (always)" "probe-on (ifEnabled)"];
   probes = messages: lib.sort lib.lessThan (lib.filter (lib.hasPrefix "probe-") messages);
 
-  darwinHosts = lib.filterAttrs (_: host: (lib.systems.elaborate host.system).isDarwin) configuration.config.hosts;
+  inherit (configuration.config) hosts;
+  darwinHosts = lib.filterAttrs (_: host: (lib.systems.elaborate host.system).isDarwin) hosts;
+  representative = lib.head (builtins.attrNames darwinHosts ++ builtins.attrNames hosts);
 
-  verify = moduleSystem: hosts:
-    lib.mapAttrsToList (hostName: host: probes (failed moduleSystem hostName host.user) == expected) hosts;
+  verify = moduleSystem: hostName: probes (failed moduleSystem hostName hosts.${hostName}.user) == expected;
 
-  hjemResults = verify "hjem" configuration.config.hosts;
-  darwinResults = verify "darwin" darwinHosts;
+  hjemResults = [(verify "hjem" representative)];
+  darwinResults = lib.optional (darwinHosts != {}) (verify "darwin" representative);
 in {
   check = assert lib.assertMsg (hjemResults != [] && lib.all lib.id hjemResults)
   "Real Hjem configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";

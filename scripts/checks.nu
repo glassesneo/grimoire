@@ -12,7 +12,7 @@ def in-check-directory [change: record] {
   (($path | str starts-with 'checks/') or ($path | str starts-with 'tests/')) and (($path | split row '/' | length) >= 3) and not (($change.status in [A D]) and ($path | path basename) == 'default.nix')
 }
 
-# A file that no check reads.
+# A file that no check reads. A host of another system has no check here.
 def unchecked [path: string] {
   (within $path 'abstractions/hosts') or ($path in [README.org AGENTS.md]) or (within $path docs) or ((within $path .agents) and ($path | str ends-with '.md'))
 }
@@ -27,9 +27,24 @@ export def select-checks [metadata: record, changes: list<record>] {
     if $structural or $infrastructure or $global { $all } else {
       let owners = $metadata.moduleRoots | where {|root| within $path $root.directory } | sort-by {|root| $root.directory | str length } --reverse
       if ($owners | is-not-empty) { $owners.0.affectedChecks } else {
-        let checks = $metadata.directoryChecks | where {|check| within $path $check.directory }
+        let checks = $metadata.directoryChecks ++ $metadata.hostChecks | where {|check| within $path $check.directory }
         if ($checks | is-not-empty) { $checks.name } else if (in-check-directory $change) or (unchecked $path) { [] } else { $all }
       }
     }
   } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
+}
+
+# Builds the named checks of FLAKE for SYSTEM; a failure prints each failed
+# check's log and raises an error naming the failed checks. Check time is
+# evaluation, which one Nix process runs on one core, so each check gets its
+# own process; beyond 4 processes, measured wall time no longer fell.
+export def build-checks [flake: string, system: string, names: list<string>] {
+  let failures = $names | par-each --threads 4 {|name|
+    let result = ^nix build --no-link --no-update-lock-file $"($flake)#checks.($system).($name | to json --raw)" | complete
+    if $result.exit_code != 0 { {name: $name, stderr: $result.stderr} }
+  } | compact
+  if ($failures | is-not-empty) {
+    $failures | each {|failure| print --stderr $"Check ($failure.name) failed:\n($failure.stderr)" } | ignore
+    error make {msg: $"Failed checks: ($failures.name | sort | str join ', ')"}
+  }
 }

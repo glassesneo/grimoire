@@ -101,6 +101,34 @@
       };
     });
 
+    darwinConfigurations =
+      builtins.mapAttrs
+      (hostName: _:
+        configuration.genSystem {
+          moduleSystem = "darwin";
+          host = hostName;
+        })
+      (lib.filterAttrs
+        (_: host: (lib.systems.elaborate host.system).isDarwin)
+        hosts);
+
+    hjemConfigurations =
+      lib.mapAttrs'
+      (hostName: host:
+        # The Hjem CLI reads this attribute set as JSON; option declarations
+        # serve generated references only.
+          lib.nameValuePair "${host.user.name}@${hostName}" (builtins.removeAttrs (configuration.genSystem {
+            moduleSystem = "hjem";
+            host = hostName;
+
+            extraArgs = {
+              inherit (host) system;
+              inherit (host.user) homeDirectory;
+              username = host.user.name;
+            };
+          }) ["options"]))
+      hosts;
+
     perSystem = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
       treefmt = treefmt-nix.lib.evalModule pkgs {
@@ -158,6 +186,18 @@
       checkOutputs = import ./checks {
         inherit inputs denix pkgs system configuration compose authoringDocs;
         formatting = treefmt.config.build.check self;
+        # The current system's published outputs and hosts, checked as published.
+        outputs = {
+          packages = self.packages.${system};
+          devShells = self.devShells.${system};
+          formatter = self.formatter.${system};
+        };
+        hosts =
+          lib.mapAttrs (hostName: host: {
+            hjem = hjemConfigurations."${host.user.name}@${hostName}";
+            darwin = darwinConfigurations.${hostName} or null;
+          })
+          (lib.filterAttrs (_: host: host.system == system) hosts);
       };
       commitHooks = import ./git-hooks.nix {
         inherit pkgs system;
@@ -201,33 +241,7 @@
     # check composes its probe with it.
     lib.compose = compose;
 
-    darwinConfigurations =
-      builtins.mapAttrs
-      (hostName: _:
-        configuration.genSystem {
-          moduleSystem = "darwin";
-          host = hostName;
-        })
-      (lib.filterAttrs
-        (_: host: (lib.systems.elaborate host.system).isDarwin)
-        hosts);
-
-    hjemConfigurations =
-      lib.mapAttrs'
-      (hostName: host:
-        # The Hjem CLI reads this attribute set as JSON; option declarations
-        # serve generated references only.
-          lib.nameValuePair "${host.user.name}@${hostName}" (builtins.removeAttrs (configuration.genSystem {
-            moduleSystem = "hjem";
-            host = hostName;
-
-            extraArgs = {
-              inherit (host) system;
-              inherit (host.user) homeDirectory;
-              username = host.user.name;
-            };
-          }) ["options"]))
-      hosts;
+    inherit darwinConfigurations hjemConfigurations;
   };
 
   inputs = {

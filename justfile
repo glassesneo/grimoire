@@ -39,4 +39,4 @@ check name:
 
 # Run all current-system checks, including formatting and reference freshness, on the tracked working tree.
 check-full:
-  nix flake check --no-update-lock-file
+  nu --no-config-file scripts/gate.nu

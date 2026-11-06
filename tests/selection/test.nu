@@ -12,9 +12,10 @@ def main [] {
       {name: empty, directory: abstractions/modules/empty, infrastructure: false, affectedChecks: []}
     ]
     directoryChecks: [{name: external, directory: checks/external} {name: mechanism, directory: tests/mechanism}]
-    checkNames: [module-a module-b module-child external mechanism formatting authoring-docs]
+    hostChecks: [{name: host-a, directory: abstractions/hosts/a}]
+    checkNames: [module-a module-b module-child external mechanism host-a formatting authoring-docs]
   }
-  let all = [external mechanism module-a module-b module-child]
+  let all = [external host-a mechanism module-a module-b module-child]
   for case in [
     {path: abstractions/modules/a/file, expected: [module-a module-b]}
     {path: abstractions/modules/a/child/file, expected: [module-child]}
@@ -27,6 +28,8 @@ def main [] {
     {path: tests/mechanism/default.nix, expected: [mechanism]}
     {path: tests/unsupported/default.nix, expected: []}
     {path: tests/root-file.nix, expected: $all}
+    {path: abstractions/hosts/a/default.nix, expected: [host-a]}
+    {path: abstractions/hosts/a-other/default.nix, expected: []}
     {path: abstractions/hosts/host/default.nix, expected: []}
     {path: docs/guide.md, expected: []}
     {path: .agents/design.md, expected: []}

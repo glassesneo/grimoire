@@ -86,8 +86,12 @@ def test-push [hooks: string] {
         assert (not ($env.NIX_CALLS | path exists))
         assert (not ($env.PUSH_CONTENTS | path exists))
       } else {
-        assert equal (open --raw $env.NIX_CALLS) (if $fail { "flake\n" } else { "flake\nflake\n" })
+        assert equal (open --raw $env.NIX_CALLS) (if $fail { "eval\neval\n" } else { "eval\neval\neval\neval\n" })
         assert equal (open --raw $env.PUSH_CONTENTS) (if $fail { "two\n" } else { "two\none\n" })
+        # The gate builds every check of each sent tree, not only selected ones.
+        let built = ls --short-names $env.CHECK_BUILDS | get name | sort
+        assert equal $built (if $fail { [two-formatting two-selected.case] } else { [one-formatting one-selected.case two-formatting two-selected.case] })
+        rm --recursive $env.CHECK_BUILDS
       }
       assert equal (git write-tree) $index
       assert equal (git status --porcelain) $status

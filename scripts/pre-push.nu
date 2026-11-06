@@ -2,6 +2,7 @@
 # have no configuration to validate; distinct commits sharing a tree run once.
 use ./run.nu checked
 use ./snapshot.nu settle
+use ./gate.nu
 
 def main [] {
   let updates = $in | lines | where {|line| $line | str trim | is-not-empty }
@@ -28,7 +29,7 @@ def main [] {
         settle $snapshot
         do {
           cd $snapshot
-          checked nix flake check path:. --no-update-lock-file | print
+          gate 'path:.'
         }
         null
       } catch {|error| $error } finally {
