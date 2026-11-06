@@ -23,18 +23,23 @@ def --wrapped main [...args: string] {
               {name: $path, directory: $path, infrastructure: false, affectedChecks: (if $path == 'hook-new.txt' { ['selected.case'] } else { [] })}
             }
           } else { [] }
-          {moduleRoots: $roots, directoryChecks: [], checkNames: (if ($env.ZERO_CHECKS? | is-not-empty) { [formatting authoring-docs] } else if $selective { ['selected.case' unselected formatting authoring-docs] } else { ['selected.case' formatting authoring-docs] })} | to json | print
+          let names = if ($env.ZERO_CHECKS? | is-not-empty) { [] } else if $selective { ['selected.case' unselected] } else if ($env.MANY_CHECKS? | is-not-empty) { ['selected.case' second third] } else { ['selected.case'] }
+          {moduleRoots: $roots, directoryChecks: [], checkNames: ($names ++ [formatting authoring-docs])} | to json | print
         }
       }
       build => {
         if ($args | any {|arg| $arg | str contains '#checks.' }) {
-          assert equal $args [build --no-link --no-update-lock-file 'path:.#checks.test-system."selected.case"']
+          let name = $args | last | parse 'path:.#checks.test-system.{name}' | get 0.name | from json
+          assert equal $args [build --no-link --no-update-lock-file $"path:.#checks.test-system.($name | to json --raw)"]
+          # Checks build concurrently: one file each, since appends can race.
+          mkdir $env.CHECK_BUILDS
+          touch ($env.CHECK_BUILDS | path join $name)
           assert equal (open --raw sample.nix) "formatted\n"
           assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
           assert equal (open --raw other.txt) $env.EXPECT_OTHER
           assert (not ('later.txt' | path exists))
           assert (not ('ignored' | path exists))
-          if ($env.FAIL_CHECK? | is-not-empty) { exit 1 }
+          if ($env.FAIL_CHECK? | is-not-empty) or ($env.FAIL_ONLY? == $name) { exit 1 }
           return
         }
         let reference = mktemp --tmpdir

@@ -25,7 +25,7 @@ def with-repo [hooks: string, action: closure] {
     git config core.hooksPath $hooks | ignore
     "needs formatting\n" | save --force sample.nix
     git add sample.nix | ignore
-    with-env {NIX_CALLS: ($directory | path join .git nix-calls), SNAPSHOTS: ($directory | path join .git snapshots), PUSH_CONTENTS: ($directory | path join .git push-contents), EXPECT_OTHER: "other\n"} {
+    with-env {NIX_CALLS: ($directory | path join .git nix-calls), SNAPSHOTS: ($directory | path join .git snapshots), PUSH_CONTENTS: ($directory | path join .git push-contents), CHECK_BUILDS: ($directory | path join .git check-builds), EXPECT_OTHER: "other\n"} {
       do $action
       if ($env.SNAPSHOTS | path exists) {
         for snapshot in (open --raw $env.SNAPSHOTS | lines | uniq) {
@@ -199,6 +199,24 @@ def main [hooks: string] {
     let result = with-env {ZERO_CHECKS: '1'} { ^git commit -m zero | complete }
     assert equal $result.exit_code 0 ($result.stdout + $result.stderr)
     assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\n"
+  }
+
+  # Selected checks build as separate processes; a failure in any one of them,
+  # not only the last, rejects the commit and names the failed check.
+  for fail_only in ['' second] {
+    with-repo $hooks {
+      let before_head = git rev-parse HEAD
+      let result = with-env {MANY_CHECKS: '1', FAIL_ONLY: $fail_only} { ^git commit -m many | complete }
+      let output = $result.stdout + $result.stderr
+      assert equal (ls --short-names $env.CHECK_BUILDS | get name | sort) [second selected.case third]
+      if $fail_only == '' {
+        assert equal $result.exit_code 0 $output
+      } else {
+        assert ($result.exit_code != 0)
+        assert equal (git rev-parse HEAD) $before_head
+        assert ($output | str contains 'Failed checks: second')
+      }
+    }
   }
 
   # `git commit -a` commits a temporary index, which the hook must use.

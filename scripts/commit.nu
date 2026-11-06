@@ -72,9 +72,16 @@ export def main [] {
         let metadata = ^nix eval --json --no-update-lock-file $"path:.#lib.checks.($system)" | from json
         let selected = select-checks $metadata $changes
         print $"Selected checks: ($selected | str join ', ')"
-        if ($selected | is-not-empty) {
-          let installables = $selected | each {|name| $"path:.#checks.($system).($name | to json --raw)" }
-          ^nix build --no-link --no-update-lock-file ...$installables
+        # Check time is evaluation, which one Nix process runs on one core;
+        # a process per check spreads it. Beyond 4 processes, measured wall
+        # time no longer fell.
+        let failures = $selected | par-each --threads 4 {|name|
+          let result = ^nix build --no-link --no-update-lock-file $"path:.#checks.($system).($name | to json --raw)" | complete
+          if $result.exit_code != 0 { {name: $name, stderr: $result.stderr} }
+        } | compact
+        if ($failures | is-not-empty) {
+          $failures | each {|failure| print --stderr $"Check ($failure.name) failed:\n($failure.stderr)" } | ignore
+          error make {msg: $"Failed checks: ($failures.name | sort | str join ', ')"}
         }
       }
     } finally {

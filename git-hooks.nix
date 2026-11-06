@@ -1,5 +1,6 @@
-# Owns commit/push automation and its installation. Run without pre-commit's stash:
-# the repository hook isolates the index itself and writes fixes to the worktree.
+# Owns commit/push automation and its installation. prek runs the commit hook on
+# all files, so it never stashes: the repository hook isolates the index itself
+# and writes fixes to the worktree.
 {
   pkgs,
   git-hooks,
@@ -21,6 +22,7 @@
   };
   hooks = git-hooks.lib.${system}.run {
     inherit src;
+    package = pkgs.prek;
     install.enable = false;
     hooks.repository = {
       enable = true;
