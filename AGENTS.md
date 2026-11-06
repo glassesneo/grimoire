@@ -30,9 +30,9 @@ This file owns the agent rules no other document covers and summarizes the conce
 For repository changes:
 
 1. Stage new files before flake evaluation; flakes read Git-tracked files.
-2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `tests/<name>` or `checks/<name>`, or the `module-<name>` check for a module's tests.
+2. Run `nix fmt`, then the narrowest relevant check: `nix build .#checks.<system>.<name>` for `tests/<name>` or `checks/<name>`, the `module-<name>` check for a module's tests, or the `host-<name>-hjem` and `host-<name>-darwin` checks for a host.
 3. When adding or changing a test case, confirm that it fails against an implementation that violates the statement it covers, such as the code before a fix or a deliberate breakage restored afterwards, and report the result.
-4. Before completion, run `nix flake check` (or `just check-full`). Commit runs only selected checks; pre-push runs the full gate on outgoing tip trees (`docs/operations.md`).
+4. Before completion, run `just check-full`, the full gate that pre-push runs on outgoing tip trees; commit runs only selected checks (`docs/operations.md`).
 
 For read-only work, report what was inspected and which behavior remains unverified; do not run a formatter as part of the inspection.
 

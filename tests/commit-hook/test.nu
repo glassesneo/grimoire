@@ -223,6 +223,20 @@ def main [hooks: string] {
     }
   }
 
+  # A run that writes no result, or leaves a selected check out of its results,
+  # rejects the commit rather than counting the check as passed.
+  for mode in [{FAST_BUILD_CRASH: '1'} {FAST_BUILD_OMIT: second}] {
+    with-repo $hooks {
+      let before_head = git rev-parse HEAD
+      let result = with-env ($mode | merge {MANY_CHECKS: '1'}) { ^git commit -m incomplete | complete }
+      assert ($result.exit_code != 0) ($result.stdout + $result.stderr)
+      assert equal (git rev-parse HEAD) $before_head
+      if ($mode.FAST_BUILD_OMIT? | is-not-empty) {
+        assert (($result.stdout + $result.stderr) | str contains 'no build of: second')
+      }
+    }
+  }
+
   # `git commit -a` commits a temporary index, which the hook must use.
   with-repo $hooks {
     "all edits\n" | save --force other.txt

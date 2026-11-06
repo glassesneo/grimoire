@@ -1,7 +1,9 @@
-# Git/pre-commit do not guarantee our auto-staging policy. Exercise real commits
-# with a fake Nix executable: pending work stays out of the snapshot and the
-# commit, conflicting fixes are refused, fixes enter the commit and worktree, and
-# failed validation prevents the commit without discarding staged fixes.
+# Git and prek do not guarantee our auto-staging policy or push gate. Exercise
+# real commits and pushes with fake Nix and nix-fast-build executables: pending
+# work stays out of the snapshot and the commit, conflicting fixes are refused,
+# fixes enter the commit and worktree, failed or incomplete validation prevents
+# the commit without discarding staged fixes, and the push gate builds every
+# check of each distinct sent tree.
 {
   pkgs,
   inputs,

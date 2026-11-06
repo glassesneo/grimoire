@@ -37,7 +37,9 @@ export def select-checks [metadata: record, changes: list<record>] {
 # Builds the named checks of FLAKE for SYSTEM with nix-fast-build, which
 # evaluates them in parallel workers sharing their common evaluation and builds
 # each as soon as it is evaluated. Failed checks' logs are printed as they
-# fail; an error then names every check whose evaluation or build failed.
+# fail; an error then names every check whose evaluation or build failed. A
+# run succeeds only when its result file records a successful build of every
+# named check.
 export def build-checks [flake: string, system: string, names: list<string>] {
   if ($names | is-empty) { return }
   # The names reach --select as JSON inside an indented string.
@@ -46,16 +48,21 @@ export def build-checks [flake: string, system: string, names: list<string>] {
     error make {msg: $"Check names cannot be passed to nix-fast-build: ($json)"}
   }
   let select = $"checks: builtins.intersectAttrs \(builtins.listToAttrs \(map \(name: {inherit name; value = null;}\) \(builtins.fromJSON ''($json)''\)\)\) checks"
-  let results = mktemp --tmpdir repository-checks.XXXXXX
+  let file = mktemp --tmpdir repository-checks.XXXXXX
   try {
-    try {
-      ^nix-fast-build --no-nom --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $results
-    } catch {|error|
-      let failed = try { open --raw $results | from json | get results | where success == false | get attr | uniq | sort } catch { [] }
-      if ($failed | is-empty) { error make $error }
-      error make {msg: $"Failed checks: ($failed | str join ', ')"}
-    }
+    let failure = try {
+      ^nix-fast-build --no-nom --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $file
+      null
+    } catch {|error| $error }
+    # A run that fails before writing results leaves the file empty.
+    let results = try { open --raw $file | from json | get results } catch { [] }
+    let failed = $results | where success == false | each {|result| $result.attr } | uniq | sort
+    if ($failed | is-not-empty) { error make {msg: $"Failed checks: ($failed | str join ', ')"} }
+    if $failure != null { error make $failure }
+    let built = $results | where {|result| $result.type == 'BUILD' and $result.success } | each {|result| $result.attr }
+    let missing = $names | where {|name| $name not-in $built }
+    if ($missing | is-not-empty) { error make {msg: $"nix-fast-build reported no build of: ($missing | str join ', ')"} }
   } finally {
-    rm --force $results
+    rm --force $file
   }
 }
