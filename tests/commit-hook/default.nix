@@ -10,6 +10,9 @@
   fakeNix = pkgs.writeShellScriptBin "nix" ''
     exec ${pkgs.nushell}/bin/nu --no-config-file ${./fake-nix.nu} "$@"
   '';
+  fakeFastBuild = pkgs.writeShellScriptBin "nix-fast-build" ''
+    exec ${pkgs.nushell}/bin/nu --no-config-file ${./fake-nix.nu} fast-build "$@"
+  '';
   fakeGit = pkgs.writeShellScriptBin "git" ''
     if [ -n "''${FAIL_ARCHIVE:-}" ] && [ "$1" = archive ]; then
       for argument in "$@"; do
@@ -26,6 +29,7 @@
       pkgs
       // {
         nix = fakeNix;
+        nix-fast-build = fakeFastBuild;
         git = fakeGit;
       };
     inherit (inputs) git-hooks;

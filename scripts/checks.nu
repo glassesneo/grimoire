@@ -34,17 +34,28 @@ export def select-checks [metadata: record, changes: list<record>] {
   } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
 }
 
-# Builds the named checks of FLAKE for SYSTEM; a failure prints each failed
-# check's log and raises an error naming the failed checks. Check time is
-# evaluation, which one Nix process runs on one core, so each check gets its
-# own process; beyond 4 processes, measured wall time no longer fell.
+# Builds the named checks of FLAKE for SYSTEM with nix-fast-build, which
+# evaluates them in parallel workers sharing their common evaluation and builds
+# each as soon as it is evaluated. Failed checks' logs are printed as they
+# fail; an error then names every check whose evaluation or build failed.
 export def build-checks [flake: string, system: string, names: list<string>] {
-  let failures = $names | par-each --threads 4 {|name|
-    let result = ^nix build --no-link --no-update-lock-file $"($flake)#checks.($system).($name | to json --raw)" | complete
-    if $result.exit_code != 0 { {name: $name, stderr: $result.stderr} }
-  } | compact
-  if ($failures | is-not-empty) {
-    $failures | each {|failure| print --stderr $"Check ($failure.name) failed:\n($failure.stderr)" } | ignore
-    error make {msg: $"Failed checks: ($failures.name | sort | str join ', ')"}
+  if ($names | is-empty) { return }
+  # The names reach --select as JSON inside an indented string.
+  let json = $names | to json --raw
+  if ($json | str contains "''") or ($json | str contains '${') {
+    error make {msg: $"Check names cannot be passed to nix-fast-build: ($json)"}
+  }
+  let select = $"checks: builtins.intersectAttrs \(builtins.listToAttrs \(map \(name: {inherit name; value = null;}\) \(builtins.fromJSON ''($json)''\)\)\) checks"
+  let results = mktemp --tmpdir repository-checks.XXXXXX
+  try {
+    try {
+      ^nix-fast-build --no-nom --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $results
+    } catch {|error|
+      let failed = try { open --raw $results | from json | get results | where success == false | get attr | uniq | sort } catch { [] }
+      if ($failed | is-empty) { error make $error }
+      error make {msg: $"Failed checks: ($failed | str join ', ')"}
+    }
+  } finally {
+    rm --force $results
   }
 }

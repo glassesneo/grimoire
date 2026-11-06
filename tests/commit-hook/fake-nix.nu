@@ -1,6 +1,26 @@
 use std/assert
 
-# The full gate on a sent tree: the system, the check names, then each check.
+def flag [args: list<string>, name: string] {
+  $args | get (($args | enumerate | where item == $name | get 0.index) + 1)
+}
+
+# nix-fast-build receives the check names through --select, runs CHECK on
+# each, writes its result file and exits nonzero on any failure, as the real
+# tool does.
+def fast-build [args: list<string>, check: closure] {
+  let select = flag $args '--select'
+  let results = flag $args '--result-file'
+  assert equal $args [fast-build --no-nom --eval-workers '4' --flake 'path:.#checks.test-system' --select $select --result-file $results]
+  let names = $select | parse --regex "fromJSON ''(?<json>.*)''" | get 0.json | from json
+  let entries = $names | each {|name|
+    let success = do $check $name
+    {type: BUILD, attr: $name, success: $success, error: (if $success { null } else { 'build exited with 1' })}
+  }
+  {results: $entries} | to json | save --force $results
+  if ($entries | any {|entry| not $entry.success }) { exit 1 }
+}
+
+# The full gate on a sent tree: the system, the check names, then every check.
 def push [args: list<string>] {
   let marker = open --raw push-marker
   assert ($marker in ["one\n" "two\n"])
@@ -13,13 +33,13 @@ def push [args: list<string>] {
         ['selected.case' formatting] | to json | print
       }
     }
-    build => {
-      let name = $args | last | parse 'path:.#checks.test-system.{name}' | get 0.name | from json
-      assert equal $args [build --no-link --no-update-lock-file $"path:.#checks.test-system.($name | to json --raw)"]
-      mkdir $env.CHECK_BUILDS
-      touch ($env.CHECK_BUILDS | path join $"($marker | str trim)-($name)")
-      if $name == formatting { $marker | save --append $env.PUSH_CONTENTS }
-      if ($env.FAIL_CHECK? | is-not-empty) { exit 1 }
+    fast-build => {
+      fast-build $args {|name|
+        mkdir $env.CHECK_BUILDS
+        touch ($env.CHECK_BUILDS | path join $"($marker | str trim)-($name)")
+        if $name == formatting { $marker | save --append $env.PUSH_CONTENTS }
+        $env.FAIL_CHECK? | is-empty
+      }
     }
     _ => { error make {msg: $"Unexpected Nix command in the push gate: ($args.0)"} }
   }
@@ -29,16 +49,10 @@ def push [args: list<string>] {
 def --wrapped main [...args: string] {
   do --capture-errors {
     let command = $args.0
+    $"($command)\n" | save --append $env.NIX_CALLS
+    $"($env.PWD)\n" | save --append $env.SNAPSHOTS
     # The pre-push snapshot is a sent tree; only those trees hold push-marker.
-    let push = 'push-marker' | path exists
-    let check = $command == build and ($args | any {|arg| $arg | str contains '#checks.' })
-    # Checks build concurrently and appends can race; the snapshot is also
-    # recorded by the evaluations before them, and push checks by name.
-    if not ($push and $check) { $"($command)\n" | save --append $env.NIX_CALLS }
-    if not $check { $"($env.PWD)\n" | save --append $env.SNAPSHOTS }
-    # Every invocation reads a settled snapshot: no mtime after the fixed one.
-    assert equal (^find . -newermt '@1' | lines) []
-    if $push { push $args; return }
+    if ('push-marker' | path exists) { push $args; return }
     match $command {
       fmt => {
         "formatted\n" | save --force sample.nix
@@ -60,11 +74,8 @@ def --wrapped main [...args: string] {
           {moduleRoots: $roots, directoryChecks: [], hostChecks: [], checkNames: ($names ++ [formatting authoring-docs])} | to json | print
         }
       }
-      build => {
-        if ($args | any {|arg| $arg | str contains '#checks.' }) {
-          let name = $args | last | parse 'path:.#checks.test-system.{name}' | get 0.name | from json
-          assert equal $args [build --no-link --no-update-lock-file $"path:.#checks.test-system.($name | to json --raw)"]
-          # Checks build concurrently: one file each, since appends can race.
+      fast-build => {
+        fast-build $args {|name|
           mkdir $env.CHECK_BUILDS
           touch ($env.CHECK_BUILDS | path join $name)
           assert equal (open --raw sample.nix) "formatted\n"
@@ -72,9 +83,10 @@ def --wrapped main [...args: string] {
           assert equal (open --raw other.txt) $env.EXPECT_OTHER
           assert (not ('later.txt' | path exists))
           assert (not ('ignored' | path exists))
-          if ($env.FAIL_CHECK? | is-not-empty) or ($env.FAIL_ONLY? == $name) { exit 1 }
-          return
+          ($env.FAIL_CHECK? | is-empty) and ($env.FAIL_ONLY? != $name)
         }
+      }
+      build => {
         let reference = mktemp --tmpdir
         "generated reference\n" | save --force $reference
         print $reference

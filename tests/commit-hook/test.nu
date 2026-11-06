@@ -86,7 +86,7 @@ def test-push [hooks: string] {
         assert (not ($env.NIX_CALLS | path exists))
         assert (not ($env.PUSH_CONTENTS | path exists))
       } else {
-        assert equal (open --raw $env.NIX_CALLS) (if $fail { "eval\neval\n" } else { "eval\neval\neval\neval\n" })
+        assert equal (open --raw $env.NIX_CALLS) (if $fail { "eval\neval\nfast-build\n" } else { "eval\neval\nfast-build\neval\neval\nfast-build\n" })
         assert equal (open --raw $env.PUSH_CONTENTS) (if $fail { "two\n" } else { "two\none\n" })
         # The gate builds every check of each sent tree, not only selected ones.
         let built = ls --short-names $env.CHECK_BUILDS | get name | sort
@@ -142,7 +142,7 @@ def main [hooks: string] {
       }
       let output = $result.stdout + $result.stderr
       assert equal ($result.exit_code != 0) $fail_check $output
-      assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\nbuild\n"
+      assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\nfast-build\n"
       assert ($output | str contains sample.nix)
       assert ($output | str contains hook-new.txt)
       assert (not ($output | lines | any {|line|
@@ -205,7 +205,7 @@ def main [hooks: string] {
     assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\n"
   }
 
-  # Selected checks build as separate processes; a failure in any one of them,
+  # Every selected check is built; a failure in any one of them,
   # not only the last, rejects the commit and names the failed check.
   for fail_only in ['' second] {
     with-repo $hooks {

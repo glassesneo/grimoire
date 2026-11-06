@@ -1,9 +1,10 @@
 # Immediate directories of `checks/` and `tests/` return lazy
 # {platforms?, check} descriptors. `outputs` checks that the current system's
-# packages, development shells and formatter evaluate to derivations; each
-# `host-<name>` checks that a host of the current system has no failed
-# assertion and that its published Hjem preflight and nix-darwin system
-# evaluate. Neither builds what it evaluates.
+# packages, development shells and formatter evaluate to derivations; for each
+# host of the current system, `host-<name>-hjem` checks that its Hjem
+# configuration has no failed assertion and its preflight evaluates, and
+# `host-<name>-darwin`, for a nix-darwin host, that its system evaluates. None
+# builds what it evaluates.
 {
   inputs,
   denix,
@@ -43,13 +44,20 @@
       touch "$out"
     '';
   hostDirectory = name: "abstractions/hosts/${name}";
-  hostChecks = lib.mapAttrs' (name: host:
-    lib.nameValuePair "host-${name}" (
-      assert lib.assertMsg (builtins.pathExists (../. + "/${hostDirectory name}")) "Host ${name} is not declared in ${hostDirectory name}";
-      assert lib.assertMsg (host.hjem.failedAssertions == []) "Host ${name} fails assertions:\n${lib.concatStringsSep "\n" host.hjem.failedAssertions}";
-        evaluated "host-${name}" ([host.hjem.preflight] ++ lib.optional (host.darwin != null) host.darwin.config.system.build.toplevel)
-    ))
+  # One check per published configuration, so a host's Hjem and nix-darwin
+  # evaluations run in parallel. nix-darwin fails its own evaluation on a
+  # failed assertion; Hjem reports them in `failedAssertions`.
+  hostCheckSets = lib.mapAttrs (name: host:
+    assert lib.assertMsg (builtins.pathExists (../. + "/${hostDirectory name}")) "Host ${name} is not declared in ${hostDirectory name}";
+      {
+        "host-${name}-hjem" = assert lib.assertMsg (host.hjem.failedAssertions == []) "Host ${name} fails Hjem assertions:\n${lib.concatStringsSep "\n" host.hjem.failedAssertions}";
+          evaluated "host-${name}-hjem" [host.hjem.preflight];
+      }
+      // lib.optionalAttrs (host.darwin != null) {
+        "host-${name}-darwin" = evaluated "host-${name}-darwin" [host.darwin.config.system.build.toplevel];
+      })
   hosts;
+  hostChecks = lib.concatMapAttrs (_: checks: checks) hostCheckSets;
   discovered = import ../lib/checks.nix {inherit lib;} {
     inherit moduleChecks system;
     descriptors = descriptorsOf ./.;
@@ -81,12 +89,12 @@ in {
         directory = "tests/${name}";
       })
       discovered.testNames;
-    hostChecks =
-      lib.mapAttrsToList (name: _: {
-        name = "host-${name}";
+    hostChecks = lib.concatLists (lib.mapAttrsToList (name: checks:
+      map (check: {
+        name = check;
         directory = hostDirectory name;
-      })
-      hosts;
+      }) (builtins.attrNames checks))
+    hostCheckSets);
     inherit (discovered) checkNames;
   };
 }

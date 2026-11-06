@@ -213,6 +213,7 @@
       devShells.default = pkgs.mkShellNoCC {
         packages = [
           pkgs.just
+          pkgs.nix-fast-build
           pkgs.npins
           pkgs.nushell
           pkgs.bun
