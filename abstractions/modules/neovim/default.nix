@@ -107,6 +107,13 @@ in
       };
     };
 
+    # The nightly overlay pushes its Neovim builds to this cache; they stay
+    # substitutable because the anchor evaluates with its own lock file.
+    darwin.ifEnabled.nix.settings = {
+      extra-substituters = ["https://nix-community.cachix.org"];
+      extra-trusted-public-keys = ["nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="];
+    };
+
     # `neovim` has no theme; `neovim-<combination>` follows each combination of
     # `colorscheme.combinations` whose scheme has a theme, whatever the host selects.
     # The bundle names depend on `myconfig`, so they stay inside `mkMerge`,
