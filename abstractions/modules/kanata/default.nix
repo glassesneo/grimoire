@@ -38,7 +38,6 @@ in
     ...
   }: {
     name = "kanata";
-    requires = ["app-identity"];
     meta.description = "Remap keyboard input with Kanata, generating its configuration from actions declared per layer and key.";
 
     options = {pkgs, ...}:
@@ -116,7 +115,7 @@ in
       };
     };
 
-    tests = _: let
+    tests.cases = _: let
       contributor = action: {myconfig.always.kanata.layers.base.x = action;};
       base = result: result.options.myconfig.kanata.layers.value.base;
     in {

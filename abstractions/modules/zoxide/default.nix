@@ -5,6 +5,7 @@
 }:
 delib.module {
   name = "zoxide";
+  tests.fixture = ["zsh.interactive"];
   meta.description = "Provide zoxide and initialize its directory navigation in Zsh.";
 
   options.enable = delib.boolOption true;

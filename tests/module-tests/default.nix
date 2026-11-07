@@ -8,8 +8,8 @@
 
   # Keep the runner's repository-owned boundary: successful fixture values and
   # builds reach one aggregate; invalid modes, missing uses and mismatches fail
-  # evaluation; unknown fields and requires fail discovery. Also cover
-  # transitive requires in fixtures, declaration-only discovery, conservative closure and
+  # evaluation; unknown fields and fixture modules fail discovery. Also cover
+  # transitive fixtures, declaration-only discovery, conservative closure and
   # coverage normalization: Nix types alone cannot detect those regressions.
   # Builder failure is exercised externally through failingAggregate below.
   compose = abstractions:
@@ -32,7 +32,7 @@
       delib.module {
         name = "${name}";
         meta.description = "Hold a test case that must not hold.";
-        tests = _: {case = {protects = "fixture";} // ${case};};
+        tests.cases = _: {case = {protects = "fixture";} // ${case};};
       }
     '';
 
@@ -77,7 +77,7 @@
     delib.module {
       inherit name;
       meta.description = "Exercise conservative dependency closure.";
-      tests = _: {
+      tests.cases = _: {
         edge = {
           protects = "fixture";
           inherit uses platforms;
@@ -104,7 +104,7 @@
       delib.module {
         name = "undocumented";
         meta.description = "Hold a case without protects.";
-        tests = _: {
+        tests.cases = _: {
           case = {
             expr = _: 1;
             expected = 1;
@@ -112,23 +112,23 @@
         };
       })
   ]);
-  # A fixture holds what its module requires, and what the modules a case uses
-  # require, transitively.
-  requiringConfiguration = compose [
+  # A fixture holds the module's fixture modules and the modules a case uses,
+  # with their own fixture modules, transitively.
+  fixtureConfiguration = compose [
     ./subject.nix
     ./dependency.nix
-    ./requiring/middle.nix
-    ./requiring/requirer.nix
-    ./requiring/case-user.nix
+    ./fixture/middle.nix
+    ./fixture/requirer.nix
+    ./fixture/case-user.nix
   ];
-  requiring = infoFor requiringConfiguration;
-  requiringChecks = checksFor requiringConfiguration compose;
-  unknownRequires = infoFor (compose [
+  fixtures = infoFor fixtureConfiguration;
+  fixtureChecks = checksFor fixtureConfiguration compose;
+  unknownFixture = infoFor (compose [
     ({delib, ...}:
       delib.module {
-        name = "unknown-requires";
-        requires = ["absent"];
-        meta.description = "Require a module that does not exist.";
+        name = "unknown-fixture";
+        tests.fixture = ["absent"];
+        meta.description = "Name a fixture module that does not exist.";
       })
   ]);
   coverage = (infoFor configuration).subject.tsRoots;
@@ -140,7 +140,7 @@
           delib.module {
             name = "coverage";
             meta.description = "Exercise invalid coverage roots.";
-            tests = _: {
+            tests.cases = _: {
               case = {
                 protects = "fixture";
                 tsRoots = [path];
@@ -156,7 +156,7 @@
       {delib, ...}: delib.module {
         name = "build-failure";
         meta.description = "Exercise aggregate builder failure.";
-        tests = {pkgs, ...}: {
+        tests.cases = {pkgs, ...}: {
           failure = {
             protects = "fixture";
             build = _: pkgs.runCommand "intentional-module-failure" {} "exit 1";
@@ -173,11 +173,11 @@ in {
   check = assert !(graphChecks ? module-branch);
   assert graph.c.affectedChecks == ["module-a" "module-b" "module-c" "module-leaf"];
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
-  assert !(builtins.tryEval (builtins.deepSeq unknownRequires.unknown-requires.affectedChecks true)).success;
-  assert lib.assertMsg (evaluates requiringChecks.module-requirer && evaluates requiringChecks.module-case-user)
-  "A fixture must hold the modules its module and its case's uses require, transitively";
-  assert lib.assertMsg (requiring.dependency.affectedChecks == ["module-case-user" "module-requirer" "module-subject"])
-  "A change to a module must select the modules requiring or using it, transitively";
+  assert !(builtins.tryEval (builtins.deepSeq unknownFixture.unknown-fixture.affectedChecks true)).success;
+  assert lib.assertMsg (evaluates fixtureChecks.module-requirer && evaluates fixtureChecks.module-case-user)
+  "A fixture must hold the module's fixture modules and its case's uses, transitively";
+  assert lib.assertMsg (fixtures.dependency.affectedChecks == ["module-case-user" "module-requirer" "module-subject"])
+  "A change to a module must select the modules whose fixtures load it, transitively";
   assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
   assert !(builtins.tryEval (builtins.attrNames undocumented.undocumented.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;

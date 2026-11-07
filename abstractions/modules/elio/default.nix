@@ -158,7 +158,6 @@ in
       '';
   in {
     name = "elio";
-    requires = ["exclusive"];
     meta.description = "Provide and publish elio, configure its settings and theme, and integrate it with Zsh.";
 
     options = {pkgs, ...}: let
@@ -271,7 +270,9 @@ in
         myconfig.colorscheme.combinations)
       ];
 
-    tests = {pkgs, ...}: let
+    tests.fixture = ["exclusive" "zsh.interactive"];
+
+    tests.cases = {pkgs, ...}: let
       host = extra: expected: {
         inherit expected;
         uses = ["colorscheme"];

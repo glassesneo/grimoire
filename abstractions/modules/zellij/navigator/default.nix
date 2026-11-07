@@ -9,6 +9,7 @@
 in
   delib.module {
     name = "zellij.navigator";
+    tests.fixture = ["zellij"];
     meta.description = "Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane.";
 
     options.enable = delib.boolOption true;

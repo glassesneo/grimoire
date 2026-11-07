@@ -20,6 +20,7 @@
 in
   delib.module {
     name = "neovim.completion";
+    tests.fixture = ["neovim"];
     meta.description = "Provide insert-mode and command-line completion in Neovim.";
 
     options.enable = delib.boolOption true;

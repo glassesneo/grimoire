@@ -37,7 +37,7 @@ delib.module ({
 
   # A distinct package shows that the selected shell module's package is
   # used, not a default that happens to equal it.
-  tests = _: {
+  tests.cases = _: {
     unknown-candidate = {
       protects = "loginShell accepts only modules that joined it as candidates";
       host.myconfig.ifEnabled.shell.loginShell = "zsh";

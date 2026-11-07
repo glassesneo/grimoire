@@ -9,7 +9,6 @@
 }:
 delib.module {
   name = "nix-secrets";
-  requires = ["services"];
   meta.description = "Provide nix-secrets to Hjem and activate its secrets on Darwin.";
 
   hjem.always = {
@@ -80,7 +79,8 @@ delib.module {
   # manual activation, the probe's own job, the CLI commands, and the
   # activation script's environment. The build runs the package this module
   # patches against the probe's manifest without launchd or mounts.
-  tests = {
+  tests.fixture = ["services"];
+  tests.cases = {
     pkgs,
     lib,
     home,

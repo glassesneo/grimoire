@@ -32,7 +32,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "bat";
-    requires = ["exclusive"];
+    tests.fixture = ["exclusive"];
     meta.description = "Provide and configure bat for file display.";
 
     options = with delib; {

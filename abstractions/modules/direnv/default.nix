@@ -5,7 +5,7 @@
 }:
 delib.module {
   name = "direnv";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive" "zsh.interactive"];
   meta.description = "Provide and configure direnv, including its Zsh integration.";
 
   options.enable = delib.boolOption true;

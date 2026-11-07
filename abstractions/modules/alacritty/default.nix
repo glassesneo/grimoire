@@ -20,7 +20,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "alacritty";
-    requires = ["app-identity" "exclusive"];
+    tests.fixture = ["exclusive"];
     meta = {
       description = "Provide Alacritty terminal emulator.";
       tags = ["gui"];

@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "dock";
-  requires = ["defaults"];
+  tests.fixture = ["defaults"];
   meta.description = "Configure the Dock and the actions of screen hot corners.";
 
   options.enable = delib.boolOption true;

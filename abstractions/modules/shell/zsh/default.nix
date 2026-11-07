@@ -6,7 +6,7 @@
 }:
 delib.module ({cfg, ...}: {
   name = "zsh";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive"];
   meta.description = "Enable Zsh and provide the foundation required for its use.";
 
   options = {pkgs, ...}:

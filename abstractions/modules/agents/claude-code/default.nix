@@ -34,7 +34,7 @@ in
       // lib.optionalAttrs (theme != null) {inherit theme;};
   in {
     name = "claude-code";
-    requires = ["exclusive"];
+    tests.fixture = ["exclusive"];
     meta.description = "Provide and configure Claude Code.";
 
     options = with delib; {

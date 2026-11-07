@@ -6,6 +6,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "zsh.login";
+  tests.fixture = ["shell"];
   meta.description = "Configure the behavior required to use Zsh as a login shell.";
 
   # The role follows `shell.loginShell`; it is not chosen separately.

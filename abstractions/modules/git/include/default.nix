@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module ({myconfig, ...}: {
   name = "git.include";
+  tests.fixture = ["git" "secrets"];
   meta.description = "Configure Git settings through includes.";
 
   options.enable = delib.boolOption true;

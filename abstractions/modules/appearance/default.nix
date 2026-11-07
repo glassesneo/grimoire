@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "appearance";
-  requires = ["defaults"];
+  tests.fixture = ["defaults"];
   meta.description = "Configure the system's visual appearance: color scheme, menu bar, and menu bar clock.";
 
   options.enable = delib.boolOption true;

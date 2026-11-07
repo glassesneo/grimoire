@@ -5,7 +5,7 @@ delib.module ({
   ...
 }: {
   name = "phi";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive"];
   meta = {
     description = "Provide and publish the Phi browser.";
     tags = ["gui"];

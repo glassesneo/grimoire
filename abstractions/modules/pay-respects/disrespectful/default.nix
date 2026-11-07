@@ -5,6 +5,7 @@
 }:
 delib.module {
   name = "pay-respects.disrespectful";
+  tests.fixture = ["zsh.interactive"];
   meta.description = "Replace command typo recovery with a playful response.";
 
   options.enable = delib.boolOption true;

@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "batman";
+  tests.fixture = ["zsh.interactive"];
   meta.description = "Provide batman and configure it as Zsh's manual page pager.";
 
   options.enable = delib.boolOption true;

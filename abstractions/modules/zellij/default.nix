@@ -117,7 +117,6 @@ in
       };
   in {
     name = "zellij";
-    requires = ["exclusive"];
     meta.description = "Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file.";
 
     options = with delib; {
@@ -310,7 +309,9 @@ in
         (lib.filterAttrs (_: resolved: themes.of resolved != null) myconfig.colorscheme.combinations))
       ];
 
-    tests = {
+    tests.fixture = ["exclusive"];
+
+    tests.cases = {
       pkgs,
       home,
       ...

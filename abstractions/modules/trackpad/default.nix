@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "trackpad";
-  requires = ["defaults"];
+  tests.fixture = ["defaults"];
   meta.description = "Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed.";
 
   options.enable = delib.boolOption true;

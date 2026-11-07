@@ -9,6 +9,7 @@
 in
   delib.module ({cfg, ...}: {
     name = "secrets";
+    tests.fixture = ["nix-secrets" "zsh"];
     meta.description = "Manage the selected encrypted secrets with nix-secrets.";
 
     options = with delib; {

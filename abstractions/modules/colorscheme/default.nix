@@ -146,7 +146,7 @@ in
       }
     ];
 
-    tests = _: let
+    tests.cases = _: let
       variantScheme = {
         default = "dark";
         variants = {

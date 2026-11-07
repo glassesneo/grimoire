@@ -5,7 +5,7 @@ delib.module ({
   ...
 }: {
   name = "notion";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive"];
   meta = {
     description = "Provide the Notion desktop app.";
     tags = ["gui"];

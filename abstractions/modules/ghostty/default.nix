@@ -21,7 +21,7 @@ in
     ...
   }: {
     name = "ghostty";
-    requires = ["defaults" "exclusive"];
+    tests.fixture = ["defaults" "exclusive"];
     meta = {
       description = "Provide Ghostty terminal emulator.";
       tags = ["gui"];

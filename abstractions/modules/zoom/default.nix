@@ -13,7 +13,6 @@
 in
   delib.module ({myconfig, ...}: {
     name = "zoom";
-    requires = ["defaults"];
     meta.description = "Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window.";
 
     options.enable = delib.boolOption true;
@@ -43,7 +42,9 @@ in
       '';
     };
 
-    tests = {pkgs, ...}: {
+    tests.fixture = ["defaults"];
+
+    tests.cases = {pkgs, ...}: {
       # Writing the size needs a user session, so the build only checks that
       # the program compiles and rejects an invalid size before touching it.
       pip-size = {

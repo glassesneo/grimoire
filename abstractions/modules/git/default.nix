@@ -5,7 +5,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "git";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive" "zsh.interactive.zabrze"];
   meta.description = "Provide Git and configure the user's Git environment.";
 
   options.enable = delib.boolOption true;

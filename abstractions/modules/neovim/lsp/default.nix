@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "neovim.lsp";
+  tests.fixture = ["neovim"];
   meta.description = "Connect Neovim to language servers and format buffers through them.";
 
   options.enable = delib.boolOption true;

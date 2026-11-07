@@ -21,7 +21,6 @@
 in
   delib.module {
     name = "skills";
-    requires = ["exclusive"];
     meta.description = "Declare harness-independent skills and deploy them for agent use.";
 
     options.enable = delib.boolOption true;
@@ -83,7 +82,8 @@ in
 
     # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to
     # the wrong place; Hjem's symlink execution remains trusted.
-    tests = {
+    tests.fixture = ["exclusive"];
+    tests.cases = {
       pkgs,
       home,
       ...

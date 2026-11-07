@@ -39,7 +39,6 @@
 }:
 delib.module {
   name = "defaults";
-  requires = ["services"];
   meta.description = "Declare the current user's preferences and reconcile them with the platform's preferences store.";
 
   hjem.always = {
@@ -176,7 +175,8 @@ delib.module {
 
   # Lowering is observed before serialization; lib/plist.nix owns plist syntax.
   # The reconciler build runs its own specs for runtime transitions.
-  tests = {pkgs, ...}: let
+  tests.fixture = ["services"];
+  tests.cases = {pkgs, ...}: let
     inherit (pkgs) lib;
     darwin = ["aarch64-darwin"];
     inf = 1.0e308 * 10.0;

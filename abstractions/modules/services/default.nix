@@ -39,7 +39,6 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "services";
-  requires = ["app-identity"];
   meta.description = "Declare user services and run them under a dinit user instance that the platform's service manager starts.";
 
   hjem.always = {
@@ -348,7 +347,8 @@ delib.module ({myconfig, ...}: {
   # used: it also checks the host's executables and directories, which a build
   # cannot see. The reconciler case drives reconcile.nu against a real dinit
   # and a fake launchctl.
-  tests = {pkgs, ...}: let
+  tests.fixture = ["app-identity"];
+  tests.cases = {pkgs, ...}: let
     inherit (pkgs) lib;
     darwin = ["aarch64-darwin"];
     controls = ["\n" "\r"];

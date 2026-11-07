@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "neovim.diagnostic";
+  tests.fixture = ["neovim"];
   meta.description = "Display diagnostics in Neovim buffers.";
 
   options.enable = delib.boolOption true;

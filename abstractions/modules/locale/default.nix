@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "locale";
-  requires = ["defaults"];
+  tests.fixture = ["defaults"];
   meta.description = "Configure the languages and region used by the system and applications.";
 
   options.enable = delib.boolOption true;

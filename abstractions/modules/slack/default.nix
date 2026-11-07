@@ -5,7 +5,7 @@
 }:
 delib.module ({cfg, ...}: {
   name = "slack";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive"];
   meta = {
     description = "Provide the Slack desktop app.";
     tags = ["gui"];

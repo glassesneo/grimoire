@@ -1,15 +1,15 @@
-# Owns inline tests, module requirements, declaration ownership, and the
-# conservative reverse dependency closure. tests {pkgs, lib, system, home, oxlintConfig} returns named cases,
+# Owns inline tests, their fixtures, declaration ownership, and the
+# conservative reverse fixture closure. tests.cases {pkgs, lib, system, home, oxlintConfig} returns named cases,
 # whose fields are the options declared below. Each case states what it
 # protects and has exactly one mode: expected, fails or build. Unknown fields,
 # unknown uses and a missing `protects` are errors when the cases are
 # discovered. Coverage retains all cases.
 # moduleTestInfo takes {pkgs,system,home,oxlintConfig,root} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
-# tsRoots, uses, requires and affectedChecks. Declaration files must be
-# unique; unknown requires are errors. Reverse closure unions requires and the
-# uses of all cases, including excluded ones; duplicates, self edges and cycles
-# terminate. Only applicable check names enter
+# tsRoots, uses, fixture and affectedChecks. Declaration files must be
+# unique; unknown fixture modules are errors. Reverse closure unions the
+# fixture and the uses of all cases, including excluded ones; duplicates, self
+# edges and cycles terminate. Only applicable check names enter
 # affectedChecks. Discovery never generates fixtures or forces check builders.
 {
   lib,
@@ -30,7 +30,7 @@
       uses = mkOption {
         type = types.listOf types.str;
         default = [];
-        description = "Modules added to this case's fixture beside the module, the modules it requires and contributors. Their own requires are followed, their uses are not; each must name a module.";
+        description = "Modules added to this case's fixture beside the module's `tests.fixture` and contributors. Their `tests.fixture` is followed, their uses are not; each must name a module.";
       };
       host = mkOption {
         type = types.attrs;
@@ -94,17 +94,18 @@
     };
   };
 in {
-  config.settings.modules.extraSubmodules.options.requires = lib.mkOption {
-    type = lib.types.listOf lib.types.str;
-    default = [];
-    description = "Modules whose options this module defines or reads. A module test fixture includes the modules its module requires, transitively, and a change to a module selects the checks of the modules requiring it.";
-  };
-
-  config.settings.modules.extraSubmodules.options.tests = lib.mkOption {
-    type = lib.types.functionTo (lib.types.attrsOf (lib.types.submodule case));
-    default = _: {};
-    defaultText = lib.literalExpression "_: { }";
-    description = "Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration.";
+  config.settings.modules.extraSubmodules.options.tests = {
+    fixture = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "Modules loaded with this module in its test fixtures and in every fixture that loads it, such as the owners of options it defines; a fixture otherwise holds only the module under test. A change to one of them selects this module's checks.";
+    };
+    cases = lib.mkOption {
+      type = lib.types.functionTo (lib.types.attrsOf (lib.types.submodule case));
+      default = _: {};
+      defaultText = lib.literalExpression "_: { }";
+      description = "Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration.";
+    };
   };
 
   options.moduleTestInfo = lib.mkOption {
@@ -130,21 +131,21 @@ in {
     declarations = lib.genAttrs names (name: let
       file = fileOf name;
       directory = lib.removePrefix "${toString root}/" (builtins.dirOf file);
-      cases = config.modules.${name}.tests {inherit pkgs lib system home oxlintConfig;};
+      cases = config.modules.${name}.tests.cases {inherit pkgs lib system home oxlintConfig;};
       uses = lib.unique (lib.concatMap (case: case.uses) (builtins.attrValues cases));
-      inherit (config.modules.${name}) requires;
-      unknown = lib.subtractLists names (uses ++ requires);
+      inherit (config.modules.${name}.tests) fixture;
+      unknown = lib.subtractLists names (uses ++ fixture);
       undocumented = builtins.attrNames (lib.filterAttrs (_: case: !case.documented) cases);
       normalize = path: lib.concatStringsSep "/" ([directory] ++ lib.filter (part: part != "." && part != "") (lib.splitString "/" path));
     in
-      assert lib.assertMsg (unknown == []) "module-tests: unknown uses or requires in '${name}': ${toString unknown}";
+      assert lib.assertMsg (unknown == []) "module-tests: unknown uses or fixture modules in '${name}': ${toString unknown}";
       assert lib.assertMsg (undocumented == []) "module-tests: cases without protects in '${name}': ${toString undocumented}"; {
-        inherit file directory cases uses requires;
+        inherit file directory cases uses fixture;
         applicableCases = lib.filterAttrs (_: case: lib.elem system case.platforms) cases;
         tsRoots = lib.sort lib.lessThan (lib.unique (lib.concatMap (case: map normalize case.tsRoots) (builtins.attrValues cases)));
       });
     closure = selected: let
-      next = lib.unique (selected ++ lib.filter (name: lib.any (used: lib.elem used selected) (declarations.${name}.uses ++ declarations.${name}.requires)) names);
+      next = lib.unique (selected ++ lib.filter (name: lib.any (used: lib.elem used selected) (declarations.${name}.uses ++ declarations.${name}.fixture)) names);
     in
       if builtins.length next == builtins.length selected
       then next

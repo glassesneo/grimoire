@@ -1,7 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "files";
-  requires = ["defaults"];
+  tests.fixture = ["defaults"];
   meta.description = "Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes.";
 
   options.enable = delib.boolOption true;

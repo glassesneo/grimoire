@@ -5,7 +5,7 @@ delib.module ({
   ...
 }: {
   name = "bettertouchtool";
-  requires = ["defaults" "exclusive"];
+  tests.fixture = ["defaults" "exclusive"];
   meta = {
     description = "Provide BetterTouchTool.";
     tags = ["gui"];

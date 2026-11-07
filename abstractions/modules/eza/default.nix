@@ -21,7 +21,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "eza";
-    requires = ["exclusive"];
+    tests.fixture = ["exclusive" "zsh.interactive.zabrze"];
     meta.description = "Provide eza for listing files and directories.";
 
     options = with delib; {

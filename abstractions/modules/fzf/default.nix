@@ -26,6 +26,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "fzf";
+    tests.fixture = ["zsh.interactive"];
     meta.description = "Provide and configure fzf, including its Zsh integration.";
 
     options = with delib; {

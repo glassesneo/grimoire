@@ -3,5 +3,5 @@
 delib.module {
   name = "case-user";
   meta.description = "Read the dependency through a module a case uses.";
-  tests = {home, ...}: {case = import ./reads-dependency.nix home // {uses = ["subject" "middle"];};};
+  tests.cases = {home, ...}: {case = import ./reads-dependency.nix home // {uses = ["subject" "middle"];};};
 }

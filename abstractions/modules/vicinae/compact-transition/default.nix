@@ -12,6 +12,7 @@
 in
   delib.module {
     name = "vicinae.compact-transition";
+    tests.fixture = ["vicinae"];
     meta.description = "Animate the Vicinae launcher window between its compact and expanded states.";
 
     options.enable = delib.boolOption false;

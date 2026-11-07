@@ -5,7 +5,7 @@
 }:
 delib.module ({cfg, ...}: {
   name = "ssh";
-  requires = ["exclusive"];
+  tests.fixture = ["exclusive"];
   meta.description = "Configure the OpenSSH client and the user's personal key.";
 
   options = with delib; {

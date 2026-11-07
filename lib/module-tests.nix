@@ -15,11 +15,11 @@
 }: let
   assertions = import ./assertions.nix {inherit lib;};
   defines = case: field: lib.elem field case.defined;
-  # NAMES and the modules they require, transitively.
-  required = names:
+  # NAMES and their fixture modules, transitively.
+  loaded = names:
     map (item: item.key) (builtins.genericClosure {
       startSet = map (key: {inherit key;}) names;
-      operator = item: map (key: {inherit key;}) info.${item.key}.requires;
+      operator = item: map (key: {inherit key;}) info.${item.key}.fixture;
     });
 
   fileOf = name: info.${name}.file;
@@ -56,7 +56,7 @@
   in
     (compose (
       [(fileOf name) (host case.host)]
-      ++ map fileOf (lib.remove name (required ([name] ++ case.uses)))
+      ++ map fileOf (lib.remove name (loaded ([name] ++ case.uses)))
       ++ lib.mapAttrsToList contributor case.modules
     )).genSystem {
       inherit (case) moduleSystem;
