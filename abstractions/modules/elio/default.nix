@@ -158,6 +158,7 @@ in
       '';
   in {
     name = "elio";
+    requires = ["exclusive"];
     meta.description = "Provide and publish elio, configure its settings and theme, and integrate it with Zsh.";
 
     options = {pkgs, ...}: let

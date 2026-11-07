@@ -9,6 +9,7 @@
 }:
 delib.module {
   name = "nix-secrets";
+  requires = ["services"];
   meta.description = "Provide nix-secrets to Hjem and activate its secrets on Darwin.";
 
   hjem.always = {
@@ -92,7 +93,6 @@ delib.module {
     };
     case = attrs:
       {
-        uses = ["services"];
         platforms = ["aarch64-darwin"];
       }
       // attrs;

@@ -77,7 +77,7 @@ in {
     moduleRoots =
       lib.mapAttrsToList (name: module: {
         inherit name;
-        inherit (module) directory infrastructure affectedChecks;
+        inherit (module) directory affectedChecks;
       })
       moduleTestInfo;
     directoryChecks =

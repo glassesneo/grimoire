@@ -6,6 +6,7 @@
 }:
 delib.module {
   name = "zsh.interactive";
+  requires = ["exclusive"];
   meta.description = "Build Zsh's interactive environment.";
 
   options.enable = delib.boolOption true;

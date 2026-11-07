@@ -21,6 +21,7 @@
 in
   delib.module {
     name = "skills";
+    requires = ["exclusive"];
     meta.description = "Declare harness-independent skills and deploy them for agent use.";
 
     options.enable = delib.boolOption true;

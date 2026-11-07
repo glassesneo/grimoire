@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "security";
+  requires = ["defaults"];
   meta.description = "Configure how a person authenticates to the host: sudo, the login window, and the screen lock.";
 
   options.enable = delib.boolOption true;

@@ -13,6 +13,7 @@
 in
   delib.module {
     name = "zsh.interactive.zabrze";
+    requires = ["exclusive"];
     meta.description = "Provide zabrze, expand the abbreviations features contribute in Zsh, and own its configuration file.";
 
     options.enable = delib.boolOption true;

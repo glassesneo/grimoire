@@ -21,6 +21,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "eza";
+    requires = ["exclusive"];
     meta.description = "Provide eza for listing files and directories.";
 
     options = with delib; {

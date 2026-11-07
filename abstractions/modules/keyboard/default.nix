@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "keyboard";
+  requires = ["defaults"];
   meta.description = "Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts.";
 
   options.enable = delib.boolOption true;

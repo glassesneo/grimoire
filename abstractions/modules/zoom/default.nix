@@ -13,6 +13,7 @@
 in
   delib.module ({myconfig, ...}: {
     name = "zoom";
+    requires = ["defaults"];
     meta.description = "Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window.";
 
     options.enable = delib.boolOption true;

@@ -5,6 +5,7 @@ delib.module ({
   ...
 }: {
   name = "grok-bot";
+  requires = ["exclusive"];
   meta = {
     description = "Provide the Grok-bot desktop app.";
     tags = ["gui"];

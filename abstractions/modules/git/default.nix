@@ -5,6 +5,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "git";
+  requires = ["exclusive"];
   meta.description = "Provide Git and configure the user's Git environment.";
 
   options.enable = delib.boolOption true;

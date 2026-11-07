@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "spaces";
+  requires = ["defaults"];
   meta.description = "Configure Spaces across displays and how the desktop and its widgets are revealed.";
 
   options.enable = delib.boolOption true;

@@ -19,6 +19,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "vicinae";
+    requires = ["app-identity" "defaults" "exclusive" "services"];
     meta = {
       description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
       tags = ["gui"];

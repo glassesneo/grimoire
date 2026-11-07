@@ -69,7 +69,7 @@ A concern has one owner. Shared outputs have one final writer, and adapters tran
 
 A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
 
-A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. Other modules enter its test fixtures through `uses`; shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
+A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. A module declares in `requires` the modules whose options it defines or reads; they enter its test fixtures transitively, and a case adds test-only modules with `uses`. Shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows reverse `requires` and `uses` dependencies. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
 Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Repository mechanisms use the language of the layer they own:
 
@@ -90,7 +90,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/module-constraints.nix`: modules' constraints, enforced in every module system.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-tests.nix`: module-owned inline test cases, typed as options, declaration locations and reverse `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`. Modules that provide capabilities other modules use declare `meta.infrastructure` and enter every fixture.
+- `extensions/module-tests.nix`: module-owned inline test cases, typed as options, module `requires`, declaration locations and the reverse `requires` and `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery of `checks/` and `tests/` that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.

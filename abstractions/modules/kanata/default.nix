@@ -38,6 +38,7 @@ in
     ...
   }: {
     name = "kanata";
+    requires = ["app-identity"];
     meta.description = "Remap keyboard input with Kanata, generating its configuration from actions declared per layer and key.";
 
     options = {pkgs, ...}:

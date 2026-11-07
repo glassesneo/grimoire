@@ -69,7 +69,7 @@ def --wrapped main [...args: string] {
           let selective = $env.SELECTIVE? | is-not-empty
           let roots = if $selective {
             [sample.nix obsolete.txt user-change.txt hook-new.txt] | each {|path|
-              {name: $path, directory: $path, infrastructure: false, affectedChecks: (if $path == 'hook-new.txt' { ['selected.case'] } else { [] })}
+              {name: $path, directory: $path, affectedChecks: (if $path == 'hook-new.txt' { ['selected.case'] } else { [] })}
             }
           } else { [] }
           let names = if ($env.ZERO_CHECKS? | is-not-empty) { [] } else if $selective { ['selected.case' unselected] } else if ($env.MANY_CHECKS? | is-not-empty) { ['selected.case' second third] } else { ['selected.case'] }

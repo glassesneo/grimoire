@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "privacy";
+  requires = ["defaults"];
   meta.description = "Limit what the system shares and what it opens without being asked.";
 
   options.enable = delib.boolOption true;

@@ -1,14 +1,15 @@
-# Owns inline tests, declaration ownership, and the conservative reverse uses
-# closure. tests {pkgs, lib, system, home, oxlintConfig} returns named cases,
+# Owns inline tests, module requirements, declaration ownership, and the
+# conservative reverse dependency closure. tests {pkgs, lib, system, home, oxlintConfig} returns named cases,
 # whose fields are the options declared below. Each case states what it
 # protects and has exactly one mode: expected, fails or build. Unknown fields,
 # unknown uses and a missing `protects` are errors when the cases are
 # discovered. Coverage retains all cases.
 # moduleTestInfo takes {pkgs,system,home,oxlintConfig,root} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
-# tsRoots, uses, infrastructure (its meta.infrastructure) and affectedChecks. Declaration files must be
-# unique. Reverse closure unions uses from all cases, including excluded ones;
-# duplicates, self edges and cycles terminate. Only applicable check names enter
+# tsRoots, uses, requires and affectedChecks. Declaration files must be
+# unique; unknown requires are errors. Reverse closure unions requires and the
+# uses of all cases, including excluded ones; duplicates, self edges and cycles
+# terminate. Only applicable check names enter
 # affectedChecks. Discovery never generates fixtures or forces check builders.
 {
   lib,
@@ -29,7 +30,7 @@
       uses = mkOption {
         type = types.listOf types.str;
         default = [];
-        description = "Modules added to this case's fixture beside the module, infrastructure and contributors. Their own uses are not followed; each must name a module.";
+        description = "Modules added to this case's fixture beside the module, the modules it requires and contributors. Their own requires are followed, their uses are not; each must name a module.";
       };
       host = mkOption {
         type = types.attrs;
@@ -93,6 +94,12 @@
     };
   };
 in {
+  config.settings.modules.extraSubmodules.options.requires = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [];
+    description = "Modules whose options this module defines or reads. A module test fixture includes the modules its module requires, transitively, and a change to a module selects the checks of the modules requiring it.";
+  };
+
   config.settings.modules.extraSubmodules.options.tests = lib.mkOption {
     type = lib.types.functionTo (lib.types.attrsOf (lib.types.submodule case));
     default = _: {};
@@ -125,19 +132,19 @@ in {
       directory = lib.removePrefix "${toString root}/" (builtins.dirOf file);
       cases = config.modules.${name}.tests {inherit pkgs lib system home oxlintConfig;};
       uses = lib.unique (lib.concatMap (case: case.uses) (builtins.attrValues cases));
-      unknown = lib.subtractLists names uses;
+      inherit (config.modules.${name}) requires;
+      unknown = lib.subtractLists names (uses ++ requires);
       undocumented = builtins.attrNames (lib.filterAttrs (_: case: !case.documented) cases);
       normalize = path: lib.concatStringsSep "/" ([directory] ++ lib.filter (part: part != "." && part != "") (lib.splitString "/" path));
     in
-      assert lib.assertMsg (unknown == []) "module-tests: unknown uses in '${name}': ${toString unknown}";
+      assert lib.assertMsg (unknown == []) "module-tests: unknown uses or requires in '${name}': ${toString unknown}";
       assert lib.assertMsg (undocumented == []) "module-tests: cases without protects in '${name}': ${toString undocumented}"; {
-        inherit file directory cases uses;
-        inherit (config.modules.${name}.meta) infrastructure;
+        inherit file directory cases uses requires;
         applicableCases = lib.filterAttrs (_: case: lib.elem system case.platforms) cases;
         tsRoots = lib.sort lib.lessThan (lib.unique (lib.concatMap (case: map normalize case.tsRoots) (builtins.attrValues cases)));
       });
     closure = selected: let
-      next = lib.unique (selected ++ lib.filter (name: lib.any (used: lib.elem used selected) declarations.${name}.uses) names);
+      next = lib.unique (selected ++ lib.filter (name: lib.any (used: lib.elem used selected) (declarations.${name}.uses ++ declarations.${name}.requires)) names);
     in
       if builtins.length next == builtins.length selected
       then next

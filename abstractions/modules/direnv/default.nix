@@ -5,6 +5,7 @@
 }:
 delib.module {
   name = "direnv";
+  requires = ["exclusive"];
   meta.description = "Provide and configure direnv, including its Zsh integration.";
 
   options.enable = delib.boolOption true;

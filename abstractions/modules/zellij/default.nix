@@ -117,6 +117,7 @@ in
       };
   in {
     name = "zellij";
+    requires = ["exclusive"];
     meta.description = "Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file.";
 
     options = with delib; {

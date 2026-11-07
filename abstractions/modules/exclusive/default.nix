@@ -56,10 +56,7 @@
 in
   delib.module {
     name = "exclusive";
-    meta = {
-      description = "Reject a second definition of a file that one location must own.";
-      infrastructure = true;
-    };
+    meta.description = "Reject a second definition of a file that one location must own.";
 
     hjem.always = exclusiveFiles [
       ["files"]

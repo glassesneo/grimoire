@@ -15,8 +15,12 @@
 }: let
   assertions = import ./assertions.nix {inherit lib;};
   defines = case: field: lib.elem field case.defined;
-  # Modules providing capabilities that other modules use, included in every fixture.
-  infrastructure = builtins.attrNames (lib.filterAttrs (_: module: module.infrastructure) info);
+  # NAMES and the modules they require, transitively.
+  required = names:
+    map (item: item.key) (builtins.genericClosure {
+      startSet = map (key: {inherit key;}) names;
+      operator = item: map (key: {inherit key;}) info.${item.key}.requires;
+    });
 
   fileOf = name: info.${name}.file;
 
@@ -52,7 +56,7 @@
   in
     (compose (
       [(fileOf name) (host case.host)]
-      ++ map fileOf (lib.remove name (lib.unique (infrastructure ++ case.uses)))
+      ++ map fileOf (lib.remove name (required ([name] ++ case.uses)))
       ++ lib.mapAttrsToList contributor case.modules
     )).genSystem {
       inherit (case) moduleSystem;

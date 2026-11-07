@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module ({cfg, ...}: {
   name = "appcleaner";
+  requires = ["exclusive"];
   meta = {
     description = "Provide AppCleaner.";
     tags = ["gui"];

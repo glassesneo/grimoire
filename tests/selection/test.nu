@@ -6,10 +6,9 @@ use ../../scripts/checks.nu select-checks
 def main [] {
   let metadata = {
     moduleRoots: [
-      {name: parent, directory: abstractions/modules/a, infrastructure: false, affectedChecks: [module-a module-b]}
-      {name: child, directory: abstractions/modules/a/child, infrastructure: false, affectedChecks: [module-child]}
-      {name: infra, directory: abstractions/modules/infra, infrastructure: true, affectedChecks: []}
-      {name: empty, directory: abstractions/modules/empty, infrastructure: false, affectedChecks: []}
+      {name: parent, directory: abstractions/modules/a, affectedChecks: [module-a module-b]}
+      {name: child, directory: abstractions/modules/a/child, affectedChecks: [module-child]}
+      {name: empty, directory: abstractions/modules/empty, affectedChecks: []}
     ]
     directoryChecks: [{name: external, directory: checks/external} {name: mechanism, directory: tests/mechanism}]
     hostChecks: [{name: host-a-darwin, directory: abstractions/hosts/a} {name: host-a-hjem, directory: abstractions/hosts/a}]
@@ -21,7 +20,6 @@ def main [] {
     {path: abstractions/modules/a/child/file, expected: [module-child]}
     {path: abstractions/modules/ab/file, expected: $all}
     {path: abstractions/modules/empty/file, expected: []}
-    {path: abstractions/modules/infra/file, expected: $all}
     {path: checks/external/default.nix, expected: [external]}
     {path: checks/unsupported/default.nix, expected: []}
     {path: checks/root-file.nix, expected: $all}

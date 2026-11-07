@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "screenshots";
+  requires = ["defaults"];
   meta.description = "Configure where screenshots are saved and in which format.";
 
   options.enable = delib.boolOption true;

@@ -39,10 +39,8 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "services";
-  meta = {
-    description = "Declare user services and run them under a dinit user instance that the platform's service manager starts.";
-    infrastructure = true;
-  };
+  requires = ["app-identity"];
+  meta.description = "Declare user services and run them under a dinit user instance that the platform's service manager starts.";
 
   hjem.always = {
     config,

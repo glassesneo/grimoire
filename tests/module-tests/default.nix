@@ -8,7 +8,8 @@
 
   # Keep the runner's repository-owned boundary: successful fixture values and
   # builds reach one aggregate; invalid modes, missing uses and mismatches fail
-  # evaluation; unknown fields fail discovery. Also cover declaration-only discovery, conservative closure and
+  # evaluation; unknown fields and requires fail discovery. Also cover
+  # transitive requires in fixtures, declaration-only discovery, conservative closure and
   # coverage normalization: Nix types alone cannot detect those regressions.
   # Builder failure is exercised externally through failingAggregate below.
   compose = abstractions:
@@ -111,6 +112,25 @@
         };
       })
   ]);
+  # A fixture holds what its module requires, and what the modules a case uses
+  # require, transitively.
+  requiringConfiguration = compose [
+    ./subject.nix
+    ./dependency.nix
+    ./requiring/middle.nix
+    ./requiring/requirer.nix
+    ./requiring/case-user.nix
+  ];
+  requiring = infoFor requiringConfiguration;
+  requiringChecks = checksFor requiringConfiguration compose;
+  unknownRequires = infoFor (compose [
+    ({delib, ...}:
+      delib.module {
+        name = "unknown-requires";
+        requires = ["absent"];
+        meta.description = "Require a module that does not exist.";
+      })
+  ]);
   coverage = (infoFor configuration).subject.tsRoots;
   lazyChecks = checksFor configuration (_: throw "fixture generated while discovering names");
   invalidRoot = path:
@@ -153,6 +173,11 @@ in {
   check = assert !(graphChecks ? module-branch);
   assert graph.c.affectedChecks == ["module-a" "module-b" "module-c" "module-leaf"];
   assert !(builtins.tryEval (builtins.deepSeq unknownGraph.unknown.affectedChecks true)).success;
+  assert !(builtins.tryEval (builtins.deepSeq unknownRequires.unknown-requires.affectedChecks true)).success;
+  assert lib.assertMsg (evaluates requiringChecks.module-requirer && evaluates requiringChecks.module-case-user)
+  "A fixture must hold the modules its module and its case's uses require, transitively";
+  assert lib.assertMsg (requiring.dependency.affectedChecks == ["module-case-user" "module-requirer" "module-subject"])
+  "A change to a module must select the modules requiring or using it, transitively";
   assert !(builtins.tryEval (builtins.attrNames unknownField.unknown-field.applicableCases)).success;
   assert !(builtins.tryEval (builtins.attrNames undocumented.undocumented.applicableCases)).success;
   assert builtins.attrNames lazyChecks == builtins.attrNames checks;

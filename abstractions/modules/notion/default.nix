@@ -5,6 +5,7 @@ delib.module ({
   ...
 }: {
   name = "notion";
+  requires = ["exclusive"];
   meta = {
     description = "Provide the Notion desktop app.";
     tags = ["gui"];

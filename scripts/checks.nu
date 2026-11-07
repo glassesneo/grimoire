@@ -22,9 +22,8 @@ export def select-checks [metadata: record, changes: list<record>] {
   $changes | each {|change|
     let path = $change.path
     let structural = ($change.status in [A D]) and ($path | str starts-with 'abstractions/modules/') and ($path | path basename) == 'default.nix'
-    let infrastructure = $metadata.moduleRoots | any {|root| $root.infrastructure and (within $path $root.directory) }
     let global = ($path in [git-hooks.nix justfile flake.nix flake.lock .oxlintrc.json checks/default.nix]) or ([adapters extensions lib scripts just] | any {|directory| within $path $directory })
-    if $structural or $infrastructure or $global { $all } else {
+    if $structural or $global { $all } else {
       let owners = $metadata.moduleRoots | where {|root| within $path $root.directory } | sort-by {|root| $root.directory | str length } --reverse
       if ($owners | is-not-empty) { $owners.0.affectedChecks } else {
         let checks = $metadata.directoryChecks ++ $metadata.hostChecks | where {|check| within $path $check.directory }

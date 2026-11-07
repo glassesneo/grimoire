@@ -1,6 +1,7 @@
 {delib, ...}:
 delib.module {
   name = "sound";
+  requires = ["defaults"];
   meta.description = "Configure system sounds and alert feedback.";
 
   options.enable = delib.boolOption true;
