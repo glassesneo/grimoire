@@ -127,8 +127,7 @@ in
             targetDirs = ["."];
           };
           modules = declarations;
-          # Infrastructure modules place files of their own in every fixture.
-          expr = result: lib.sort lib.lessThan (map (file: "${file.target} -> ${toString file.source}") (lib.filter (file: lib.elem (toString file.source) [(toString source) (toString otherSource)]) (files result)));
+          expr = result: lib.sort lib.lessThan (map (file: "${file.target} -> ${toString file.source}") (files result));
           expected = [
             "${home}/.agents/skills/alpha -> ${source}"
             "${home}/.claude/skills/alpha -> ${source}"

@@ -12,6 +12,9 @@
 # through waits-for or depends-on dependencies is "automatic": it starts with
 # dinit and after a switch that adds or changes it.
 #
+# A home without services gets no dinit: nothing is placed and the apply step
+# retires an agent a previous generation left.
+#
 # dinit runs from a bundle with a stable code-signing identity, so TCC grants
 # given to it survive rebuilds; TCC attributes the processes it starts to it.
 # One gui-domain LaunchAgent, named by `serviceManager.label`, starts it in the
@@ -49,6 +52,7 @@ delib.module ({myconfig, ...}: {
   }: let
     inherit (lib) mkOption types;
     isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+    active = isDarwin && config.userServices != {};
     oneLine = s: !(lib.hasInfix "\n" s) && !(lib.hasInfix "\r" s);
     absolute = types.addCheck types.str (s: lib.hasPrefix "/" s && oneLine s);
     argv = types.addCheck (types.listOf types.str) (xs: xs != [] && lib.hasPrefix "/" (builtins.head xs) && lib.all oneLine xs);
@@ -241,11 +245,12 @@ delib.module ({myconfig, ...}: {
         dependents = dependentsOf name;
       })
       (sorted.result or names);
-    # The group dinit starts comes last and is started, not woken.
+    # The group dinit starts comes last and is started, not woken. Without
+    # services the list is empty, which retires dinit.
     manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON {
       inherit (manager) label socket;
       inherit dinitctl;
-      services =
+      services = lib.optionals active (
         map (entry: removeAttrs entry ["command"]) lowered
         ++ [
           {
@@ -256,7 +261,8 @@ delib.module ({myconfig, ...}: {
             automatic = false;
             dependents = [];
           }
-        ];
+        ]
+      );
     });
     stateDirectory = "${config.xdg.state.directory}/hjem/dinit";
     services =
@@ -265,9 +271,11 @@ delib.module ({myconfig, ...}: {
       else
         pkgs.runCommand "hjem-services" {} ''
           mkdir -p "$out/bin"
-          ln -s ${directory} "$out/dinit.d"
           cp ${manifest} "$out/services.json"
-          cp ${pkgs.writeText "agent.plist" (mylib.plist.toPlist agent)} "$out/agent.plist"
+          ${lib.optionalString active ''
+            ln -s ${directory} "$out/dinit.d"
+            cp ${pkgs.writeText "agent.plist" (mylib.plist.toPlist agent)} "$out/agent.plist"
+          ''}
           cat > "$out/bin/apply" <<'EOF'
           #!${pkgs.runtimeShell}
           set -e
@@ -323,7 +331,7 @@ delib.module ({myconfig, ...}: {
           })
           problems;
       }
-      (lib.mkIf isDarwin {
+      (lib.mkIf active {
         # The bundle keeps what the agent's plist runs alive and provides
         # bin/dinit, so only dinitctl comes from the package.
         packages = [
@@ -416,6 +424,19 @@ delib.module ({myconfig, ...}: {
         protects = "each switch brings dinit and its services to the declarations, as reconcile.nu's contract states";
         platforms = darwin;
         build = _: pkgs.callPackage ./test/check.nix {};
+      };
+      no-services = {
+        protects = "a home without services gets no dinit descriptions or packages";
+        platforms = darwin;
+        modules = {};
+        expr = result: {
+          descriptions = lib.filter (file: lib.hasInfix "/dinit.d/" file.target) result.manifest.files;
+          packages = lib.filter (lib.hasInfix "dinit") result.packages;
+        };
+        expected = {
+          descriptions = [];
+          packages = [];
+        };
       };
       linux-rejected = {
         protects = "services are rejected on Linux, where nothing starts dinit";

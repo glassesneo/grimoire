@@ -263,5 +263,12 @@ def main [] {
   assert equal (starts u) ($before.u + 1)
   print 'PASS: a failed service is applied by the next run'
 
-  ctl shutdown | ignore
+  # Without services, the agent is retired with its state.
+  let instance = dinit-pid
+  applied (generation g16 v3 {})
+  assert (not ($home | path join Library LaunchAgents test.dinit.plist | path exists))
+  assert (not ($env.FAKE_LAUNCHD | path join test.dinit.loaded | path exists))
+  assert (not ($home | path join .local state hjem dinit state.json | path exists))
+  eventually 'dinit exits' { (^kill -0 $instance | complete).exit_code != 0 }
+  print 'PASS: a run without services retires dinit'
 }

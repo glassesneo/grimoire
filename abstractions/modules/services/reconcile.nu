@@ -12,15 +12,17 @@
 # A run:
 # 1. retires the LaunchAgents that the former launchd backend's journal,
 #    .local/state/hjem/services/state.json, names, then that state;
-# 2. creates Library/Logs, where dinit logs, and writes the agent's plist to
+# 2. without services, boots the agent out when it is loaded, removes its plist
+#    and the state, and stops;
+# 3. creates Library/Logs, where dinit logs, and writes the agent's plist to
 #    Library/LaunchAgents when it differs. Without a GUI session it records
 #    the plist and stops; login loads the agent. Otherwise it boots the agent
 #    out when it is loaded from a plist other than the recorded one,
 #    bootstraps it when it is not loaded, starts it when it is loaded but not
 #    running, and waits for the control socket;
-# 3. when it started dinit, dinit has started the automatic services from the
+# 4. when it started dinit, dinit has started the automatic services from the
 #    current descriptions, so the run records them without acting on them;
-# 4. otherwise brings the running instance, however it was started, to the
+# 5. otherwise brings the running instance, however it was started, to the
 #    declarations: it reloads added and changed descriptions, stopping a
 #    service and its dependents first when dinit refuses to reload it while
 #    started; stops and unloads removed services, dependents first; restarts
@@ -91,6 +93,14 @@ def retire-launchd [home: path, uid: string, launchctl: string] {
   rm --recursive --force $state
 }
 
+def retire-agent [manifest: record, home: path, uid: string, launchctl: string] {
+  let job = $"gui/($uid)/($manifest.label)"
+  if (execute $launchctl print $job).exit_code == 0 {
+    checked $launchctl bootout $job | ignore
+  }
+  rm --force ($home | path join Library LaunchAgents $"($manifest.label).plist")
+}
+
 # Writes the agent's plist and returns whether dinit was started by this run,
 # or null without a GUI session. APPLIED is the plist the last run left.
 def start-agent [manifest: record, content: string, applied: any, home: path, uid: string, launchctl: string]: nothing -> any {
@@ -159,9 +169,13 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
   let state_file = $home | path join .local state hjem dinit state.json
   mkdir ($state_file | path dirname)
   let state = if ($state_file | path exists) { open $state_file } else { {agent: null, services: {}} }
-  let plist = open --raw ($closure | path join agent.plist)
-
   retire-launchd $home $uid $launchctl
+  if ($manifest.services | is-empty) {
+    retire-agent $manifest $home $uid $launchctl
+    rm --force $state_file
+    return
+  }
+  let plist = open --raw ($closure | path join agent.plist)
   let fresh = start-agent $manifest $plist $state.agent $home $uid $launchctl
   if $fresh == null {
     save-atomic $state_file ($state | merge {agent: $plist} | to json)
