@@ -532,7 +532,7 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 
 ### <code>phi</code>
 
-Provide the Phi browser.
+Provide and publish the Phi browser.
 
 Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/modules/phi/default.nix)<br>Tags: <code>gui</code>
 

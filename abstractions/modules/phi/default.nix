@@ -6,7 +6,7 @@ delib.module ({
 }: {
   name = "phi";
   meta = {
-    description = "Provide the Phi browser.";
+    description = "Provide and publish the Phi browser.";
     tags = ["gui"];
   };
 
@@ -18,5 +18,12 @@ delib.module ({
   hjem.ifEnabled.files."Applications/Phi.app" = {
     exclusive = true;
     source = "${cfg.package}/Applications/Phi.app";
+  };
+
+  bundles.always = {pkgs, ...}: {
+    phi = {
+      inherit (cfg) package;
+      publish = pkgs.stdenv.hostPlatform.isDarwin;
+    };
   };
 })
