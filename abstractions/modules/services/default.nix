@@ -1,40 +1,43 @@
-# Owns Hjem user-service declarations and their Darwin lowering to LaunchAgents.
+# Owns Hjem user-service declarations and their Darwin lowering to a dinit user
+# instance that one LaunchAgent starts.
 #
-# A service is declared portably in `userServices`, natively in
-# `platform.darwin.launchAgents`, or both under one name, which lowers to one
-# job. Native `config` adds plist leaves to the portable ones and never replaces
-# them: a leaf both define is rejected, as is a native `Program` beside a
-# portable command. Plist values may be strings, booleans, integers, finite
-# floats, lists or dictionaries. XML control characters in strings or keys are
-# rejected; `_module` keys are outside the supported plist contract.
+# Each `userServices.<name>` lowers to a dinit service description that Hjem
+# places in `$XDG_CONFIG_HOME/dinit.d/<name>`. A command is serialized as
+# quoted arguments with `\`, `"` and `$` escaped, so each element reaches the
+# program as one argument, never as shell text or a variable reference.
+# `environment` becomes an env-file whose values are literal. `memberOf` adds
+# the service to each named group as a waits-for dependency of that group.
+# `login`, the group dinit starts, is not declared: the module writes its
+# description from the services naming it. A service that `login` reaches
+# through waits-for or depends-on dependencies is "automatic": it starts with
+# dinit and after a switch that adds or changes it.
 #
-# The executable and its arguments reach the program as argv, never as shell
-# text. Every job first waits for /nix/store to be mounted, so a custom argv[0]
-# is not preserved. A Label defaults to a hash of the service name and must be
-# unique ignoring case, because it also names the owned plist file. The `user`
-# domain, the default, runs in the Background session and is not guaranteed to
-# be loaded at login; the `gui` domain runs in the Aqua session that login loads.
+# dinit runs from a bundle with a stable code-signing identity, so TCC grants
+# given to it survive rebuilds; TCC attributes the processes it starts to it.
+# One gui-domain LaunchAgent, named by `serviceManager.label`, starts it in the
+# Aqua session that login loads, after /nix/store is mounted. Its control
+# socket is `serviceManager.socket`, the default socket of a user instance
+# without XDG_RUNTIME_DIR, so `dinitctl` reaches it without options.
 #
-# `platform.darwin.serviceTargets` resolves each declared name to the launchd
-# domain and Label of its job, on any host. It describes declarations, not jobs
-# that are loaded or ready.
+# The apply step runs reconcile.nu, which states the switch-time lifecycle; its
+# output also holds the descriptions in `dinit.d`, and its `services` passthru
+# exposes the lowered declarations, dependencies first, for evaluation checks.
+# `serviceManager.restart` is the command that restarts one service for other
+# steps.
 #
-# Portable services are rejected on Linux, where native declarations are
-# ignored. Invalid declarations fail through the assertions, which guard the
-# Hjem result. The apply step is registered even without declarations, so
-# removing the last one still retires its job. The step's `jobs` and `plists`
-# passthrus expose the manifest values and Nix-generated plist files (empty on
-# Linux) for evaluation checks. Lifecycle and ownership are implemented by
-# reconciler/reconciler.cr, not nix-darwin.
+# Service names must be usable as dinit names and file names. Invalid
+# declarations fail through the assertions, which guard the Hjem result. On
+# non-Darwin systems nothing starts dinit, so declaring a service fails there;
+# the apply step is then a no-op.
 {
   delib,
   mylib,
   ...
 }:
-delib.module {
+delib.module ({myconfig, ...}: {
   name = "services";
   meta = {
-    description = "Declare user services and reconcile them with the platform's service manager.";
+    description = "Declare user services and run them under a dinit user instance that the platform's service manager starts.";
     infrastructure = true;
   };
 
@@ -45,380 +48,436 @@ delib.module {
     ...
   }: let
     inherit (lib) mkOption types;
-    absolute = types.addCheck types.str (s: lib.hasPrefix "/" s && !lib.hasInfix "\n" s);
-    argv = types.addCheck (types.listOf types.str) (xs: xs != [] && lib.hasPrefix "/" (builtins.head xs));
-    plist = types.anything;
-    portable = types.submodule {
+    isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+    oneLine = s: !(lib.hasInfix "\n" s) && !(lib.hasInfix "\r" s);
+    absolute = types.addCheck types.str (s: lib.hasPrefix "/" s && oneLine s);
+    argv = types.addCheck (types.listOf types.str) (xs: xs != [] && lib.hasPrefix "/" (builtins.head xs) && lib.all oneLine xs);
+    nameList = types.listOf types.str;
+    service = types.submodule {
       options = {
+        type = mkOption {
+          type = types.enum ["process" "scripted" "internal"];
+          default = "process";
+          description = "A process runs until it exits; a scripted service is started when its command has succeeded; an internal service runs nothing and groups its dependencies.";
+        };
         command = mkOption {
-          type = types.uniq argv;
-          description = "Nonempty argv with an absolute executable; no shell expansion.";
-        };
-        autoStart = mkOption {
-          type = types.bool;
-          default = true;
-          description = "Start when launchd loads the job; this does not by itself guarantee loading at login or restart it on every switch.";
-        };
-        restartOnSwitch = mkOption {
-          type = types.bool;
-          default = false;
-          description = "Request a potentially interrupting restart on every switch, except right after registration has started an autoStart job.";
+          type = types.nullOr (types.uniq argv);
+          default = null;
+          description = "Argv with an absolute executable, required unless `type` is internal; no shell expansion or variable substitution.";
         };
         environment = mkOption {
-          type = types.attrsOf types.str;
+          type = types.attrsOf (types.addCheck types.str oneLine);
           default = {};
-          description = "Explicit service environment; session inheritance is not guaranteed.";
+          description = "Variables added to the environment dinit passes on; values are literal.";
         };
         workingDirectory = mkOption {
           type = types.nullOr absolute;
           default = null;
-          description = "Absolute working directory, when specified.";
         };
-      };
-    };
-    native = types.submodule ({options, ...}: {
-      config.policyDefined = lib.any (definition: !(lib.elem definition.file options.restartOnSwitch.declarations)) options.restartOnSwitch.definitionsWithLocations;
-      options = {
-        policyDefined = mkOption {
-          type = types.bool;
-          internal = true;
-          readOnly = true;
-          description = "Whether native restart policy was explicitly declared.";
+        restart = mkOption {
+          type = types.enum ["always" "on-failure" "never"];
+          default = "on-failure";
+          description = "When dinit starts the service again after it stops other than by request; on-failure applies only to processes and means never for other types.";
         };
-        domain = mkOption {
-          type = types.enum ["user" "gui"];
-          description = "Launchctl domain; GUI registration is deferred without a GUI session.";
+        dependsOn = mkOption {
+          type = nameList;
+          default = [];
+          description = "Services that must start before this one; stopping one stops this one.";
         };
-        config = mkOption {
-          type = types.attrsOf plist;
-          default = {};
-          description = "Native launchd plist fields. For a service also declared in userServices, these extend rather than override the portable declaration; see the contract at the top of this file for constraints.";
+        waitsFor = mkOption {
+          type = nameList;
+          default = [];
+          description = "Services started with this one and waited for, whose failure does not prevent it.";
+        };
+        after = mkOption {
+          type = nameList;
+          default = [];
+          description = "Services this one waits for when both are starting, without starting them.";
+        };
+        before = mkOption {
+          type = nameList;
+          default = [];
+          description = "Services that wait for this one when both are starting, without starting it.";
+        };
+        memberOf = mkOption {
+          type = nameList;
+          default = [root];
+          description = "Groups that wait for this service when they start; `[]` leaves it to manual start.";
+        };
+        logFile = mkOption {
+          type = types.nullOr absolute;
+          default = null;
+          description = "File receiving the service's standard output and error.";
         };
         restartOnSwitch = mkOption {
           type = types.bool;
           default = false;
-          description = "Native-only switch restart policy; cannot also be defined by a portable declaration.";
+          description = "Rerun on every switch: restart when started, otherwise start when `login` reaches it.";
         };
       };
-    });
-    # Adds b's leaves to a, keeping a's leaf and recording the path of each one b
-    # would replace.
-    merge = path: a: b:
-      lib.foldlAttrs (acc: key: value:
-        if !(builtins.hasAttr key acc.value)
-        then acc // {value = acc.value // {${key} = value;};}
-        else if builtins.isAttrs acc.value.${key} && builtins.isAttrs value
-        then let
-          nested = merge "${path}.${key}" acc.value.${key} value;
-        in {
-          value = acc.value // {${key} = nested.value;};
-          duplicates = acc.duplicates ++ nested.duplicates;
-        }
-        else acc // {duplicates = acc.duplicates ++ ["${path}.${key}"];})
-      {
-        value = a;
-        duplicates = [];
-      }
-      b;
-    inherit (mylib.plist) validValue validXml toPlist;
-    safeLabel = s: builtins.isString s && builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" s != null;
-    jobs = lib.mapAttrs (name: _: let
-      p = config.userServices.${name} or null;
-      n = config.platform.darwin.launchAgents.${name} or null;
-      domain =
-        if n == null
-        then "user"
-        else n.domain;
-      extra =
-        if n == null
-        then {}
-        else n.config;
-      base =
-        if p == null
-        then {}
-        else
+    };
+
+    root = "login";
+    declared = config.userServices;
+    names = builtins.attrNames declared;
+    namePattern = "[A-Za-z0-9][A-Za-z0-9._-]*";
+    safeName = name: builtins.match namePattern name != null;
+    safeVariable = name: builtins.match "[A-Za-z_][A-Za-z0-9_]*" name != null;
+    # dinit removes the quotes and backslash escapes, then substitutes variables.
+    quote = s: "\"" + lib.replaceStrings ["\\" "\"" "$"] ["\\\\" "\\\"" "$$"] s + "\"";
+    restartValue = {
+      always = "yes";
+      on-failure = "on-failure";
+      never = "no";
+    };
+    membersOf = group: lib.filter (name: lib.elem group declared.${name}.memberOf) names;
+    waitsOf = lib.mapAttrs (name: entry: lib.unique (entry.waitsFor ++ membersOf name)) declared;
+    closure = start: next:
+      map (item: item.key) (builtins.genericClosure {
+        startSet = map (key: {inherit key;}) start;
+        operator = item: map (key: {inherit key;}) (next item.key);
+      });
+    automatic = lib.genAttrs (closure (membersOf root) (name: lib.filter (dependency: declared ? ${dependency}) (declared.${name}.dependsOn ++ waitsOf.${name}))) (_: true);
+    # The services a restart with --force also restarts.
+    dependentsOf = name: lib.remove name (closure [name] (dependency: lib.filter (other: lib.elem dependency declared.${other}.dependsOn) names));
+
+    envFile = name: entry: pkgs.writeText "dinit-${name}.env" (lib.concatStrings (lib.mapAttrsToList (key: value: "${key}=${value}\n") entry.environment));
+    text = name: entry:
+      lib.concatMapStrings (line: line + "\n") (
+        ["type = ${entry.type}"]
+        ++ lib.optionals (entry.type != "internal" && entry.command != null) (
+          [
+            "command = ${lib.concatMapStringsSep " " quote entry.command}"
+            "restart = ${restartValue.${entry.restart}}"
+          ]
+          ++ lib.optional (entry.environment != {}) "env-file = ${quote (toString (envFile name entry))}"
+          ++ lib.optional (entry.workingDirectory != null) "working-dir = ${quote entry.workingDirectory}"
+          ++ lib.optionals (entry.logFile != null) ["log-type = file" "logfile = ${quote entry.logFile}"]
+        )
+        ++ map (dependency: "depends-on = ${dependency}") entry.dependsOn
+        ++ map (dependency: "waits-for = ${dependency}") waitsOf.${name}
+        ++ map (other: "after = ${other}") entry.after
+        ++ map (other: "before = ${other}") entry.before
+      );
+    descriptions =
+      lib.mapAttrs (name: entry: pkgs.writeText "dinit-${name}" (text name entry)) declared
+      // {${root} = pkgs.writeText "dinit-${root}" (lib.concatMapStrings (line: line + "\n") (["type = internal"] ++ map (name: "waits-for = ${name}") (membersOf root)));};
+    directory = pkgs.linkFarm "dinit.d" (lib.mapAttrsToList (name: path: {inherit name path;}) descriptions);
+
+    relations = ["dependsOn" "waitsFor" "after" "before" "memberOf"];
+    # Whether dinit starts or orders `a` before `b`.
+    precedes = a: b:
+      lib.elem a (declared.${b}.dependsOn ++ waitsOf.${b} ++ declared.${b}.after)
+      || lib.elem b declared.${a}.before;
+    # Dependencies before their dependents.
+    sorted = lib.toposort precedes (lib.filter safeName names);
+    # Descriptions are files, and Darwin homes are commonly case-insensitive.
+    folded = map lib.toLower names;
+    problems = let
+      references = name: entry:
+        lib.concatMap (field:
+          map (other: "${name}.${field}: unknown service ${other}")
+          (lib.filter (other: !(declared ? ${other} || (field == "memberOf" && other == root))) entry.${field}))
+        relations;
+      self = name: entry: lib.filter (field: lib.elem name entry.${field}) relations;
+    in
+      lib.concatLists (lib.mapAttrsToList (name: entry:
+        lib.optional (!safeName name) "${name}: invalid service name"
+        ++ lib.optional (entry.type == "internal" && entry.command != null) "${name}: an internal service has no command"
+        ++ lib.optional (entry.type != "internal" && entry.command == null) "${name}: a ${entry.type} service needs a command"
+        ++ map (key: "${name}.environment: invalid variable name ${key}") (lib.filter (key: !safeVariable key) (builtins.attrNames entry.environment))
+        ++ map (field: "${name}.${field}: a service cannot name itself") (self name entry)
+        ++ references name entry)
+      declared)
+      ++ lib.optional (declared ? ${root}) "${root} is the group dinit starts and cannot be declared"
+      ++ lib.optional (builtins.length folded != builtins.length (lib.unique folded)) "service names must differ ignoring case"
+      ++ lib.optional (sorted ? cycle) "dependency cycle through ${lib.concatStringsSep ", " sorted.cycle}"
+      ++ lib.optional (!isDarwin && declared != {}) "starting dinit is implemented only on Darwin";
+
+    manager = config.serviceManager;
+    dinitctl = "${pkgs.dinit}/bin/dinitctl";
+    servicesDirectory = "${config.xdg.config.directory}/dinit.d";
+    bundle = myconfig.app-identity.mkAppBundle {
+      executable = "${pkgs.dinit}/bin/dinit";
+      name = "dinit";
+      inherit (pkgs.dinit) version;
+      identifier = "io.github.davmac314.dinit";
+    };
+    agent = {
+      Label = manager.label;
+      ProgramArguments = [
+        "/bin/sh"
+        "-c"
+        ''/bin/wait4path /nix/store && exec "$@"''
+        "sh"
+        bundle.mainExecutable
+        "--user"
+        "--quiet"
+        "--services-dir"
+        servicesDirectory
+        "--socket-path"
+        manager.socket
+        "--log-file"
+        "${config.directory}/Library/Logs/dinit.log"
+        root
+      ];
+      RunAtLoad = true;
+      # dinit exits with success after `dinitctl shutdown` and stays stopped
+      # until login or a switch starts it.
+      KeepAlive.SuccessfulExit = false;
+      LimitLoadToSessionType = "Aqua";
+      ProcessType = "Interactive";
+    };
+    # Dependencies come before their dependents, the order the reconciler
+    # relies on; assertions guard the result when there is a cycle.
+    lowered =
+      map (name: let
+        entry = declared.${name};
+      in {
+        inherit name;
+        inherit (entry) type command restartOnSwitch;
+        file = toString descriptions.${name};
+        automatic = automatic ? ${name};
+        dependents = dependentsOf name;
+      })
+      (sorted.result or names);
+    # The group dinit starts comes last and is started, not woken.
+    manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON {
+      inherit (manager) label socket;
+      inherit dinitctl;
+      services =
+        map (entry: removeAttrs entry ["command"]) lowered
+        ++ [
           {
-            ProgramArguments = p.command;
-            RunAtLoad = p.autoStart;
+            name = root;
+            type = "internal";
+            file = toString descriptions.${root};
+            restartOnSwitch = false;
+            automatic = false;
+            dependents = [];
           }
-          // lib.optionalAttrs (p.environment != {}) {EnvironmentVariables = p.environment;}
-          // lib.optionalAttrs (p.workingDirectory != null) {WorkingDirectory = p.workingDirectory;};
-      combined = merge name base extra;
-      merged = combined.value;
-      label = merged.Label or "org.hjem.${builtins.hashString "sha256" name}";
-      session =
-        if domain == "user"
-        then "Background"
-        else "Aqua";
-      program = merged.Program or (builtins.head (merged.ProgramArguments or [""]));
-      args = merged.ProgramArguments or [];
-      checks =
-        safeLabel label
-        && builtins.isString program
-        && lib.hasPrefix "/" program
-        && builtins.isList args
-        && lib.all builtins.isString args
-        && (!(merged ? ProgramArguments) || args != [])
-        && (!(merged ? WorkingDirectory) || (builtins.isString merged.WorkingDirectory && lib.hasPrefix "/" merged.WorkingDirectory))
-        && (!(merged ? EnvironmentVariables) || (builtins.isAttrs merged.EnvironmentVariables && lib.all builtins.isString (builtins.attrValues merged.EnvironmentVariables)))
-        && (!(merged ? RunAtLoad) || builtins.isBool merged.RunAtLoad)
-        && (!(merged ? LimitLoadToSessionType) || merged.LimitLoadToSessionType == session || merged.LimitLoadToSessionType == [session]);
-    in {
-      problem =
-        if p != null && extra ? Program
-        then "${name}: portable command conflicts with Program"
-        else if p != null && n != null && n.policyDefined
-        then "${name}: duplicate restartOnSwitch policy"
-        else if combined.duplicates != []
-        then "duplicate ${lib.concatStringsSep ", " combined.duplicates}"
-        else if !validValue merged
-        then "${name}: unsupported plist value"
-        else if !validXml merged
-        then "${name}: XML control characters in plist keys or strings"
-        else if !checks
-        then "${name}: invalid plist identity, executable or session"
-        else null;
-      job = {
-        inherit name label domain;
-        restart =
-          if p != null
-          then p.restartOnSwitch
-          else n.restartOnSwitch;
-        runAtLoad = merged.RunAtLoad or false;
-        # launchd can start a job at login before the Nix store volume is mounted.
-        # The command stays positional parameters of the waiting shell.
-        config =
-          builtins.removeAttrs merged ["Program"]
-          // {
-            Label = label;
-            LimitLoadToSessionType = session;
-            ProgramArguments = ["/bin/sh" "-c" ''/bin/wait4path /nix/store && exec "$@"'' "sh" program] ++ lib.drop 1 args;
-          };
-      };
-    }) (config.userServices // config.platform.darwin.launchAgents);
-    # Darwin homes commonly use case-insensitive APFS; identities must also be
-    # unique as owned filenames, not merely as launchd label strings.
-    labels = map (entry: lib.toLower entry.job.label) (builtins.attrValues jobs);
-    problems =
-      lib.filter (problem: problem != null) (lib.mapAttrsToList (_: entry: entry.problem) jobs)
-      ++ lib.optional (builtins.length labels != builtins.length (lib.unique labels)) "duplicate Label"
-      ++ lib.optional (!pkgs.stdenv.hostPlatform.isDarwin && config.userServices != {}) "Linux user-service backend is not implemented";
-    serviceJobs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin (map (entry: entry.job) (builtins.attrValues jobs));
-    manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON serviceJobs);
-    plists = lib.listToAttrs (map (job:
-      lib.nameValuePair job.label
-      (pkgs.writeText "${job.label}.plist" (toPlist job.config)))
-    serviceJobs);
-    reconciler = pkgs.callPackage ./reconciler/package.nix {};
+        ];
+    });
+    stateDirectory = "${config.xdg.state.directory}/hjem/dinit";
     services =
-      if !pkgs.stdenv.hostPlatform.isDarwin
+      if !isDarwin
       then pkgs.writeShellScriptBin "apply" "exit 0"
       else
         pkgs.runCommand "hjem-services" {} ''
-          mkdir -p "$out/bin" "$out/plists"
+          mkdir -p "$out/bin"
+          ln -s ${directory} "$out/dinit.d"
           cp ${manifest} "$out/services.json"
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (label: plist: ''cp ${plist} "$out/plists/${label}.plist"'') plists)}
+          cp ${pkgs.writeText "agent.plist" (mylib.plist.toPlist agent)} "$out/agent.plist"
           cat > "$out/bin/apply" <<'EOF'
           #!${pkgs.runtimeShell}
-          exec ${reconciler}/bin/hjem-services-reconcile "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory} ${pkgs.nix}/bin/nix-store
+          set -e
+          state=${lib.escapeShellArg stateDirectory}
+          mkdir -p "$state"
+          exec /usr/bin/lockf -k "$state/lock" ${pkgs.nushell}/bin/nu --no-config-file ${./reconcile.nu} "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory}
           EOF
           chmod +x "$out/bin/apply"
         '';
+    restart = pkgs.writeShellScript "hjem-service-restart" ''
+      set -u
+      ${dinitctl} -p ${lib.escapeShellArg manager.socket} list >/dev/null 2>&1 || exit 75
+      exec ${dinitctl} -p ${lib.escapeShellArg manager.socket} restart --no-wait --force --ignore-unstarted "$1"
+    '';
   in {
     options = {
       userServices = mkOption {
-        type = types.attrsOf portable;
+        type = types.attrsOf service;
         default = {};
-        description = "Portable Hjem-owned user services; currently implemented on Darwin only.";
+        description = "Hjem-owned user services run by dinit, by service name.";
       };
-      platform.darwin.launchAgents = mkOption {
-        type = types.attrsOf native;
-        default = {};
-        description = "Hjem-owned native LaunchAgents, optionally adding to portable jobs of the same name.";
-      };
-      platform.darwin.serviceTargets = mkOption {
-        type = types.attrsOf (types.submodule {
-          options = {
-            domain = mkOption {
-              type = types.enum ["user" "gui"];
-              description = "Launchctl domain of the job.";
-            };
-            label = mkOption {
-              type = types.str;
-              description = "Label of the job.";
-            };
-          };
-        });
-        readOnly = true;
-        description = "Launchd domain and Label of each declared service, by name.";
-      };
-    };
-    config = {
-      platform.darwin.serviceTargets = lib.mapAttrs (_: entry: {inherit (entry.job) domain label;}) jobs;
-      applySteps.services.package = services.overrideAttrs (_: {
-        passthru = {
-          jobs = serviceJobs;
-          inherit plists;
+      serviceManager = {
+        label = mkOption {
+          type = types.strMatching namePattern;
+          default = "org.hjem.dinit";
+          description = "Label of the LaunchAgent that starts dinit; it also names the agent's plist file.";
         };
-      });
-      assertions =
-        map (problem: {
-          assertion = false;
-          message = "Hjem user services: ${problem}";
-        })
-        problems;
+        socket = mkOption {
+          type = absolute;
+          readOnly = true;
+          description = "Control socket of the dinit instance.";
+        };
+        restart = mkOption {
+          type = types.path;
+          readOnly = true;
+          description = "Command restarting the service it names when that service is started; it exits 0 when done or not started, and 75 when dinit is not running.";
+        };
+      };
     };
+    config = lib.mkMerge [
+      {
+        serviceManager = {
+          socket = "${config.directory}/.dinitctl";
+          inherit restart;
+        };
+        applySteps.services.package = services.overrideAttrs (_: {
+          passthru.services = lowered;
+        });
+        assertions =
+          map (problem: {
+            assertion = false;
+            message = "Hjem user services: ${problem}";
+          })
+          problems;
+      }
+      (lib.mkIf isDarwin {
+        # The bundle keeps what the agent's plist runs alive and provides
+        # bin/dinit, so only dinitctl comes from the package.
+        packages = [
+          bundle
+          (pkgs.runCommand "dinitctl" {} ''
+            mkdir -p "$out/bin"
+            ln -s ${dinitctl} "$out/bin/dinitctl"
+          '')
+        ];
+        xdg.config.files = lib.mapAttrs' (name: file: lib.nameValuePair "dinit.d/${name}" {source = file;}) descriptions;
+      })
+    ];
   };
 
-  # Lowering is observed before serialization; lib/plist.nix owns plist syntax.
-  # The output build checks file placement, and the reconciler specs own
-  # lifecycle transitions.
+  # Cases observe dinit running what the module produces. dinit-check is not
+  # used: it also checks the host's executables and directories, which a build
+  # cannot see. The reconciler case drives reconcile.nu against a real dinit
+  # and a fake launchctl.
   tests = {pkgs, ...}: let
     inherit (pkgs) lib;
     darwin = ["aarch64-darwin"];
-    jobsOf = result: lib.listToAttrs (map (job: lib.nameValuePair job.name job) result.apply.steps.services.jobs);
-    controls = builtins.fromJSON ''["\u0001", "\u0008", "\u000b", "\u000c", "\u000e", "\u001f"]'';
-    wait = ["/bin/sh" "-c" ''/bin/wait4path /nix/store && exec "$@"'' "sh"];
-    good.hjem.always = {
-      userServices = {
-        example = {
-          command = ["${pkgs.coreutils}/bin/true" "literal $arg"];
-          environment.A = "a";
-        };
-        manual = {
-          command = ["${pkgs.coreutils}/bin/true"];
-          autoStart = false;
-        };
-      };
-      platform.darwin.launchAgents = {
-        example = {
-          domain = "user";
-          config.EnvironmentVariables.B = "b";
-        };
-        native = {
-          domain = "gui";
-          config = {
-            Program = "${pkgs.coreutils}/bin/true";
-            Label = "fixture.native";
-            EnvironmentVariables."A&B" = "<value>\t\n\r${builtins.fromJSON ''"\u007f"''}";
-            Extra = [true false (-1) [] {nested = "value";}];
-          };
-        };
-      };
-    };
-    base = {userServices.x.command = ["/bin/true"];};
-    bad = extra:
-      lib.recursiveUpdate base {
-        platform.darwin.launchAgents.x = {
-          domain = "user";
-          config = extra;
-        };
-      };
-    # Declaration errors are constraints, so a rejection names its reason.
+    controls = ["\n" "\r"];
     rejects = reason: declarations: {
-      protects = "a declaration that cannot be lowered safely is rejected, naming its reason";
+      protects = "a declaration that cannot be lowered to dinit is rejected, naming its reason";
       platforms = darwin;
       modules.fixture.hjem.always = declarations;
       fails = reason;
     };
-    agent = domain: label: {
-      inherit domain;
-      config = {
-        Label = label;
-        Program = "/bin/true";
-      };
-    };
   in
     {
-      lowering = {
-        protects = "portable and native declarations lower to launchd jobs with escaped values";
+      descriptions = {
+        protects = "services run under dinit as declared: arguments and environment values arrive literally, the working directory applies, dependencies and after relations order starts, groups start their members and nothing else, and a service that never restarts runs once";
         platforms = darwin;
-        modules.fixture = good;
-        expr = result: let
-          jobs = jobsOf result;
-          xml = result.apply.steps.services.plists."fixture.native".text;
+        modules.fixture.hjem.always.userServices = let
+          sh = script: ["/bin/sh" "-c" script];
         in {
-          exampleArguments = jobs.example.config.ProgramArguments;
-          inherit (jobs.example.config) EnvironmentVariables LimitLoadToSessionType;
-          nativeArguments = jobs.native.config.ProgramArguments;
-          nativeProgram = jobs.native.config ? Program;
-          # Observe the escape=true wiring, not the serializer's syntax.
-          escaped = map (text: lib.hasInfix text xml) [
-            ''/bin/wait4path /nix/store &amp;&amp; exec &quot;$@&quot;''
-            "<key>A&amp;B</key>"
-            "<string>&lt;value&gt;"
-          ];
-          runAtLoad = lib.genAttrs ["example" "manual"] (name: [jobs.${name}.config.RunAtLoad jobs.${name}.runAtLoad]);
-        };
-        expected = {
-          exampleArguments = wait ++ ["${pkgs.coreutils}/bin/true" "literal $arg"];
-          EnvironmentVariables = {
-            A = "a";
-            B = "b";
+          args = {
+            type = "scripted";
+            command = sh ''echo args >> "$OUT/order"; printf '%s\n' "$@" > "$OUT/args"; pwd > "$OUT/pwd"; printf '%s' "$A" > "$OUT/env"'' ++ ["sh" "two words" ''quote " and \ backslash'' "$HOME" "#hash" "" "\${x}" "'single'"];
+            environment.A = "a $B \"c\" #d";
+            workingDirectory = "/usr/bin";
+            dependsOn = ["setup"];
+            memberOf = ["group"];
           };
-          LimitLoadToSessionType = "Background";
-          nativeArguments = wait ++ ["${pkgs.coreutils}/bin/true"];
-          nativeProgram = false;
-          escaped = [true true true];
-          runAtLoad = {
-            example = [true true];
-            manual = [false false];
+          setup = {
+            type = "scripted";
+            command = sh ''echo setup >> "$OUT/order"'';
+            memberOf = [];
+          };
+          group.type = "internal";
+          early = {
+            type = "scripted";
+            command = sh ''sleep 0.3; echo early >> "$OUT/order"'';
+          };
+          late = {
+            type = "scripted";
+            command = sh ''echo late >> "$OUT/order"'';
+            after = ["early"];
+          };
+          manual = {
+            type = "scripted";
+            command = sh ''echo manual >> "$OUT/manual"'';
+            memberOf = [];
+          };
+          flaky = {
+            command = sh ''echo x >> "$OUT/flaky"; exit 1'';
+            restart = "on-failure";
+          };
+          once = {
+            command = sh ''echo x >> "$OUT/once"; exit 1'';
+            restart = "never";
           };
         };
+        build = result:
+          pkgs.runCommand "services-descriptions" {nativeBuildInputs = [pkgs.dinit pkgs.nushell];} ''
+            export OUT="$TMPDIR/out" HOME=/nonexistent
+            mkdir "$OUT"
+            # dinit cleans up after its services by process group, so it does
+            # not run under the observing process.
+            dinit --user --quiet --services-dir ${result.apply.steps.services}/dinit.d --socket-path "$TMPDIR/s" login &
+            status=0
+            nu --no-config-file ${./test}/descriptions.nu "$TMPDIR/s" || status=$?
+            dinitctl --socket-path "$TMPDIR/s" shutdown >/dev/null 2>&1 || kill $! 2>/dev/null || true
+            wait
+            [ "$status" = 0 ]
+            touch "$out"
+          '';
       };
       reconciler = {
-        protects = "the reconciler builds and passes its own tests";
-        build = _: pkgs.callPackage ./reconciler/package.nix {};
+        protects = "each switch brings dinit and its services to the declarations, as reconcile.nu's contract states";
+        platforms = darwin;
+        build = _: pkgs.callPackage ./test/check.nix {};
       };
-      linux-portable = {
-        protects = "portable services are rejected on Linux, which has no user-service backend";
+      linux-rejected = {
+        protects = "services are rejected on Linux, where nothing starts dinit";
         host.system = "x86_64-linux";
-        modules.fixture.hjem.always = base;
-        fails = "Linux user-service backend";
+        modules.fixture.hjem.always.userServices.x.command = ["/bin/true"];
+        fails = "implemented only on Darwin";
       };
-      linux-native-ignored = {
-        protects = "native launchd declarations are ignored on Linux";
+      linux-without-services = {
+        protects = "evaluation without services succeeds on Linux, where services are rejected";
         host.system = "x86_64-linux";
-        modules.fixture.hjem.always.platform.darwin.launchAgents.native = {
-          domain = "gui";
-          config.Program = "/bin/true";
-        };
-        expr = result: result.apply.steps.services.jobs;
+        modules = {};
+        expr = result: result.failedAssertions;
         expected = [];
       };
-      duplicate-label-case = rejects "duplicate Label" {
-        platform.darwin.launchAgents = {
-          a = agent "user" "Org.Test";
-          b = agent "gui" "org.test";
+      unknown-dependency = rejects "x.dependsOn: unknown service missing" {
+        userServices.x = {
+          command = ["/bin/true"];
+          dependsOn = ["missing"];
         };
       };
-      duplicate-label = rejects "duplicate Label" {
-        platform.darwin.launchAgents = {
-          a = agent "user" "same";
-          b = agent "gui" "same";
+      unknown-group = rejects "x.memberOf: unknown service missing" {
+        userServices.x = {
+          command = ["/bin/true"];
+          memberOf = ["missing"];
         };
       };
-      duplicate-environment = rejects "duplicate x.EnvironmentVariables.A" (lib.recursiveUpdate (bad {EnvironmentVariables.A = "same";}) {userServices.x.environment.A = "same";});
-      duplicate-working-directory = rejects "duplicate x.WorkingDirectory" (lib.recursiveUpdate (bad {WorkingDirectory = "/tmp";}) {userServices.x.workingDirectory = "/tmp";});
-      duplicate-relative-arguments = rejects "duplicate x.ProgramArguments" (bad {ProgramArguments = ["relative"];});
-      duplicate-arguments = rejects "duplicate x.ProgramArguments" (bad {ProgramArguments = ["/bin/true"];});
-      program-conflict = rejects "portable command conflicts with Program" (bad {Program = "/bin/true";});
-      duplicate-run-at-load = rejects "duplicate x.RunAtLoad" (bad {RunAtLoad = true;});
-      unsafe-label = rejects "invalid plist identity" (bad {Label = "../unsafe";});
-      foreign-session = rejects "invalid plist identity" (bad {LimitLoadToSessionType = "Aqua";});
-      infinite-float = rejects "unsupported plist value" (bad {ThrottleInterval = 1.0e308 * 10.0;});
-      null-value = rejects "unsupported plist value" (bad {Extra = [{nested = null;}];});
-      control-key = rejects "XML control characters" (bad {EnvironmentVariables."bad${builtins.head controls}" = "value";});
-      control-argument = rejects "XML control characters" {userServices.x.command = ["/bin/true" (builtins.head controls)];};
-      duplicate-policy = rejects "duplicate restartOnSwitch policy" (lib.recursiveUpdate base {
-        platform.darwin.launchAgents.x = {
-          domain = "user";
-          restartOnSwitch = false;
+      internal-command = rejects "an internal service has no command" {
+        userServices.x = {
+          type = "internal";
+          command = ["/bin/true"];
         };
-      });
+      };
+      cycle = rejects "dependency cycle" {
+        userServices = {
+          a = {
+            command = ["/bin/true"];
+            dependsOn = ["b"];
+          };
+          b = {
+            command = ["/bin/true"];
+            after = ["a"];
+          };
+        };
+      };
+      reserved-login = rejects "login is the group dinit starts" {userServices.login.type = "internal";};
+      missing-command = rejects "a scripted service needs a command" {userServices.x.type = "scripted";};
+      unsafe-name = rejects "invalid service name" {userServices."../x".command = ["/bin/true"];};
+      argument-name = rejects "invalid service name" {userServices."x@y".command = ["/bin/true"];};
+      variable-name = rejects "invalid variable name !clear" {
+        userServices.x = {
+          command = ["/bin/true"];
+          environment."!clear" = "";
+        };
+      };
     }
     // lib.listToAttrs (lib.imap0 (index: control:
-      lib.nameValuePair "control-value-${toString index}"
-      (rejects "XML control characters" (bad {Extra = [{nested = control;}];})))
+      lib.nameValuePair "control-argument-${toString index}" {
+        protects = "an argument that would end its description line is rejected";
+        platforms = darwin;
+        modules.fixture.hjem.always.userServices.x.command = ["/bin/true" "a${control}b"];
+        expr = result: result.apply.steps.services.services;
+        fails = true;
+      })
     controls);
-}
+})

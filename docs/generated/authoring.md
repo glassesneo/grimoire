@@ -276,7 +276,7 @@ Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstracti
 | <code>platform.darwin.defaults</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Hjem-owned user defaults, by preferences domain; removing a declaration restores the value it had before it was declared. |
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.activateSettings</code> | <code>boolean</code> | <code>false</code> | Whether to run `activateSettings -u`, which applies some system settings, such as keyboard shortcuts, without logging out. |
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartProcesses</code> | <code>list of (one of "ControlCenter", "Dock", "Finder", "NotificationCenter", "SystemUIServer", "WindowManager")</code> | <code>[ ]</code> | System processes that launchd relaunches, killed so that they read the new values. |
-| <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of user services (`userServices` or `platform.darwin.launchAgents`) to restart. |
+| <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of `userServices` to restart. |
 | <code>platform.darwin.defaults.&lt;name&gt;.settings</code> | <code>attribute set of anything</code> | <code>{ }</code> | Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole. |
 
 ### <code>elio</code>
@@ -555,7 +555,7 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 
 ### <code>services</code>
 
-Declare user services and reconcile them with the platform's service manager.
+Declare user services and run them under a dinit user instance that the platform's service manager starts.
 
 Source: [<code>abstractions/modules/services/default.nix</code>](../../abstractions/modules/services/default.nix)
 
@@ -563,19 +563,22 @@ Source: [<code>abstractions/modules/services/default.nix</code>](../../abstracti
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>platform.darwin.launchAgents</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Hjem-owned native LaunchAgents, optionally adding to portable jobs of the same name. |
-| <code>platform.darwin.launchAgents.&lt;name&gt;.config</code> | <code>attribute set of anything</code> | <code>{ }</code> | Native launchd plist fields. For a service also declared in userServices, these extend rather than override the portable declaration; see the contract at the top of this file for constraints. |
-| <code>platform.darwin.launchAgents.&lt;name&gt;.domain</code> | <code>one of "user", "gui"</code> |  | Launchctl domain; GUI registration is deferred without a GUI session. |
-| <code>platform.darwin.launchAgents.&lt;name&gt;.restartOnSwitch</code> | <code>boolean</code> | <code>false</code> | Native-only switch restart policy; cannot also be defined by a portable declaration. |
-| <code>platform.darwin.serviceTargets</code> | <code>attribute set of (submodule)</code> |  | read-only; Launchd domain and Label of each declared service, by name. |
-| <code>platform.darwin.serviceTargets.&lt;name&gt;.domain</code> | <code>one of "user", "gui"</code> |  | Launchctl domain of the job. |
-| <code>platform.darwin.serviceTargets.&lt;name&gt;.label</code> | <code>string</code> |  | Label of the job. |
-| <code>userServices</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Portable Hjem-owned user services; currently implemented on Darwin only. |
-| <code>userServices.&lt;name&gt;.autoStart</code> | <code>boolean</code> | <code>true</code> | Start when launchd loads the job; this does not by itself guarantee loading at login or restart it on every switch. |
-| <code>userServices.&lt;name&gt;.command</code> | <code>list of string</code> | <code>[ ]</code> | Nonempty argv with an absolute executable; no shell expansion. |
-| <code>userServices.&lt;name&gt;.environment</code> | <code>attribute set of string</code> | <code>{ }</code> | Explicit service environment; session inheritance is not guaranteed. |
-| <code>userServices.&lt;name&gt;.restartOnSwitch</code> | <code>boolean</code> | <code>false</code> | Request a potentially interrupting restart on every switch, except right after registration has started an autoStart job. |
-| <code>userServices.&lt;name&gt;.workingDirectory</code> | <code>null or string</code> | <code>null</code> | Absolute working directory, when specified. |
+| <code>serviceManager.label</code> | <code>string matching the pattern [A-Za-z0-9][A-Za-z0-9._-]*</code> | <code>"org.hjem.dinit"</code> | Label of the LaunchAgent that starts dinit; it also names the agent's plist file. |
+| <code>serviceManager.restart</code> | <code>absolute path</code> |  | read-only; Command restarting the service it names when that service is started; it exits 0 when done or not started, and 75 when dinit is not running. |
+| <code>serviceManager.socket</code> | <code>string</code> |  | read-only; Control socket of the dinit instance. |
+| <code>userServices</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Hjem-owned user services run by dinit, by service name. |
+| <code>userServices.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Services this one waits for when both are starting, without starting them. |
+| <code>userServices.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Services that wait for this one when both are starting, without starting it. |
+| <code>userServices.&lt;name&gt;.command</code> | <code>null or (list of string)</code> | <code>null</code> | Argv with an absolute executable, required unless `type` is internal; no shell expansion or variable substitution. |
+| <code>userServices.&lt;name&gt;.dependsOn</code> | <code>list of string</code> | <code>[ ]</code> | Services that must start before this one; stopping one stops this one. |
+| <code>userServices.&lt;name&gt;.environment</code> | <code>attribute set of string</code> | <code>{ }</code> | Variables added to the environment dinit passes on; values are literal. |
+| <code>userServices.&lt;name&gt;.logFile</code> | <code>null or string</code> | <code>null</code> | File receiving the service's standard output and error. |
+| <code>userServices.&lt;name&gt;.memberOf</code> | <code>list of string</code> | <code>[<br>  "login"<br>]</code> | Groups that wait for this service when they start; `[]` leaves it to manual start. |
+| <code>userServices.&lt;name&gt;.restart</code> | <code>one of "always", "on-failure", "never"</code> | <code>"on-failure"</code> | When dinit starts the service again after it stops other than by request; on-failure applies only to processes and means never for other types. |
+| <code>userServices.&lt;name&gt;.restartOnSwitch</code> | <code>boolean</code> | <code>false</code> | Rerun on every switch: restart when started, otherwise start when `login` reaches it. |
+| <code>userServices.&lt;name&gt;.type</code> | <code>one of "process", "scripted", "internal"</code> | <code>"process"</code> | A process runs until it exits; a scripted service is started when its command has succeeded; an internal service runs nothing and groups its dependencies. |
+| <code>userServices.&lt;name&gt;.waitsFor</code> | <code>list of string</code> | <code>[ ]</code> | Services started with this one and waited for, whose failure does not prevent it. |
+| <code>userServices.&lt;name&gt;.workingDirectory</code> | <code>null or string</code> | <code>null</code> |  |
 
 ### <code>shell</code>
 

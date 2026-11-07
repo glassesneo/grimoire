@@ -1,8 +1,8 @@
 # The probe that this module's cases and the live check
 # (scripts/nix-secrets-smoke.nu) activate. `module homeDirectory` is a Hjem
-# module that activates a `dummy` secret under that home with a probe Label
-# and publishes the wiring it observes as files; `farm pkgs result` links a
-# Hjem result's files and its services step by name.
+# module that activates a `dummy` secret under that home with the probe's own
+# dinit agent Label and publishes the wiring it observes as files; `farm pkgs
+# result` links a Hjem result's files by base name and its services step.
 {
   module = homeDirectory: {
     config,
@@ -21,9 +21,7 @@
       generationsDir = "${homeDirectory}/generations";
       secrets.dummy = {};
     };
-    platform.darwin.launchAgents = lib.mkIf (cfg.enable && cfg.activate.enable) {
-      nix-secrets-activate.config.Label = lib.mkForce "org.hjem.nix-secrets-probe";
-    };
+    serviceManager.label = "org.hjem.nix-secrets-probe";
     files = {
       "manifest.json".text = cfg.manifest;
       "cli-env.json".text = builtins.toJSON config.environment.sessionVariables;

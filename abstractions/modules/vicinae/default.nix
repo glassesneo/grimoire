@@ -71,21 +71,13 @@ in
         source = app;
       };
 
-      # The in-bundle CLI execs the server in place, so TCC sees the signed
-      # bundle rather than a wrapper script.
+      # The in-bundle CLI execs the server in place, so the server runs as the
+      # signed bundle rather than a wrapper script. TCC attributes it to dinit,
+      # which starts it.
       userServices.vicinae = {
         command = ["${app}/Contents/MacOS/vicinae-cli" "server"];
         environment.VICINAE_OVERRIDES = toString ((pkgs.formats.json {}).generate "vicinae-settings.json" config.vicinae.settings);
-      };
-      platform.darwin.launchAgents.vicinae = {
-        domain = "gui";
-        config = {
-          KeepAlive = {
-            Crashed = true;
-            SuccessfulExit = false;
-          };
-          ProcessType = "Interactive";
-        };
+        restart = "on-failure";
       };
 
       # The toggle shortcut takes ⌘Space over from Spotlight's search shortcut.

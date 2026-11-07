@@ -7,7 +7,10 @@
 in
   delib.module {
     name = "app-identity";
-    meta.description = "Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds.";
+    meta = {
+      description = "Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds.";
+      infrastructure = true;
+    };
 
     options = {pkgs, ...}: let
       appIdentity = pkgs.callPackage nix-mac-app-identity {};

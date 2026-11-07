@@ -15,8 +15,8 @@
 # left as it is, with a warning. A removed path that encloses or lies within a
 # declared one is restored first, so the declared leaf records the restored
 # value. Pending actions are retried by later runs until they complete; a
-# GUI-domain service restart without a GUI session stays pending, and a failed
-# action stops the run with the rest still pending.
+# service restart while the service manager is not running stays pending, and a
+# failed action stops the run with the rest still pending.
 # Crystal's stdlib supplies flock, tempfile, file fsync and same-directory
 # rename. No directory fsync is performed: full power-loss durability is not
 # guaranteed. Preferences and commands are injected; specs substitute fakes.
@@ -26,7 +26,7 @@ require "./preferences"
 module HjemDefaults
   ACTIVATE_SETTINGS = "/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings"
 
-  # kind is process (target: name), activateSettings, or service (target: domain/label).
+  # kind is process (target: name), activateSettings, or service (target: service name).
   record Action, kind : String, target : String do
     include JSON::Serializable
   end
@@ -82,10 +82,22 @@ module HjemDefaults
     Deferred
   end
 
+  # A service restart runs the services module's restart command with the
+  # service name; its option description states the exit codes.
   class Commands
-    def run(path : String, args : Array(String), quiet = false) : Bool
+    # EX_TEMPFAIL: the service manager is not running.
+    DEFERRED = 75
+
+    def initialize(@restart_service : String)
+    end
+
+    def status(path : String, args : Array(String), quiet = false) : Int32
       error = quiet ? Process::Redirect::Close : Process::Redirect::Inherit
-      Process.run(path, args, output: Process::Redirect::Close, error: error).success?
+      Process.run(path, args, output: Process::Redirect::Close, error: error).exit_code
+    end
+
+    def run(path : String, args : Array(String), quiet = false) : Bool
+      status(path, args, quiet) == 0
     end
 
     def perform(action : Action) : Outcome
@@ -98,23 +110,19 @@ module HjemDefaults
         raise "activateSettings failed" unless run(ACTIVATE_SETTINGS, ["-u"])
         Outcome::Done
       when "service"
-        kind, label = action.target.split("/", 2)
-        domain = "#{kind}/#{LibC.getuid}"
-        unless run("/bin/launchctl", ["print", domain], quiet: true)
-          raise "Unavailable #{domain}" unless kind == "gui"
-          return Outcome::Deferred
+        # A service that is not started reads the values when it starts.
+        case status(@restart_service, [action.target])
+        when 0        then Outcome::Done
+        when DEFERRED then Outcome::Deferred
+        else               raise "Restart failed: #{action.target}"
         end
-        # A job that is not loaded reads the values when it starts.
-        return Outcome::Done unless run("/bin/launchctl", ["print", "#{domain}/#{label}"], quiet: true)
-        raise "Restart failed: #{domain}/#{label}" unless run("/bin/launchctl", ["kickstart", "-k", "#{domain}/#{label}"])
-        Outcome::Done
       else
         raise "Unknown action: #{action.kind}"
       end
     end
   end
 
-  def self.reconcile(closure : Path, home : Path, prefs, commands = Commands.new)
+  def self.reconcile(closure : Path, home : Path, prefs, commands)
     state = home / ".local/state/hjem/defaults"
     Dir.mkdir_p(state)
     if File.symlink?(state) || File.info(state).owner_id != LibC.getuid.to_s

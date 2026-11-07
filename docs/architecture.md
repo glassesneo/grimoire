@@ -75,7 +75,7 @@ Nix owns evaluation and realization. Build recipes call Nix directly without act
 
 - Operator procedures and external-command composition stay thin and use Nushell.
 - Build-time generation is expressed in Nix.
-- Activation-time execution logic uses Crystal.
+- Activation-time execution logic that keeps a state machine of its own uses Crystal; logic that composes the commands of a program holding the state, such as dinit, uses Nushell.
 - Checks use the language of the layer they observe: Nix for evaluated configuration, Crystal for runtime state machines, and Nushell for external-command integration.
 - Logic that grows beyond command composition belongs in Nix transformations or the execution implementation, not in the orchestration layer.
 
@@ -97,12 +97,12 @@ Each mechanism is specified at the top of its file and by its option description
 - `lib/choice.nix`: single-choice options that candidates join by declaration.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
-- `abstractions/modules/services/`: portable/native user service declarations and Darwin lowering, with lifecycle reconciliation in `reconciler/reconciler.cr`.
-- `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service names resolve through the services module's read-only targets.
+- `abstractions/modules/services/`: user service declarations, their lowering to dinit descriptions and the LaunchAgent that starts dinit on Darwin, with the switch-time lifecycle in `reconcile.nu`.
+- `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service restarts go through the services module's `serviceManager.restart`.
 - `abstractions/modules/colorscheme/`: registered color schemes (data files in `schemes/`, with or without variants), the shared `colorscheme.selection`, and its validation and resolution to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, and a `useColorscheme` switch that leaves its colors unmanaged. An application with scheme-specific themes fails evaluation when it follows a scheme it has no theme for.
 - `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
 - `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
-- `lib/plist.nix`: the plist values that services and defaults accept and their serialization.
+- `lib/plist.nix`: the plist values that defaults accept and their serialization, also used for the services module's LaunchAgent.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
 - `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry it follows, and the rejection of a followed scheme absent from the table.
 - `lib/source-files.nix`: whole files of a package's source replaced before it is built, guarded by the hash of the upstream file each replacement was written against.

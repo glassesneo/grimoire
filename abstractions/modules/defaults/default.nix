@@ -19,14 +19,15 @@
 #
 # `onChange` acts after a switch that wrote or restored a leaf of the domain,
 # including the switch that restores leaves whose declarations were removed.
-# The step runs after the services step, so a restart reaches the job that
-# switch left loaded. Restarting a service that is not loaded does nothing;
-# restarting a `gui` service without a GUI session is deferred to a later
-# switch.
+# The step runs after the services step, so a restart reaches the service that
+# switch left running. Restarting a service that is not started does nothing;
+# a restart while the service manager is not running, as without a GUI
+# session, is deferred to a later switch.
 #
 # Declarations are ignored on non-Darwin systems. Invalid declarations fail
-# through the assertions, which guard the Hjem result. Service names resolve
-# through `platform.darwin.serviceTargets` of the services module. The apply
+# through the assertions, which guard the Hjem result. Service names are those
+# of the services module's `userServices`, restarted with its
+# `serviceManager.restart`. The apply
 # step is registered even without declarations, so removing the last one still
 # restores its values. The step's `domains` passthru exposes the manifest for
 # evaluation checks. Ownership, restoration and pending actions are implemented
@@ -74,13 +75,12 @@ delib.module {
           restartServices = mkOption {
             type = types.listOf types.str;
             default = [];
-            description = "Names of user services (`userServices` or `platform.darwin.launchAgents`) to restart.";
+            description = "Names of `userServices` to restart.";
           };
         };
       };
     };
     declared = config.platform.darwin.defaults;
-    targets = config.platform.darwin.serviceTargets;
     safeDomain = name: builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" name != null;
     # Values that are not attribute sets, with the key paths that reach them.
     leaves = path: value:
@@ -104,7 +104,9 @@ delib.module {
         else [])
       (leaves [] entry.settings)
       ++ map (service: "${name}: unknown service ${service}")
-      (lib.filter (service: !(targets ? ${service})) entry.onChange.restartServices);
+      (lib.filter (service: !(config.userServices ? ${service})) entry.onChange.restartServices)
+      ++ map (service: "${name}: ${service} is an internal service, which runs nothing to restart")
+      (lib.filter (service: (config.userServices.${service}.type or "") == "internal") entry.onChange.restartServices);
     names = map lib.toLower (builtins.attrNames declared);
     problems =
       lib.concatLists (lib.mapAttrsToList domainProblems declared)
@@ -122,7 +124,7 @@ delib.module {
         }
         ++ map (name: {
           kind = "service";
-          target = "${targets.${name}.domain}/${targets.${name}.label}";
+          target = name;
         })
         entry.onChange.restartServices
       );
@@ -146,7 +148,7 @@ delib.module {
           cp ${manifest} "$out/defaults.json"
           cat > "$out/bin/apply" <<'EOF'
           #!${pkgs.runtimeShell}
-          exec ${reconciler}/bin/hjem-defaults-reconcile "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory}
+          exec ${reconciler}/bin/hjem-defaults-reconcile "$(cd "$(${pkgs.coreutils}/bin/dirname "$0")/.." && pwd)" ${lib.escapeShellArg config.directory} ${config.serviceManager.restart}
           EOF
           chmod +x "$out/bin/apply"
         '';
@@ -183,10 +185,7 @@ delib.module {
     controls = builtins.fromJSON ''["\u0001", "\u001f"]'';
     settings = name: value: {platform.darwin.defaults.${name}.settings = value;};
     good = {
-      service.hjem.always = {
-        userServices.tool.command = ["/bin/true"];
-        platform.darwin.launchAgents.tool.domain = "gui";
-      };
+      service.hjem.always.userServices.tool.command = ["/bin/true"];
       first.hjem.always.platform.darwin.defaults = {
         "com.example.app" = {
           settings = {
@@ -224,14 +223,13 @@ delib.module {
   in
     {
       lowering = {
-        protects = "declared settings lower to plist values that parse back to them, and service names to their jobs";
+        protects = "declared settings lower to plist values that parse back to them, and service names to restart actions";
         platforms = darwin;
         modules = good;
         expr = result: let
           domains = lib.listToAttrs (map (entry: lib.nameValuePair entry.domain entry) result.apply.steps.defaults.domains);
           app = domains."com.example.app";
           values = lib.listToAttrs (map (leaf: lib.nameValuePair (lib.concatStringsSep "/" leaf.path) leaf.xml) app.values);
-          tool = lib.findFirst (job: job.name == "tool") null result.apply.steps.services.jobs;
         in {
           # Each leaf is declared at its path; lists are leaves and empty sets declare nothing.
           paths = map (leaf: leaf.path) app.values;
@@ -243,14 +241,7 @@ delib.module {
             tiny = lib.hasInfix "<real>1e-07</real>" values.tiny;
             nested = lib.hasInfix "<string>&lt;value&gt;</string>" values."A&B/nested";
           };
-          actions = lib.init app.actions;
-          # A service name resolves to the job the services module lowers it to.
-          service =
-            lib.last app.actions
-            == {
-              kind = "service";
-              target = "${tool.domain}/${tool.label}";
-            };
+          inherit (app) actions;
           globalActions = domains.NSGlobalDomain.actions;
         };
         expected = {
@@ -275,8 +266,11 @@ delib.module {
               kind = "activateSettings";
               target = "";
             }
+            {
+              kind = "service";
+              target = "tool";
+            }
           ];
-          service = true;
           globalActions = [];
         };
       };
@@ -311,6 +305,10 @@ delib.module {
       };
       unknown-service = rejects "unknown service missing" {
         platform.darwin.defaults."com.example".onChange.restartServices = ["missing"];
+      };
+      internal-service = rejects "group is an internal service" {
+        userServices.group.type = "internal";
+        platform.darwin.defaults."com.example".onChange.restartServices = ["group"];
       };
     }
     // lib.listToAttrs (lib.imap0 (index: control:

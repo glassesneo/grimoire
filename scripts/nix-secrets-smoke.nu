@@ -8,19 +8,25 @@ use std/assert
 # `checked` keeps synthetic plaintext, which commands print, out of errors.
 use ./run.nu checked
 
-def apply [probe: path, domain: string, expected: int] {
+# Applies the probe's services step, which starts the probe's dinit instance,
+# and waits until its activation service has started or, when FAILS, failed.
+def apply [probe: path, --fails] {
   let services = $probe | path join services | path expand
   checked ($services | path join bin apply) | ignore
+  let manifest = open ($services | path join services.json)
+  let state = if $fails { 'is-failed' } else { 'is-started' }
   for _ in 0..<60 {
-    let status = checked /bin/launchctl print $domain
-    let codes = $status | parse --regex '(?m)^\s*last exit code = (?<code>\d+)\s*$'
-    if ($status | str contains 'state = not running') and ($codes | is-not-empty) {
-      assert equal ($codes.0.code | into int) $expected
-      return
-    }
+    let status = ^$manifest.dinitctl --socket-path $manifest.socket --quiet $state nix-secrets-activate | complete
+    if $status.exit_code == 0 { return }
     sleep 500ms
   }
-  error make {msg: 'Activation did not finish'}
+  error make {msg: $'Activation did not reach ($state)'}
+}
+
+# Links the probe's dinit descriptions where Hjem would place them.
+def describe [probe: path, home: path] {
+  mkdir ($home | path join .config)
+  ^ln -s ($probe | path join services dinit.d | path expand) ($home | path join .config dinit.d)
 }
 
 def consumer [secret: path, expected: string] {
@@ -82,29 +88,31 @@ def main [] {
     mkdir $generations
     checked /usr/bin/hdiutil attach -nobrowse -mountpoint $generations $disk | ignore
     touch $anchor
-    apply $probe $domain 1
+    describe $probe $home
+    apply $probe --fails
     assert (not ($secret | path exists))
     assert equal (ls -a $generations | get name) [$anchor]
     unmount $home
     rm --permanent $generations
     print 'PASS: mounted disk-backed HFS with an anchor is rejected'
 
-    apply $probe $domain 0
+    apply $probe
     consumer $secret dummy-first
     assert equal ($secret | path type) symlink
     assert equal (checked /usr/bin/stat -L -f '%Lp %u' $secret) $'400 ($uid)'
-    print 'PASS: Hjem LaunchAgent creates RAM disk and consumer reads secret (0400)'
+    print 'PASS: the dinit service creates RAM disk and consumer reads secret (0400)'
 
     encrypt $probe $home $recipient dummy-second
     checked ($probe | path join activate) | ignore
     consumer $secret dummy-second
     print 'PASS: existing RAM mount is verified and consumer reads updated value'
 
+    # A new dinit instance stands for the next login.
     checked /bin/launchctl bootout $domain | ignore
     unmount $home
-    apply $probe $domain 0
+    apply $probe
     consumer $secret dummy-second
-    print 'PASS: LaunchAgent recreates a fresh verified RAM mount'
+    print 'PASS: a new dinit instance recreates a fresh verified RAM mount'
   } finally {
     # apply can fail after bootstrap: inspect actual ownership, not a flag.
     let status = ^/bin/launchctl print $domain | complete

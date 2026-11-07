@@ -62,21 +62,14 @@ delib.module {
         };
       })
       (lib.mkIf (cfg.enable && cfg.activate.enable) {
+        # The RAM disk is gone after a reboot; the login group activates
+        # secrets when dinit starts with each login session.
         userServices.nix-secrets-activate = {
+          type = "scripted";
           command = ["${activate}"];
-          autoStart = true;
+          restart = "never";
           restartOnSwitch = true;
-        };
-        platform.darwin.launchAgents.nix-secrets-activate = {
-          # The RAM disk is gone after a reboot. Login loads only Aqua agents, so the
-          # gui domain with autoStart activates secrets at each login.
-          domain = "gui";
-          config = {
-            Label = "org.hjem.nix-secrets-activate";
-            # Hjem's service reconciler creates Library/LaunchAgents before bootstrap.
-            StandardErrorPath = "${config.directory}/Library/LaunchAgents/nix-secrets.stderr";
-            StandardOutPath = "${config.directory}/Library/LaunchAgents/nix-secrets.stdout";
-          };
+          logFile = "${config.directory}/Library/Logs/nix-secrets-activate.log";
         };
       })
     ]);
@@ -103,7 +96,7 @@ delib.module {
         platforms = ["aarch64-darwin"];
       }
       // attrs;
-    jobs = result: result.apply.steps.services.jobs;
+    jobs = result: result.apply.steps.services.services;
     source = result: name: (lib.findFirst (file: lib.hasSuffix "/${name}" file.target) (throw "Missing fixture output ${name}") result.manifest.files).source;
     # writeText's evaluation-time text avoids reading generated files (IFD).
     json = result: name: builtins.fromJSON (builtins.unsafeDiscardStringContext (source result name).text);
@@ -118,7 +111,7 @@ delib.module {
     scriptWiring = path: result: let
       values = json result "wiring.json";
     in
-      lib.drop 4 (builtins.head (jobs result)).config.ProgramArguments
+      (builtins.head (jobs result)).command
       == [values.activateScript]
       && lib.all (line: lib.elem line (lib.splitString "\n" values.script)) [
         "export HOME=${lib.escapeShellArg home}"
@@ -139,34 +132,20 @@ delib.module {
       expected = [];
     };
     automatic-activation-job = case {
-      protects = "Automatic activation registers one gui-domain job that runs at load and restarts on switch, under the Label its configuration declares.";
+      protects = "Automatic activation registers one scripted service that starts with each dinit instance and reruns on every switch.";
       modules.probe = automatic [pkgs.coreutils];
       expr = result: let
         job = builtins.head (jobs result);
       in {
         count = builtins.length (jobs result);
-        inherit (job) domain restart runAtLoad label;
-        configLabel = job.config.Label;
+        inherit (job) type automatic restartOnSwitch;
       };
       expected = {
         count = 1;
-        domain = "gui";
-        restart = true;
-        runAtLoad = true;
-        label = "org.hjem.nix-secrets-probe";
-        configLabel = "org.hjem.nix-secrets-probe";
+        type = "scripted";
+        automatic = true;
+        restartOnSwitch = true;
       };
-    };
-    activation-job-label = case {
-      protects = "The module's own activation job carries the Label `org.hjem.nix-secrets-activate`.";
-      modules.probe.hjem.always.security.nix-secrets = {
-        enable = true;
-        installPackage = false;
-        storage = "${home}/storage";
-        secrets.dummy = {};
-      };
-      expr = result: map (job: job.label) (jobs result);
-      expected = ["org.hjem.nix-secrets-activate"];
     };
     cli-commands = case {
       protects = "Activation and the CLI read this Hjem user's generated manifest, and generators are realized with nix-store.";

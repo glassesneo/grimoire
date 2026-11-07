@@ -117,19 +117,23 @@ end
 # Scripts the external commands of the real action runner.
 class ScriptedCommands < HjemDefaults::Commands
   getter calls = [] of Array(String)
-  property failing = [] of Array(String)
+  # Exit codes of the calls starting with each prefix; other calls succeed.
+  property codes = {} of Array(String) => Int32
 
-  def run(path : String, args : Array(String), quiet = false) : Bool
+  def initialize
+    super(RESTART)
+  end
+
+  def status(path : String, args : Array(String), quiet = false) : Int32
     call = [path] + args
     calls << call
-    !failing.any? { |prefix| call[0, prefix.size] == prefix }
+    codes.find { |prefix, _| call[0, prefix.size] == prefix }.try(&.[1]) || 0
   end
 end
 
-DOCK   = HjemDefaults::Action.new("process", "Dock")
-TOOL   = HjemDefaults::Action.new("service", "gui/org.test")
-UID    = LibC.getuid
-DOMAIN = "gui/#{UID}"
+RESTART = "/restart-service"
+DOCK    = HjemDefaults::Action.new("process", "Dock")
+TOOL    = HjemDefaults::Action.new("service", "tool")
 
 class Fixture
   getter tmp = Path[File.tempname("hjem-defaults-spec", nil, dir: File.realpath(Dir.tempdir))]
@@ -341,25 +345,21 @@ describe "journal reconciliation" do
 end
 
 describe HjemDefaults::Commands do
-  it "restarts loaded services, skips unloaded ones and defers without a GUI session" do
+  it "restarts services through the restart command, deferring while the service manager is not running" do
     commands = ScriptedCommands.new
     commands.perform(TOOL).should eq(HjemDefaults::Outcome::Done)
-    commands.calls.last.should eq(["/bin/launchctl", "kickstart", "-k", "#{DOMAIN}/org.test"])
+    commands.calls.should eq([[RESTART, "tool"]])
 
-    commands = ScriptedCommands.new
-    commands.failing = [["/bin/launchctl", "print", "#{DOMAIN}/org.test"]]
-    commands.perform(TOOL).should eq(HjemDefaults::Outcome::Done)
-    commands.calls.none? { |call| call.includes?("kickstart") }.should be_true
-
-    commands = ScriptedCommands.new
-    commands.failing = [["/bin/launchctl", "print"]]
+    commands.codes = {[RESTART] => HjemDefaults::Commands::DEFERRED}
     commands.perform(TOOL).should eq(HjemDefaults::Outcome::Deferred)
-    expect_raises(Exception, /Unavailable/) { commands.perform(HjemDefaults::Action.new("service", "user/org.test")) }
+
+    commands.codes = {[RESTART] => 1}
+    expect_raises(Exception, /Restart failed: tool/) { commands.perform(TOOL) }
   end
 
   it "ignores processes that are not running and reports failed activation" do
     commands = ScriptedCommands.new
-    commands.failing = [["/usr/bin/killall"], [HjemDefaults::ACTIVATE_SETTINGS]]
+    commands.codes = {["/usr/bin/killall"] => 1, [HjemDefaults::ACTIVATE_SETTINGS] => 1}
     commands.perform(DOCK).should eq(HjemDefaults::Outcome::Done)
     expect_raises(Exception, /activateSettings failed/) { commands.perform(HjemDefaults::Action.new("activateSettings", "")) }
     expect_raises(Exception, /Unknown action/) { commands.perform(HjemDefaults::Action.new("other", "")) }
