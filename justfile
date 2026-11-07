@@ -7,7 +7,7 @@ mod darwin 'just/darwin.just'
 # Build or apply every layer of a host in order: just all <build|switch> [host]
 mod all 'just/all.just'
 
-# Update modules' pinned dependencies: just anchors update [module]
+# List, compare, or update modules' pinned dependencies: just anchors <list|outdated|update> [module]
 mod anchors 'just/anchors.just'
 
 [doc('''
