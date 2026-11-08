@@ -37,7 +37,8 @@ in
     constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     hjem.ifEnabled = {pkgs, ...}: let
-      fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix -E .agents -E .DS_Store -E .direnv -E .envrc -E var/";
+      # fd applies the global Git ignore file outside repositories too.
+      fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix --no-require-git";
     in {
       packages = [pkgs.fzf];
 
