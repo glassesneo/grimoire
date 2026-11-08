@@ -387,6 +387,7 @@ Source: [<code>abstractions/modules/git/default.nix</code>](../../abstractions/m
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>git.ignore</code> | <code>list of string</code> | <code>[ ]</code> | Patterns of the user's global Git ignore file. |
 | <code>git.settings</code> | <code>attribute set of attribute set of (INI atom (null, bool, int, float or string) or attribute set of (INI atom (null, bool, int, float or string)))</code> | <code>{ }</code> | Settings written to the user's Git configuration file. |
 
 ### <code>grok-bot</code>

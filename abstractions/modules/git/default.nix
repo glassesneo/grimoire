@@ -11,10 +11,17 @@ delib.module ({myconfig, ...}: {
   options.enable = delib.boolOption true;
 
   hjem.always = {pkgs, ...}: {
-    options.git.settings = lib.mkOption {
-      inherit (pkgs.formats.gitIni {}) type;
-      default = {};
-      description = "Settings written to the user's Git configuration file.";
+    options.git = {
+      settings = lib.mkOption {
+        inherit (pkgs.formats.gitIni {}) type;
+        default = {};
+        description = "Settings written to the user's Git configuration file.";
+      };
+      ignore = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        description = "Patterns of the user's global Git ignore file.";
+      };
     };
   };
 
@@ -28,6 +35,16 @@ delib.module ({myconfig, ...}: {
       pkgs.git-lfs
     ];
 
+    git.ignore = [
+      ".agents"
+      ".DS_Store"
+      ".direnv"
+      ".envrc"
+      "var/"
+      "*~"
+      "*.swp"
+    ];
+
     git.settings = {
       user = {
         name = myconfig.identity.fullName;
@@ -37,14 +54,14 @@ delib.module ({myconfig, ...}: {
       };
       commit = {
         verbose = true;
-        template = "${config.xdg.config.directory}/git/gitmsg";
+        template = "${./gitmsg}";
         gpgsign = true;
       };
       tag.gpgsign = true;
       gpg.format = "ssh";
       push.default = "nothing";
       init.defaultBranch = "main";
-      core.excludesFile = "${config.xdg.config.directory}/git/ignore";
+      core.excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
       url."git@github.com:".insteadOf = "https://github.com/";
       filter.lfs = {
         clean = "git-lfs clean -- %f";
@@ -54,28 +71,10 @@ delib.module ({myconfig, ...}: {
       };
     };
 
-    xdg.config.files = {
-      "git/config" = {
-        exclusive = true;
-        generator = lib.generators.toGitINI;
-        value = config.git.settings;
-      };
-      "git/gitmsg" = {
-        exclusive = true;
-        source = ./gitmsg;
-      };
-      "git/ignore" = {
-        exclusive = true;
-        text = ''
-          .agents
-          .DS_Store
-          .direnv
-          .envrc
-          var/
-          *~
-          *.swp
-        '';
-      };
+    xdg.config.files."git/config" = {
+      exclusive = true;
+      generator = lib.generators.toGitINI;
+      value = config.git.settings;
     };
 
     # In diff abbreviations, c is --cached and s is --stat, in typed order.
