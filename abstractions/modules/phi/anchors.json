@@ -1,0 +1,21 @@
+{
+  "pins": {
+    "phibrowser-cli": {
+      "type": "GitRelease",
+      "repository": {
+        "type": "GitHub",
+        "owner": "phibrowser",
+        "repo": "phibrowser-cli"
+      },
+      "pre_releases": false,
+      "version_upper_bound": null,
+      "release_prefix": null,
+      "submodules": false,
+      "version": "v0.4.0",
+      "revision": "e4235202a962224a91f85ed1bd0f833d3eb60eab",
+      "url": "https://api.github.com/repos/phibrowser/phibrowser-cli/tarball/refs/tags/v0.4.0",
+      "hash": "sha256-SrIzrNYD5cvkjBmz+owkSxi/KwoN6BtYjvvKntLHc0U="
+    }
+  },
+  "version": 8
+}

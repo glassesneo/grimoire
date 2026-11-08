@@ -545,12 +545,13 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 
 ### <code>phi</code>
 
-Provide and publish the Phi browser.
+Provide and publish the Phi browser and the CLI and agent skill that drive it.
 
 Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/modules/phi/default.nix)<br>Tags: <code>gui</code>
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>phi.cliPackage</code> | <code>package</code> | <code>phi-cli</code> |  |
 | <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>phi.package</code> | <code>package</code> | <code>casks/cask2nix: phi</code> |  |
 
