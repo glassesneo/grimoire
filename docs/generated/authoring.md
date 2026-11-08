@@ -197,6 +197,12 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 | <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>claude-code.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Claude Code takes its theme from `colorscheme.resolved`. |
 
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>claude-code.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings written to the user's Claude Code settings file. |
+
 ### <code>colorscheme</code>
 
 Register color schemes and resolve the one selected for applications to share.
