@@ -63,22 +63,30 @@ delib.module {
       })
       (lib.mkIf (cfg.enable && cfg.activate.enable) {
         # The RAM disk is gone after a reboot; the login group activates
-        # secrets when dinit starts with each login session.
+        # secrets when dinit starts with each GUI login. dinit also restarts
+        # the service when a switch changes its command, so a manifest change
+        # activates twice under a GUI session; the lock serializes the runs.
         userServices.nix-secrets-activate = {
           type = "scripted";
           command = ["${activate}"];
           restart = "never";
-          restartOnSwitch = true;
           logFile = "${config.directory}/Library/Logs/nix-secrets-activate.log";
         };
+        # Every switch activates the current manifest, also without a GUI
+        # session, where dinit does not run. No step relies on secrets: a
+        # service that reads them depends on the activation service in dinit.
+        applySteps.nix-secrets.package = pkgs.runCommand "hjem-nix-secrets" {} ''
+          mkdir -p "$out/bin"
+          ln -s ${activate} "$out/bin/apply"
+        '';
       })
     ]);
   };
 
   # The cases observe the wiring that no published host varies: disabled and
-  # manual activation, the probe's own job, the CLI commands, and the
-  # activation script's environment. The build runs the package this module
-  # patches against the probe's manifest without launchd or mounts.
+  # manual activation, the probe's own job and switch step, the CLI commands,
+  # and the activation script's environment. The build runs the package this
+  # module patches against the probe's manifest without launchd or mounts.
   tests.fixture = ["services"];
   tests.cases = {
     pkgs,
@@ -97,6 +105,7 @@ delib.module {
       }
       // attrs;
     jobs = result: result.apply.steps.services.services;
+    activates = result: result.apply.steps ? nix-secrets;
     source = result: name: (lib.findFirst (file: lib.hasSuffix "/${name}" file.target) (throw "Missing fixture output ${name}") result.manifest.files).source;
     # writeText's evaluation-time text avoids reading generated files (IFD).
     json = result: name: builtins.fromJSON (builtins.unsafeDiscardStringContext (source result name).text);
@@ -121,30 +130,44 @@ delib.module {
       ];
   in {
     disabled-registers-no-job = case {
-      protects = "Without `security.nix-secrets.enable`, the module registers no activation service.";
-      expr = jobs;
-      expected = [];
+      protects = "Without `security.nix-secrets.enable`, the module registers no activation service or switch step.";
+      expr = result: {
+        jobs = jobs result;
+        step = activates result;
+      };
+      expected = {
+        jobs = [];
+        step = false;
+      };
     };
     manual-activation-registers-no-job = case {
-      protects = "With `activate.enable = false`, secrets are activated only on demand, so no service is registered.";
+      protects = "With `activate.enable = false`, secrets are activated only on demand, so no service or switch step is registered.";
       modules.probe = probed {activate.enable = false;};
-      expr = jobs;
-      expected = [];
+      expr = result: {
+        jobs = jobs result;
+        step = activates result;
+      };
+      expected = {
+        jobs = [];
+        step = false;
+      };
     };
     automatic-activation-job = case {
-      protects = "Automatic activation registers one scripted service that starts with each dinit instance and reruns on every switch.";
+      protects = "Automatic activation registers one scripted service that starts with each dinit instance, and a switch step that activates on every switch whether dinit runs or not, instead of dinit rerunning the service.";
       modules.probe = automatic [pkgs.coreutils];
       expr = result: let
         job = builtins.head (jobs result);
       in {
         count = builtins.length (jobs result);
         inherit (job) type automatic restartOnSwitch;
+        step = activates result;
       };
       expected = {
         count = 1;
         type = "scripted";
         automatic = true;
-        restartOnSwitch = true;
+        restartOnSwitch = false;
+        step = true;
       };
     };
     cli-commands = case {

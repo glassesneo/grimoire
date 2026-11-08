@@ -1,12 +1,13 @@
 {
   delib,
   lib,
+  mylib,
   ...
 }:
 delib.module ({cfg, ...}: {
   name = "ssh";
   tests.fixture = ["exclusive"];
-  meta.description = "Configure the OpenSSH client and the user's personal key.";
+  meta.description = "Configure the OpenSSH client, the user's personal key, and the commands sshd runs as the user at the start of each session.";
 
   options = with delib; {
     enable = boolOption true;
@@ -34,6 +35,11 @@ delib.module ({cfg, ...}: {
       default = {};
       description = "SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them.";
     };
+    rc =
+      mylib.fragments.option
+      // {
+        description = "Fragments of `~/.ssh/rc`, which sshd runs with /bin/sh before the shell or command of every session of this user, whatever the login shell. sshd sends the file's standard output to the client, where it corrupts protocols such as scp and sftp, so a fragment writes nothing there; it also reads nothing from standard input. Without fragments the file is not written.";
+      };
   };
 
   hjem.ifEnabled = {
@@ -70,6 +76,11 @@ delib.module ({cfg, ...}: {
       text =
         lib.concatStringsSep "\n" (lib.mapAttrsToList block config.ssh.hosts
           ++ lib.optional (config.ssh.defaults != {}) (block "*" config.ssh.defaults));
+    };
+
+    files.".ssh/rc" = lib.mkIf (config.ssh.rc != {}) {
+      exclusive = true;
+      text = mylib.fragments.render config.ssh.rc;
     };
   };
 

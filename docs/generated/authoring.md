@@ -634,7 +634,7 @@ Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions
 
 ### <code>ssh</code>
 
-Configure the OpenSSH client and the user's personal key.
+Configure the OpenSSH client, the user's personal key, and the commands sshd runs as the user at the start of each session.
 
 Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix)
 
@@ -649,6 +649,10 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 | --- | --- | --- | --- |
 | <code>ssh.defaults</code> | <code>attribute set of (boolean or signed integer or string or list of (boolean or signed integer or string))</code> | <code>{ }</code> | SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them. |
 | <code>ssh.hosts</code> | <code>attribute set of SSH parameters named by literal host names, without patterns, negation, lists or whitespace</code> | <code>{ }</code> | SSH client parameters by literal host name. A parameter set here takes precedence over `ssh.defaults`; the values of a cumulative parameter such as `IdentityFile` are tried before those of `ssh.defaults`. `true` and `false` render as `yes` and `no`, and a list repeats its parameter. |
+| <code>ssh.rc</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Fragments of `~/.ssh/rc`, which sshd runs with /bin/sh before the shell or command of every session of this user, whatever the login shell. sshd sends the file's standard output to the client, where it corrupts protocols such as scp and sftp, so a fragment writes nothing there; it also reads nothing from standard input. Without fragments the file is not written. |
+| <code>ssh.rc.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must precede this one. |
+| <code>ssh.rc.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
+| <code>ssh.rc.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 
 ### <code>tags</code>
 

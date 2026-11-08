@@ -9,7 +9,7 @@
 in
   delib.module ({cfg, ...}: {
     name = "secrets";
-    tests.fixture = ["nix-secrets" "zsh"];
+    tests.fixture = ["nix-secrets" "ssh"];
     meta.description = "Manage the selected encrypted secrets with nix-secrets.";
 
     options = with delib; {
@@ -41,12 +41,14 @@ in
         secrets = lib.genAttrs selected (_: {});
       };
 
-      # SSH sessions do not load the login LaunchAgent.
-      zsh.zshenv.nix-secrets = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && selected != []) {
+      # Without a GUI login, dinit does not run, so after a reboot nothing
+      # activates secrets until an SSH session starts; a switch activates
+      # them itself.
+      ssh.rc.nix-secrets = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && selected != []) {
         text = ''
           if [ ! -e ${lib.escapeShellArg probe} ]; then
             mkdir -p ${lib.escapeShellArg logDir}
-            ${config.security.nix-secrets.activateScript} >>${lib.escapeShellArg "${logDir}/activate.log"} 2>&1
+            ${config.security.nix-secrets.activateScript} </dev/null >>${lib.escapeShellArg "${logDir}/activate.log"} 2>&1
           fi
         '';
       };
