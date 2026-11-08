@@ -86,7 +86,7 @@ in
       };
       phi-cli = {
         package = cfg.cliPackage;
-        publish = lib.meta.availableOn pkgs.stdenv.hostPlatform cfg.cliPackage;
+        publish = pkgs.stdenv.hostPlatform.isDarwin;
       };
     };
   })
