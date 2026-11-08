@@ -1,6 +1,7 @@
 # Owns harness-independent skill declarations and their Hjem file outputs,
 # including the skills this repository ships as sibling directories.
-# Directory sources are linked as <targetDir>/<name>; deployment stays with Hjem.
+# Every skill is linked as <dir>/<name> in every directory of skillDirs;
+# deployment stays with Hjem.
 {
   delib,
   lib,
@@ -8,16 +9,17 @@
 }: let
   # Each directory is a complete skill package named by its directory.
   ownSkills = ["context-projection-design" "idea-kindling" "parallax-bridge"];
-  harnessDirs = [".agents/skills" ".claude/skills"];
 
-  parts = dir: lib.splitString "/" dir;
-  validName = name: name != "" && name != "." && name != ".." && !(lib.hasInfix "/" name);
-  validDir = dir: dir != "" && !(lib.hasPrefix "/" dir) && !(lib.elem ".." (parts dir));
-  normalize = dir: lib.concatStringsSep "/" (lib.filter (part: part != "" && part != ".") (parts dir));
+  # Paths are compared as written, so only their normal form is accepted.
+  component = part: !(lib.elem part ["" "." ".."]);
+  relativePath = path: lib.all component (lib.splitString "/" path);
 
-  targetDir =
-    lib.types.addCheck lib.types.str validDir
-    // {description = "home-relative directory without a '..' component";};
+  skillDir =
+    lib.types.addCheck lib.types.str relativePath
+    // {description = "home-relative directory without empty, '.' or '..' components";};
+  skillSet =
+    lib.types.addCheck (lib.types.attrsOf lib.types.path) (skills: lib.all (name: relativePath name && !lib.hasInfix "/" name) (lib.attrNames skills))
+    // {description = "attribute set of path named by single directory names other than '.' or '..'";};
 in
   delib.module {
     name = "skills";
@@ -25,48 +27,35 @@ in
 
     options.enable = delib.boolOption true;
 
-    hjem.always.options.skills = lib.mkOption {
-      default = {};
-      description = "Skills deployed independently of harness configuration.";
-      type = lib.types.attrsOf (lib.types.submodule {
-        options = {
-          source = lib.mkOption {
-            type = lib.types.path;
-            description = "Source directory of the complete skill package.";
-          };
-          targetDirs = lib.mkOption {
-            type = lib.types.listOf targetDir;
-            description = "Home-relative parent directories; the skill is linked under its attribute name in each directory. An empty list deploys nothing.";
-          };
-        };
-      });
+    hjem.always.options = {
+      skills = lib.mkOption {
+        type = skillSet;
+        default = {};
+        description = "Source directories of complete skill packages, by skill name.";
+      };
+      skillDirs = lib.mkOption {
+        type = lib.types.listOf skillDir;
+        default = [];
+        description = "Directories in which every skill is linked under its name; a harness adds the directories it reads.";
+      };
     };
 
     hjem.ifEnabled = {config, ...}: {
-      skills = lib.genAttrs ownSkills (name: {
-        source = ./. + "/${name}";
-        targetDirs = harnessDirs;
-      });
+      skills = lib.genAttrs ownSkills (name: ./. + "/${name}");
+      skillDirs = [".agents/skills"];
 
-      # An element type cannot check attribute names.
-      assertions =
-        lib.mapAttrsToList (name: _: {
-          assertion = validName name;
-          message = "skills: name '${name}' must be a single directory name other than '.' or '..'.";
-        })
-        config.skills;
-
-      files = lib.listToAttrs (lib.concatLists (lib.mapAttrsToList (name: skill:
-        map (dir: {
-          name = lib.concatStringsSep "/" (lib.optional (dir != "") dir ++ [name]);
+      files = lib.listToAttrs (lib.concatMap (dir:
+        lib.mapAttrsToList (name: source: {
+          name = "${dir}/${name}";
           value = {
-            inherit (skill) source;
+            inherit source;
             type = "symlink";
             exclusive = true;
             clobber = false;
           };
-        }) (lib.unique (map normalize skill.targetDirs)))
-      config.skills));
+        })
+        config.skills)
+      config.skillDirs);
     };
 
     bundles.ifEnabled = {pkgs, ...}: {
@@ -95,23 +84,10 @@ in
       '';
       otherSource = pkgs.writeTextDir "SKILL.md" "# Other synthetic skill";
 
-      declarations = {
-        first.hjem.always.skills.alpha = {
-          inherit source;
-          targetDirs = [".agents/skills" ".agents//./skills/" ".claude/skills"];
-        };
-        second.hjem.always.skills.beta = {
-          source = otherSource;
-          targetDirs = [".cursor/skills"];
-        };
-      };
-      declare = name: targetDirs: {
-        declaration.hjem.always.skills.${name} = {inherit source targetDirs;};
-      };
-      ownTargets = lib.concatMap (name: map (dir: "${home}/${dir}/${name}") harnessDirs) ownSkills;
+      declare = attrs: {declaration.hjem.always = attrs;};
       # Cases below compare fixture declarations; the shipped skills are
       # always declared and would otherwise appear in every result.
-      files = result: lib.filter (file: !(lib.elem file.target ownTargets)) result.manifest.files;
+      files = result: lib.filter (file: !(lib.elem (baseNameOf file.target) ownSkills)) result.manifest.files;
     in
       {
         # A harness selects a skill by its frontmatter name; a mismatch with
@@ -121,30 +97,47 @@ in
           expr = _: lib.filter (name: !(lib.hasInfix "\nname: ${name}\n" (builtins.readFile (./. + "/${name}/SKILL.md")))) ownSkills;
           expected = [];
         };
-        aggregates-and-normalizes = {
-          protects = "skills from every definer reach their target directories after path normalization";
-          host.hjem.ifEnabled.skills.alpha = {
-            inherit source;
-            targetDirs = ["."];
+        every-skill-in-every-dir = {
+          protects = "skills and directories from every definer combine, each skill linked once in each directory";
+          host.hjem.ifEnabled.skillDirs = [".agents/skills"];
+          modules = {
+            first.hjem.always = {
+              skills.alpha = source;
+              skillDirs = [".claude/skills"];
+            };
+            second.hjem.always.skills.beta = otherSource;
           };
-          modules = declarations;
           expr = result: lib.sort lib.lessThan (map (file: "${file.target} -> ${toString file.source}") (files result));
           expected = [
             "${home}/.agents/skills/alpha -> ${source}"
+            "${home}/.agents/skills/beta -> ${otherSource}"
             "${home}/.claude/skills/alpha -> ${source}"
-            "${home}/.cursor/skills/beta -> ${otherSource}"
-            "${home}/alpha -> ${source}"
+            "${home}/.claude/skills/beta -> ${otherSource}"
           ];
+        };
+        disabled-deploys-nothing = {
+          protects = "a disabled skills module links no skill, whatever other modules declare";
+          host.myconfig.ifEnabled.skills.enable = false;
+          modules = declare {
+            skills.alpha = source;
+            skillDirs = [".claude/skills"];
+          };
+          expr = files;
+          expected = [];
         };
       }
       // lib.mapAttrs' (name: lib.nameValuePair "rejects-name-${builtins.toJSON name}") (lib.genAttrs ["" "." ".." "nested/name"] (name: {
         protects = "a skill name is a single directory name";
-        modules = declare name [".agents/skills"];
-        fails = "must be a single directory name";
+        modules = declare {skills.${name} = source;};
+        expr = files;
+        fails = true;
       }))
-      // lib.mapAttrs' (dir: lib.nameValuePair "rejects-dir-${builtins.toJSON dir}") (lib.genAttrs ["" "/absolute" ".." "safe/../escape"] (dir: {
-        protects = "a target directory stays inside the home directory";
-        modules = declare "alpha" [dir];
+      // lib.mapAttrs' (dir: lib.nameValuePair "rejects-dir-${builtins.toJSON dir}") (lib.genAttrs ["" "/absolute" "." ".." "safe/../escape" "trailing/" "double//slash"] (dir: {
+        protects = "a skill directory is a home-relative path in normal form";
+        modules = declare {
+          skills.alpha = source;
+          skillDirs = [dir];
+        };
         expr = files;
         fails = true;
       }));

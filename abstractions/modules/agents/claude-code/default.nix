@@ -19,7 +19,7 @@ in
     theme = themes.select cfg myconfig.colorscheme.resolved;
   in {
     name = "claude-code";
-    tests.fixture = ["exclusive"];
+    tests.fixture = ["exclusive" "skills"];
     meta.description = "Provide and configure Claude Code.";
 
     options = with delib; {
@@ -58,6 +58,7 @@ in
       '';
     in {
       packages = [myconfig.agents.packages.claude-code];
+      skillDirs = [".claude/skills"];
 
       claude-code.settings =
         {

@@ -611,9 +611,8 @@ Source: [<code>abstractions/modules/agents/skills/default.nix</code>](../../abst
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>skills</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Skills deployed independently of harness configuration. |
-| <code>skills.&lt;name&gt;.source</code> | <code>absolute path</code> |  | Source directory of the complete skill package. |
-| <code>skills.&lt;name&gt;.targetDirs</code> | <code>list of home-relative directory without a '..' component</code> | <code>[ ]</code> | Home-relative parent directories; the skill is linked under its attribute name in each directory. An empty list deploys nothing. |
+| <code>skillDirs</code> | <code>list of home-relative directory without empty, '.' or '..' components</code> | <code>[ ]</code> | Directories in which every skill is linked under its name; a harness adds the directories it reads. |
+| <code>skills</code> | <code>attribute set of path named by single directory names other than '.' or '..'</code> | <code>{ }</code> | Source directories of complete skill packages, by skill name. |
 
 ### <code>slack</code>
 
