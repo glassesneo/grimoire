@@ -636,6 +636,13 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 | <code>ssh.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>ssh.personalKeyFile</code> | <code>string</code> | <code>"~/.ssh/id_ed25519_personal"</code> | read-only; Path of the personal SSH private key on each host, used for GitHub authentication and Git commit signing. |
 
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>ssh.defaults</code> | <code>attribute set of (boolean or signed integer or string or list of (boolean or signed integer or string))</code> | <code>{ }</code> | SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them. |
+| <code>ssh.hosts</code> | <code>attribute set of SSH parameters named by literal host names, without patterns, negation, lists or whitespace</code> | <code>{ }</code> | SSH client parameters by literal host name. A parameter set here takes precedence over `ssh.defaults`; the values of a cumulative parameter such as `IdentityFile` are tried before those of `ssh.defaults`. `true` and `false` render as `yes` and `no`, and a list repeats its parameter. |
+
 ### <code>tags</code>
 
 Enable by default the modules that carry a tag selected for the host.
