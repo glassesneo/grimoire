@@ -164,6 +164,12 @@ Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/m
 | <code>bat.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>bat.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether bat takes its theme from `colorscheme.resolved`. |
 
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>bat.settings</code> | <code>attribute set of (true or string)</code> | <code>{ }</code> | Command-line options written to bat's configuration file, by long name without `--`; `true` writes an option without a value. |
+
 ### <code>bettertouchtool</code>
 
 Provide BetterTouchTool.
