@@ -173,7 +173,6 @@ in
     in
       with delib; {
         enable = boolOption true;
-        # nixpkgs does not package elio.
         upstreamPackage = packageOption (pkgs.callPackage "${elio}/nix/package.nix" {}) "Package whose source `sourceFiles` patches.";
         package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed and published; setting it bypasses `sourceFiles`.";
         sourceFiles = mylib.sourceFiles.option "upstreamPackage";

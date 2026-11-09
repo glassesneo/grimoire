@@ -6,7 +6,7 @@
 }: let
   inherit (mylib.anchors.sources ./anchors.json) rose-pine;
 
-  # Official ports by scheme name: bat names a theme after its file.
+  # bat names a theme after its file.
   themes = mylib.schemeThemes {
     name = "bat";
     themes.rose-pine = {

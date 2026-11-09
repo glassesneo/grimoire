@@ -6,8 +6,8 @@
 }: let
   inherit (mylib.anchors.sources ./anchors.json) rose-pine;
 
-  # Official ports by scheme name, as an options file. The ports are scripts
-  # exporting FZF_DEFAULT_OPTS, whose quoted value is the file's content.
+  # The ports are scripts exporting FZF_DEFAULT_OPTS; an entry is an options
+  # file holding the quoted value.
   themes = mylib.schemeThemes {
     name = "fzf";
     themes.rose-pine = pkgs:

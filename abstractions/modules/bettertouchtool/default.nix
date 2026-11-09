@@ -23,7 +23,6 @@ delib.module ({
     };
 
     platform.darwin.defaults."com.hegenberg.BetterTouchTool".settings = {
-      # Use login item to start at login
       launchOnStartup = true;
       SUEnableAutomaticChecks = false;
       SUAutomaticallyUpdate = false;

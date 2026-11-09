@@ -1,5 +1,3 @@
-# Owns the zabrze build, which nixpkgs does not provide, from the release
-# source `zabrze` that the module pins.
 {
   lib,
   rustPlatform,

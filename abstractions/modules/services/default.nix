@@ -170,7 +170,6 @@ delib.module ({myconfig, ...}: {
     precedes = a: b:
       lib.elem a (declared.${b}.dependsOn ++ waitsOf.${b} ++ declared.${b}.after)
       || lib.elem b declared.${a}.before;
-    # Dependencies before their dependents.
     sorted = lib.toposort precedes (lib.filter safeName names);
     # Descriptions are files, and Darwin homes are commonly case-insensitive.
     folded = map lib.toLower names;

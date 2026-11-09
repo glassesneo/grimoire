@@ -4,7 +4,6 @@
   mylib,
   ...
 }: let
-  # Every `<name>.enc` stored in this module.
   secretNames = map (lib.removeSuffix ".enc") (builtins.filter (lib.hasSuffix ".enc") (builtins.attrNames (builtins.readDir ./storage)));
 in
   delib.module ({cfg, ...}: {

@@ -10,7 +10,7 @@ delib.module ({
   ...
 }: let
   inherit (mylib.anchors.flakes ./anchors.json) vicinae;
-  # Themes Vicinae bundles, by scheme name.
+  # Themes Vicinae bundles.
   themes = mylib.schemeThemes {
     name = "vicinae";
     themes.rose-pine = "rose-pine";

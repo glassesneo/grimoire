@@ -78,8 +78,8 @@
     };
   };
 
-  # Official ports by scheme name: the theme the file declares, and the file,
-  # which Zellij loads from the `themes` directory beside `config.kdl`.
+  # An entry is the theme the file declares and the file, which Zellij loads
+  # from the `themes` directory beside `config.kdl`.
   themes = mylib.schemeThemes {
     name = "zellij";
     themes.rose-pine = {

@@ -6,8 +6,8 @@
 }: let
   inherit (mylib.anchors.sources ./anchors.json) rose-pine;
 
-  # Official ports by scheme name. eza considers theme.yml unstable; the
-  # port states the eza release it was tested against.
+  # eza considers theme.yml unstable; the port states the eza release it was
+  # tested against.
   themes = mylib.schemeThemes {
     name = "eza";
     themes.rose-pine = _: "${rose-pine}/dist/rose-pine.yml";

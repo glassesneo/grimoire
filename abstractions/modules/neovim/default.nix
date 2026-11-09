@@ -6,8 +6,7 @@
 }: let
   inherit (mylib.anchors.flakes ./anchors.json) mnw neovim-nightly-overlay;
 
-  # Neovim's implementation of each scheme it supports, by scheme name: mnw
-  # settings built from Nixpkgs and the resolved scheme.
+  # An entry builds mnw settings from Nixpkgs and the resolved scheme.
   themes = mylib.schemeThemes {
     name = "neovim";
     themes = {
