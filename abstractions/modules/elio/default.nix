@@ -4,8 +4,6 @@
   mylib,
   ...
 }: let
-  inherit (mylib.anchors.sources ./anchors.json) elio;
-
   # Any scheme's theme. Surfaces the palette lacks reuse its terminal roles;
   # ANSI roles follow upstream's terminal-ansi example theme.
   ansiTheme = palette: let
@@ -161,6 +159,7 @@ in
     meta.description = "Provide and publish elio, configure its settings and theme, and integrate it with Zsh.";
 
     options = {pkgs, ...}: let
+      inherit (mylib.anchors.sources ./anchors.json) elio;
       inherit (lib) types;
       # A TOML value; tables are declared as attribute sets down to their keys,
       # so a higher source replaces only the keys it defines.
