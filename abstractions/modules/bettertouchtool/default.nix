@@ -16,10 +16,16 @@ delib.module ({
     package = packageOption myconfig.casks.packages.bettertouchtool;
   };
 
-  hjem.ifEnabled = {
+  hjem.ifEnabled = {pkgs, ...}: let
+    app = "${cfg.package}/Applications/BetterTouchTool.app";
+  in {
+    packages = [
+      (pkgs.linkFarm "bttcli" {"bin/bttcli" = "${app}/Contents/SharedSupport/bin/bttcli";})
+    ];
+
     files."Applications/BetterTouchTool.app" = {
       exclusive = true;
-      source = "${cfg.package}/Applications/BetterTouchTool.app";
+      source = app;
     };
 
     platform.darwin.defaults."com.hegenberg.BetterTouchTool".settings = {
