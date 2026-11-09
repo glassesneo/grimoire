@@ -75,10 +75,7 @@ delib.module {
         # Every switch activates the current manifest, also without a GUI
         # session, where dinit does not run. No step relies on secrets: a
         # service that reads them depends on the activation service in dinit.
-        applySteps.nix-secrets.package = pkgs.runCommand "hjem-nix-secrets" {} ''
-          mkdir -p "$out/bin"
-          ln -s ${activate} "$out/bin/apply"
-        '';
+        applySteps.nix-secrets.package = pkgs.linkFarm "hjem-nix-secrets" {"bin/apply" = activate;};
       })
     ]);
   };

@@ -332,10 +332,7 @@ delib.module ({myconfig, ...}: {
         # bin/dinit, so only dinitctl comes from the package.
         packages = [
           bundle
-          (pkgs.runCommand "dinitctl" {} ''
-            mkdir -p "$out/bin"
-            ln -s ${dinitctl} "$out/bin/dinitctl"
-          '')
+          (pkgs.linkFarm "dinitctl" {"bin/dinitctl" = dinitctl;})
         ];
         xdg.config.files = lib.mapAttrs' (name: file: lib.nameValuePair "dinit.d/${name}" {source = file;}) descriptions;
       })

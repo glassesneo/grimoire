@@ -45,10 +45,7 @@ in
       # Development shells put GNU sed first, while the agent writes sed for
       # the platform it runs on; on Darwin that is BSD sed. Only sed is
       # exposed, not the other commands bundled with Apple's text_cmds.
-      bsdSed = pkgs.runCommand "agent-bsd-sed" {} ''
-        mkdir -p "$out/bin"
-        ln -s ${lib.getExe' pkgs.darwin.text_cmds "sed"} "$out/bin/sed"
-      '';
+      bsdSed = pkgs.linkFarm "agent-bsd-sed" {"bin/sed" = lib.getExe' pkgs.darwin.text_cmds "sed";};
       runtimePath = lib.makeBinPath ([pkgs.python3] ++ lib.optional pkgs.stdenv.hostPlatform.isDarwin bsdSed);
       # Claude Code sources $CLAUDE_ENV_FILE before each Bash tool command,
       # after the shell profile, so these tools precede any inherited PATH.

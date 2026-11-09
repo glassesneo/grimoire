@@ -43,11 +43,10 @@
       exec nu --no-config-file --stdin ${scripts}/pre-push.nu
     '';
   };
-  directory = pkgs.runCommand "repository-git-hooks" {} ''
-    mkdir -p "$out"
-    ln -s ${hook} "$out/pre-commit"
-    ln -s ${lib.getExe pushHook} "$out/pre-push"
-  '';
+  directory = pkgs.linkFarm "repository-git-hooks" {
+    pre-commit = hook;
+    pre-push = lib.getExe pushHook;
+  };
 in {
   inherit directory;
   shellHook = ''
