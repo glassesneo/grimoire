@@ -27,7 +27,7 @@ delib.module ({cfg, ...}: {
   };
 
   darwin.ifEnabled = {config, ...}: {
-    # explicitly disable nix-darwin default
+    # See "nix-darwin programs" in docs/module-authoring.md.
     programs.zsh.enable = lib.mkDefault false;
 
     environment = {

@@ -10,6 +10,10 @@ Where a value is placed and which kind of option declares it follow from concept
 
 An application-specific translation belongs to the application's module, and more generally a translation into a format belongs to the module that owns that format. An application module maps shared data into its own configuration; a capability module lowers the declarations it receives into each platform's form. Other modules write only in the vocabulary of the options that the owner declares.
 
+### nix-darwin programs
+
+A module does not enable nix-darwin's `programs.<name>`, because enabling one implicitly adds configuration beyond the package, as `programs.zsh` adds history settings to `/etc/zshrc`. The module that owns a program declares its package and configuration itself, and disables a `programs.<name>` that nix-darwin enables by default.
+
 ## Validation
 
 A module's options are a contract between whoever writes declarations and the module's author. Each kind of validation covers one part of it:
