@@ -13,6 +13,8 @@ delib.host {
     };
     slack.enable = false;
     notion.enable = false;
+    web.enable = true;
+    pi.mcpServers = ["web"];
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"

@@ -103,6 +103,7 @@ Modules whose only option is `enable`:
 | [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
 | [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae launcher window between its compact and expanded states. |  |
 | [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae selection highlight as it moves between list items. |  |
+| [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | <code>false</code> | Provide the web retrieval MCP server and its backend configuration. |  |
 | [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
 | [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
 | [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
@@ -729,21 +730,6 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings layered over Vicinae's own settings.json through VICINAE_OVERRIDES; keys set here take precedence over changes made in the app. |
-
-### <code>web</code>
-
-Provide the web retrieval MCP server and its backend configuration.
-
-Source: [<code>abstractions/modules/agents/mcp/web/default.nix</code>](../../abstractions/modules/agents/mcp/web/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>web.credentials</code> | <code>submodule</code> | <code>{ }</code> |  |
-| <code>web.credentials.brave</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Brave LLM Context credential file. An unset path leaves that provider unconfigured. |
-| <code>web.credentials.braveFree</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Brave web search credential file. An unset path leaves that provider unconfigured. |
-| <code>web.credentials.exa</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Exa credential file. An unset path leaves that provider unconfigured. |
-| <code>web.credentials.parallel</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Parallel credential file. An unset path leaves that provider unconfigured. |
-| <code>web.enable</code> | <code>boolean</code> | <code>false</code> |  |
 
 ### <code>xdg</code>
 

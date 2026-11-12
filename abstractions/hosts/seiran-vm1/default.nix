@@ -7,6 +7,8 @@ delib.host {
 
   myconfig.ifEnabled = {
     zoom.enable = false;
+    web.enable = true;
+    pi.mcpServers = ["web"];
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"

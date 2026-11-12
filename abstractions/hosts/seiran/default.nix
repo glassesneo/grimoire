@@ -11,6 +11,8 @@ delib.host {
       compact-transition.enable = true;
       selection-highlight.enable = true;
     };
+    web.enable = true;
+    pi.mcpServers = ["web"];
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
