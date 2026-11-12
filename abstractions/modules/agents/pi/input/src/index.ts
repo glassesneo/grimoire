@@ -42,6 +42,12 @@ export default function registerInput(pi: ExtensionAPI): void {
         running: () => bash !== undefined || (context ? !context.isIdle() : false),
         abort: () => (bash ? bash.abort() : context?.abort()),
         notify: (message) => context?.ui.notify(message, "warning"),
+        showPalette: (open) => {
+          void context?.ui.custom<void>((_tui, theme, _keybindings, done) => open(theme, done), {
+            overlay: true,
+            overlayOptions: { anchor: "top-center", width: "60%", minWidth: 40, margin: 1 },
+          });
+        },
       });
       return editor;
     });
@@ -57,7 +63,8 @@ export default function registerInput(pi: ExtensionAPI): void {
     context = ctx;
     editor?.resetStop();
   });
-  pi.on("ui_prompt_start", () => editor?.closePalette());
+  // A dialog that takes focus closes the palette through its overlay. ui_prompt_start also
+  // fires for the palette's own overlay, so it cannot close the palette.
   pi.on("ui_prompt_end", () => editor?.resetStop());
   pi.on("tool_call", (event) => {
     if (event.toolName === "question") editor?.closePalette();

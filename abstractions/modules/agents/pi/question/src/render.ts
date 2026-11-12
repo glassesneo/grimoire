@@ -40,7 +40,30 @@ export function choiceText(kind: "single" | "multi", selected: boolean, label: s
   return `${choiceMarker(kind, selected)} ${label}`;
 }
 
-function push(lines: string[], width: number, text: string, indent = ""): void {
+/** Colors the extension applies; the record stays readable without them. */
+export interface HistoryStyle {
+  /** Colors the left rule that sets the record apart from model output. */
+  rule: (text: string) => string;
+  /** Emphasizes question prompts. */
+  prompt: (text: string) => string;
+}
+
+const plain: HistoryStyle = { rule: (text) => text, prompt: (text) => text };
+const rule = "▎";
+
+// Draws the body one rule and one space narrower, then prefixes every row with the rule.
+function ruled(width: number, style: HistoryStyle, body: (width: number) => string[]): string[] {
+  if (width < 3) return body(width);
+  return body(width - 2).map((line) => `${style.rule(rule)} ${line}`);
+}
+
+function push(
+  lines: string[],
+  width: number,
+  text: string,
+  indent = "",
+  paint: (text: string) => string = (line) => line,
+): void {
   if (width <= 0) return;
   const prefix = truncateToWidth(indent, Math.max(0, width - 1), "");
   const available = width - visibleWidth(prefix);
@@ -49,7 +72,7 @@ function push(lines: string[], width: number, text: string, indent = ""): void {
     .map(replaceControlCharacters)
     .join("\n");
   for (const line of wrapTextWithAnsi(safe, available)) {
-    lines.push(prefix + truncateToWidth(line, available, ""));
+    lines.push(prefix + paint(truncateToWidth(line, available, "")));
   }
 }
 
@@ -70,10 +93,16 @@ function optionKind(question: RenderQuestion): "single" | "multi" {
 }
 
 /** A failed execution has no question details; its message carries the cause. */
-export function renderQuestionFailure(message: string, width: number): string[] {
-  const lines: string[] = [];
-  push(lines, width, `Failed: ${message.trim() || "unknown error"}`);
-  return lines;
+export function renderQuestionFailure(
+  message: string,
+  width: number,
+  style: HistoryStyle = plain,
+): string[] {
+  return ruled(width, style, (inner) => {
+    const lines: string[] = [];
+    push(lines, inner, `Failed: ${message.trim() || "unknown error"}`);
+    return lines;
+  });
 }
 
 /**
@@ -85,9 +114,19 @@ export function renderQuestionHistory(input: {
   details: RenderDetails;
   expanded: boolean;
   width: number;
+  style?: HistoryStyle;
 }): string[] {
+  const style = input.style ?? plain;
+  return ruled(input.width, style, (width) => historyLines(input, width, style));
+}
+
+function historyLines(
+  input: { questions: readonly RenderQuestion[]; details: RenderDetails; expanded: boolean },
+  width: number,
+  style: HistoryStyle,
+): string[] {
   const lines: string[] = [];
-  const { details, expanded, width } = input;
+  const { details, expanded } = input;
   if (details.status === "unavailable") {
     push(lines, width, "Unavailable");
     return lines;
@@ -98,7 +137,7 @@ export function renderQuestionHistory(input: {
   }
   if (details.status === "cancelled") push(lines, width, "Cancelled");
   for (const question of input.questions) {
-    push(lines, width, question.prompt);
+    push(lines, width, question.prompt, "", style.prompt);
     const response = details.responses[question.id];
     const options = question.options ?? [];
     const known = new Set(options.map((option) => option.value));

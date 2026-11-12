@@ -49,7 +49,7 @@ delib.module {
         '';
     };
     extension-loads-and-renders = {
-      protects = "the question extension loads in Pi and its history renderer keeps the confirmed answers or the failure cause, and focus alone never adds an option to a submitted answer";
+      protects = "the question extension loads in Pi and its history renderer keeps the confirmed answers or the failure cause on rows ruled apart from model output, and focus alone never adds an option to a submitted answer";
       uses = ["pi.input" "pi.compaction"];
       tsRoots = ["src"];
       build = result:

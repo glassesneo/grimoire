@@ -65,16 +65,31 @@ export default function verifyQuestionHistory(): void {
   // Given a failed execution, Pi passes the standard error result; its cause stays readable.
   let tool: any;
   registerQuestion({ registerTool: (definition: unknown) => (tool = definition) } as any);
-  const failure = tool
-    .renderResult(
-      { content: [{ type: "text", text: "Question id must be unique: q" }], details: {} },
-      { isPartial: false, expanded: false },
-      {},
-      { args: { questions: [] }, isError: true },
-    )
-    .render(80)
-    .join("\n");
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  const shown = (result: unknown, isError: boolean, args: unknown) =>
+    tool
+      .renderResult(result, { isPartial: false, expanded: false }, theme, { args, isError })
+      .render(80) as string[];
+  const failure = shown(
+    { content: [{ type: "text", text: "Question id must be unique: q" }], details: {} },
+    true,
+    { questions: [] },
+  ).join("\n");
   assert.ok(failure.includes("Question id must be unique: q"), failure);
+
+  // Every row of a record carries a rule that sets it apart from model output without color.
+  const record = shown(
+    {
+      content: [],
+      details: {
+        status: "submitted",
+        responses: { destination: { kind: "single", value: "coast" } },
+      },
+    },
+    false,
+    { questions: [question] },
+  );
+  assert.ok(record.length > 0 && record.every((line) => line.startsWith("▎ ")), record.join("\n"));
 
   // Given multilingual multiline content, resizing preserves its readable information within each row.
   const prompt = "行き先はどこ？🗻";
@@ -89,7 +104,7 @@ export default function verifyQuestionHistory(): void {
     // Rendered rows must not contain line breaks or escape sequences.
     // oxlint-disable-next-line no-control-regex
     assert.ok(lines.every((line) => visibleWidth(line) <= width && !/[\r\n\u001b]/.test(line)));
-    const information = lines.join("").replace(/\s/g, "");
+    const information = lines.join("").replace(/[\s▎]/g, "");
     assert.ok(information.includes(prompt));
     assert.ok(information.includes(answer.replace(/\s/g, "")));
   }

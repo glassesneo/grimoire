@@ -1,10 +1,14 @@
-import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import { CustomEditor, type KeybindingsManager, type Theme } from "@earendil-works/pi-coding-agent";
 import {
   Editor,
   isKeyRepeat,
   matchesKey,
+  truncateToWidth,
+  visibleWidth,
   type AutocompleteProvider,
+  type Component,
   type EditorTheme,
+  type Focusable,
   type KeyId,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -19,6 +23,55 @@ interface Runtime {
   running: () => boolean;
   abort: () => void;
   notify: (message: string) => void;
+  /** Shows the palette above the conversation; `close` removes it. */
+  showPalette: (open: (theme: Theme, close: () => void) => Component) => void;
+}
+
+/** Frames the palette editor as a titled box; its input and focus belong to the editor. */
+class PaletteOverlay implements Component, Focusable {
+  #focused = false;
+  constructor(
+    private readonly palette: Editor,
+    private readonly theme: Theme,
+    private readonly input: (data: string) => void,
+    private readonly blurred: () => void,
+  ) {}
+
+  get focused(): boolean {
+    return this.#focused;
+  }
+
+  set focused(value: boolean) {
+    const lost = this.#focused && !value;
+    this.#focused = value;
+    this.palette.focused = value;
+    // Another dialog took focus; an unseen palette must not keep capturing commands.
+    if (lost) this.blurred();
+  }
+
+  handleInput(data: string): void {
+    this.input(data);
+  }
+
+  render(width: number): string[] {
+    const border = (text: string) => this.theme.fg("borderAccent", text);
+    const inner = Math.max(1, width - 2);
+    const title = ` ${this.theme.fg("accent", this.theme.bold("Command palette"))} `;
+    const top = `${border("┌─")}${title}${border("─".repeat(Math.max(0, inner - 1 - visibleWidth(title))))}${border("┐")}`;
+    // The editor's first row is its top rule, which the title row replaces.
+    const body = this.palette
+      .render(inner)
+      .slice(1)
+      .map((line) => {
+        const cell = truncateToWidth(line, inner, "");
+        return `${border("│")}${cell}${" ".repeat(Math.max(0, inner - visibleWidth(cell)))}${border("│")}`;
+      });
+    return [truncateToWidth(top, width, ""), ...body, border(`└${"─".repeat(inner)}┘`)];
+  }
+
+  invalidate(): void {
+    this.palette.invalidate();
+  }
 }
 
 /** A separate native editor owns palette input; the main buffer is never a command transport. */
@@ -27,6 +80,7 @@ export class InputEditor extends CustomEditor {
   #bindings: KeybindingsManager;
   #palette: Editor;
   #open = false;
+  #close?: () => void;
   #command?: string;
   #stop: StopState = idleStop;
   #settle?: ReturnType<typeof setTimeout>;
@@ -48,8 +102,6 @@ export class InputEditor extends CustomEditor {
       set: (value: boolean) => {
         if (focused !== value) this.resetStop();
         focused = value;
-        this.#palette.focused = value && this.#open;
-        if (!value) this.closePalette();
       },
     });
   }
@@ -64,8 +116,12 @@ export class InputEditor extends CustomEditor {
   }
 
   closePalette(): void {
+    if (!this.#open) return;
     this.#open = false;
     this.#palette.focused = false;
+    const close = this.#close;
+    this.#close = undefined;
+    close?.();
     this.resetStop();
     this.tui.requestRender();
   }
@@ -100,27 +156,11 @@ export class InputEditor extends CustomEditor {
     // Returning from a cancelled native selector leaves the original buffer intact.
     if (!this.#open) this.#command = undefined;
     if (this.#open) {
-      if (this.#bindings.matches(data, "tui.select.cancel")) this.closePalette();
-      else {
-        // Unlike ordinary editing, palette Enter also dispatches argument completions.
-        if (
-          this.#bindings.matches(data, "tui.select.confirm") &&
-          this.#palette.isShowingAutocomplete()
-        ) {
-          this.#palette.handleInput("\t");
-        }
-        this.#palette.handleInput(data);
-      }
-      this.tui.requestRender();
+      this.#paletteInput(data);
       return;
     }
     if (this.#keys.palette.some((key) => matchesKey(data, key))) {
-      this.resetStop();
-      this.#open = true;
-      this.#palette.focused = this.focused;
-      this.#palette.setText("/");
-      this.#palette.handleInput("\t");
-      this.tui.requestRender();
+      this.#openPalette();
       return;
     }
     const stopKey = this.#keys.stop.find((key) => matchesKey(data, key));
@@ -162,13 +202,36 @@ export class InputEditor extends CustomEditor {
       );
   }
 
-  override render(width: number): string[] {
-    if (!this.#open) return super.render(width);
-    return this.#palette.render(width);
+  #openPalette(): void {
+    this.resetStop();
+    this.#open = true;
+    this.#palette.setText("/");
+    this.#palette.handleInput("\t");
+    this.#runtime?.showPalette((theme, close) => {
+      this.#close = close;
+      return new PaletteOverlay(
+        this.#palette,
+        theme,
+        (data) => this.#paletteInput(data),
+        () => this.closePalette(),
+      );
+    });
+    this.tui.requestRender();
   }
 
-  override get capturesViewportInput(): boolean {
-    return this.#open ? this.#palette.capturesViewportInput : super.capturesViewportInput;
+  #paletteInput(data: string): void {
+    if (this.#bindings.matches(data, "tui.select.cancel")) this.closePalette();
+    else {
+      // Unlike ordinary editing, palette Enter also dispatches argument completions.
+      if (
+        this.#bindings.matches(data, "tui.select.confirm") &&
+        this.#palette.isShowingAutocomplete()
+      ) {
+        this.#palette.handleInput("\t");
+      }
+      this.#palette.handleInput(data);
+    }
+    this.tui.requestRender();
   }
 
   async #dispatch(text: string): Promise<void> {

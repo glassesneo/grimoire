@@ -10,6 +10,7 @@ import {
   KeybindingsManager,
   TUI_KEYBINDINGS,
   setKeybindings,
+  visibleWidth,
   type EditorTheme,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -49,6 +50,11 @@ export default async function contracts(): Promise<void> {
   let editor: InputEditor;
   let idle = true;
   let aborted = 0;
+  // Records the overlay the palette shows; done() removes it as Pi would.
+  let overlay: { component: any; options: any } | undefined;
+  // Read through a function: assertions about it would otherwise narrow its type.
+  const shown = () => overlay;
+  const overlayTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
   const ctx = {
     mode: "tui",
     isIdle: () => idle,
@@ -57,6 +63,16 @@ export default async function contracts(): Promise<void> {
     },
     ui: {
       notify() {},
+      custom(factory: any, options: any) {
+        // Like Pi, opening custom UI announces a prompt before the component is shown.
+        handlers.get("ui_prompt_start")?.({ reason: "ui_prompt", kind: "custom" }, ctx);
+        const entry = { component: undefined as any, options };
+        entry.component = factory(tui, overlayTheme, bindings, () => {
+          if (overlay === entry) overlay = undefined;
+        });
+        overlay = entry;
+        return new Promise(() => {});
+      },
       setEditorComponent(factory: any) {
         editor = factory(tui, theme, bindings);
       },
@@ -143,6 +159,30 @@ export default async function contracts(): Promise<void> {
   assert.deepEqual(submitted, ["copy"]);
   assert.equal(e.getText(), draft);
   assert.deepEqual(e.getCursor(), cursor);
+  assert.equal(overlay, undefined, "running a command closes the palette overlay");
+
+  // The palette floats as a titled box at the top while the prompt keeps showing the draft.
+  await palette("cop", false);
+  assert.equal(shown()?.options.overlayOptions.anchor, "top-center");
+  const box = shown()!.component.render(60) as string[];
+  assert.ok(box[0]!.includes("Command palette") && box.join("\n").includes("/cop"), box.join("\n"));
+  assert.ok(box.every((line) => visibleWidth(line) <= 60));
+  assert.ok(
+    e.render(80).join("\n").includes("日本語"),
+    "the draft stays visible behind the palette",
+  );
+  e.handleInput("\x1b");
+  assert.equal(overlay, undefined, "cancelling closes the palette overlay");
+  assert.equal(e.getText(), draft);
+  // Another dialog taking focus from the overlay closes it; keys then reach the prompt again.
+  await palette("cop", false);
+  shown()!.component.focused = true;
+  shown()!.component.focused = false;
+  assert.equal(overlay, undefined, "a dialog taking focus closes the palette");
+  e.handleInput("!");
+  assert.equal(e.getText(), "日本語 draf!t");
+  e.handleInput("\x7f");
+  assert.equal(e.getText(), draft);
 
   // Completion followed by literal arguments still dispatches through the native router.
   await palette("imp", false);

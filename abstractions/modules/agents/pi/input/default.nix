@@ -36,7 +36,7 @@ delib.module {
       expected = [];
     };
     extension-loads = {
-      protects = "native palette editing and dispatch preserve the main draft, successful session operations own draft replacement, and stop confirmation respects focus and time, never stops on a held key with or without terminal repeat reports, and also stops a running ! command";
+      protects = "the palette floats as a titled overlay at the top that closes when it dispatches, is cancelled or loses focus to another dialog; native palette editing and dispatch preserve the main draft, successful session operations own draft replacement, and stop confirmation respects focus and time, never stops on a held key with or without terminal repeat reports, and also stops a running ! command";
       tsRoots = ["src"];
       build = result:
         pkgs.runCommand "pi-input" {} ''
