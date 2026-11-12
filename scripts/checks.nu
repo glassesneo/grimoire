@@ -33,6 +33,12 @@ export def select-checks [metadata: record, changes: list<record>] {
   } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
 }
 
+# nix-fast-build records an attribute name that contains `.` inside the quotes
+# Nix uses for that path segment, so `"module-pi.question"` is module-pi.question.
+def check-name [attr: string] {
+  $attr | str trim --char '"'
+}
+
 # Builds the named checks of FLAKE for SYSTEM with nix-fast-build, which
 # evaluates them in parallel workers sharing their common evaluation and builds
 # each as soon as it is evaluated. Failed checks' logs are printed as they
@@ -55,10 +61,10 @@ export def build-checks [flake: string, system: string, names: list<string>] {
     } catch {|error| $error }
     # A run that fails before writing results leaves the file empty.
     let results = try { open --raw $file | from json | get results } catch { [] }
-    let failed = $results | where success == false | each {|result| $result.attr } | uniq | sort
+    let failed = $results | where success == false | each {|result| check-name $result.attr } | uniq | sort
     if ($failed | is-not-empty) { error make {msg: $"Failed checks: ($failed | str join ', ')"} }
     if $failure != null { error make $failure }
-    let built = $results | where {|result| $result.type == 'BUILD' and $result.success } | each {|result| $result.attr }
+    let built = $results | where {|result| $result.type == 'BUILD' and $result.success } | each {|result| check-name $result.attr }
     let missing = $names | where {|name| $name not-in $built }
     if ($missing | is-not-empty) { error make {msg: $"nix-fast-build reported no build of: ($missing | str join ', ')"} }
   } finally {

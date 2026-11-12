@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "ponytail": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "DietrichGebert",
+        "repo": "ponytail"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "96608e078b2d5ea607c5c3b8b5a54d1c1fba6846",
+      "url": "https://github.com/DietrichGebert/ponytail/archive/96608e078b2d5ea607c5c3b8b5a54d1c1fba6846.tar.gz",
+      "hash": "sha256-PhPtZbeX2wBp19GtWRy+fV93+fFYZe5S487eXPDl/us="
+    }
+  },
+  "version": 8
+}

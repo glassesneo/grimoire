@@ -3,12 +3,12 @@
   inputs,
   ...
 }:
-delib.module ({myconfig, ...}: {
+delib.module {
   name = "agents";
   meta.description = "Provide a shared configuration interface for LLM agents and configure the selected agent packages.";
 
-  options = {
-    packages = delib.readOnly (delib.lazyAttrsOfOption delib.types.package inputs.llm-agents.packages.${myconfig.host.system} "Agent packages of llm-agents.nix for the host's system, by name.");
+  options = {pkgs, ...}: {
+    packages = delib.readOnly (delib.lazyAttrsOfOption delib.types.package inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system} "Agent packages of llm-agents.nix for the evaluation's system, by name.");
   };
 
   # llm-agents.nix pushes its builds to this cache; they stay substitutable
@@ -17,4 +17,4 @@ delib.module ({myconfig, ...}: {
     extra-substituters = ["https://cache.numtide.com"];
     extra-trusted-public-keys = ["niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="];
   };
-})
+}

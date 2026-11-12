@@ -1,0 +1,4 @@
+{
+  "palette": ["ctrl+k"],
+  "stop": ["ctrl+c", "escape"]
+}

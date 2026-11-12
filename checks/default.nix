@@ -20,9 +20,13 @@
 }: let
   inherit (pkgs) lib;
   home = "/tmp/module-tests";
+  oxlintConfig = ../.oxlintrc.json;
   moduleTestInfo = configuration.config.moduleTestInfo {
-    inherit pkgs system home;
-    oxlintConfig = ../.oxlintrc.json;
+    inherit pkgs system home oxlintConfig;
+    typescriptCheck = import ../lib/typescript-check.nix {
+      inherit pkgs oxlintConfig;
+      bun2nix = inputs.bun2nix.packages.${system}.default;
+    };
     root = ../.;
   };
   directoriesOf = root: lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (root + "/${name}/default.nix")) (builtins.readDir root);

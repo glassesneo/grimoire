@@ -64,6 +64,7 @@
       inherit pkgs system home;
       root = ../..;
       oxlintConfig = ../../.oxlintrc.json;
+      typescriptCheck = _: throw "module-tests fixtures do not type-check TypeScript";
     };
   checksFor = configuration: compose:
     import ../../lib/module-tests.nix {inherit lib;} {

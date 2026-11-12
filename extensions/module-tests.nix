@@ -1,10 +1,10 @@
 # Owns inline tests, their fixtures, declaration ownership, and the
-# conservative reverse fixture closure. tests.cases {pkgs, lib, system, home, oxlintConfig} returns named cases,
+# conservative reverse fixture closure. tests.cases {pkgs, lib, system, home, oxlintConfig, typescriptCheck} returns named cases,
 # whose fields are the options declared below. Each case states what it
 # protects and has exactly one mode: expected, fails or build. Unknown fields,
 # unknown uses and a missing `protects` are errors when the cases are
 # discovered. Coverage retains all cases.
-# moduleTestInfo takes {pkgs,system,home,oxlintConfig,root} and
+# moduleTestInfo takes {pkgs,system,home,oxlintConfig,typescriptCheck,root} and
 # returns a module-name attrset with file, directory, cases, applicableCases,
 # tsRoots, uses, fixture and affectedChecks. Declaration files must be
 # unique; unknown fixture modules are errors. Reverse closure unions the
@@ -104,7 +104,7 @@ in {
       type = lib.types.functionTo (lib.types.attrsOf (lib.types.submodule case));
       default = _: {};
       defaultText = lib.literalExpression "_: { }";
-      description = "Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration.";
+      description = "Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig, typescriptCheck}`, where `home` is the fixture user's home directory, `oxlintConfig` the repository's oxlint configuration, and `typescriptCheck {name, src, types}` a derivation that type-checks and lints the TypeScript directory `src` against the types of the Bun project directory `types` (`lib/typescript-check.nix`).";
     };
   };
 
@@ -117,6 +117,7 @@ in {
     system,
     home,
     oxlintConfig,
+    typescriptCheck,
     root,
   }: let
     names = builtins.attrNames config.modules;
@@ -131,7 +132,7 @@ in {
     declarations = lib.genAttrs names (name: let
       file = fileOf name;
       directory = lib.removePrefix "${toString root}/" (builtins.dirOf file);
-      cases = config.modules.${name}.tests.cases {inherit pkgs lib system home oxlintConfig;};
+      cases = config.modules.${name}.tests.cases {inherit pkgs lib system home oxlintConfig typescriptCheck;};
       uses = lib.unique (lib.concatMap (case: case.uses) (builtins.attrValues cases));
       inherit (config.modules.${name}.tests) fixture;
       unknown = lib.subtractLists names (uses ++ fixture);

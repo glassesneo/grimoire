@@ -12,7 +12,7 @@ Options this repository adds to Denix declarations.
 | --- | --- | --- | --- | --- |
 | <code>meta.description</code> | <code>string</code> |  | One-sentence responsibility of this module, not an inventory of its current settings. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
 | <code>meta.tags</code> | <code>list of string</code> | <code>[ ]</code> | Classification labels declared for this module. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
-| <code>tests.cases</code> | <code>function that evaluates to a(n) attribute set of (submodule)</code> | <code>_: { }</code> | Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig}`, where `home` is the fixture user's home directory and `oxlintConfig` the repository's oxlint configuration. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
+| <code>tests.cases</code> | <code>function that evaluates to a(n) attribute set of (submodule)</code> | <code>_: { }</code> | Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig, typescriptCheck}`, where `home` is the fixture user's home directory, `oxlintConfig` the repository's oxlint configuration, and `typescriptCheck {name, src, types}` a derivation that type-checks and lints the TypeScript directory `src` against the types of the Bun project directory `types` (`lib/typescript-check.nix`). | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.build</code> | <code>function that evaluates to a(n) package</code> |  | One of the modes: maps the fixture's result to a derivation that the module's check builds. Cannot be combined with `expr`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.expected</code> | <code>raw value</code> |  | Value that `expr` must return. One of the modes. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.expr</code> | <code>function that evaluates to a(n) raw value</code> |  | Maps the fixture's result to the value compared with `expected`, or that must fail to evaluate when `fails = true`. Required unless the mode is `build` or `fails` is a string. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
@@ -88,10 +88,14 @@ Modules whose only option is `enable`:
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
 | [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
 | [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | <code>myconfig.pay-respects.enable &amp;&amp; true</code> | Replace command typo recovery with a playful response. |  |
+| [<code>pi.compaction</code>](../../abstractions/modules/agents/pi/compaction/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Compact Pi conversations through the public Responses API. |  |
+| [<code>pi.input</code>](../../abstractions/modules/agents/pi/input/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Provide Pi's command palette and stop confirmation. |  |
+| [<code>pi.question</code>](../../abstractions/modules/agents/pi/question/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Ask the user for decisions through Pi's question tool. |  |
 | [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | <code>true</code> | Limit what the system shares and what it opens without being asked. |  |
 | [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | <code>true</code> | Provide ripgrep for searching file contents. |  |
 | [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | <code>true</code> | Configure where screenshots are saved and in which format. |  |
 | [<code>security</code>](../../abstractions/modules/security/default.nix) | <code>true</code> | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
+| [<code>skills.ponytail</code>](../../abstractions/modules/agents/skills/ponytail/default.nix) | <code>myconfig.skills.enable &amp;&amp; false</code> | Deploy the Ponytail skill. |  |
 | [<code>sound</code>](../../abstractions/modules/sound/default.nix) | <code>true</code> | Configure system sounds and alert feedback. |  |
 | [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
 | [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
@@ -111,7 +115,7 @@ Source: [<code>abstractions/modules/agents/default.nix</code>](../../abstraction
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>agents.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Agent packages of llm-agents.nix for the host's system, by name. |
+| <code>agents.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Agent packages of llm-agents.nix for the evaluation's system, by name. |
 
 ### <code>alacritty</code>
 
@@ -201,6 +205,7 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>claude-code.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged. |
 | <code>claude-code.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Claude Code takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
@@ -473,6 +478,30 @@ Source: [<code>abstractions/modules/kanata/default.nix</code>](../../abstraction
 | <code>services.kanata.sudoers</code> | <code>boolean</code> | <code>true</code> | Add NOPASSWD sudoers entry for kanata.<br>Defaults to `true`. Required for clean process termination in tray mode<br>and to avoid the fragile TCC sqlite3 hack in daemon mode.<br> |
 | <code>services.kanata.user</code> | <code>string</code> | <code>"${myconfig.host.user.name}"</code> | Username for sudoers, user agent, and file paths. Defaults to system.primaryUser. |
 
+### <code>mcp</code>
+
+Declare stdio MCP servers and resolve each agent consumer's selection of them.
+
+Source: [<code>abstractions/modules/agents/mcp/default.nix</code>](../../abstractions/modules/agents/mcp/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>mcp.enable</code> | <code>boolean</code> | <code>true</code> |  |
+
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>mcp.selected</code> | <code>attribute set of attribute set of (submodule)</code> |  | read-only; The registered servers each consumer selected, by consumer. |
+| <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.args</code> | <code>list of string</code> | <code>[ ]</code> |  |
+| <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.command</code> | <code>string</code> |  |  |
+| <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.env</code> | <code>attribute set of string</code> | <code>{ }</code> |  |
+| <code>mcp.selections</code> | <code>attribute set of list of string</code> | <code>{ }</code> | Names of registered servers each consumer selects, by consumer. An unknown name is rejected. |
+| <code>mcp.servers</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | stdio MCP servers by name. Registering a server does not start it or select it for a consumer. |
+| <code>mcp.servers.&lt;name&gt;.args</code> | <code>list of string</code> | <code>[ ]</code> |  |
+| <code>mcp.servers.&lt;name&gt;.command</code> | <code>string</code> |  |  |
+| <code>mcp.servers.&lt;name&gt;.env</code> | <code>attribute set of string</code> | <code>{ }</code> |  |
+
 ### <code>neovim</code>
 
 Provide and configure neovim
@@ -554,6 +583,19 @@ Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/m
 | <code>phi.cliPackage</code> | <code>package</code> | <code>phi-cli</code> |  |
 | <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>phi.package</code> | <code>package</code> | <code>casks/cask2nix: phi</code> |  |
+
+### <code>pi</code>
+
+Configure Pi for Hjem and publish a standalone configured Pi.
+
+Source: [<code>abstractions/modules/agents/pi/default.nix</code>](../../abstractions/modules/agents/pi/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>pi.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>pi.extensions</code> | <code>list of string</code> | <code>[ ]</code> | Absolute paths of the extension entries Pi loads. Features add their entries; the published bundle has only the modules' entries. |
+| <code>pi.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers Pi starts through Hjem. An unknown name is rejected, and registering a server does not select it. A standalone bundle can use native project MCP configuration. |
+| <code>pi.sdkTypes</code> | <code>absolute path</code> | <code>./types</code> | read-only; Bun project whose SDK types match `agents.packages.pi`, for checking Pi features' TypeScript. |
 
 ### <code>secrets</code>
 
@@ -686,6 +728,21 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings layered over Vicinae's own settings.json through VICINAE_OVERRIDES; keys set here take precedence over changes made in the app. |
+
+### <code>web</code>
+
+Provide the web retrieval MCP server and its backend configuration.
+
+Source: [<code>abstractions/modules/agents/mcp/web/default.nix</code>](../../abstractions/modules/agents/mcp/web/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>web.credentials</code> | <code>submodule</code> | <code>{ }</code> |  |
+| <code>web.credentials.brave</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Brave LLM Context credential file. An unset path leaves that provider unconfigured. |
+| <code>web.credentials.braveFree</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Brave web search credential file. An unset path leaves that provider unconfigured. |
+| <code>web.credentials.exa</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Exa credential file. An unset path leaves that provider unconfigured. |
+| <code>web.credentials.parallel</code> | <code>null or string</code> | <code>null</code> | Runtime path of the Parallel credential file. An unset path leaves that provider unconfigured. |
+| <code>web.enable</code> | <code>boolean</code> | <code>false</code> |  |
 
 ### <code>xdg</code>
 
