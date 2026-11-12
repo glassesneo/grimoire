@@ -83,6 +83,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
+| [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij panes. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
 | [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |

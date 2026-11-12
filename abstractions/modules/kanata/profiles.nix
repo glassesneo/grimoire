@@ -15,8 +15,8 @@
       lmet = ["tap-hold-press" 250 100 "bspc" "lmet"];
       # Taps Tab, holds Command.
       rmet = ["tap-hold-press" 200 200 "tab" "rmet"];
-      # Swaps ; and : on a US layout.
-      ";" = ["fork" "S-;" ["unmod" ["lsft" "rsft"] ";"] ["lsft" "rsft"]];
+      # Taps with ; and : swapped on a US layout, holds Option.
+      ";" = ["tap-hold-press" 200 200 ["fork" "S-;" ["unmod" ["lsft" "rsft"] ";"] ["lsft" "rsft"]] "lalt"];
     };
 
     # Without unmod, the held Control would turn this into Control-Escape.

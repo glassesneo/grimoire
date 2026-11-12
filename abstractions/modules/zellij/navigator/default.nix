@@ -18,14 +18,14 @@ in
     # it was first loaded with.
     myconfig.ifEnabled = {
       zellij.keybinds.shared = lib.mapAttrs' (key: direction:
-        lib.nameValuePair "Ctrl ${key}" [
+        lib.nameValuePair "Alt ${key}" [
           {
             MessagePlugin = {
               args = ["file:${vim-zellij-navigator}"];
               children = {
                 name = "move_focus";
                 payload = direction;
-                move_mod = "ctrl";
+                move_mod = "alt";
               };
             };
           }

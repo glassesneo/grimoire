@@ -55,6 +55,7 @@ in
         desktop-notifications = true;
         window-inherit-working-directory = false;
         macos-titlebar-style = "hidden";
+        macos-option-as-alt = "left";
         cursor-style-blink = false;
         shell-integration-features = "no-cursor";
       }
