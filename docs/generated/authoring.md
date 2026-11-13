@@ -358,14 +358,17 @@ Source: [<code>abstractions/modules/eza/default.nix</code>](../../abstractions/m
 
 ### <code>fonts</code>
 
-Install the user's font packages as real files in the platform's font directory.
+Register font families for applications and install their packages as real files in the user's font directory.
 
 Source: [<code>abstractions/modules/fonts/default.nix</code>](../../abstractions/modules/fonts/default.nix)
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>fonts.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>fonts.packages</code> | <code>list of package</code> | (computed) |  |
+| <code>fonts.entries</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Font families by reference name; every registered package is installed while fonts are enabled. |
+| <code>fonts.entries.&lt;name&gt;.family</code> | <code>non-empty string</code> |  |  |
+| <code>fonts.entries.&lt;name&gt;.package</code> | <code>package</code> |  |  |
+| <code>fonts.packages</code> | <code>list of package</code> | the unique packages in `fonts.entries` | read-only |
 
 ### <code>fzf</code>
 
@@ -387,8 +390,12 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>ghostty.font.codepointMap</code> | <code>list of (submodule)</code> | <code>[ ]</code> |  |
+| <code>ghostty.font.codepointMap.*.font</code> | <code>non-empty string</code> |  | Name in fonts.entries. |
+| <code>ghostty.font.codepointMap.*.ranges</code> | <code>non-empty (list of non-empty string)</code> |  | Ghostty codepoint ranges such as U+0030-U+0039, joined with commas for one mapping. |
+| <code>ghostty.font.primary</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Ghostty's primary font at its own default. |
 | <code>ghostty.package</code> | <code>package</code> | <code>casks/cask2nix: ghostty</code> |  |
-| <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. |
+| <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map. |
 | <code>ghostty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Ghostty takes its colors from `colorscheme.resolved`. |
 
 ### <code>git</code>
