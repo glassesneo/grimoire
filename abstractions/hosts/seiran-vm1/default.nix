@@ -27,5 +27,29 @@ delib.host {
   darwin.ifEnabled = {
     system.stateVersion = 4;
     ids.gids.nixbld = 350;
+
+    nix = {
+      distributedBuilds = true;
+      settings = {
+        max-jobs = 0;
+        builders-use-substitutes = true;
+      };
+      buildMachines = [
+        {
+          hostName = "192.168.64.1";
+          protocol = "ssh-ng";
+          sshUser = "neo";
+          sshKey = "/var/root/.ssh/nix-host-builder";
+          system = "aarch64-darwin";
+          maxJobs = 4;
+          speedFactor = 2;
+          supportedFeatures = [
+            "benchmark"
+            "big-parallel"
+          ];
+          mandatoryFeatures = [];
+        }
+      ];
+    };
   };
 }
