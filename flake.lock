@@ -202,17 +202,17 @@
         "zig": "zig"
       },
       "locked": {
-        "lastModified": 1794572481,
-        "narHash": "sha256-0eKzGua7AvUgofW7akx8QKxyXHzyMv39b8Vih6wZgnM=",
-        "ref": "refs/heads/main",
-        "rev": "bb1d26ba20a5420ec0dd4b83e64872f72bae4bae",
-        "revCount": 11,
-        "type": "git",
-        "url": "file:///Users/neo/dev/imprynt"
+        "lastModified": 1794575464,
+        "narHash": "sha256-v+PlT8QEWf+YMzMaJfK6KRx9dUI10pzGeE0kiC4XKd8=",
+        "owner": "glassesneo",
+        "repo": "imprynt",
+        "rev": "9c5793c1b57dd25ee086c23953dfcaf2ed142755",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///Users/neo/dev/imprynt"
+        "owner": "glassesneo",
+        "repo": "imprynt",
+        "type": "github"
       }
     },
     "llm-agents": {

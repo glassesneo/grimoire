@@ -258,7 +258,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     imprynt = {
-      url = "git+file:///Users/neo/dev/imprynt";
+      url = "github:glassesneo/imprynt";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     hjem = {
