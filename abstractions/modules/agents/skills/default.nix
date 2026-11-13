@@ -8,7 +8,7 @@
   ...
 }: let
   # Each directory is a complete skill package named by its directory.
-  ownSkills = ["context-projection-design" "idea-kindling" "parallax-bridge"];
+  ownSkills = ["context-projection-design" "decision-rebase" "idea-kindling" "parallax-bridge"];
 
   # Paths are compared as written, so only their normal form is accepted.
   component = part: !(lib.elem part ["" "." ".."]);
