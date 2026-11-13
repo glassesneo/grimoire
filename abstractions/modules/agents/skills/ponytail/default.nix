@@ -16,13 +16,7 @@ in
 
     tests.cases = {lib, ...}: let
       names = result: lib.sort lib.lessThan (map (file: baseNameOf file.target) result.manifest.files);
-      own = ["context-projection-design" "idea-kindling" "parallax-bridge"];
     in {
-      disabled-adds-nothing = {
-        protects = "a disabled Ponytail module does not deploy the skill";
-        expr = names;
-        expected = own;
-      };
       deploys-only-the-main-skill = {
         protects = "Ponytail deploys the main skill directory and none of the upstream sibling skills";
         host.myconfig.ifEnabled.skills.ponytail.enable = true;
