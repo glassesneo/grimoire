@@ -2,7 +2,10 @@
 delib.host {
   name = "seiran-vm1";
   system = "aarch64-darwin";
-  user.name = "neo";
+  user = {
+    name = "neo";
+    uid = 502;
+  };
   rice = "default";
 
   myconfig.ifEnabled = {
