@@ -15,6 +15,8 @@
     security.nix-secrets = {
       enable = lib.mkDefault true;
       installPackage = false;
+      # The probe creates its encrypted input after evaluation.
+      checks.missingSecrets.enable = false;
       storage = "${homeDirectory}/storage";
       identityPaths = ["${homeDirectory}/key.txt"];
       baseDir = "${homeDirectory}/activated";

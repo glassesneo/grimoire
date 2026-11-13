@@ -262,7 +262,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-secrets = {
-      url = "github:unnamed-systems/nix-secrets/151f264a22b595802647db8fac09a2dbd6cb202c";
+      url = "github:unnamed-systems/nix-secrets/857a7594bc4cd65533bc9fcdd056dc843e10e441";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     llm-agents.url = "github:numtide/llm-agents.nix";

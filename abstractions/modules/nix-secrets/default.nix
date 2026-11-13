@@ -58,7 +58,7 @@ delib.module {
           # CLI lookup uses this Hjem user's generated manifest regardless of
           # --flake; override nixEvalCommand to target another configuration.
           nixEvalCommand = lib.mkDefault "${pkgs.coreutils}/bin/cat ${pkgs.writeText "nix-secrets-manifest.json" cfg.manifest}";
-          generatorBuildCommand = lib.mkDefault "${pkgs.nix}/bin/nix-store --realise {{input}}";
+          derivationBuildCommand = lib.mkDefault "${pkgs.nix}/bin/nix-store --realise {{input}}";
         };
       })
       (lib.mkIf (cfg.enable && cfg.activate.enable) {
@@ -168,7 +168,7 @@ delib.module {
       };
     };
     cli-commands = case {
-      protects = "Activation and the CLI read this Hjem user's generated manifest, and generators are realized with nix-store.";
+      protects = "Activation and the CLI read this Hjem user's generated manifest, and derivations are realized with nix-store through both the CLI environment and the manifest.";
       modules.probe = automatic [pkgs.coreutils];
       expr = result: let
         wiring = json result "wiring.json";
@@ -177,13 +177,15 @@ delib.module {
       in {
         command = wiring.command == "${wiring.package}/bin/nix-secrets activate ${manifest} --needed-for-users false";
         eval = environment.NIX_SECRETS_NIX_EVAL_COMMAND == "${pkgs.coreutils}/bin/cat ${manifest}";
-        generator = environment.NIX_SECRETS_GENERATOR_BUILD_COMMAND;
+        buildCommand = environment.NIX_SECRETS_DERIVATION_BUILD_COMMAND;
+        manifestCommand = (json result "manifest.json").derivationBuildCommand;
         secrets = builtins.length (json result "manifest.json").secrets;
       };
       expected = {
         command = true;
         eval = true;
-        generator = "${pkgs.nix}/bin/nix-store --realise {{input}}";
+        buildCommand = "${pkgs.nix}/bin/nix-store --realise {{input}}";
+        manifestCommand = "${pkgs.nix}/bin/nix-store --realise {{input}}";
         secrets = 1;
       };
     };
