@@ -63,7 +63,7 @@ For already-held points:
 
 Where the runtime offers a structured question tool, use it for bounded selections and free-form replies for exploration. An unanswered prompt settles nothing.
 
-A point the user stated, chose earlier, or that verified constraints force is settled; carry it forward unchanged. Keep open points visibly open.
+A point the user stated, chose earlier, or that verified constraints force is settled: do not ask for it again, and do not alter it without the user. Keep open points visibly open.
 
 ## Completion
 
