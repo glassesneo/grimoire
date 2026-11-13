@@ -44,11 +44,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1786617984,
-        "narHash": "sha256-Wk3FdlLeY76yX+v+1cmKyCbqkd4FwysKTtzYBJlrW7Y=",
+        "lastModified": 1793115881,
+        "narHash": "sha256-ojDhdAQIvz5rY/9oqDZlwy9VByfUXYYUq2Dro7FIgV4=",
         "owner": "yunfachi",
         "repo": "denix",
-        "rev": "a47937cf1429095d4373d21d14be923fb48b432e",
+        "rev": "ad5690c39fedc15d617e5c199447b55c3fe5e661",
         "type": "github"
       },
       "original": {
