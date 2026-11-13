@@ -194,6 +194,27 @@
         "type": "github"
       }
     },
+    "imprynt": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "zig": "zig"
+      },
+      "locked": {
+        "lastModified": 1794572481,
+        "narHash": "sha256-0eKzGua7AvUgofW7akx8QKxyXHzyMv39b8Vih6wZgnM=",
+        "ref": "refs/heads/main",
+        "rev": "bb1d26ba20a5420ec0dd4b83e64872f72bae4bae",
+        "revCount": 11,
+        "type": "git",
+        "url": "file:///Users/neo/dev/imprynt"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///Users/neo/dev/imprynt"
+      }
+    },
     "llm-agents": {
       "inputs": {
         "bun2nix": "bun2nix",
@@ -330,6 +351,7 @@
         "denix": "denix",
         "git-hooks": "git-hooks_2",
         "hjem": "hjem",
+        "imprynt": "imprynt",
         "llm-agents": "llm-agents",
         "nix-darwin": "nix-darwin",
         "nix-secrets": "nix-secrets",
@@ -405,6 +427,27 @@
       "original": {
         "owner": "numtide",
         "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "zig": {
+      "inputs": {
+        "nixpkgs": [
+          "imprynt",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794547851,
+        "narHash": "sha256-R/x0+PIDKfCljpefh/oNmQZdW51nwX6gKeNqH8JYrpw=",
+        "owner": "silversquirl",
+        "repo": "zig-flake",
+        "rev": "8d908260e00f5e29da964816190b833c952fffce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "silversquirl",
+        "repo": "zig-flake",
         "type": "github"
       }
     }

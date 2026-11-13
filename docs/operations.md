@@ -42,6 +42,32 @@ Declared defaults are applied by the repository's switch recipes; calling upstre
 
 A failed or deferred change action stays pending and runs on a later switch; a service restart waits until dinit runs. The lifecycle and persistent state are specified in [the defaults reconciler](../abstractions/modules/defaults/reconciler/reconciler.cr).
 
+## Real-file deployments and fonts
+
+The Hjem switch runs the real-file deployments registered with the
+[imprynt module](../abstractions/modules/imprynt/default.nix). Each deployment
+commits independently: a failure stops the switch, but does not roll back earlier
+deployments or Hjem activation. Keep its private state, including a retained
+journal and originals after a recovery error. Correct external conflicts and
+retry the switch rather than deleting state to force another installation.
+
+To retire a deployment, leave an empty entry at its original root and state
+location and apply it before removing the entry. Removing or renaming the entry
+alone abandons its cleanup. Setting `fonts.enable = false` keeps that empty
+entry for the fonts deployment; an ordinary switch then removes its managed
+fonts while leaving manual files alone.
+
+Verify font recognition on `seiran-vm1` with a GUI login as the target user.
+Headless placement can succeed before the user's font service runs. Apply only
+the imprynt step when testing fonts without activating unrelated services or
+defaults: build the host's `hjemConfigurations.<user>@<host>.apply.steps.imprynt`
+and run that package's `bin/apply` as the target user. This is a live mutation,
+not a sandbox check. Check both AppKit's available font families and
+`system_profiler SPFontsDataType` paths after addition and removal. Registry
+updates are asynchronous, and an already running application's font menu may
+need to be reopened or the application restarted. Do not infer recognition
+from a successful file copy alone.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.

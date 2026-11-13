@@ -356,6 +356,17 @@ Source: [<code>abstractions/modules/eza/default.nix</code>](../../abstractions/m
 | <code>eza.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>eza.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether eza takes its colors from `colorscheme.resolved`. |
 
+### <code>fonts</code>
+
+Install the user's font packages as real files in the platform's font directory.
+
+Source: [<code>abstractions/modules/fonts/default.nix</code>](../../abstractions/modules/fonts/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>fonts.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>fonts.packages</code> | <code>list of package</code> | (computed) |  |
+
 ### <code>fzf</code>
 
 Provide and configure fzf, including its Zsh integration.
@@ -430,6 +441,29 @@ Source: [<code>abstractions/modules/identity/default.nix</code>](../../abstracti
 | --- | --- | --- | --- |
 | <code>identity.email</code> | <code>string</code> | <code>"glassesneo@protonmail.com"</code> | read-only; Email address of the person. |
 | <code>identity.fullName</code> | <code>string</code> | <code>"Neo Kitani"</code> | read-only; Full name of the person. |
+
+### <code>imprynt</code>
+
+Declare real-file deployments and apply them through imprynt.
+
+Source: [<code>abstractions/modules/imprynt/default.nix</code>](../../abstractions/modules/imprynt/default.nix)
+
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>imprynt.deployments</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Independent real-file deployments, named by safe single path components. Keep an empty entry to remove its last files; removing an entry skips its cleanup. |
+| <code>imprynt.deployments.&lt;name&gt;.files</code> | <code>list of (submodule)</code> | <code>[ ]</code> | Explicit source files and their root-relative destinations. |
+| <code>imprynt.deployments.&lt;name&gt;.files.*.mode</code> | <code>integer between 0 and 511 (both inclusive)</code> | <code>420</code> | POSIX permission bits, as an integer (420 is 0644). |
+| <code>imprynt.deployments.&lt;name&gt;.files.*.path</code> | <code>relative destination path without empty, dot or parent components</code> |  | Destination relative to the managed root. |
+| <code>imprynt.deployments.&lt;name&gt;.files.*.source</code> | <code>absolute path</code> |  | Source file; symlinks are followed and materialized as regular files. |
+| <code>imprynt.deployments.&lt;name&gt;.root</code> | <code>absolute path</code> |  | Absolute destination root, resolved and recorded by imprynt. |
+| <code>imprynt.deployments.&lt;name&gt;.stateDirectory</code> | <code>absolute path</code> | <code>"\${config.xdg.state.directory}/imprynt/&lt;name&gt;"</code> | Private persistent state, outside the destination root on the same filesystem; do not edit or delete its journal. |
+| <code>imprynt.deployments.&lt;name&gt;.trees</code> | <code>list of (submodule)</code> | <code>[ ]</code> | Source trees enumerated at build time, preserving relative file paths below each prefix. |
+| <code>imprynt.deployments.&lt;name&gt;.trees.*.extensions</code> | <code>null or (list of string)</code> | <code>null</code> | Included last filename extensions, with leading dots, compared ignoring case; null includes every regular file. |
+| <code>imprynt.deployments.&lt;name&gt;.trees.*.mode</code> | <code>integer between 0 and 511 (both inclusive)</code> | <code>420</code> | POSIX permission bits, as an integer (420 is 0644). |
+| <code>imprynt.deployments.&lt;name&gt;.trees.*.prefix</code> | <code>string</code> | <code>""</code> | Relative destination prefix; empty places the tree directly below the managed root. |
+| <code>imprynt.deployments.&lt;name&gt;.trees.*.source</code> | <code>absolute path</code> |  | Source directory enumerated during the manifest build. |
 
 ### <code>kanata</code>
 
