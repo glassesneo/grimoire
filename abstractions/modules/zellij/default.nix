@@ -11,7 +11,7 @@
 
   # Zellij parses KDL v1 only.
   toKdl = content:
-    wrapperLib.toKdl (_: {
+    wrapperLib.generators.toKdl (_: {
       version = 1;
       indent = "    ";
       inherit content;
