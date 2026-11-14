@@ -1,13 +1,14 @@
 {delib, ...}:
-delib.module {
+delib.module ({myconfig, ...}: {
   name = "vfkit.persistence";
   meta.description = "Provide vfkit for running virtual machines with Apple Virtualization.framework.";
 
   options.enable = delib.boolOption false;
+  tests.fixture = ["services"];
 
-  darwin.ifEnabled = {pkgs, ...}: {
-    launchd.daemons.agent-vm.serviceConfig = {
-      ProgramArguments = [
+  hjem.ifEnabled = {pkgs, ...}: {
+    userServices.agent-vm = {
+      command = [
         "${pkgs.vfkit}/bin/vfkit"
         "--cpus"
         "2"
@@ -22,13 +23,12 @@ delib.module {
         "--device"
         "virtio-net,nat,mac=52:54:00:12:34:56"
         "--device"
-        "virtio-serial,logFilePath=/var/log/agent-vm.log"
+        "virtio-serial,logFilePath=${myconfig.host.user.homeDirectory}/Library/Logs/agent-vm.log"
         "--device"
         "virtio-rng"
       ];
-      RunAtLoad = true;
-      KeepAlive = true;
-      StandardErrorPath = "/var/log/agent-vm.err.log";
+      restart = "always";
+      logFile = "${myconfig.host.user.homeDirectory}/Library/Logs/agent-vm.err.log";
     };
   };
-}
+})
