@@ -11,6 +11,8 @@ delib.host {
       enable = true;
       profile = "default";
     };
+    vfkit.enable = true;
+    vfkit.persistence.enable = true;
     slack.enable = false;
     notion.enable = false;
     web.enable = true;
@@ -30,7 +32,7 @@ delib.host {
     ];
   };
 
-  darwin.ifEnabled = {
+  darwin.ifEnabled = _: {
     system.stateVersion = 7;
     ids.gids.nixbld = 350;
     services.openssh.enable = true;

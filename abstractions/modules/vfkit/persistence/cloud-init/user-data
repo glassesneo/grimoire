@@ -1,0 +1,15 @@
+#cloud-config
+hostname: agent
+users:
+  - name: neo
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC43jV/scFhyOWFlrpv4jDxn5Ef002X+wh56oUP4SZzK glassesneo@protonmail.com
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIsbz4biKxxajUn5cuvj9V49fQGMeNnOXWq0OaiIBf95 glassesneo@protonmail.com
+ssh_pwauth: false
+package_update: true
+packages: [podman, uidmap, passt, nftables, curl, xz-utils]
+runcmd:
+  - loginctl enable-linger neo

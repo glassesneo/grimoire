@@ -101,6 +101,8 @@ Modules whose only option is `enable`:
 | [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
 | [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
 | [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
+| [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | <code>true</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
+| [<code>vfkit.persistence</code>](../../abstractions/modules/vfkit/persistence/default.nix) | <code>myconfig.vfkit.enable &amp;&amp; false</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
 | [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae launcher window between its compact and expanded states. |  |
 | [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae selection highlight as it moves between list items. |  |
 | [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | <code>false</code> | Provide the web retrieval MCP server and its backend configuration. |  |
