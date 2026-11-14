@@ -25,7 +25,7 @@ def with-repo [hooks: string, action: closure] {
     git config core.hooksPath $hooks | ignore
     "needs formatting\n" | save --force sample.nix
     git add sample.nix | ignore
-    with-env {NIX_CALLS: ($directory | path join .git nix-calls), SNAPSHOTS: ($directory | path join .git snapshots), PUSH_CONTENTS: ($directory | path join .git push-contents), CHECK_BUILDS: ($directory | path join .git check-builds), EXPECT_OTHER: "other\n"} {
+    with-env {NIX_CALLS: ($directory | path join .git nix-calls), SNAPSHOTS: ($directory | path join .git snapshots), PUSH_CONTENTS: ($directory | path join .git push-contents), CHECK_BUILDS: ($directory | path join .git check-builds), EXPECT_OTHER: "other\n", NIX_CONFIG: "max-jobs = 0"} {
       do $action
       if ($env.SNAPSHOTS | path exists) {
         for snapshot in (open --raw $env.SNAPSHOTS | lines | uniq) {

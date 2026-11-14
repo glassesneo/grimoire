@@ -11,7 +11,10 @@ def flag [args: list<string>, name: string] {
 def fast-build [args: list<string>, check: closure] {
   let select = flag $args '--select'
   let results = flag $args '--result-file'
-  assert equal $args [fast-build --no-nom --eval-workers '4' --flake 'path:.#checks.test-system' --select $select --result-file $results]
+  # Scheduling remains explicit even when Nix disables local builds; the
+  # runner must not change the Nix setting to obtain its own workers.
+  assert equal $env.NIX_CONFIG 'max-jobs = 0'
+  assert equal $args [fast-build --no-nom --max-jobs '4' --eval-workers '4' --flake 'path:.#checks.test-system' --select $select --result-file $results]
   if ($env.FAST_BUILD_CRASH? | is-not-empty) { exit 1 }
   let names = $select | parse --regex "fromJSON ''(?<json>.*)''" | get 0.json | from json | where {|name| $name != $env.FAST_BUILD_OMIT? }
   let entries = $names | each {|name|

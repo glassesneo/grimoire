@@ -56,7 +56,8 @@ export def build-checks [flake: string, system: string, names: list<string>] {
   let file = mktemp --tmpdir repository-checks.XXXXXX
   try {
     let failure = try {
-      ^nix-fast-build --no-nom --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $file
+      # Bound build requests independently of Nix's local max-jobs, which may be zero.
+      ^nix-fast-build --no-nom --max-jobs 4 --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $file
       null
     } catch {|error| $error }
     # A run that fails before writing results leaves the file empty.

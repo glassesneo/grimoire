@@ -8,6 +8,10 @@ Enter `nix develop` before using repository commands. The shell provides the com
 
 Entering `nix develop`, or entering through an allowed direnv environment, installs the hooks, with prek as the git-hooks.nix runner, and sets this repository's `core.hooksPath`. Installation replaces the configured hooks path; existing hooks are not chained. The installed tools are GC-rooted in the Git common directory. A fresh clone has no hooks until the development shell has been entered; re-enter it after changing the hook configuration or scripts. Hooks then also work outside the development shell, with access to Nix and its daemon still required; prek also needs a writable cache directory (`$XDG_CACHE_HOME/prek`, by default `~/.cache/prek`).
 
+## Check scheduling
+
+The check runner used by commit, pre-push and `just check-full` sets its own fixed concurrency for build requests, independently of Nix's local build limit. It leaves Nix settings unchanged, so `max-jobs = 0` can continue to delegate builds to remote builders without disabling the check runner's workers.
+
 ## Commit automation
 
 The hook works on a snapshot of the index being committed, outside the worktree. Unstaged changes and untracked files are excluded from the snapshot and left untouched, so a set of changes can be split over several commits by staging each part in turn; partial staging within a file is supported. Do not edit the worktree or index concurrently with a commit.
