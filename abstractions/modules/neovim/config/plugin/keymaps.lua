@@ -18,6 +18,9 @@ end, { expr = true }
 )
 map("i", "<C-b>", "<Left>")
 map("i", "<C-f>", "<Right>")
+-- Ctrl-J and Ctrl-L switch SKK input modes.
+map({ "i", "c" }, "<C-j>", "<Nop>")
+map({ "i", "c" }, "<C-l>", "<Nop>")
 
 -- x and X delete like d and D without touching any register.
 map({ "n", "x" }, "x", '"_d')

@@ -51,6 +51,8 @@ in
             "--border=sharp"
             "--no-separator"
             "--no-scrollbar"
+            # SKK input mode switching keys.
+            "--bind=ctrl-j:ignore,ctrl-l:ignore"
           ];
           FZF_CTRL_T_OPTS = "--popup=center,80%,50%";
           FZF_CTRL_R_OPTS = "--popup=center,80%,50%";

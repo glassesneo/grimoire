@@ -39,6 +39,10 @@ delib.module ({
     "tui.editor.cursorUp" = ["up" "ctrl+p"];
     "tui.editor.cursorDown" = ["down" "ctrl+n"];
     "app.model.cycleForward" = [];
+    # Ctrl-J and Ctrl-L switch SKK input modes.
+    "tui.input.newLine" = ["shift+enter"];
+    "app.model.select" = [];
+    "app.tree.filter.labeledOnly" = [];
   };
   # Hjem and the bundle write the same settings; only the MCP selection differs.
   build = pkgs: servers:

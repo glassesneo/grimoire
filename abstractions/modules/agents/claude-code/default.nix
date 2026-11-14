@@ -110,6 +110,24 @@ in
         generator = lib.generators.toJSON {};
         value = config.claude-code.settings;
       };
+
+      files.".claude/keybindings.json" = {
+        exclusive = true;
+        generator = lib.generators.toJSON {};
+        value = {
+          "$schema" = "https://www.schemastore.org/claude-code-keybindings.json";
+          bindings = [
+            {
+              context = "Chat";
+              # Ctrl-J and Ctrl-L switch SKK input modes.
+              bindings = {
+                "ctrl+j" = null;
+                "ctrl+l" = null;
+              };
+            }
+          ];
+        };
+      };
     };
 
     tests.cases = {
