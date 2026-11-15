@@ -11,6 +11,7 @@ delib.host {
       compact-transition.enable = true;
       selection-highlight.enable = true;
     };
+    tailscale.enable = true;
     web.enable = true;
     pi.mcpServers = ["web"];
     secrets.names = [
@@ -26,6 +27,15 @@ delib.host {
       "exa-api-key"
       "command-code-api-key"
     ];
+  };
+
+  # The tailnet name reaches kurogane from any network, unlike its LAN names.
+  hjem.ifEnabled = {config, ...}: {
+    ssh.hosts.kurogane = {
+      HostName = "kurogane.${config.myconfig.tailscale.tailnet}";
+      User = "neo";
+      IdentityFile = config.myconfig.ssh.personalKeyFile;
+    };
   };
 
   darwin.ifEnabled = {

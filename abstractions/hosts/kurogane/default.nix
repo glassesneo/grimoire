@@ -13,6 +13,7 @@ delib.host {
     };
     vfkit.enable = true;
     vfkit.persistence.enable = true;
+    tailscale.enable = true;
     slack.enable = false;
     notion.enable = false;
     web.enable = true;

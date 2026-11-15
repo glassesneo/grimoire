@@ -752,6 +752,17 @@ Source: [<code>abstractions/modules/tags/default.nix</code>](../../abstractions/
 | --- | --- | --- | --- |
 | <code>tags.enabled</code> | <code>list of value "gui" (singular enum)</code> | <code>[ ]</code> | Tags whose modules are enabled by default. |
 
+### <code>tailscale</code>
+
+Join the host to the person's tailnet through Tailscale's daemon, which runs from boot without a login session.
+
+Source: [<code>abstractions/modules/tailscale/default.nix</code>](../../abstractions/modules/tailscale/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>tailscale.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>tailscale.tailnet</code> | <code>string</code> | <code>"marten-pierce.ts.net"</code> | read-only; DNS name of the tailnet these hosts join. MagicDNS resolves a joined host as `&lt;host name&gt;.&lt;tailnet&gt;` from any other. |
+
 ### <code>vicinae</code>
 
 Provide the Vicinae launcher as a login service with a stable code-signing identity.
