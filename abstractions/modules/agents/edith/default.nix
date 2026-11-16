@@ -6,8 +6,10 @@
   ...
 }:
 delib.module ({cfg, ...}: let
-  # Providers whose API key a stored secret holds, with the variable pi-ai reads it from.
+  # Providers EDITH can use: by the stored secret holding an API key and the variable pi-ai
+  # reads it from, or, with `login`, by a credential placed in EDITH's credentials file.
   providers = {
+    openai.login = true;
     openrouter = {
       secret = "openrouter-api-key";
       variable = "OPENROUTER_API_KEY";
@@ -27,7 +29,9 @@ delib.module ({cfg, ...}: let
   };
   thinkingLevels = ["off" "minimal" "low" "medium" "high" "xhigh" "max"];
   discordToken = "discord-bot-token";
-  keyed = lib.unique (lib.optional (cfg.defaults.model != null) cfg.defaults.model.provider ++ cfg.providers);
+  keyed = lib.filter (name: providers.${name} ? secret) (
+    lib.unique (lib.optional (cfg.defaults.model != null) cfg.defaults.model.provider ++ cfg.providers)
+  );
   program = pkgs:
     import ./package.nix {
       inherit lib;
@@ -50,7 +54,7 @@ in {
           };
         });
         default = null;
-        description = "Model of every conversation that does not set its own. A higher source replaces it whole.";
+        description = "Model of every conversation that does not set its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand. A higher source replaces it whole.";
       });
       thinkingLevel = delib.allowNull (delib.enumOption thinkingLevels null) "Thinking level of every conversation that does not set its own; `null` leaves it to pi-durable.";
     };
@@ -84,6 +88,8 @@ in {
     socket = "${stateDirectory}/edith.sock";
     settings = pkgs.writeText "edith.json" (builtins.toJSON {
       storage = "${stateDirectory}/session.sqlite";
+      # A login, such as a copy of Pi's ChatGPT login in its auth.json, is placed here by hand.
+      credentials = "${stateDirectory}/auth.json";
       inherit socket;
       providerKeys = lib.listToAttrs (map (name: lib.nameValuePair providers.${name}.variable (secret providers.${name}.secret)) keyed);
       profiles.default = lib.filterAttrs (_: value: value != null) {

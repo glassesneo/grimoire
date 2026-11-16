@@ -5,6 +5,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { Edith, type Options } from "./core.ts";
+import { FileCredentialStore } from "./credentials.ts";
 import { Discord } from "./discord.ts";
 import { listen } from "./socket.ts";
 
@@ -13,6 +14,8 @@ type Config = {
   readonly socket: string;
   // Files holding provider API keys, by the environment variable pi-ai reads each from.
   readonly providerKeys: Readonly<Record<string, string>>;
+  // Stored credentials, such as an OAuth login, by provider id; absent until one is placed there.
+  readonly credentials: string;
   readonly profiles: Options["profiles"];
   readonly discord: { readonly tokenFile: string; readonly allowedUsers: readonly string[] } | null;
 };
@@ -32,7 +35,7 @@ for (const path of [config.storage, config.socket])
 const edith = await Edith.open(
   await openNodeSqliteStorage(config.storage),
   {
-    models: builtinModels(),
+    models: builtinModels({ credentials: new FileCredentialStore(config.credentials) }),
     profiles: config.profiles,
     onReport: (report) => console.error(`report: ${report.kind}`, report.error),
   },

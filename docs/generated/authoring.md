@@ -308,14 +308,14 @@ Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstr
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>edith.defaults.model</code> | <code>null or (submodule)</code> | <code>null</code> | Model of every conversation that does not set its own. A higher source replaces it whole. |
+| <code>edith.defaults.model</code> | <code>null or (submodule)</code> | <code>null</code> | Model of every conversation that does not set its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand. A higher source replaces it whole. |
 | <code>edith.defaults.model.modelId</code> | <code>non-empty string</code> |  |  |
-| <code>edith.defaults.model.provider</code> | <code>one of "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
+| <code>edith.defaults.model.provider</code> | <code>one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
 | <code>edith.defaults.thinkingLevel</code> | <code>null or one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> | <code>null</code> | Thinking level of every conversation that does not set its own; `null` leaves it to pi-durable. |
 | <code>edith.discord.allowedUsers</code> | <code>list of string matching the pattern [0-9]+</code> | <code>[ ]</code> | Discord user IDs whose messages EDITH answers; it ignores everyone else. |
 | <code>edith.discord.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>edith.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.providers</code> | <code>list of (one of "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the default model's whose API keys EDITH loads, so that a conversation can switch to their models. |
+| <code>edith.providers</code> | <code>list of (one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the default model's whose API keys EDITH loads, so that a conversation can switch to their models. |
 
 ### <code>elio</code>
 

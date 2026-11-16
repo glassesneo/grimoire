@@ -20,10 +20,14 @@ delib.host {
     pi.mcpServers = ["web"];
     edith = {
       enable = true;
-      defaults.model = {
-        provider = "openrouter";
-        modelId = "nvidia/nemotron-3.5-lightning:free";
+      defaults = {
+        model = {
+          provider = "openai";
+          modelId = "gpt-6.1-sol";
+        };
+        thinkingLevel = "medium";
       };
+      providers = ["openrouter"];
       discord = {
         enable = true;
         allowedUsers = ["594106068544782338"];
