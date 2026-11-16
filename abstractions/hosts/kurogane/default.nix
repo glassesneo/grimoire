@@ -18,6 +18,17 @@ delib.host {
     notion.enable = false;
     web.enable = true;
     pi.mcpServers = ["web"];
+    edith = {
+      enable = true;
+      defaults.model = {
+        provider = "openrouter";
+        modelId = "nvidia/nemotron-3.5-lightning:free";
+      };
+      discord = {
+        enable = true;
+        allowedUsers = ["594106068544782338"];
+      };
+    };
     secrets.names = [
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"

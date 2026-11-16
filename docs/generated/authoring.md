@@ -300,6 +300,23 @@ Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstracti
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of `userServices` to restart. |
 | <code>platform.darwin.defaults.&lt;name&gt;.settings</code> | <code>attribute set of anything</code> | <code>{ }</code> | Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole. |
 
+### <code>edith</code>
+
+Run EDITH, a resident agent on pi-durable whose conversations clients such as Discord reach by address.
+
+Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstractions/modules/agents/edith/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>edith.defaults.model</code> | <code>null or (submodule)</code> | <code>null</code> | Model of every conversation that does not set its own. A higher source replaces it whole. |
+| <code>edith.defaults.model.modelId</code> | <code>non-empty string</code> |  |  |
+| <code>edith.defaults.model.provider</code> | <code>one of "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
+| <code>edith.defaults.thinkingLevel</code> | <code>null or one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> | <code>null</code> | Thinking level of every conversation that does not set its own; `null` leaves it to pi-durable. |
+| <code>edith.discord.allowedUsers</code> | <code>list of string matching the pattern [0-9]+</code> | <code>[ ]</code> | Discord user IDs whose messages EDITH answers; it ignores everyone else. |
+| <code>edith.discord.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>edith.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>edith.providers</code> | <code>list of (one of "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the default model's whose API keys EDITH loads, so that a conversation can switch to their models. |
+
 ### <code>elio</code>
 
 Provide and publish elio, configure its settings and theme, and integrate it with Zsh.
@@ -651,8 +668,8 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>secrets.names</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
-| <code>secrets.required</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
+| <code>secrets.names</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
+| <code>secrets.required</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
 

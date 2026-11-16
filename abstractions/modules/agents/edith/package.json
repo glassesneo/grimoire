@@ -1,0 +1,17 @@
+{
+  "name": "grimoire-edith",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@discordjs/core": "2.7.0",
+    "@discordjs/rest": "2.6.3",
+    "@discordjs/ws": "2.0.4",
+    "@earendil-works/chord": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-durable": "1.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}
