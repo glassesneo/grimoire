@@ -8,22 +8,25 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-  Output,
-  cancelledCalls,
-  declarations,
   fallbackType,
-  identity,
-  marker,
   readable,
   restore,
   retiredType,
   saved,
   savedFallback,
+  type Saved,
+} from "./boundary.ts";
+import {
+  Output,
+  cancelledCalls,
+  compactionPayload,
+  declarations,
+  identity,
+  marker,
   splice,
   supported,
   type Checkpoint,
-  type Saved,
-} from "./boundary.ts";
+} from "./responses.ts";
 
 const manualThreshold = 1000;
 
@@ -244,18 +247,7 @@ export default function registerCompaction(pi: ExtensionAPI): void {
     output = new Output();
     requestTools = declared;
     requestIdentity = identity(ctx.model);
-    return {
-      ...payload,
-      input,
-      store: false,
-      stream: true,
-      context_management: [
-        {
-          type: "compaction",
-          compact_threshold: ctx.model.contextWindow - settings(ctx).reserveTokens,
-        },
-      ],
-    };
+    return compactionPayload(payload, input, ctx.model.contextWindow - settings(ctx).reserveTokens);
   });
   pi.on("provider_stream_event", (event, ctx) => {
     if (!output) return;
@@ -383,22 +375,11 @@ export default function registerCompaction(pi: ExtensionAPI): void {
                 if (!replaced) throw new Error("Manual checkpoint prefix missing");
                 input = replaced;
               }
-              return {
-                ...payload,
-                input,
-                store: false,
-                stream: true,
-                context_management: [
-                  {
-                    type: "compaction",
-                    // The server compacts only an input above the threshold, and /compact
-                    // usually runs below the automatic one. 1000 tokens was verified against
-                    // the public API to force compaction; a shorter prefix falls back to a
-                    // standard summary.
-                    compact_threshold: manualThreshold,
-                  },
-                ],
-              };
+              // The server compacts only an input above the threshold, and /compact
+              // usually runs below the automatic one. 1000 tokens was verified against
+              // the public API to force compaction; a shorter prefix falls back to a
+              // standard summary.
+              return compactionPayload(payload, input, manualThreshold);
             },
             onProviderStreamEvent: (data) => collected.observe(data),
           },
