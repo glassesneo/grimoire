@@ -129,7 +129,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile unless a conversation overrides it, and parses chat commands and splits answers within a message limit";
+      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile unless a conversation overrides it, and parses command arguments and splits answers within a message limit";
       tsRoots = ["src"];
       build = _:
         pkgs.runCommand "edith-contracts" {} ''

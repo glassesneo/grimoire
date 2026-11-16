@@ -1,19 +1,25 @@
 // The Discord client: each channel is the conversation `discord:<channel id>`, answering the
-// allowed users only. Replies are delivered at least once across restarts: the input and its
+// allowed users only, who set a channel's model and thinking level with slash commands. Replies are delivered at least once across restarts: the input and its
 // pending reply are admitted in one commit, and the reply is forgotten once it is posted.
 // Discord deduplicates a repeated post by its nonce for a few minutes.
 import type { Context } from "@earendil-works/chord/context";
 import {
+  ApplicationCommandOptionType,
+  ApplicationCommandType,
   Client,
   GatewayDispatchEvents,
   GatewayIntentBits,
+  InteractionType,
+  MessageFlags,
   type API,
+  type APIInteraction,
   type APIMessage,
+  type RESTPutAPIApplicationGuildCommandsJSONBody,
 } from "@discordjs/core";
 import { REST } from "@discordjs/rest";
 import { WebSocketManager } from "@discordjs/ws";
 import { defineDoc, type SubmissionId } from "@earendil-works/pi-durable";
-import { describe, help, parseCommand, split } from "./commands.ts";
+import { describe, followDefault, levels, parseModel, parseThinking, split } from "./commands.ts";
 import type { Edith } from "./core.ts";
 
 export type DiscordOptions = {
@@ -34,6 +40,42 @@ const State = defineDoc<{ pending: Record<string, Pending>; lastSeen: Record<str
   checkpointWhen: () => true,
 });
 
+// Registered in every guild the bot is in, where they are available at once.
+const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "status",
+    description: "Show this channel's model and thinking level",
+  },
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "model",
+    description: "Set this channel's model",
+    options: [
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "model",
+        description: `<provider>/<model id>, or ${followDefault} to follow the default`,
+        required: true,
+      },
+    ],
+  },
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "thinking",
+    description: "Set this channel's thinking level",
+    options: [
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "level",
+        description: `A thinking level, or ${followDefault} to follow the default`,
+        required: true,
+        choices: [...levels, followDefault].map((value) => ({ name: value, value })),
+      },
+    ],
+  },
+];
+
 const later = (a: string, b: string | undefined) =>
   b === undefined || BigInt(a) > BigInt(b) ? a : b;
 
@@ -45,6 +87,7 @@ export class Discord {
   readonly #client: Client;
   // Replies being delivered by this process, by Discord message id.
   readonly #delivering = new Set<string>();
+  #application: string | undefined;
 
   constructor(edith: Edith, options: DiscordOptions, context: Context) {
     this.#edith = edith;
@@ -64,10 +107,24 @@ export class Discord {
     this.#client.on(GatewayDispatchEvents.MessageCreate, ({ data, api }) =>
       this.#spawn(this.#receive(api, data)),
     );
+    this.#client.on(GatewayDispatchEvents.InteractionCreate, ({ data, api }) =>
+      this.#spawn(this.#interact(api, data)),
+    );
     // Ready follows every new session; events missed while disconnected are not replayed.
     this.#client.on(GatewayDispatchEvents.Ready, ({ data, api }) => {
       console.error(`discord: connected as ${data.user.username}`);
+      this.#application = data.application.id;
       this.#spawn(this.#recover(api));
+    });
+    // Each guild arrives after Ready, and again when the bot joins one. Overwriting the
+    // whole set leaves exactly these commands, whatever an earlier version registered.
+    this.#client.on(GatewayDispatchEvents.GuildCreate, ({ data, api }) => {
+      if (this.#application === undefined) return;
+      this.#spawn(
+        api.applicationCommands
+          .bulkOverwriteGuildCommands(this.#application, data.id, commands)
+          .then(() => undefined),
+      );
     });
   }
 
@@ -97,16 +154,6 @@ export class Discord {
     if (message.author.bot || !this.#options.allowedUsers.includes(message.author.id)) return;
     const channel = message.channel_id;
     const address = `discord:${channel}`;
-    const command = parseCommand(message.content);
-    if (command) {
-      const reply = await this.#command(address, command);
-      await this.#post(api, channel, message.id, reply);
-      await this.#edith.harness.commit(async (tx) => {
-        const state = await tx.doc(State);
-        state.lastSeen[channel] = later(message.id, state.lastSeen[channel]);
-      }, this.#context);
-      return;
-    }
     if (message.content.trim() === "") return;
     await this.#edith.submit(
       address,
@@ -129,25 +176,59 @@ export class Discord {
     await this.#deliver(api, message.id);
   }
 
-  async #command(
-    address: string,
-    command: NonNullable<ReturnType<typeof parseCommand>>,
-  ): Promise<string> {
-    switch (command.kind) {
-      case "help":
-        return help;
-      case "invalid":
-        return command.message;
+  async #interact(api: API, interaction: APIInteraction): Promise<void> {
+    if (interaction.type !== InteractionType.ApplicationCommand) return;
+    const data = interaction.data;
+    if (data.type !== ApplicationCommandType.ChatInput) return;
+    const user = interaction.member?.user ?? interaction.user;
+    const channel = interaction.channel?.id;
+    const reply = (content: string, flags?: MessageFlags) =>
+      api.interactions.reply(interaction.id, interaction.token, {
+        content,
+        allowed_mentions: { parse: [] },
+        ...(flags !== undefined && { flags }),
+      });
+    if (!user || !this.#options.allowedUsers.includes(user.id) || !channel) {
+      await reply("Not available here.", MessageFlags.Ephemeral);
+      return;
+    }
+    const address = `discord:${channel}`;
+    const option = (name: string) => {
+      const found = data.options?.find((candidate) => candidate.name === name);
+      return found?.type === ApplicationCommandOptionType.String ? found.value : "";
+    };
+    switch (data.name) {
       case "status":
-        return describe(await this.#edith.status(address, this.#context));
-      case "model":
-        return describe(
-          await this.#edith.configure(address, { model: command.value }, this.#context),
+        await reply(describe(await this.#edith.status(address, this.#context)));
+        return;
+      case "model": {
+        const parsed = parseModel(option("model"));
+        await reply(
+          "error" in parsed
+            ? parsed.error
+            : describe(
+                await this.#edith.configure(address, { model: parsed.value }, this.#context),
+              ),
         );
-      case "thinking":
-        return describe(
-          await this.#edith.configure(address, { thinkingLevel: command.value }, this.#context),
+        return;
+      }
+      case "thinking": {
+        const parsed = parseThinking(option("level"));
+        await reply(
+          "error" in parsed
+            ? parsed.error
+            : describe(
+                await this.#edith.configure(
+                  address,
+                  { thinkingLevel: parsed.value },
+                  this.#context,
+                ),
+              ),
         );
+        return;
+      }
+      default:
+        await reply(`Unknown command /${data.name}.`, MessageFlags.Ephemeral);
     }
   }
 

@@ -1,9 +1,10 @@
-// Text commands of chat clients and the splitting of answers into a client's message limit.
+// Arguments of chat clients' commands, the status they report, and the splitting of answers
+// into a client's message limit.
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import type { ModelRef } from "@earendil-works/pi-durable";
 import type { Status } from "./core.ts";
 
-const levels: readonly ModelThinkingLevel[] = [
+export const levels: readonly ModelThinkingLevel[] = [
   "off",
   "minimal",
   "low",
@@ -13,56 +14,28 @@ const levels: readonly ModelThinkingLevel[] = [
   "max",
 ];
 
-export type Command =
-  | { readonly kind: "help" }
-  | { readonly kind: "status" }
-  | { readonly kind: "model"; readonly value: ModelRef | null }
-  | { readonly kind: "thinking"; readonly value: ModelThinkingLevel | null }
-  | { readonly kind: "invalid"; readonly message: string };
+// `default` clears a conversation's own choice, so that it follows its profile again.
+export const followDefault = "default";
 
-export const help = [
-  "`!status` shows this channel's model and thinking level.",
-  "`!model <provider>/<model id>` sets the model; `!model default` follows the default again.",
-  `\`!thinking <${levels.join("|")}>\` sets the thinking level; \`!thinking default\` follows the default again.`,
-].join("\n");
+export type Parsed<T> = { readonly value: T | null } | { readonly error: string };
 
-// Undefined when the text is not a command: it is a message for the agent.
-export function parseCommand(text: string): Command | undefined {
-  const match = /^!(\S+)\s*(.*)$/s.exec(text.trim());
-  if (!match) return;
-  const [, name, rest] = match as unknown as [string, string, string];
-  const argument = rest.trim();
-  switch (name) {
-    case "help":
-      return { kind: "help" };
-    case "status":
-      return { kind: "status" };
-    case "model": {
-      if (argument === "default") return { kind: "model", value: null };
-      const slash = argument.indexOf("/");
-      if (slash <= 0 || slash === argument.length - 1 || /\s/.test(argument))
-        return {
-          kind: "invalid",
-          message: "usage: `!model <provider>/<model id>` or `!model default`",
-        };
-      return {
-        kind: "model",
-        value: { provider: argument.slice(0, slash), modelId: argument.slice(slash + 1) },
-      };
-    }
-    case "thinking": {
-      if (argument === "default") return { kind: "thinking", value: null };
-      const level = levels.find((candidate) => candidate === argument);
-      return level
-        ? { kind: "thinking", value: level }
-        : {
-            kind: "invalid",
-            message: `usage: \`!thinking <${levels.join("|")}>\` or \`!thinking default\``,
-          };
-    }
-    default:
-      return { kind: "invalid", message: `unknown command \`!${name}\`; see \`!help\`` };
-  }
+// The provider is the part before the first slash; model ids may contain slashes.
+export function parseModel(argument: string): Parsed<ModelRef> {
+  const text = argument.trim();
+  if (text === followDefault) return { value: null };
+  const slash = text.indexOf("/");
+  if (slash <= 0 || slash === text.length - 1 || /\s/.test(text))
+    return { error: `expected \`<provider>/<model id>\` or \`${followDefault}\`` };
+  return { value: { provider: text.slice(0, slash), modelId: text.slice(slash + 1) } };
+}
+
+export function parseThinking(argument: string): Parsed<ModelThinkingLevel> {
+  const text = argument.trim();
+  if (text === followDefault) return { value: null };
+  const level = levels.find((candidate) => candidate === text);
+  return level
+    ? { value: level }
+    : { error: `expected one of ${[...levels, followDefault].join(", ")}` };
 }
 
 export function describe(status: Status): string {

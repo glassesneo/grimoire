@@ -1,27 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCommand, split } from "./commands.ts";
+import { parseModel, parseThinking, split } from "./commands.ts";
 
-void test("text that does not start with ! is a message, not a command", () => {
-  assert.equal(parseCommand("hello !model x/y"), undefined);
-  assert.equal(parseCommand(""), undefined);
-});
-
-void test("!model takes the provider before the first slash and keeps the rest as the model id", () => {
-  assert.deepEqual(parseCommand("!model openrouter/anthropic/claude-haiku-5.5"), {
-    kind: "model",
+void test("a model argument takes the provider before the first slash and keeps the rest as the model id", () => {
+  assert.deepEqual(parseModel("openrouter/anthropic/claude-haiku-5.5"), {
     value: { provider: "openrouter", modelId: "anthropic/claude-haiku-5.5" },
   });
-  assert.deepEqual(parseCommand("!model default"), { kind: "model", value: null });
-  for (const bad of ["!model", "!model openrouter", "!model /x", "!model x/", "!model a/b c"])
-    assert.equal(parseCommand(bad)?.kind, "invalid", bad);
+  assert.deepEqual(parseModel(" default "), { value: null });
+  for (const bad of ["", "openrouter", "/x", "x/", "a/b c"])
+    assert.ok("error" in parseModel(bad), bad);
 });
 
-void test("!thinking accepts only known levels or default", () => {
-  assert.deepEqual(parseCommand("!thinking high"), { kind: "thinking", value: "high" });
-  assert.deepEqual(parseCommand("!thinking default"), { kind: "thinking", value: null });
-  assert.equal(parseCommand("!thinking loud")?.kind, "invalid");
-  assert.equal(parseCommand("!unknown")?.kind, "invalid");
+void test("a thinking argument accepts only known levels or default", () => {
+  assert.deepEqual(parseThinking("high"), { value: "high" });
+  assert.deepEqual(parseThinking("default"), { value: null });
+  assert.ok("error" in parseThinking("loud"));
 });
 
 void test("split keeps every chunk within the limit and loses no text", () => {
