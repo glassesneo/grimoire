@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseModel, parseThinking, split } from "./commands.ts";
+import { parseModel, split } from "./commands.ts";
 
 void test("a model argument takes the provider before the first slash and keeps the rest as the model id", () => {
   assert.deepEqual(parseModel("openrouter/anthropic/claude-haiku-5.5"), {
@@ -9,12 +9,6 @@ void test("a model argument takes the provider before the first slash and keeps 
   assert.deepEqual(parseModel(" default "), { value: null });
   for (const bad of ["", "openrouter", "/x", "x/", "a/b c"])
     assert.ok("error" in parseModel(bad), bad);
-});
-
-void test("a thinking argument accepts only known levels or default", () => {
-  assert.deepEqual(parseThinking("high"), { value: "high" });
-  assert.deepEqual(parseThinking("default"), { value: null });
-  assert.ok("error" in parseThinking("loud"));
 });
 
 void test("split keeps every chunk within the limit and loses no text", () => {

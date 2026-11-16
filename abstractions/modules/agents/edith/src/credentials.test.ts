@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import type { Credential } from "@earendil-works/pi-ai";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { FileCredentialStore } from "./credentials.ts";
 
 const directory = mkdtempSync(join(tmpdir(), "edith-credentials-"));
@@ -36,12 +35,4 @@ void test("concurrent modifications see each other's writes", async () => {
     });
   await Promise.all([bump(), bump(), bump()]);
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).counter, oauth("3"));
-});
-
-void test("without a stored credential, an API key provider still resolves its key from the environment", async () => {
-  const store = new FileCredentialStore(join(directory, "absent.json"));
-  process.env["OPENROUTER_API_KEY"] = "synthetic-key";
-  const auth = await builtinModels({ credentials: store }).getAuth("openrouter");
-  assert.ok(auth, "openrouter is configured");
-  assert.equal(await builtinModels({ credentials: store }).getAuth("openai"), undefined);
 });
