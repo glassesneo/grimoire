@@ -159,7 +159,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments and splits answers within a message limit";
+      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
       tsRoots = ["src"];
       build = _:
         pkgs.runCommand "edith-contracts" {} ''

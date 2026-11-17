@@ -52,7 +52,7 @@ export type Status = {
 };
 
 export type Answer =
-  | { readonly status: "done"; readonly text: string }
+  | { readonly status: "done"; readonly text: string; readonly entry: number }
   | { readonly status: "unanswered"; readonly reason: string };
 
 export type Options = {
@@ -259,7 +259,7 @@ export class Edith {
       .flatMap((message) => (message.role === "assistant" ? message.content : []))
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("");
-    return { status: "done", text };
+    return { status: "done", text, entry: settled.answer };
   }
 
   async ask(address: string, content: string, context: Context): Promise<Answer> {
