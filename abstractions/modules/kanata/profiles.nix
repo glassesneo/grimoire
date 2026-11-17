@@ -10,7 +10,7 @@
 
     layers.base = {
       # Taps Escape, holds Control.
-      caps = ["tap-hold-press" 70 70 "esc" ["multi" "lctl" ["layer-while-held" "caps-held"]]];
+      caps = ["tap-hold-press" 70 70 "esc" "lctl"];
       # Taps Backspace, holds Command.
       lmet = ["tap-hold-press" 250 100 "bspc" "lmet"];
       # Taps Tab, holds Command.
@@ -18,9 +18,6 @@
       # Taps with ; and : swapped on a US layout, holds Option.
       ";" = ["tap-hold" 200 200 ["fork" "S-;" ["unmod" ["lsft" "rsft"] ";"] ["lsft" "rsft"]] "lalt"];
     };
-
-    # Without unmod, the held Control would turn this into Control-Escape.
-    layers.caps-held.";" = ["unmod" "esc"];
 
     # F with K, L and ; types , . and /.
     chords = let
@@ -33,8 +30,7 @@
     in {
       f-k-comma = punctuation "k" ",";
       f-l-period = punctuation "l" ".";
-      # Off while Caps is held, so the chord cannot delay or capture its ;.
-      f-semicolon-slash = punctuation ";" "/" // {disabledLayers = ["caps-held"];};
+      f-semicolon-slash = punctuation ";" "/";
     };
   };
 }
