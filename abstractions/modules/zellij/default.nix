@@ -182,22 +182,27 @@ in
           "Esc" = [{ScrollToBottom = [];} {SwitchToMode = "Normal";}];
         };
       in {
-        # Super bindings rely on the terminal reporting Cmd through the kitty
-        # keyboard protocol.
+        # Super keeps the app's own operations and Alt those on panes, as in
+        # Rex: Shift moves a pane and Ctrl creates one. Super bindings rely on
+        # the terminal reporting Cmd through the kitty keyboard protocol.
         shared = {
           # NewPane only opens to the right or below; the pane is moved to
           # open it on the left or above.
-          "Super h" = [{NewPane = "Right";} {MovePane = "Left";}];
-          "Super j" = [{NewPane = "Down";}];
-          "Super k" = [{NewPane = "Down";} {MovePane = "Up";}];
-          "Super l" = [{NewPane = "Right";}];
+          "Ctrl Alt h" = [{NewPane = "Right";} {MovePane = "Left";}];
+          "Ctrl Alt j" = [{NewPane = "Down";}];
+          "Ctrl Alt k" = [{NewPane = "Down";} {MovePane = "Up";}];
+          "Ctrl Alt l" = [{NewPane = "Right";}];
+          "Alt Shift h" = [{MovePane = "Left";}];
+          "Alt Shift j" = [{MovePane = "Down";}];
+          "Alt Shift k" = [{MovePane = "Up";}];
+          "Alt Shift l" = [{MovePane = "Right";}];
 
           "Super t" = [{NewTab = [];}];
-          "Super [" = [{GoToPreviousTab = [];}];
-          "Super ]" = [{GoToNextTab = [];}];
+          "Super ," = [{GoToPreviousTab = [];}];
+          "Super ." = [{GoToNextTab = [];}];
 
-          "Super p" = [{ToggleFloatingPanes = [];}];
-          "Super z" = [{ToggleFocusFullscreen = [];}];
+          "Alt Space" = [{ToggleFloatingPanes = [];}];
+          "Alt z" = [{ToggleFocusFullscreen = [];}];
           "Super u" = [{SwitchToMode = "Scroll";}];
           "Super f" = [{SwitchToMode = "EnterSearch";} {SearchInput = 0;}];
         };

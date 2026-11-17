@@ -2,7 +2,7 @@
 delib.module {
   name = "neovim.navigation";
   tests.fixture = ["neovim"];
-  meta.description = "Move focus across Neovim windows and adjacent Zellij panes.";
+  meta.description = "Move focus across Neovim windows and adjacent Zellij or Rex panes.";
 
   options.enable = delib.boolOption true;
 

@@ -83,7 +83,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
-| [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij panes. |  |
+| [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
 | [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
@@ -662,6 +662,19 @@ Source: [<code>abstractions/modules/agents/pi/default.nix</code>](../../abstract
 | <code>pi.extensions</code> | <code>list of string</code> | <code>[ ]</code> | Absolute paths of the extension entries Pi loads. Features add their entries; the published bundle has only the modules' entries. |
 | <code>pi.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers Pi starts through Hjem. An unknown name is rejected, and registering a server does not select it. A standalone bundle can use native project MCP configuration. |
 | <code>pi.sdkTypes</code> | <code>absolute path</code> | <code>./types</code> | read-only; Bun project whose SDK types match `agents.packages.pi`, for checking Pi features' TypeScript. |
+
+### <code>rex</code>
+
+Configure the hand-installed Rex terminal multiplexer and provide the CLI it bundles.
+
+Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/modules/rex/default.nix)<br>Tags: <code>gui</code>
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex Beta.app"</code> |  |
+| <code>rex.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>rex.font</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Rex's terminal font as set in the app. |
+| <code>rex.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs. |
 
 ### <code>secrets</code>
 
