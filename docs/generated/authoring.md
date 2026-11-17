@@ -308,14 +308,18 @@ Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstr
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>edith.defaults.model</code> | <code>null or (submodule)</code> | <code>null</code> | Model of every conversation that does not set its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand. A higher source replaces it whole. |
-| <code>edith.defaults.model.modelId</code> | <code>non-empty string</code> |  |  |
-| <code>edith.defaults.model.provider</code> | <code>one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
-| <code>edith.defaults.thinkingLevel</code> | <code>null or one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> | <code>null</code> | Thinking level of every conversation that does not set its own; `null` leaves it to pi-durable. |
 | <code>edith.discord.allowedUsers</code> | <code>list of string matching the pattern [0-9]+</code> | <code>[ ]</code> | Discord user IDs whose messages EDITH answers; it ignores everyone else. |
 | <code>edith.discord.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>edith.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.providers</code> | <code>list of (one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the default model's whose API keys EDITH loads, so that a conversation can switch to their models. |
+| <code>edith.namespaces</code> | <code>attribute set of string</code> | <code>{ }</code> | Profile name by address namespace, such as `cli` or `discord`; a namespace not listed gets `restricted`. |
+| <code>edith.profiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Profiles by name, which namespaces select; `restricted` serves every namespace that selects none. A higher source replaces the set whole. |
+| <code>edith.profiles.&lt;name&gt;.maxTurns</code> | <code>null or (positive integer, meaning &gt;0)</code> | <code>null</code> | Tool rounds one run takes at most; `null` sets no limit. Only the configuration changes it. |
+| <code>edith.profiles.&lt;name&gt;.model</code> | <code>submodule</code> |  | Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand. |
+| <code>edith.profiles.&lt;name&gt;.model.modelId</code> | <code>non-empty string</code> |  |  |
+| <code>edith.profiles.&lt;name&gt;.model.provider</code> | <code>one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
+| <code>edith.profiles.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the profile's conversations unless one sets its own. |
+| <code>edith.profiles.&lt;name&gt;.tools</code> | <code>list of string</code> | <code>[ ]</code> | Registered MCP servers whose tools the conversations' code mode scripts may call; with none, the model gets no tools. Only the configuration changes it. |
+| <code>edith.providers</code> | <code>list of (one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
 
 ### <code>elio</code>
 

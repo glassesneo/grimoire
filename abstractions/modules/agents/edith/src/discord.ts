@@ -55,7 +55,7 @@ const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
       {
         type: ApplicationCommandOptionType.String,
         name: "model",
-        description: `<provider>/<model id>, or ${followDefault} to follow the default`,
+        description: `<provider>/<model id>, or ${followDefault} to follow the profile`,
         required: true,
       },
     ],
@@ -68,7 +68,7 @@ const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
       {
         type: ApplicationCommandOptionType.String,
         name: "level",
-        description: `A thinking level, or ${followDefault} to follow the default`,
+        description: `A thinking level, or ${followDefault} to follow the profile`,
         required: true,
         choices: [...levels, followDefault].map((value) => ({ name: value, value })),
       },

@@ -39,12 +39,13 @@ export function parseThinking(argument: string): Parsed<ModelThinkingLevel> {
 }
 
 export function describe(status: Status): string {
-  const model = status.model ? `${status.model.provider}/${status.model.modelId}` : "(none)";
-  const thinking = status.thinkingLevel ?? "(provider default)";
-  const origin = (overridden: boolean) => (overridden ? "set here" : "default");
+  const model = `${status.model.provider}/${status.model.modelId}`;
+  const origin = (overridden: boolean) => (overridden ? "set here" : "profile");
   return [
+    `profile: ${status.profile}`,
     `model: ${model} (${origin(status.overrides.model !== null)})`,
-    `thinking: ${thinking} (${origin(status.overrides.thinkingLevel !== null)})`,
+    `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null)})`,
+    `tools: ${status.tools.length === 0 ? "(none)" : status.tools.join(", ")}`,
   ].join("\n");
 }
 

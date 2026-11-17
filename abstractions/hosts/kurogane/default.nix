@@ -20,12 +20,28 @@ delib.host {
     pi.mcpServers = ["web"];
     edith = {
       enable = true;
-      defaults = {
+      profiles = let
         model = {
           provider = "openai";
           modelId = "gpt-6.1-sol";
         };
-        thinkingLevel = "medium";
+      in {
+        full = {
+          inherit model;
+          thinkingLevel = "medium";
+          tools = ["web"];
+          maxTurns = null;
+        };
+        restricted = {
+          inherit model;
+          thinkingLevel = "medium";
+          tools = ["web"];
+          maxTurns = null;
+        };
+      };
+      namespaces = {
+        cli = "full";
+        discord = "restricted";
       };
       providers = ["openrouter"];
       discord = {

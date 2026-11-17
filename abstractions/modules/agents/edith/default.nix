@@ -30,8 +30,35 @@ delib.module ({cfg, ...}: let
   thinkingLevels = ["off" "minimal" "low" "medium" "high" "xhigh" "max"];
   discordToken = "discord-bot-token";
   keyed = lib.filter (name: providers.${name} ? secret) (
-    lib.unique (lib.optional (cfg.defaults.model != null) cfg.defaults.model.provider ++ cfg.providers)
+    lib.unique (lib.mapAttrsToList (_: profile: profile.model.provider) cfg.profiles ++ cfg.providers)
   );
+  servers = lib.unique (lib.concatMap (profile: profile.tools) (lib.attrValues cfg.profiles));
+  # Every field is required, so a profile states each choice it makes.
+  profile = lib.types.submodule {
+    options = {
+      model = lib.mkOption {
+        type = lib.types.submodule {
+          options = {
+            provider = lib.mkOption {type = lib.types.enum (builtins.attrNames providers);};
+            modelId = lib.mkOption {type = lib.types.nonEmptyStr;};
+          };
+        };
+        description = "Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand.";
+      };
+      thinkingLevel = lib.mkOption {
+        type = lib.types.enum thinkingLevels;
+        description = "Thinking level of the profile's conversations unless one sets its own.";
+      };
+      tools = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        description = "Registered MCP servers whose tools the conversations' code mode scripts may call; with none, the model gets no tools. Only the configuration changes it.";
+      };
+      maxTurns = lib.mkOption {
+        type = lib.types.nullOr lib.types.ints.positive;
+        description = "Tool rounds one run takes at most; `null` sets no limit. Only the configuration changes it.";
+      };
+    };
+  };
   program = pkgs:
     import ./package.nix {
       inherit lib;
@@ -40,25 +67,18 @@ delib.module ({cfg, ...}: let
   node = pkgs: [(lib.getExe pkgs.nodejs) "--experimental-strip-types" "--disable-warning=ExperimentalWarning"];
 in {
   name = "edith";
-  tests.fixture = ["secrets" "services"];
+  tests.fixture = ["mcp" "secrets" "services"];
   meta.description = "Run EDITH, a resident agent on pi-durable whose conversations clients such as Discord reach by address.";
 
   options = {
     enable = delib.boolOption false;
-    defaults = {
-      model = mylib.atomicOption (lib.mkOption {
-        type = lib.types.nullOr (lib.types.submodule {
-          options = {
-            provider = lib.mkOption {type = lib.types.enum (builtins.attrNames providers);};
-            modelId = lib.mkOption {type = lib.types.nonEmptyStr;};
-          };
-        });
-        default = null;
-        description = "Model of every conversation that does not set its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand. A higher source replaces it whole.";
-      });
-      thinkingLevel = delib.allowNull (delib.enumOption thinkingLevels null) "Thinking level of every conversation that does not set its own; `null` leaves it to pi-durable.";
-    };
-    providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the default model's whose API keys EDITH loads, so that a conversation can switch to their models.";
+    profiles = mylib.atomicOption (lib.mkOption {
+      type = lib.types.attrsOf profile;
+      default = {};
+      description = "Profiles by name, which namespaces select; `restricted` serves every namespace that selects none. A higher source replaces the set whole.";
+    });
+    namespaces = delib.attrsOfOption lib.types.str {} "Profile name by address namespace, such as `cli` or `discord`; a namespace not listed gets `restricted`.";
+    providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models.";
     discord = {
       enable = delib.boolOption false;
       allowedUsers = delib.listOfOption (lib.types.strMatching "[0-9]+") [] "Discord user IDs whose messages EDITH answers; it ignores everyone else.";
@@ -67,8 +87,12 @@ in {
 
   constraints.ifEnabled = [
     {
-      assertion = cfg.defaults.model != null;
-      message = "edith.enable = true requires edith.defaults.model = { provider; modelId; }";
+      assertion = cfg.profiles ? restricted;
+      message = "edith.enable = true requires edith.profiles.restricted, the profile of namespaces that select none";
+    }
+    {
+      assertion = lib.all (name: cfg.profiles ? ${name}) (lib.attrValues cfg.namespaces);
+      message = "edith.namespaces names a profile that edith.profiles does not declare";
     }
     {
       assertion = !cfg.discord.enable || cfg.discord.allowedUsers != [];
@@ -92,9 +116,8 @@ in {
       credentials = "${stateDirectory}/auth.json";
       inherit socket;
       providerKeys = lib.listToAttrs (map (name: lib.nameValuePair providers.${name}.variable (secret providers.${name}.secret)) keyed);
-      profiles.default = lib.filterAttrs (_: value: value != null) {
-        inherit (cfg.defaults) model thinkingLevel;
-      };
+      inherit (cfg) profiles namespaces;
+      mcpServers = config.mcp.selected.edith;
       discord =
         if cfg.discord.enable
         then {
@@ -109,6 +132,7 @@ in {
     '';
   in {
     packages = [client];
+    mcp.selections.edith = servers;
     userServices.edith = {
       command = node pkgs ++ ["${program pkgs}/lib/src/main.ts"];
       environment.EDITH_CONFIG = toString settings;
@@ -135,7 +159,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile unless a conversation overrides it, writes refreshed credentials back to its credentials file, parses model arguments and splits answers within a message limit";
+      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments and splits answers within a message limit";
       tsRoots = ["src"];
       build = _:
         pkgs.runCommand "edith-contracts" {} ''

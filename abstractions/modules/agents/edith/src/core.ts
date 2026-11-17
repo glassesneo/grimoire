@@ -1,6 +1,8 @@
 // EDITH's core: one Harness whose conversations clients reach by address. An address is
-// `<namespace>:<name>`, such as `discord:<channel id>` or `cli`, and its namespace picks the
-// profile whose model and thinking level the conversation follows unless it overrides them.
+// `<namespace>:<name>`, such as `discord:<channel id>` or `cli`. Its namespace picks a profile:
+// the model and thinking level the conversation follows unless it overrides them, and the MCP
+// servers and turn limit, which only the configuration sets. A namespace without a profile of
+// its own gets `restricted`.
 import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
 import {
@@ -18,13 +20,21 @@ import {
   type Report,
   type Storage,
   type SubmissionId,
+  type ToolRegistration,
   type Tx,
 } from "@earendil-works/pi-durable";
+import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
+import { serverExtensionName } from "./mcp.ts";
 
 export type Profile = {
-  readonly model?: ModelRef;
-  readonly thinkingLevel?: ModelThinkingLevel;
+  readonly model: ModelRef;
+  readonly thinkingLevel: ModelThinkingLevel;
+  // MCP servers whose tools the conversation's code mode scripts may call.
+  readonly tools: readonly string[];
+  readonly maxTurns: number | null;
 };
+
+export const fallbackProfile = "restricted";
 
 // A null field follows the profile; `configure` sets or clears an override.
 export type Overrides = {
@@ -34,8 +44,10 @@ export type Overrides = {
 
 export type Status = {
   readonly address: string;
-  readonly model?: ModelRef;
-  readonly thinkingLevel?: ModelThinkingLevel;
+  readonly profile: string;
+  readonly model: ModelRef;
+  readonly thinkingLevel: ModelThinkingLevel;
+  readonly tools: readonly string[];
   readonly overrides: Readonly<Overrides>;
 };
 
@@ -45,9 +57,13 @@ export type Answer =
 
 export type Options = {
   readonly models: Models;
-  // Profiles by namespace; `default` serves every namespace without its own.
-  readonly profiles: Readonly<Record<string, Profile>> & { readonly default: Profile };
-  readonly extensions?: readonly Extension[];
+  readonly profiles: Readonly<Record<string, Profile>> & { readonly restricted: Profile };
+  // Profile names by namespace.
+  readonly namespaces: Readonly<Record<string, string>>;
+  // The code mode extension, through which alone the model reaches tools.
+  readonly codemode?: Extension;
+  // Extensions of the MCP servers that started, from `connectServer`.
+  readonly servers?: readonly Extension[];
   readonly onReport?: (report: Report) => void;
 };
 
@@ -75,31 +91,57 @@ export function namespaceOf(address: string): string {
   return index < 0 ? address : address.slice(0, index);
 }
 
+type Equipment = {
+  readonly extensions: readonly Extension[];
+  readonly modelTools: readonly ToolRegistration[] | null;
+};
+
 export class Edith {
   readonly harness: Harness;
-  readonly #profiles: Options["profiles"];
+  readonly #options: Options;
   // Serializes creation per address, so concurrent first messages share one conversation.
   readonly #opening = new Map<string, Promise<Conversation>>();
 
-  private constructor(harness: Harness, profiles: Options["profiles"]) {
+  private constructor(harness: Harness, options: Options) {
     this.harness = harness;
-    this.#profiles = profiles;
+    this.#options = options;
   }
 
   static async open(storage: Storage, options: Options, context: Context): Promise<Edith> {
     const registry = createRegistry();
-    for (const extension of options.extensions ?? []) registry.install(extension);
+    for (const extension of [options.codemode ?? [], options.servers ?? []].flat())
+      registry.install(extension);
     const harness = await Harness.open(
       storage,
       { models: options.models, registry, ...(options.onReport && { onReport: options.onReport }) },
       context,
     );
     harness.resume();
-    return new Edith(harness, options.profiles);
+    return new Edith(harness, options);
+  }
+
+  profileName(address: string): string {
+    const name = this.#options.namespaces[namespaceOf(address)];
+    return name !== undefined && name in this.#options.profiles ? name : fallbackProfile;
   }
 
   profile(address: string): Profile {
-    return this.#profiles[namespaceOf(address)] ?? this.#profiles.default;
+    return this.#options.profiles[this.profileName(address)] ?? this.#options.profiles.restricted;
+  }
+
+  // What a profile's conversations run with: nothing callable without servers, otherwise code
+  // mode as the model's only tool and the servers' tools behind it. A server that did not
+  // start is left out.
+  #equipment(profile: Profile): Equipment {
+    const codemode = this.#options.codemode;
+    const servers = profile.tools.flatMap((server) =>
+      (this.#options.servers ?? []).filter(
+        (extension) => extension.name === serverExtensionName(server),
+      ),
+    );
+    const tool = codemode?.tools?.find((candidate) => candidate.name === CODEMODE_TOOL_NAME);
+    if (!codemode || !tool || servers.length === 0) return { extensions: [], modelTools: null };
+    return { extensions: [codemode, ...servers], modelTools: [tool] };
   }
 
   conversation(address: string, context: Context): Promise<Conversation> {
@@ -133,13 +175,13 @@ export class Edith {
       thinkingLevel: null,
     };
     const profile = this.profile(address);
-    const model = overrides.model ?? profile.model;
-    const thinkingLevel = overrides.thinkingLevel ?? profile.thinkingLevel;
     return {
       address,
+      profile: this.profileName(address),
+      model: overrides.model ?? profile.model,
+      thinkingLevel: overrides.thinkingLevel ?? profile.thinkingLevel,
+      tools: profile.tools,
       overrides: { ...overrides },
-      ...(model && { model }),
-      ...(thinkingLevel && { thinkingLevel }),
     };
   }
 
@@ -157,13 +199,28 @@ export class Edith {
   // effective choices before each input rather than when they are set.
   async #align(address: string, conversation: Conversation, context: Context): Promise<void> {
     const wanted = await this.status(address, context);
+    const { maxTurns } = this.profile(address);
+    const equipment = this.#equipment(this.profile(address));
+    const names = (items: readonly { name: string }[] | null) =>
+      items && JSON.stringify(items.map((item) => item.name));
     const stored = await this.harness.snapshot(AgentDoc, conversation.id, context);
-    const sameModel =
-      stored?.model?.provider === wanted.model?.provider &&
-      stored?.model?.modelId === wanted.model?.modelId;
-    if (sameModel && stored?.thinkingLevel === wanted.thinkingLevel) return;
+    const same =
+      stored?.model?.provider === wanted.model.provider &&
+      stored.model.modelId === wanted.model.modelId &&
+      stored.thinkingLevel === wanted.thinkingLevel &&
+      JSON.stringify(stored.extensions) === names(equipment.extensions) &&
+      (stored.modelTools === undefined ? null : JSON.stringify(stored.modelTools)) ===
+        names(equipment.modelTools) &&
+      (stored.maxTurns ?? null) === maxTurns;
+    if (same) return;
     await conversation.configure(
-      { model: wanted.model ?? null, thinkingLevel: wanted.thinkingLevel ?? null },
+      {
+        model: wanted.model,
+        thinkingLevel: wanted.thinkingLevel,
+        extensions: equipment.extensions,
+        modelTools: equipment.modelTools,
+        maxTurns,
+      },
       context,
     );
   }

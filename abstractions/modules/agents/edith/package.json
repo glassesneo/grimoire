@@ -8,7 +8,9 @@
     "@discordjs/ws": "2.0.4",
     "@earendil-works/chord": "1.5.2",
     "@earendil-works/pi-ai": "1.5.2",
-    "@earendil-works/pi-durable": "1.5.2"
+    "@earendil-works/pi-codemode": "1.5.2",
+    "@earendil-works/pi-durable": "1.5.2",
+    "@earendil-works/pi-mcp": "1.5.2"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
