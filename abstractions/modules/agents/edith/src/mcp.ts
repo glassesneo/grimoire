@@ -6,19 +6,19 @@ import {
   createMcpToolName,
   limitMcpContent,
   McpClient,
+  mcpNamespace,
   normalizeMcpInputSchema,
   StdioTransport,
   toLlmContent,
+  type McpStdioServerConfig,
 } from "@earendil-works/pi-mcp";
 
-export type ServerConfig = {
-  readonly command: string;
-  readonly args: readonly string[];
-  readonly env: Readonly<Record<string, string>>;
-};
+export type ServerConfig = Pick<McpStdioServerConfig, "command" | "args" | "env">;
 
 export type Server = {
   readonly extension: Extension;
+  // The code mode namespace grouping the server's tools.
+  readonly namespace: { readonly name: string; readonly prefix: string };
   close(): Promise<void>;
 };
 
@@ -30,7 +30,7 @@ export async function connectServer(name: string, config: ServerConfig): Promise
   // The server gets only its declared environment, not EDITH's provider keys.
   const transport = new StdioTransport({
     command: config.command,
-    args: config.args,
+    args: config.args ?? [],
     env: { ...config.env },
     inheritEnv: false,
     stderr: "pipe",
@@ -55,6 +55,7 @@ export async function connectServer(name: string, config: ServerConfig): Promise
   );
   return {
     extension: defineExtension({ name: serverExtensionName(name), tools }),
+    namespace: { name, prefix: `${mcpNamespace(name)}__` },
     close: () => client.close(),
   };
 }

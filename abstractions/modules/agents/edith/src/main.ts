@@ -5,7 +5,6 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
-import { mcpNamespace } from "@earendil-works/pi-mcp";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { Edith, type Options } from "./core.ts";
 import { FileCredentialStore } from "./credentials.ts";
@@ -40,24 +39,23 @@ for (const path of [config.storage, config.socket])
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 
 // A server that fails to start is left out, so its profiles run without its tools.
-const servers: Server[] = [];
-for (const [name, server] of Object.entries(config.mcpServers)) {
-  try {
-    servers.push(await connectServer(name, server));
-  } catch (error) {
-    console.error(`mcp ${name}: not started`, error);
-  }
-}
+const servers = (
+  await Promise.allSettled(
+    Object.entries(config.mcpServers).map(([name, server]) =>
+      connectServer(name, server).catch((error: unknown) => {
+        console.error(`mcp ${name}: not started`, error);
+        throw error;
+      }),
+    ),
+  )
+).flatMap((started): Server[] => (started.status === "fulfilled" ? [started.value] : []));
 
 const sandbox = new CodemodeSandbox();
 const codemode = createCodemodeExtension({
   sandbox,
   // Scripts get no paid model calls of their own.
   models: false,
-  namespaces: Object.keys(config.mcpServers).map((name) => ({
-    name,
-    prefix: `${mcpNamespace(name)}__`,
-  })),
+  namespaces: servers.map((server) => server.namespace),
 });
 
 const edith = await Edith.open(

@@ -22,6 +22,7 @@ import {
   type API,
   type APIContainerComponent,
   type APIInteraction,
+  type APIMessageComponentInteraction,
   type APIMessage,
   type RESTPutAPIApplicationGuildCommandsJSONBody,
 } from "@discordjs/core";
@@ -34,6 +35,7 @@ import {
   type ConversationId,
   type EntryId,
   type EntryRecord,
+  type LiveState,
   type SubmissionId,
 } from "@earendil-works/pi-durable";
 import { describe, followDefault, levels, parseModel, parseThinking, split } from "./commands.ts";
@@ -73,17 +75,23 @@ type ToolPost = {
 };
 // A channel's trace: the newest entry handled, whether it is off, and the calls still running.
 type Trace = { after: number; off?: boolean; tools: Record<string, ToolPost> };
-const State = defineDoc<{
+type DiscordState = {
   pending: Record<string, Pending>;
   lastSeen: Record<string, string>;
-  trace?: Record<string, Trace>;
-}>({
+  trace: Record<string, Trace>;
+};
+const State = defineDoc<DiscordState>({
   kind: "edith.discord",
-  version: 1,
+  // Version 2 adds `trace`.
+  version: 2,
   scope: "session",
   initial: () => ({ pending: {}, lastSeen: {}, trace: {} }),
+  migrate: (value) => ({ trace: {}, ...(value as Partial<DiscordState>) }) as DiscordState,
   checkpointWhen: () => true,
 });
+
+type ToolItem = Extract<Item, { kind: "tool" }>;
+type Toggle = { id: string; expanded: boolean };
 
 // A button's custom ID: the item and the state a press brings its message to.
 const toggleId = (conversation: number, entry: number, part: number, expand: boolean) =>
@@ -117,6 +125,15 @@ function card(text: string, toggle?: { id: string; expanded: boolean }): APICont
 
 const toolState = (result: { isError: boolean } | undefined) =>
   result === undefined ? "running" : result.isError ? "error" : "ok";
+
+// The button of a tool message, which only a script makes expandable.
+const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
+  item.code === undefined
+    ? undefined
+    : {
+        id: toggleId(post.conversation, post.entry, post.part, !post.expanded),
+        expanded: post.expanded ?? false,
+      };
 
 // Registered in every guild the bot is in, where they are available at once.
 const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
@@ -184,8 +201,11 @@ export class Discord {
   readonly #watches: WatchHandle<unknown>[] = [];
   // The last text each traced message was given, so unchanged renderings are not sent again.
   readonly #rendered = new Map<string, string>();
-  // The calls each running code mode call's script made, as last seen live.
+  // Per running code mode call: its item, once read, and its script's calls as last seen live.
+  readonly #items = new Map<string, ToolItem>();
   readonly #live = new Map<string, Call[]>();
+  // Answers waiting for the trace to reach their entry, by channel.
+  readonly #waiting = new Map<string, { entry: number; resolve: () => void }[]>();
   #application: string | undefined;
 
   constructor(edith: Edith, options: DiscordOptions, context: Context) {
@@ -321,7 +341,7 @@ export class Discord {
         const off = option("state") === "off";
         await this.#follow(api, channel);
         await this.#edith.harness.commit(async (tx) => {
-          const trace = (await tx.doc(State)).trace?.[channel];
+          const trace = (await tx.doc(State)).trace[channel];
           if (!trace) return;
           if (off) trace.off = true;
           else delete trace.off;
@@ -371,7 +391,10 @@ export class Discord {
         answer.status === "done"
           ? answer.text || "(empty answer)"
           : `⚠️ unanswered: ${answer.reason}`;
-      await this.#post(api, pending.channel, id, text);
+      await this.#post(api, pending.channel, text, {
+        nonce: (index) => `${id}-${index}`,
+        replyTo: id,
+      });
       await this.#edith.harness.commit(async (tx) => {
         delete (await tx.doc(State)).pending[id];
       }, this.#context);
@@ -380,20 +403,30 @@ export class Discord {
     }
   }
 
-  async #post(api: API, channel: string, replyTo: string, text: string): Promise<void> {
-    const chunks = split(text, messageLimit);
-    for (const [index, content] of chunks.entries()) {
-      await api.channels.createMessage(channel, {
-        content,
-        // At most 25 characters: a snowflake has at most 20 digits.
-        nonce: `${replyTo}-${index}`,
-        enforce_nonce: true,
-        allowed_mentions: { parse: [] },
-        ...(index === 0 && {
-          message_reference: { message_id: replyTo, fail_if_not_exists: false },
-        }),
-      });
-    }
+  // Posts text in chunks and returns the last message's ID. A nonce is at most 25 characters,
+  // and a snowflake has at most 20 digits.
+  async #post(
+    api: API,
+    channel: string,
+    text: string,
+    options: { nonce: (index: number) => string; replyTo?: string; flags?: MessageFlags },
+  ): Promise<string | undefined> {
+    let last: string | undefined;
+    for (const [index, content] of split(text, messageLimit).entries())
+      last = (
+        await api.channels.createMessage(channel, {
+          content,
+          nonce: options.nonce(index),
+          enforce_nonce: true,
+          allowed_mentions: { parse: [] },
+          ...(options.flags !== undefined && { flags: options.flags }),
+          ...(index === 0 &&
+            options.replyTo !== undefined && {
+              message_reference: { message_id: options.replyTo, fail_if_not_exists: false },
+            }),
+        })
+      ).id;
+    return last;
   }
 
   // Starts following a channel's trace once per process. A channel traced for the first time
@@ -403,17 +436,12 @@ export class Discord {
     if (started) return started;
     const starting = (async () => {
       const conversation = await this.#edith.conversation(`discord:${channel}`, this.#context);
-      let after = (await this.#edith.harness.snapshot(State, this.#context))?.trace?.[channel]
-        ?.after;
+      let after = (await this.#trace(channel))?.after;
       if (after === undefined) {
         const newest = await conversation.entries({}, 1, undefined, this.#context);
         const start = newest.items[0]?.id ?? 0;
         await this.#edith.harness.commit(async (tx) => {
-          const state = await tx.doc(State);
-          // Assigned, then read back, so the channel is added through the draft rather than to
-          // the plain object assigned.
-          state.trace ??= {};
-          state.trace[channel] ??= { after: start, tools: {} };
+          (await tx.doc(State)).trace[channel] ??= { after: start, tools: {} };
         }, this.#context);
         after = start;
       }
@@ -443,119 +471,114 @@ export class Discord {
     },
   ): Promise<void> {
     try {
-      await this.#handleEntries(api, channel, conversation, view.entries);
-      await this.#handleLive(
-        api,
-        channel,
-        view.docs["pi.live"] as Record<string, unknown> | undefined,
-      );
+      const trace = await this.#trace(channel);
+      if (!trace) return;
+      const handled = await this.#handleEntries(api, channel, conversation, view.entries, trace);
+      await this.#handleLive(api, channel, view.docs["pi.live"] as LiveState | undefined, handled);
     } catch (error) {
       console.error("discord trace:", error);
     }
   }
 
   async #trace(channel: string): Promise<Trace | undefined> {
-    return (await this.#edith.harness.snapshot(State, this.#context))?.trace?.[channel];
+    return (await this.#edith.harness.snapshot(State, this.#context))?.trace[channel];
   }
 
+  // Handles the entries after the trace's cursor and returns the trace as it committed it.
   async #handleEntries(
     api: API,
     channel: string,
     conversation: Conversation,
     entries: readonly EntryRecord[],
-  ): Promise<void> {
-    for (const entry of entries) {
-      const trace = await this.#trace(channel);
-      if (!trace || entry.id <= trace.after) continue;
+    trace: Trace,
+  ): Promise<Trace> {
+    for (const entry of entries.filter((candidate) => candidate.id > trace.after)) {
       const posted: Record<string, ToolPost> = {};
       if (!trace.off)
         for (const item of itemsOf(entry)) {
           const message = await this.#postItem(api, channel, conversation.id, entry.id, item);
-          if (item.kind === "tool" && message)
-            posted[item.callId] = {
-              message,
-              conversation: conversation.id,
-              entry: entry.id,
-              part: item.part,
-            };
+          if (item.kind !== "tool" || !message) continue;
+          posted[item.callId] = {
+            message,
+            conversation: conversation.id,
+            entry: entry.id,
+            part: item.part,
+          };
+          this.#items.set(item.callId, item);
         }
       const result = resultOf(entry);
       const post = result && (trace.tools[result.callId] ?? posted[result.callId]);
       if (result && post) {
-        const item = await this.#itemOf(post);
-        if (item?.kind === "tool")
-          await this.#edit(
-            api,
-            channel,
-            post.message,
-            renderTool(item, toolState(result), result.calls, post.expanded ?? false, cardLimit),
-            item.code === undefined
-              ? undefined
-              : {
-                  id: toggleId(post.conversation, post.entry, post.part, !post.expanded),
-                  expanded: post.expanded ?? false,
-                },
-          );
+        const item = await this.#toolItem(result.callId, post);
+        if (item) await this.#editTool(api, channel, post, item, toolState(result), result.calls);
+        this.#rendered.delete(post.message);
+      }
+      if (result) {
+        this.#items.delete(result.callId);
         this.#live.delete(result.callId);
       }
       await this.#edith.harness.commit(async (tx) => {
-        const current = (await tx.doc(State)).trace?.[channel];
+        const current = (await tx.doc(State)).trace[channel];
         if (!current) return;
         current.after = entry.id;
         Object.assign(current.tools, posted);
         if (result) delete current.tools[result.callId];
       }, this.#context);
+      trace = {
+        ...trace,
+        after: entry.id,
+        tools: Object.fromEntries(
+          Object.entries({ ...trace.tools, ...posted }).filter(([id]) => id !== result?.callId),
+        ),
+      };
+      this.#release(channel, entry.id);
     }
+    return trace;
   }
 
+  // Edits running code mode calls whose script made new calls since they were last seen.
   async #handleLive(
     api: API,
     channel: string,
-    live: Record<string, unknown> | undefined,
+    live: LiveState | undefined,
+    trace: Trace,
   ): Promise<void> {
-    const trace = await this.#trace(channel);
-    for (const [callId, post] of Object.entries(trace?.tools ?? {})) {
-      const calls = liveCalls(live as never, callId);
+    for (const [callId, post] of Object.entries(trace.tools)) {
+      const calls = liveCalls(live, callId);
       if (calls.length === 0) continue;
+      if (JSON.stringify(calls) === JSON.stringify(this.#live.get(callId))) continue;
       this.#live.set(callId, calls);
-      const item = await this.#itemOf(post);
-      if (item?.kind !== "tool") continue;
-      await this.#edit(
-        api,
-        channel,
-        post.message,
-        renderTool(item, "running", calls, post.expanded ?? false, cardLimit),
-        item.code === undefined
-          ? undefined
-          : {
-              id: toggleId(post.conversation, post.entry, post.part, !post.expanded),
-              expanded: post.expanded ?? false,
-            },
-      );
+      const item = await this.#toolItem(callId, post);
+      if (item) await this.#editTool(api, channel, post, item, "running", calls);
     }
   }
 
-  async #entry(conversationId: number, entryId: number): Promise<EntryRecord | undefined> {
-    const conversation = await this.#edith.harness.conversation(
-      conversationId as ConversationId,
-      this.#context,
-    );
+  async #conversationOf(id: number): Promise<Conversation | undefined> {
+    return this.#edith.harness.conversation(id as ConversationId, this.#context);
+  }
+
+  async #itemOf(
+    conversation: Conversation | undefined,
+    post: Pick<ToolPost, "entry" | "part">,
+  ): Promise<Item | undefined> {
     const page = await conversation?.entries(
-      { minEntryId: entryId as EntryId, maxEntryId: entryId as EntryId },
+      { minEntryId: post.entry as EntryId, maxEntryId: post.entry as EntryId },
       1,
       undefined,
       this.#context,
     );
-    return page?.items[0];
+    const entry = page?.items[0];
+    return entry && itemAt(entry, post.part);
   }
 
-  async #itemOf(post: {
-    conversation: number;
-    entry: number;
-    part: number;
-  }): Promise<Item | undefined> {
-    const entry = await this.#entry(post.conversation, post.entry);
-    return entry && itemAt(entry, post.part);
+  // A code mode call's item, kept from when it was posted, or read again after a restart.
+  async #toolItem(callId: string, post: ToolPost): Promise<ToolItem | undefined> {
+    const known = this.#items.get(callId);
+    if (known) return known;
+    const item = await this.#itemOf(await this.#conversationOf(post.conversation), post);
+    if (item?.kind !== "tool") return undefined;
+    this.#items.set(callId, item);
+    return item;
   }
 
   // Posts an item silently and returns its message's ID.
@@ -567,20 +590,11 @@ export class Discord {
     item: Item,
   ): Promise<string | undefined> {
     const flags = MessageFlags.SuppressNotifications;
-    if (item.kind === "commentary") {
-      let last: string | undefined;
-      for (const [index, content] of split(item.text, messageLimit).entries())
-        last = (
-          await api.channels.createMessage(channel, {
-            content,
-            nonce: `c${entry}-${item.part}-${index}`,
-            enforce_nonce: true,
-            allowed_mentions: { parse: [] },
-            flags,
-          })
-        ).id;
-      return last;
-    }
+    if (item.kind === "commentary")
+      return this.#post(api, channel, item.text, {
+        nonce: (index) => `c${entry}-${item.part}-${index}`,
+        flags,
+      });
     const text =
       item.kind === "thinking"
         ? renderThinking(item.text, false, cardLimit)
@@ -602,68 +616,78 @@ export class Discord {
     return message.id;
   }
 
-  async #edit(
+  async #editTool(
     api: API,
     channel: string,
-    message: string,
-    text: string,
-    toggle: { id: string; expanded: boolean } | undefined,
+    post: ToolPost,
+    item: ToolItem,
+    state: "running" | "ok" | "error",
+    calls: readonly Call[],
   ): Promise<void> {
-    if (this.#rendered.get(message) === text) return;
-    await api.channels.editMessage(channel, message, { components: card(text, toggle) });
-    this.#rendered.set(message, text);
+    const text = renderTool(item, state, calls, post.expanded ?? false, cardLimit);
+    if (this.#rendered.get(post.message) === text) return;
+    await api.channels.editMessage(channel, post.message, {
+      components: card(text, toolToggle(post, item)),
+    });
+    this.#rendered.set(post.message, text);
+  }
+
+  // Wakes the answers waiting for the trace to reach `entry`.
+  #release(channel: string, entry: number): void {
+    const waiting = this.#waiting.get(channel) ?? [];
+    for (const waiter of waiting.filter((candidate) => candidate.entry <= entry)) waiter.resolve();
+    this.#waiting.set(
+      channel,
+      waiting.filter((candidate) => candidate.entry > entry),
+    );
   }
 
   // Waits until the trace has handled `entry`, so the answer follows what led to it; gives up
   // after a while rather than holding the answer back.
   async #tracedTo(api: API, channel: string, entry: number): Promise<void> {
     await this.#follow(api, channel).catch(() => {});
-    const deadline = Date.now() + traceWait;
-    while (Date.now() < deadline) {
-      const trace = await this.#trace(channel);
-      if (!trace || trace.after >= entry) return;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    const trace = await this.#trace(channel);
+    if (!trace || trace.after >= entry) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, traceWait);
+      const waiting = this.#waiting.get(channel) ?? [];
+      waiting.push({
+        entry,
+        resolve: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+      });
+      this.#waiting.set(channel, waiting);
+    });
   }
 
   // Expands or collapses a traced message, rebuilt from the conversation's entries.
-  async #toggle(api: API, interaction: APIInteraction): Promise<void> {
-    if (interaction.type !== InteractionType.MessageComponent) return;
+  async #toggle(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
     const user = interaction.member?.user ?? interaction.user;
-    const deny = () =>
-      api.interactions.reply(interaction.id, interaction.token, {
+    const match = /^x:(\d+):(\d+):(\d+):([01])$/.exec(interaction.data.custom_id);
+    const allowed = user !== undefined && this.#options.allowedUsers.includes(user.id);
+    const [id, entry, part] = [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])];
+    const conversation = allowed && match ? await this.#conversationOf(id) : undefined;
+    const item = await this.#itemOf(conversation, { entry, part });
+    if (!conversation || !item || item.kind === "commentary") {
+      await api.interactions.reply(interaction.id, interaction.token, {
         content: "Not available here.",
         flags: MessageFlags.Ephemeral,
       });
-    if (!user || !this.#options.allowedUsers.includes(user.id)) {
-      await deny();
       return;
     }
-    const match = /^x:(\d+):(\d+):(\d+):([01])$/.exec(interaction.data.custom_id);
-    if (!match) {
-      await deny();
-      return;
-    }
-    const [conversation, entryId, part] = [Number(match[1]), Number(match[2]), Number(match[3])];
-    const expanded = match[4] === "1";
-    const toggle = { id: toggleId(conversation, entryId, part, !expanded), expanded };
-    const item = await this.#itemOf({ conversation, entry: entryId, part });
-    if (!item || item.kind === "commentary") {
-      await deny();
-      return;
-    }
+    const expanded = match?.[4] === "1";
     let text: string;
     if (item.kind === "thinking") text = renderThinking(item.text, expanded, cardLimit);
     else {
-      const later = await (
-        await this.#edith.harness.conversation(conversation as ConversationId, this.#context)
-      )?.entries(
-        { minEntryId: (entryId + 1) as EntryId, order: "ascending" },
+      const later = await conversation.entries(
+        { minEntryId: (entry + 1) as EntryId, order: "ascending" },
         100,
         undefined,
         this.#context,
       );
-      const result = later?.items.map(resultOf).find((found) => found?.callId === item.callId);
+      const result = later.items.map(resultOf).find((found) => found?.callId === item.callId);
       text = renderTool(
         item,
         toolState(result),
@@ -671,16 +695,15 @@ export class Discord {
         expanded,
         cardLimit,
       );
-      if (!result && interaction.channel?.id) {
-        const channel = interaction.channel.id;
+      const channel = interaction.channel.id;
+      if (!result)
         await this.#edith.harness.commit(async (tx) => {
-          const post = (await tx.doc(State)).trace?.[channel]?.tools[item.callId];
+          const post = (await tx.doc(State)).trace[channel]?.tools[item.callId];
           if (post) post.expanded = expanded;
         }, this.#context);
-      }
     }
     await api.interactions.updateMessage(interaction.id, interaction.token, {
-      components: card(text, toggle),
+      components: card(text, { id: toggleId(id, entry, part, !expanded), expanded }),
     });
     this.#rendered.set(interaction.message.id, text);
   }

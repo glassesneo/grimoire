@@ -1,14 +1,17 @@
 // What a run shows besides its answer, read from a conversation's entries and live document:
 // thinking, text the model writes alongside tool calls, and code mode calls with the tool calls
 // their scripts make. Clients choose how to present it; the renderings here are Markdown.
-import type { EntryRecord, JsonObject } from "@earendil-works/pi-durable";
+import {
+  AssistantEntry,
+  ToolResultEntry,
+  type EntryRecord,
+  type LiveState,
+} from "@earendil-works/pi-durable";
+import type { CodemodeNestedCall, CodemodeToolDetails } from "@earendil-works/pi-durable/codemode";
 
-export type Call = {
-  readonly name: string;
-  readonly args: string;
-  readonly status: "pending" | "running" | "ok" | "error" | "cancelled";
-  readonly durationMs?: number;
-  readonly error?: string;
+// A call a script made: as code mode reports it once done, or still pending while it runs.
+export type Call = Omit<CodemodeNestedCall, "id" | "status"> & {
+  readonly status: CodemodeNestedCall["status"] | "pending";
 };
 
 export type Item =
@@ -28,35 +31,28 @@ export type Result = {
   readonly calls: readonly Call[];
 };
 
-type Part = { readonly type: string; readonly [key: string]: unknown };
-
-function parts(entry: EntryRecord): readonly Part[] {
-  if (entry.kind !== "pi.assistant") return [];
-  return (entry.model ?? []).flatMap((message) =>
-    message.role === "assistant" ? (message.content as unknown as readonly Part[]) : [],
-  );
-}
-
 // The items of an assistant entry, in order. The text of an entry without tool calls is the
 // answer, which is not an item.
 export function itemsOf(entry: EntryRecord): Item[] {
-  const all = parts(entry);
-  const answers = !all.some((part) => part.type === "toolCall");
-  return all.flatMap((part, index): Item[] => {
-    if (part.type === "thinking" && typeof part["thinking"] === "string" && part["thinking"].trim())
-      return [{ kind: "thinking", part: index, text: part["thinking"].trim() }];
-    if (part.type === "text" && !answers && typeof part["text"] === "string" && part["text"].trim())
-      return [{ kind: "commentary", part: index, text: part["text"].trim() }];
+  if (!AssistantEntry.is(entry)) return [];
+  const parts = (entry.model ?? []).flatMap((message) =>
+    message.role === "assistant" ? message.content : [],
+  );
+  const answers = !parts.some((part) => part.type === "toolCall");
+  return parts.flatMap((part, index): Item[] => {
+    if (part.type === "thinking" && part.thinking.trim())
+      return [{ kind: "thinking", part: index, text: part.thinking.trim() }];
+    if (part.type === "text" && !answers && part.text.trim())
+      return [{ kind: "commentary", part: index, text: part.text.trim() }];
     if (part.type === "toolCall") {
-      const args = (part["arguments"] ?? {}) as Record<string, unknown>;
-      const code = typeof args["code"] === "string" ? args["code"] : undefined;
+      const code = part.arguments["code"];
       return [
         {
           kind: "tool",
           part: index,
-          callId: String(part["id"]),
-          name: String(part["name"]),
-          ...(code !== undefined && { code }),
+          callId: part.id,
+          name: part.name,
+          ...(typeof code === "string" && { code }),
         },
       ];
     }
@@ -71,65 +67,39 @@ export function itemAt(entry: EntryRecord, part: number): Item | undefined {
 // Strips the `mcp__<server>__` prefix of an MCP tool's name.
 const shortName = (name: string) => name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, "");
 
-function asCalls(value: unknown): Call[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((raw): Call[] => {
-    if (typeof raw !== "object" || raw === null) return [];
-    const call = raw as Record<string, unknown>;
-    const status = call["status"];
-    return [
-      {
-        name: shortName(String(call["name"])),
-        args: typeof call["args"] === "string" ? call["args"] : JSON.stringify(call["args"] ?? ""),
-        status:
-          status === "ok" || status === "error" || status === "cancelled" || status === "running"
-            ? status
-            : "pending",
-        ...(typeof call["durationMs"] === "number" && { durationMs: call["durationMs"] }),
-        ...(typeof call["error"] === "string" && { error: call["error"] }),
-      },
-    ];
-  });
-}
-
 export function resultOf(entry: EntryRecord): Result | undefined {
-  if (entry.kind !== "pi.tool-result") return undefined;
+  if (!ToolResultEntry.is(entry)) return undefined;
   const message = (entry.model ?? []).find((candidate) => candidate.role === "toolResult");
   if (message?.role !== "toolResult") return undefined;
-  const details = message.details as { calls?: unknown } | undefined;
-  return { callId: message.toolCallId, isError: message.isError, calls: asCalls(details?.calls) };
+  const details = message.details as Partial<CodemodeToolDetails> | undefined;
+  return {
+    callId: message.toolCallId,
+    isError: message.isError,
+    calls: (details?.calls ?? []).map((call) => ({
+      name: shortName(call.name),
+      args: call.args,
+      status: call.status,
+      ...(call.durationMs !== undefined && { durationMs: call.durationMs }),
+      ...(call.error !== undefined && { error: call.error }),
+    })),
+  };
 }
 
 // The calls a running code mode call's script has made so far.
-export function liveCalls(live: JsonObject | undefined, callId: string): Call[] {
-  const nested = live?.["nestedTools"];
-  if (!Array.isArray(nested)) return [];
-  return nested.flatMap((raw): Call[] => {
-    const slot = raw as {
-      parentCallId?: string;
-      name?: string;
-      status?: string;
-      arguments?: unknown;
-      summary?: { isError?: boolean; durationMs?: number; error?: string };
-    };
-    if (slot.parentCallId !== callId) return [];
-    const done = slot.status === "done";
-    return [
-      {
-        name: shortName(String(slot.name)),
-        args: JSON.stringify(slot.arguments ?? {}),
-        status: !done
-          ? slot.status === "running"
-            ? "running"
-            : "pending"
-          : slot.summary?.isError
-            ? "error"
-            : "ok",
-        ...(slot.summary?.durationMs !== undefined && { durationMs: slot.summary.durationMs }),
-        ...(slot.summary?.error !== undefined && { error: slot.summary.error }),
-      },
-    ];
-  });
+export function liveCalls(live: LiveState | undefined, callId: string): Call[] {
+  return (live?.nestedTools ?? [])
+    .filter((slot) => slot.parentCallId === callId)
+    .map((slot) => {
+      const summary = slot.summary;
+      const done = summary?.isError ? "error" : "ok";
+      return {
+        name: shortName(slot.name),
+        args: JSON.stringify(slot.arguments),
+        status: slot.status === "done" ? done : slot.status,
+        ...(summary?.durationMs !== undefined && { durationMs: summary.durationMs }),
+        ...(summary?.error !== undefined && { error: summary.error }),
+      };
+    });
 }
 
 const clip = (text: string, limit: number) =>
@@ -157,8 +127,7 @@ export function renderTool(
   expanded: boolean,
   limit: number,
 ): string {
-  const head = `🔧 **${item.name}** ${state === "running" ? "⏳" : state === "ok" ? "✓" : "✗"}`;
-  const lines = [head, ...calls.map(callLine)].join("\n");
+  const lines = [`🔧 **${item.name}** ${mark[state]}`, ...calls.map(callLine)].join("\n");
   if (!expanded || item.code === undefined) return clip(lines, limit);
   const fence = item.code.includes("```") ? "~~~" : "```";
   const room = limit - lines.length - 16;
@@ -166,7 +135,7 @@ export function renderTool(
 }
 
 // The headings of a thinking summary, its bold lines, or else its first line.
-export function headings(text: string): string[] {
+function headings(text: string): string[] {
   const bold = text
     .split("\n")
     .map((line) => /^\s*\*\*(.+?)\*\*\s*$/.exec(line)?.[1]?.trim())

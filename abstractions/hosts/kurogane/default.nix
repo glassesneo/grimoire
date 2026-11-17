@@ -20,24 +20,20 @@ delib.host {
     pi.mcpServers = ["web"];
     edith = {
       enable = true;
+      # Both profiles grant the same for now; they diverge once tools beyond web search exist.
       profiles = let
-        model = {
-          provider = "openai";
-          modelId = "gpt-6.1-sol";
+        profile = {
+          model = {
+            provider = "openai";
+            modelId = "gpt-6.1-sol";
+          };
+          thinkingLevel = "medium";
+          tools = ["web"];
+          maxTurns = null;
         };
       in {
-        full = {
-          inherit model;
-          thinkingLevel = "medium";
-          tools = ["web"];
-          maxTurns = null;
-        };
-        restricted = {
-          inherit model;
-          thinkingLevel = "medium";
-          tools = ["web"];
-          maxTurns = null;
-        };
+        full = profile;
+        restricted = profile;
       };
       namespaces = {
         cli = "full";

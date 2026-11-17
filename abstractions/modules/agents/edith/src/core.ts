@@ -6,8 +6,8 @@
 import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
 import {
-  AgentDoc,
   AssistantEntry,
+  configure,
   createRegistry,
   defineDoc,
   defineDocFamily,
@@ -34,7 +34,7 @@ export type Profile = {
   readonly maxTurns: number | null;
 };
 
-export const fallbackProfile = "restricted";
+const fallbackProfile = "restricted";
 
 // A null field follows the profile; `configure` sets or clears an override.
 export type Overrides = {
@@ -99,12 +99,15 @@ type Equipment = {
 export class Edith {
   readonly harness: Harness;
   readonly #options: Options;
-  // Serializes creation per address, so concurrent first messages share one conversation.
-  readonly #opening = new Map<string, Promise<Conversation>>();
+  readonly #servers: ReadonlyMap<string, Extension>;
+  // Conversations by address, kept once open; sharing the opening promise also makes
+  // concurrent first messages share one conversation.
+  readonly #conversations = new Map<string, Promise<Conversation>>();
 
   private constructor(harness: Harness, options: Options) {
     this.harness = harness;
     this.#options = options;
+    this.#servers = new Map((options.servers ?? []).map((server) => [server.name, server]));
   }
 
   static async open(storage: Storage, options: Options, context: Context): Promise<Edith> {
@@ -120,13 +123,13 @@ export class Edith {
     return new Edith(harness, options);
   }
 
-  profileName(address: string): string {
+  // The profile an address's namespace selects, by name.
+  profile(address: string): [string, Profile] {
     const name = this.#options.namespaces[namespaceOf(address)];
-    return name !== undefined && name in this.#options.profiles ? name : fallbackProfile;
-  }
-
-  profile(address: string): Profile {
-    return this.#options.profiles[this.profileName(address)] ?? this.#options.profiles.restricted;
+    const profile = name === undefined ? undefined : this.#options.profiles[name];
+    return name !== undefined && profile
+      ? [name, profile]
+      : [fallbackProfile, this.#options.profiles.restricted];
   }
 
   // What a profile's conversations run with: nothing callable without servers, otherwise code
@@ -134,10 +137,8 @@ export class Edith {
   // start is left out.
   #equipment(profile: Profile): Equipment {
     const codemode = this.#options.codemode;
-    const servers = profile.tools.flatMap((server) =>
-      (this.#options.servers ?? []).filter(
-        (extension) => extension.name === serverExtensionName(server),
-      ),
+    const servers = profile.tools.flatMap(
+      (server) => this.#servers.get(serverExtensionName(server)) ?? [],
     );
     const tool = codemode?.tools?.find((candidate) => candidate.name === CODEMODE_TOOL_NAME);
     if (!codemode || !tool || servers.length === 0) return { extensions: [], modelTools: null };
@@ -145,10 +146,11 @@ export class Edith {
   }
 
   conversation(address: string, context: Context): Promise<Conversation> {
-    const pending = this.#opening.get(address);
-    if (pending) return pending;
-    const opening = this.#open(address, context).finally(() => this.#opening.delete(address));
-    this.#opening.set(address, opening);
+    const known = this.#conversations.get(address);
+    if (known) return known;
+    const opening = this.#open(address, context);
+    opening.catch(() => this.#conversations.delete(address));
+    this.#conversations.set(address, opening);
     return opening;
   }
 
@@ -174,10 +176,10 @@ export class Edith {
       model: null,
       thinkingLevel: null,
     };
-    const profile = this.profile(address);
+    const [name, profile] = this.profile(address);
     return {
       address,
-      profile: this.profileName(address),
+      profile: name,
       model: overrides.model ?? profile.model,
       thinkingLevel: overrides.thinkingLevel ?? profile.thinkingLevel,
       tools: profile.tools,
@@ -195,36 +197,6 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // The profile can change between runs of the daemon, so the agent is brought to the
-  // effective choices before each input rather than when they are set.
-  async #align(address: string, conversation: Conversation, context: Context): Promise<void> {
-    const wanted = await this.status(address, context);
-    const { maxTurns } = this.profile(address);
-    const equipment = this.#equipment(this.profile(address));
-    const names = (items: readonly { name: string }[] | null) =>
-      items && JSON.stringify(items.map((item) => item.name));
-    const stored = await this.harness.snapshot(AgentDoc, conversation.id, context);
-    const same =
-      stored?.model?.provider === wanted.model.provider &&
-      stored.model.modelId === wanted.model.modelId &&
-      stored.thinkingLevel === wanted.thinkingLevel &&
-      JSON.stringify(stored.extensions) === names(equipment.extensions) &&
-      (stored.modelTools === undefined ? null : JSON.stringify(stored.modelTools)) ===
-        names(equipment.modelTools) &&
-      (stored.maxTurns ?? null) === maxTurns;
-    if (same) return;
-    await conversation.configure(
-      {
-        model: wanted.model,
-        thinkingLevel: wanted.thinkingLevel,
-        extensions: equipment.extensions,
-        modelTools: equipment.modelTools,
-        maxTurns,
-      },
-      context,
-    );
-  }
-
   // Admits an input; `alsoInCommit` writes a client's own state in the same commit.
   async submit(
     address: string,
@@ -233,8 +205,19 @@ export class Edith {
     alsoInCommit?: (tx: Tx, submission: SubmissionId) => Promise<void>,
   ): Promise<SubmissionId> {
     const conversation = await this.conversation(address, context);
-    await this.#align(address, conversation, context);
+    const wanted = await this.status(address, context);
+    const [, profile] = this.profile(address);
+    const equipment = this.#equipment(profile);
     return this.harness.commit(async (tx) => {
+      // The profile can change between runs of the daemon, so the agent is brought to the
+      // effective choices with each input; writing an equal value changes nothing.
+      await configure(tx, conversation.id, {
+        model: wanted.model,
+        thinkingLevel: wanted.thinkingLevel,
+        extensions: equipment.extensions,
+        modelTools: equipment.modelTools,
+        maxTurns: profile.maxTurns,
+      });
       const id = await conversation.submit(tx, { ...draft, type: "input" } as InputSubmissionDraft);
       await alsoInCommit?.(tx, id);
       return id;
@@ -251,10 +234,13 @@ export class Edith {
       return { status: "unanswered", reason: `${settled.reason}${detail}` };
     }
     const conversation = await this.harness.conversation(settled.conversationId, context);
-    const entry = await conversation?.commit(
-      (tx) => tx.entry(AssistantEntry, settled.answer),
+    const page = await conversation?.entries(
+      { minEntryId: settled.answer, maxEntryId: settled.answer },
+      1,
+      undefined,
       context,
     );
+    const entry = page?.items.find((found) => AssistantEntry.is(found));
     const text = (entry?.model ?? [])
       .flatMap((message) => (message.role === "assistant" ? message.content : []))
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
