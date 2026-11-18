@@ -66,6 +66,7 @@ Modules whose only option is `enable`:
 
 | Module | <code>enable</code> | Responsibility | Tags |
 | --- | --- | --- | --- |
+| [<code>ai-mop</code>](../../abstractions/modules/ai-mop/default.nix) | <code>false</code> | Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls. |  |
 | [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
 | [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | <code>true</code> | Provide batman and configure it as Zsh's manual page pager. |  |
 | [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |

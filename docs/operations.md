@@ -132,6 +132,76 @@ without enabling the CLI Socket Server. The bundled `bttcli` needs that server
 enabled and BetterTouchTool restarted before it can export. Neither method is
 run automatically by a switch; GUI-only changes remain until an explicit import.
 
+## AI MOP workbench
+
+Run `nix run .#ai-mop` without activating a host. Supply the key through
+`AI_MOP_API_KEY`, or set `AI_MOP_API_KEY_FILE` to an already decrypted file.
+The workbench reads the file at runtime; it does not decrypt, issue or rotate
+keys. Its OpenAI providers are `ai-mop-responses` and `ai-mop-chat`; its
+Anthropic provider is `ai-mop-anthropic`. Select a route and model with Pi's
+`--provider` and `--model`, or `/model` in the TUI.
+
+For OpenAI models with both tools and reasoning enabled, use the Responses route:
+
+```sh
+nix run .#ai-mop -- --provider ai-mop-responses --model gpt-6.2-sol
+```
+
+The Chat route is for explicit compatibility trials. The proxy can reject tools
+combined with reasoning on Chat Completions even when the same model supports
+them on Responses. Changing the client serializer does not bypass that server
+restriction. Select the provider explicitly when selecting a model shared by
+several routes; a bare model ID can be ambiguous.
+
+Model names carry a route label, and the TUI status line shows the selected
+route and thinking level. The model picker contains candidates from the pinned
+Pi catalog, not a verified AI MOP availability list. `/mop-models openai` requests
+the server's model IDs; listing does not verify inference support.
+`/mop-models anthropic <model-id>` retrieves individual model metadata. The
+tested Anthropic proxy rejects the listing endpoint; requesting it without an
+ID reports that limitation and points to the individual lookup.
+Catalog capabilities and limits are starting metadata, not measurements of the
+proxy. Pi can also try an unknown model ID with fallback metadata and a warning.
+Use `AI_MOP_MODELS_FILE` to supply a Pi `models.json` profile at startup when
+testing new metadata, sampling parameters or compatibility overrides.
+`AI_MOP_OPENAI_BASE_URL` and `AI_MOP_ANTHROPIC_BASE_URL` override the SDK base
+URLs; the Anthropic SDK appends `/v1/messages` itself.
+
+Each launch uses temporary configuration, excluding inherited Pi resources,
+MCP, skills, templates and project context files. Only the direct `echo` and
+`sha256` test tools are active. This is configuration isolation, not an OS
+sandbox; explicit Pi CLI options can change it. Settings changed within that
+launch are temporary. `--no-tools` disables the test tools explicitly; the
+launcher supplies their names as defaults rather than forced CLI arguments.
+Automatic retries, compaction, cache warming and background catalog updates
+are disabled.
+
+Sessions, including prompts, responses and tool results, are saved separately
+under `${XDG_STATE_HOME:-~/.local/state}/grimoire/ai-mop/sessions`.
+`AI_MOP_STATE_DIR` changes the workbench state root; `--no-session` disables
+session persistence. `/mop-status` shows the selected route and the last
+request's endpoint, parameters, declared tool names, HTTP status when available,
+elapsed time and usage. Recognized proxy incompatibilities produce a recovery
+hint in the UI or stderr and in the request summary. These hints do not change
+tools, thinking or routes, or resend a request automatically.
+Request summaries are also saved as custom session entries without prompt
+bodies, tool schemas or authentication headers. Token counts are provider-reported through
+Pi; zero catalog costs are placeholders, not measured AI MOP charges.
+
+For scripted trials, `--mode json -p '<prompt>'` exposes Pi's events. Inspect the
+assistant's `stopReason` and tool results: a zero process exit status alone
+does not establish a successful model request. Check that usable content was
+parsed as well. The workbench tests Pi's API integration, not every operation
+or wire-level detail of AI MOP.
+
+The Anthropic route remains an unadapted compatibility trial. The tested proxy
+accepts ordinary text, but rejects `tools`, `thinking` (including an explicit
+disabled value) and `cache_control`. Its streaming response also omits the named
+SSE events Pi expects. Disabling tools and thinking alone is therefore not enough
+for the current route. A text-only transport adapter could normalize the wire
+format, but would not supply the missing tool or reasoning controls. No such
+adapter or silent field removal is enabled by this workbench.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
