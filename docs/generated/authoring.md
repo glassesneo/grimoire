@@ -82,6 +82,7 @@ Modules whose only option is `enable`:
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
+| [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
