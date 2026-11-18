@@ -43,6 +43,9 @@ in
       appPath = strOption "/Applications/Rex Beta.app";
       useColorscheme = boolOption true "Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs.";
       font = allowNull (strOption null) "Name in fonts.entries; null leaves Rex's terminal font as set in the app.";
+      fontSize = allowNull (numberOption null) "Terminal font size in points; null leaves Rex's stored size unchanged.";
+      paddingX = allowNull (intOption null) "Horizontal terminal padding; null leaves Rex's stored value unchanged.";
+      paddingY = allowNull (intOption null) "Vertical terminal padding; null leaves Rex's stored value unchanged.";
     };
 
     constraints.ifEnabled = [
@@ -126,6 +129,15 @@ in
         }
         // lib.optionalAttrs (cfg.font != null && myconfig.fonts.entries ? ${cfg.font}) {
           "Workspace.terminalFontName" = myconfig.fonts.entries.${cfg.font}.family;
+        }
+        // lib.optionalAttrs (cfg.fontSize != null) {
+          "Workspace.terminalFontPointSize" = cfg.fontSize;
+        }
+        // lib.optionalAttrs (cfg.paddingX != null) {
+          "Workspace.terminalPaddingX" = cfg.paddingX;
+        }
+        // lib.optionalAttrs (cfg.paddingY != null) {
+          "Workspace.terminalPaddingY" = cfg.paddingY;
         };
     };
 

@@ -28,6 +28,18 @@ delib.host {
       enable = true;
       profile = "default";
     };
+    ghostty.settings = {
+      font-size = 16;
+      background-opacity = 0.34;
+      background-blur = 2;
+      window-padding-x = 8;
+      window-padding-y = 6;
+    };
+    rex = {
+      fontSize = 16;
+      paddingX = 0;
+      paddingY = 0;
+    };
     vicinae = {
       compact-transition.enable = true;
       selection-highlight.enable = true;

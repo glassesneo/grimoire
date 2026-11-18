@@ -718,6 +718,9 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 | <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex Beta.app"</code> |  |
 | <code>rex.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>rex.font</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Rex's terminal font as set in the app. |
+| <code>rex.fontSize</code> | <code>null or signed integer or floating point number</code> | <code>null</code> | Terminal font size in points; null leaves Rex's stored size unchanged. |
+| <code>rex.paddingX</code> | <code>null or signed integer</code> | <code>null</code> | Horizontal terminal padding; null leaves Rex's stored value unchanged. |
+| <code>rex.paddingY</code> | <code>null or signed integer</code> | <code>null</code> | Vertical terminal padding; null leaves Rex's stored value unchanged. |
 | <code>rex.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs. |
 
 ### <code>secrets</code>
