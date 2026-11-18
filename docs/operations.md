@@ -72,6 +72,27 @@ updates are asynchronous, and an already running application's font menu may
 need to be reopened or the application restarted. Do not infer recognition
 from a successful file copy alone.
 
+## AquaSKK deployment
+
+AquaSKK is installed as real files under `~/Library/Input Methods/AquaSKK.app`
+through imprynt. On the first migration from Home Manager, stop AquaSKK and
+move the old app bundle to a backup outside `Library/Input Methods` before
+applying: imprynt does not adopt or overwrite an existing unmanaged app.
+The three Home Manager links under
+`~/Library/Application Support/AquaSKK` also need the ordinary Hjem ownership
+handoff. Keep the writable learning dictionary; it is not a deployment output.
+
+Preferences are applied through Hjem defaults before the app is installed.
+After switching, log out and back in to check input-source discovery. If
+AquaSKK is absent, add it through System Settings → Keyboard → Input Sources.
+Verify Japanese input in a GUI app and a terminal, the custom keys, dictionary
+learning, and recognition after another login. A built app deployment does
+not establish these macOS behaviors.
+
+Disabling `aquaskk.enable` keeps the empty app deployment for retirement on the
+next switch. Apply that disabled declaration before removing or renaming the
+deployment. Retirement leaves the learning dictionary in place.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.

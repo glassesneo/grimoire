@@ -16,6 +16,7 @@ delib.module ({
   };
 in {
   name = "xdg";
+  tests.fixture = ["host"];
   meta.description = "Define the user's XDG base directories and export them to the user's environment.";
 
   options = with delib; let

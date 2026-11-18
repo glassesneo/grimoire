@@ -161,6 +161,19 @@ Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstrac
 | <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
 
+### <code>aquaskk</code>
+
+Install AquaSKK and configure its keymap, dictionaries and user preferences.
+
+Source: [<code>abstractions/modules/aquaskk/default.nix</code>](../../abstractions/modules/aquaskk/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>aquaskk.directClients</code> | <code>list of string</code> | <code>[ ]</code> | Bundle IDs of applications in which AquaSKK uses direct input instead of Japanese conversion. |
+| <code>aquaskk.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>aquaskk.package</code> | <code>package</code> | <code>casks/cask2nix: aquaskk</code> |  |
+| <code>aquaskk.userDictionaryPath</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share/skkeleton/jisyo"</code> | Writable learning dictionary, retained at the former shared skkeleton path independently of whether skkeleton is installed. |
+
 ### <code>bat</code>
 
 Provide and configure bat for file display.
@@ -494,6 +507,24 @@ Source: [<code>abstractions/modules/imprynt/default.nix</code>](../../abstractio
 | <code>imprynt.deployments.&lt;name&gt;.trees.*.mode</code> | <code>integer between 0 and 511 (both inclusive)</code> | <code>420</code> | POSIX permission bits, as an integer (420 is 0644). |
 | <code>imprynt.deployments.&lt;name&gt;.trees.*.prefix</code> | <code>string</code> | <code>""</code> | Relative destination prefix; empty places the tree directly below the managed root. |
 | <code>imprynt.deployments.&lt;name&gt;.trees.*.source</code> | <code>absolute path</code> |  | Source directory enumerated during the manifest build. |
+
+### <code>input-methods</code>
+
+Register user input sources and own the shared HIToolbox input-source preferences.
+
+Source: [<code>abstractions/modules/input-methods/default.nix</code>](../../abstractions/modules/input-methods/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>input-methods.enable</code> | <code>boolean</code> | <code>false</code> |  |
+
+<code>hjem</code> options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>inputMethods.enabled</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `enabled` list. |
+| <code>inputMethods.history</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `history` list. |
+| <code>inputMethods.selected</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `selected` list. |
 
 ### <code>kanata</code>
 

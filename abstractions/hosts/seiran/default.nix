@@ -7,6 +7,10 @@ delib.host {
 
   myconfig.ifEnabled = {
     tags.enabled = ["gui"];
+    aquaskk = {
+      enable = true;
+      directClients = [];
+    };
     vicinae = {
       compact-transition.enable = true;
       selection-highlight.enable = true;
