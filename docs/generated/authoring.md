@@ -648,6 +648,20 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
 | <code>neovim.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether the package takes its theme from `colorscheme.resolved`. |
 
+### <code>neovim.ai-completion</code>
+
+Provide switchable inline AI completions through Minuet.
+
+Source: [<code>abstractions/modules/neovim/ai-completion/default.nix</code>](../../abstractions/modules/neovim/ai-completion/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.ai-completion.anthropic.endpoint</code> | <code>string</code> | <code>"https://api.anthropic.iniad.org/api/v1/messages"</code> |  |
+| <code>neovim.ai-completion.anthropic.model</code> | <code>string</code> | <code>"claude-sonnet-5-5"</code> |  |
+| <code>neovim.ai-completion.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
+| <code>neovim.ai-completion.endpoint</code> | <code>string</code> | <code>"https://api.openai.iniad.org/api/v1/chat/completions"</code> | Endpoint for the OpenAI-compatible choice. |
+| <code>neovim.ai-completion.model</code> | <code>string</code> | <code>"gpt-6.2-sol"</code> | OpenAI-compatible model used at startup. |
+
 ### <code>nix-secrets</code>
 
 Provide nix-secrets to Hjem and activate its secrets on Darwin.

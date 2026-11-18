@@ -10,7 +10,7 @@ map({ "n", "x", "o" }, "M", "%")
 map("i", "<C-a>", "<C-o>^")
 map("i", "<C-e>", function ()
   -- Accepts a shown inline completion instead of moving.
-  if vim.lsp.inline_completion.get() then
+  if require("grimoire.inline_completion").get() then
     return ""
   end
   return "<C-o>$"

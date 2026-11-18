@@ -202,6 +202,44 @@ for the current route. A text-only transport adapter could normalize the wire
 format, but would not supply the missing tool or reasoning controls. No such
 adapter or silent field removal is enabled by this workbench.
 
+## Neovim AI completions
+
+The `neovim.ai-completion` feature uses Minuet's virtual-text frontend, separately
+from Blink's completion menu. It reads `AI_MOP_API_KEY`, or the file named by
+`AI_MOP_API_KEY_FILE`, at runtime; it stores no key in the package. Missing or
+unreadable credentials disable automatic requests. Setting up encrypted-secret
+deployment is separate from this feature.
+
+Use `nix run .#neovim.devMode` to try the working tree without activation.
+Suggestions trigger automatically in eligible buffers. Ctrl-E accepts a visible
+Minuet suggestion; otherwise it retains native inline acceptance and the
+end-of-line fallback. No additional Minuet keys are assigned.
+`:Minuet virtualtext disable` and `:Minuet virtualtext enable` change automatic
+triggering for the current buffer.
+
+The outbound guard excludes unnamed, unresolved, unlisted and special buffers,
+and basenames containing the case-sensitive token `env`. Both the opened name and the resolved symlink target are checked.
+The guard also applies to manual requests, which Minuet's automatic-trigger
+predicates alone do not protect. Unlike the former Copilot policy, `conf`,
+`local` and `private` do not cause exclusion. This is not a general secret detector. Eligible current-buffer
+contents are sent to the configured endpoint. Minuet's duet edit-history
+recording is disabled.
+
+Every Neovim process starts with the OpenAI-compatible choice. Switch to the
+Anthropic choice with `:Minuet change_provider claude`, and return with
+`:Minuet change_provider openai_compatible`. Selection lasts only for that
+process; it is not saved. Both choices use the same outbound guard, runtime
+credentials and virtual-text acceptance.
+
+The startup model and endpoint are declared through
+`neovim.ai-completion.model` and `neovim.ai-completion.endpoint`; the Anthropic
+choice uses `neovim.ai-completion.anthropic.model` and
+`neovim.ai-completion.anthropic.endpoint`. Requests use Chat Completions or
+Anthropic Messages respectively, without tool declarations or an explicit
+reasoning setting. Their success does not establish Pi's tool-and-reasoning compatibility.
+A headless request and insertion check does not verify visual readability,
+SKK interaction or normal use alongside Blink; check those in the terminal UI.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
