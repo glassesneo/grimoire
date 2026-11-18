@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "omniwm": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "mst-mkt",
+        "repo": "omniwm.nix"
+      },
+      "branch": "main",
+      "submodules": false,
+      "revision": "80e609061cc09d6df1724dacafe606f0070c4ee2",
+      "url": "https://github.com/mst-mkt/omniwm.nix/archive/80e609061cc09d6df1724dacafe606f0070c4ee2.tar.gz",
+      "hash": "sha256-bAp50eEYuf2kR/BeH57jhgByj0NIUB76n0WWgsR1G2I="
+    }
+  },
+  "version": 8
+}

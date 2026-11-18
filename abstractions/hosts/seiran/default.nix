@@ -11,6 +11,23 @@ delib.host {
       enable = true;
       directClients = [];
     };
+    omniwm = {
+      enable = true;
+      settings = {
+        monitorGapOverrides = [
+          {
+            id = "FF625DFC-6800-19E6-24BD-61551D8E9DB6";
+            monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230";
+            monitorName = "Built-in Retina Display";
+            outerGapTop = 17.0;
+          }
+        ];
+      };
+    };
+    kanata = {
+      enable = true;
+      profile = "default";
+    };
     vicinae = {
       compact-transition.enable = true;
       selection-highlight.enable = true;

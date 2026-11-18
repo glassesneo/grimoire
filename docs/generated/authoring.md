@@ -669,6 +669,19 @@ Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstraction
 | <code>notion.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>notion.package</code> | <code>package</code> | <code>casks/cask2nix: notion</code> |  |
 
+### <code>omniwm</code>
+
+Provide OmniWM as a user service, own its writable settings, and integrate its navigation with Kanata.
+
+Source: [<code>abstractions/modules/omniwm/default.nix</code>](../../abstractions/modules/omniwm/default.nix)<br>Tags: <code>gui</code>
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>omniwm.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>omniwm.package</code> | <code>package</code> | <code>omniwm/omniwm: omniwm</code> |  |
+| <code>omniwm.settings</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> | Settings layered over the pinned OmniWM defaults; hotkeys are merged by id. The switch reapplies them to the writable settings file. |
+| <code>omniwm.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether OmniWM takes its focused-window border color from `colorscheme.resolved`. |
+
 ### <code>phi</code>
 
 Provide and publish the Phi browser and the CLI and agent skill that drive it.

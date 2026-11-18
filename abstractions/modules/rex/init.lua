@@ -115,5 +115,5 @@ for key, direction in pairs({ h = "left", j = "down", k = "up", l = "right" }) d
     rex.bind("ctrl+alt+" .. key, "pane.split", { direction = direction })
 end
 
-rex.bind("alt+space", "toggle_floating")
+rex.bind("alt+f", "toggle_floating")
 rex.bind("alt+z", "pane.zoom")

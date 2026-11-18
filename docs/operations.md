@@ -93,6 +93,27 @@ Disabling `aquaskk.enable` keeps the empty app deployment for retirement on the
 next switch. Apply that disabled declaration before removing or renaming the
 deployment. Retirement leaves the learning dictionary in place.
 
+## OmniWM deployment
+
+OmniWM's Hjem step writes a mutable `settings.toml` before the services step.
+The app needs to rewrite this file; do not replace it with a Nix-store
+symlink. Each switch reapplies the declared settings over the pinned defaults,
+rather than retaining GUI edits, and the upstream deployment script keeps the
+previous differing file as `settings.toml.bak`. Disabling the module stops its
+service but leaves this writable settings file in place.
+
+Before migrating from Home Manager, stop and retire its OmniWM LaunchAgent
+(`org.nix-community.home.omniwm`) so it cannot compete with the dinit service.
+The Hjem service reconciler does not own Home Manager's jobs. Hand off any old
+managed application link through the ordinary Hjem ownership migration.
+Grant Accessibility to dinit as described above. If Displays have separate
+Spaces was changed, log out and back in before checking window management.
+
+Verify ordinary Command shortcuts, entry and release of the held WM layer,
+repeated navigation with and without left Shift, and isolation from the
+terminal's pane bindings. A successful Kanata syntax check and settings build
+do not verify physical key timing, TCC access, or OmniWM's GUI behavior.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.

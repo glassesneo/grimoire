@@ -201,7 +201,7 @@ in
           "Super ," = [{GoToPreviousTab = [];}];
           "Super ." = [{GoToNextTab = [];}];
 
-          "Alt Space" = [{ToggleFloatingPanes = [];}];
+          "Alt f" = [{ToggleFloatingPanes = [];}];
           "Alt z" = [{ToggleFocusFullscreen = [];}];
           "Super u" = [{SwitchToMode = "Scroll";}];
           "Super f" = [{SwitchToMode = "EnterSearch";} {SearchInput = 0;}];

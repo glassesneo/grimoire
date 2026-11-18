@@ -11,8 +11,8 @@
     layers.base = {
       # Taps Escape, holds Control.
       caps = ["tap-hold-press" 70 70 "esc" "lctl"];
-      # Taps Backspace, holds Command.
-      lmet = ["tap-hold-press" 250 100 "bspc" "lmet"];
+      # Removes Option from Backspace, including Option held through semicolon.
+      spc = ["fork" "spc" ["unmod" ["lalt" "ralt"] "bspc"] ["lalt" "ralt"]];
       # Taps Tab, holds Command.
       rmet = ["tap-hold-press" 200 200 "tab" "rmet"];
       # Taps with ; and : swapped on a US layout, holds Option.
