@@ -7,7 +7,7 @@ delib.module ({
   name = "bettertouchtool";
   tests.fixture = ["defaults" "exclusive"];
   meta = {
-    description = "Provide BetterTouchTool.";
+    description = "Provide BetterTouchTool and own its portable configuration.";
     tags = ["gui"];
   };
 
@@ -26,6 +26,11 @@ delib.module ({
     files."Applications/BetterTouchTool.app" = {
       exclusive = true;
       source = app;
+    };
+
+    xdg.config.files."bettertouchtool/Default.bttpreset" = {
+      exclusive = true;
+      source = ./presets/default.bttpreset;
     };
 
     platform.darwin.defaults."com.hegenberg.BetterTouchTool".settings = {

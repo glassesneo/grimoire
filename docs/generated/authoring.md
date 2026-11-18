@@ -193,7 +193,7 @@ Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/m
 
 ### <code>bettertouchtool</code>
 
-Provide BetterTouchTool.
+Provide BetterTouchTool and own its portable configuration.
 
 Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../abstractions/modules/bettertouchtool/default.nix)<br>Tags: <code>gui</code>
 

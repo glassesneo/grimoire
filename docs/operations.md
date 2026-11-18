@@ -114,6 +114,24 @@ repeated navigation with and without left Shift, and isolation from the
 terminal's pane bindings. A successful Kanata syntax check and settings build
 do not verify physical key timing, TCC access, or OmniWM's GUI behavior.
 
+## BetterTouchTool presets
+
+Hjem places the exported preset at
+`~/.config/bettertouchtool/Default.bttpreset`; it does not import it or replace
+BetterTouchTool's writable database. Restore it manually through BetterTouchTool's
+preset import UI and review the confirmation before applying. The export includes
+exportable general settings as well as triggers, so an import can affect app-wide
+behavior. Import and trigger behavior still need live verification.
+
+Edit in the GUI, then export the `Default` preset as uncompressed JSON with
+exportable general settings included. Review the export for scripts, credentials
+and machine-specific paths before replacing
+`abstractions/modules/bettertouchtool/presets/default.bttpreset`.
+The running app's AppleScript `export_preset` command can also write this snapshot
+without enabling the CLI Socket Server. The bundled `bttcli` needs that server
+enabled and BetterTouchTool restarted before it can export. Neither method is
+run automatically by a switch; GUI-only changes remain until an explicit import.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.
