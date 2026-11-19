@@ -1,0 +1,6 @@
+require("nvim-surround").setup()
+vim.keymap.set({ "n", "x" }, "s", "<Nop>")
+vim.keymap.set("n", "sa", "<Plug>(nvim-surround-normal)", { desc = "Add surround" })
+vim.keymap.set("n", "sx", "<Plug>(nvim-surround-delete)", { desc = "Remove surround" })
+vim.keymap.set("n", "sc", "<Plug>(nvim-surround-change)", { desc = "Change surround" })
+vim.keymap.set("x", "sa", "<Plug>(nvim-surround-visual)", { desc = "Surround selection" })

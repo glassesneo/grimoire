@@ -88,6 +88,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Create missing parent directories when saving ordinary Neovim files. |  |
 | [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
+| [<code>neovim.surround</code>](../../abstractions/modules/neovim/surround/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Edit surrounding delimiters through a consistent Neovim command namespace. |  |
 | [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Browse Neovim undo branches and changes with Snacks. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
 | [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
