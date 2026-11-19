@@ -82,6 +82,7 @@ Modules whose only option is `enable`:
 | [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | <code>true</code> | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
 | [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Insert paired delimiters and track generated closers in Neovim. |  |
+| [<code>neovim.cmdline</code>](../../abstractions/modules/neovim/cmdline/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Present Neovim command and search input in a popup without replacing messages or notifications. |  |
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
