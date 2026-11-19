@@ -86,6 +86,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
+| [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Browse Neovim undo branches and changes with Snacks. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
 | [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
@@ -646,6 +647,7 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | <code>neovim.settings.providers.ruby.package</code> | <code>package</code> | <code>programs.mnw.providers.ruby.env.ruby</code> | The ruby package to use. |
 | <code>neovim.settings.vimlFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | VimL config files to load at startup |
 | <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
+| <code>neovim.snacks</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Snacks setup options contributed by features; the parent installs and configures the shared plugin once. |
 | <code>neovim.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether the package takes its theme from `colorscheme.resolved`. |
 
 ### <code>neovim.ai-completion</code>

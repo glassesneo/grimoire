@@ -60,6 +60,11 @@ in
       with delib; {
         enable = boolOption true;
         useColorscheme = boolOption true "Whether the package takes its theme from `colorscheme.resolved`.";
+        snacks = lib.mkOption {
+          type = lib.types.attrsOf (pkgs.formats.json {}).type;
+          default = {};
+          description = "Snacks setup options contributed by features; the parent installs and configures the shared plugin once.";
+        };
         settings = lib.mkOption {
           # mnw's own option declarations, as its modules evaluate them.
           type = lib.types.submoduleWith {
@@ -83,6 +88,10 @@ in
 
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
+      plugins.start = lib.optionals (cfg.snacks != {}) [pkgs.vimPlugins.snacks-nvim];
+      initLua = lib.optionalString (cfg.snacks != {}) ''
+        require("snacks").setup(${lib.generators.toLua {} cfg.snacks})
+      '';
       neovim = neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
       plugins.dev.grimoire = {
         pure = ./config;
