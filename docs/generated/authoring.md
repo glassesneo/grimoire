@@ -86,6 +86,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
 | [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
+| [<code>neovim.languages</code>](../../abstractions/modules/neovim/languages/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Group language-specific Neovim editing support. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Create missing parent directories when saving ordinary Neovim files. |  |
 | [<code>neovim.motion</code>](../../abstractions/modules/neovim/motion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide search and line-movement aids in Neovim. |  |
@@ -668,6 +669,204 @@ Source: [<code>abstractions/modules/neovim/ai-completion/default.nix</code>](../
 | <code>neovim.ai-completion.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
 | <code>neovim.ai-completion.endpoint</code> | <code>string</code> | <code>"https://api.openai.iniad.org/api/v1/chat/completions"</code> | Endpoint for the OpenAI-compatible choice. |
 | <code>neovim.ai-completion.model</code> | <code>string</code> | <code>"gpt-6.2-sol"</code> | OpenAI-compatible model used at startup. |
+
+### <code>neovim.languages.bash</code>
+
+Configure Bash editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/bash/default.nix</code>](../../abstractions/modules/neovim/languages/bash/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.bash.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.bash.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.bash.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.bash.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.json</code>
+
+Configure JSON editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/json/default.nix</code>](../../abstractions/modules/neovim/languages/json/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.json.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.json.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.json.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.json.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.just</code>
+
+Configure Just editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/just/default.nix</code>](../../abstractions/modules/neovim/languages/just/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.just.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.just.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.just.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.just.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.kdl</code>
+
+Configure KDL editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/kdl/default.nix</code>](../../abstractions/modules/neovim/languages/kdl/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.kdl.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.kdl.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.kdl.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.kdl.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.lua</code>
+
+Configure Lua editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/lua/default.nix</code>](../../abstractions/modules/neovim/languages/lua/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.lua.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.lua.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.lua.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.lua.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.markdown</code>
+
+Configure Markdown editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/markdown/default.nix</code>](../../abstractions/modules/neovim/languages/markdown/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.markdown.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.markdown.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.markdown.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.markdown.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.nix</code>
+
+Configure Nix editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/nix/default.nix</code>](../../abstractions/modules/neovim/languages/nix/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.nix.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.nix.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.nix.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.nix.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.nushell</code>
+
+Configure Nushell editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/nushell/default.nix</code>](../../abstractions/modules/neovim/languages/nushell/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.nushell.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.nushell.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.nushell.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.nushell.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.objc</code>
+
+Configure Objective-C editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/objc/default.nix</code>](../../abstractions/modules/neovim/languages/objc/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.objc.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.objc.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.objc.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.objc.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.qml</code>
+
+Configure QML editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/qml/default.nix</code>](../../abstractions/modules/neovim/languages/qml/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.qml.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.qml.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.qml.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.qml.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.rust</code>
+
+Configure Rust editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/rust/default.nix</code>](../../abstractions/modules/neovim/languages/rust/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.rust.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.rust.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.rust.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.rust.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.toml</code>
+
+Configure TOML editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/toml/default.nix</code>](../../abstractions/modules/neovim/languages/toml/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.toml.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.toml.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.toml.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.toml.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.typescript</code>
+
+Configure TypeScript editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/typescript/default.nix</code>](../../abstractions/modules/neovim/languages/typescript/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.typescript.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.typescript.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.typescript.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.typescript.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.languages.zsh</code>
+
+Configure Zsh editing support in Neovim.
+
+Source: [<code>abstractions/modules/neovim/languages/zsh/default.nix</code>](../../abstractions/modules/neovim/languages/zsh/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.languages.zsh.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
+| <code>neovim.languages.zsh.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.zsh.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.languages.zsh.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
+
+### <code>neovim.treesitter</code>
+
+Assemble language-owned Tree-sitter parsers and queries and apply their buffer settings.
+
+Source: [<code>abstractions/modules/neovim/treesitter/default.nix</code>](../../abstractions/modules/neovim/treesitter/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.treesitter.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
+| <code>neovim.treesitter.grammars</code> | <code>lazy attribute set of package</code> | <code>nixpkgs: nvim-treesitter.builtGrammars</code> | read-only; Parser packages with the queries matching this backend's nvim-treesitter; language profiles select from this catalogue. |
+| <code>neovim.treesitter.registrations</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Language-owned contributions. A filetype has one owner; disabling this backend ignores all contributions. |
+| <code>neovim.treesitter.registrations.&lt;name&gt;.filetypes</code> | <code>attribute set of string</code> | <code>{ }</code> | Neovim filetype to Tree-sitter parser-name mapping. |
+| <code>neovim.treesitter.registrations.&lt;name&gt;.grammars</code> | <code>list of package</code> | <code>[ ]</code> | Parser packages, including any auxiliary parsers needed by this language. |
+| <code>neovim.treesitter.registrations.&lt;name&gt;.highlight</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.treesitter.registrations.&lt;name&gt;.indent</code> | <code>boolean</code> | <code>true</code> |  |
 
 ### <code>nix-secrets</code>
 
