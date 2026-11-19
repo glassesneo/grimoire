@@ -36,6 +36,10 @@ function M.api_key()
   end
 end
 
+local function can_request()
+  return M.allowed() and M.api_key() ~= nil
+end
+
 function M.setup()
   local settings = vim.g.grimoire_ai_completion
   -- Virtualtext's manual trigger bypasses enable_predicates.
@@ -50,11 +54,7 @@ function M.setup()
   require("minuet").setup({
     provider = "openai_compatible",
     request_timeout = 10,
-    enable_predicates = {
-      function ()
-        return M.allowed() and M.api_key() ~= nil
-      end,
-    },
+    enable_predicates = { can_request },
     virtualtext = { auto_trigger_ft = { "*" } },
     provider_options = {
       openai_compatible = {
@@ -75,6 +75,17 @@ function M.setup()
   })
 
   local action = require("minuet.virtualtext").action
+  local function map_cycle(lhs, direction, desc)
+    vim.keymap.set("i", lhs, function ()
+      if can_request() then
+        action[direction]()
+      end
+    end, { desc = desc }
+    )
+  end
+  map_cycle("<C-,>", "prev", "Minuet: previous candidate or request completion")
+  map_cycle("<C-.>", "next", "Minuet: next candidate or request completion")
+
   table.insert(require("grimoire.inline_completion").sources, function ()
     if action.is_visible() then
       action.accept()

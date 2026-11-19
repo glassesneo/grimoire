@@ -60,6 +60,12 @@ delib.module ({cfg, ...}: {
       };
       build = check "minuet-provider-routing" ./tests/providers.lua;
     };
+    candidate-navigation = {
+      moduleSystem = "bundles";
+      uses = ["colorscheme"];
+      protects = "Ctrl-comma and Ctrl-period dispatch to Minuet's previous and next actions even before a candidate is visible, but do not trigger Minuet without credentials or in excluded buffers";
+      build = check "minuet-candidate-navigation" ./tests/navigation.lua;
+    };
     inline-acceptance = {
       moduleSystem = "bundles";
       uses = ["colorscheme"];

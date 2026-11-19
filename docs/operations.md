@@ -213,9 +213,13 @@ deployment is separate from this feature.
 Use `nix run .#neovim.devMode` to try the working tree without activation.
 Suggestions trigger automatically in eligible buffers. Ctrl-E accepts a visible
 Minuet suggestion; otherwise it retains native inline acceptance and the
-end-of-line fallback. No additional Minuet keys are assigned.
+end-of-line fallback. In Insert mode, Ctrl-comma selects the previous Minuet
+candidate and Ctrl-period selects the next. If there are no candidates yet,
+either key requests completion manually, provided the buffer is eligible and
+credentials are available. The terminal must send distinct Ctrl-comma and
+Ctrl-period codes.
 `:Minuet virtualtext disable` and `:Minuet virtualtext enable` change automatic
-triggering for the current buffer.
+triggering for the current buffer without affecting manual requests.
 
 The outbound guard excludes unnamed, unresolved, unlisted and special buffers,
 and basenames containing the case-sensitive token `env`. Both the opened name and the resolved symlink target are checked.
