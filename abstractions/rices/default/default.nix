@@ -4,5 +4,9 @@ mylib.rice {
   myconfig = {
     shell.loginShell = "zsh";
     colorscheme.selection.name = "rose-pine";
+    neovim.bars.modeEnds = {
+      left = "█";
+      right = "█";
+    };
   };
 }

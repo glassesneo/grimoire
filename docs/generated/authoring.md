@@ -670,6 +670,19 @@ Source: [<code>abstractions/modules/neovim/ai-completion/default.nix</code>](../
 | <code>neovim.ai-completion.endpoint</code> | <code>string</code> | <code>"https://api.openai.iniad.org/api/v1/chat/completions"</code> | Endpoint for the OpenAI-compatible choice. |
 | <code>neovim.ai-completion.model</code> | <code>string</code> | <code>"gpt-6.2-sol"</code> | OpenAI-compatible model used at startup. |
 
+### <code>neovim.bars</code>
+
+Compose Neovim status and buffer displays from placement-independent Heirline components.
+
+Source: [<code>abstractions/modules/neovim/bars/default.nix</code>](../../abstractions/modules/neovim/bars/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.bars.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
+| <code>neovim.bars.modeEnds</code> | <code>submodule</code> | <code>{ }</code> | Literal left and right mode-indicator glyphs, selected together independently of the colorscheme. |
+| <code>neovim.bars.modeEnds.left</code> | <code>string</code> | <code>"█"</code> |  |
+| <code>neovim.bars.modeEnds.right</code> | <code>string</code> | <code>"█"</code> |  |
+
 ### <code>neovim.languages.bash</code>
 
 Configure Bash editing support in Neovim.
