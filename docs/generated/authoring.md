@@ -81,6 +81,7 @@ Modules whose only option is `enable`:
 | [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | <code>true</code> | Provide gomi and integrate it into Zsh. |  |
 | [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | <code>true</code> | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
+| [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Insert paired delimiters and track generated closers in Neovim. |  |
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
