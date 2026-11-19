@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { Usage } from "@earendil-works/pi-ai";
+import { isContextOverflow, isRetryableAssistantError, type Usage } from "@earendil-works/pi-ai";
 import {
   convertToLlm,
   generateSummaryWithUsage,
@@ -8,6 +8,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
+  checkpointRecord,
   fallbackType,
   readable,
   restore,
@@ -25,7 +26,7 @@ import {
   marker,
   splice,
   supported,
-  type Checkpoint,
+  type ReplayItem,
 } from "./responses.ts";
 
 const manualThreshold = 1000;
@@ -85,14 +86,8 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       );
     }
   };
-  const details = (ctx: ExtensionContext, replay: Checkpoint["replay"]) => ({
-    responsesCheckpoint: {
-      version: 1,
-      identity: identity(ctx.model!),
-      tools: requestTools,
-      replay,
-    } satisfies Checkpoint,
-  });
+  const record = (ctx: ExtensionContext, replay: ReplayItem[], messages: AgentMessage[]) =>
+    checkpointRecord({ identity: identity(ctx.model!), tools: requestTools, replay }, messages);
 
   // Use Pi's standard prompts and iterative summary updates, not an excerpt of history.
   // Preflight the actual native prompt before transport; UTF-8 JSON bytes conservatively
@@ -272,14 +267,21 @@ export default function registerCompaction(pi: ExtensionAPI): void {
           ...event.entries,
           {
             type: "compaction" as const,
-            summary: readable(messages),
+            ...record(ctx, suffix, messages),
             firstKeptEntryId: event.toolResultEntryIds[0] ?? null,
-            details: details(ctx, suffix),
           },
         ],
       };
     }
     if (!observed || event.outcome === "completed") return;
+    // Pi retries after this hook. A transient error says nothing about whether the
+    // saved checkpoint still works; keep it even if Pi exhausts its retry budget.
+    if (
+      event.message.role === "assistant" &&
+      !isContextOverflow(event.message, ctx.model?.contextWindow) &&
+      isRetryableAssistantError(event.message)
+    )
+      return;
     // A failure does not replace history. Restored history that no longer fits reaches
     // Pi's own threshold or overflow compaction, which summarizes it in session_before_compact.
     fallback(ctx, "Responses request failed; no checkpoint was adopted.");
@@ -402,11 +404,10 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       // close those calls without executing them or inventing successful tool results.
       return {
         compaction: {
-          summary: readable(recovery),
+          ...record(ctx, replay, recovery),
           firstKeptEntryId: preparation.firstKeptEntryId,
           tokensBefore: preparation.tokensBefore,
           usage: response.usage,
-          details: details(ctx, replay),
         },
       };
     } catch {

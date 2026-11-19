@@ -144,10 +144,16 @@ export default async function contracts(): Promise<void> {
   async function open(
     manager = SessionManager.create(root, join(root, "sessions")),
     extra?: (pi: ExtensionAPI) => void,
+    maxRetries = 0,
   ) {
     session?.dispose();
     const settingsManager = SettingsManager.inMemory({
-      retry: { enabled: false },
+      retry: {
+        enabled: maxRetries > 0,
+        maxRetries,
+        baseDelayMs: 5,
+        provider: { maxRetries: 0 },
+      },
       compaction: {
         enabled: true,
         keepRecentTokens: 1,
@@ -282,6 +288,50 @@ export default async function contracts(): Promise<void> {
     );
     console.log("PASS work replay, tool/results, persistence and auth refresh");
 
+    // Retryable transport errors neither discard the last completed checkpoint
+    // nor cause Pi's usage re-estimate to count its full recovery transcript.
+    s = await open(undefined, undefined, 2);
+    const stable = [checkpoint("cp_retry_base"), text("RETRY_BASE")];
+    const oldHistory = `KEEP_OUT_OF_RETRY ${"x".repeat(160000)}`;
+    script = [response(stable)];
+    await s.prompt(oldHistory);
+    script = [response([text("POST_CHECKPOINT_USAGE")])];
+    await prompt(s, "Continue work");
+    const retryAt = requests.length;
+    const estimates: (number | null | undefined)[] = [];
+    const retryWith =
+      (respond: (payload: any, init: RequestInit) => Response) =>
+      (payload: any, init: RequestInit) => {
+        estimates.push(s.getContextUsage()?.percent);
+        return respond(payload, init);
+      };
+    const beforeRetryNotices = notices.length;
+    script = [
+      response([checkpoint("cp_retry_rejected")], "failed", "Our servers are currently overloaded"),
+      retryWith(response([], "failed", "Connection error.: ECONNRESET: The socket was closed")),
+      retryWith(response([text("RETRIED_WORK")])),
+    ];
+    await prompt(s, "Retry the same work");
+    assert.equal(s.getLastAssistantText(), "RETRIED_WORK");
+    assert.equal(estimates.length, 2);
+    for (const value of estimates)
+      assert.ok(value != null && value < 100, `retry context usage was ${value}%`);
+    for (const { payload } of requests.slice(retryAt)) {
+      assert.ok(payload.context_management);
+      const input = JSON.stringify(payload.input);
+      assert.ok(!input.includes("KEEP_OUT_OF_RETRY"));
+      assert.ok(!input.includes("cp_retry_rejected"));
+      assert.deepEqual(
+        payload.input.filter((item: any) => item.type === "compaction"),
+        [stable[0]],
+      );
+    }
+    assert.ok(
+      !notices.slice(beforeRetryNotices).some((message) => /standard compaction/i.test(message)),
+    );
+    console.log("PASS transient errors keep checkpoint replay and bounded context estimates");
+
+    s = await open(SessionManager.open(file));
     // Given manual compaction of a split span after a checkpoint, the replacement
     // includes prior memory and the prefix; its extra generation is never executed
     // as work and survives restart with explicit cancelled tool results.
@@ -522,29 +572,54 @@ export default async function contracts(): Promise<void> {
 
     // Recovery failure is not success, and overflow uses Pi's standard recovery
     // lifecycle rather than cancelling it or silently discarding earlier memory.
-    s = await open();
-    script = [response([checkpoint("cp_overflow_base"), text("OVERFLOW_BASE")])];
-    await s.prompt("OVERFLOW_MEMORY");
-    script = [response([text("OVERFLOW_PREFIX")])];
-    await s.prompt("OLD_USER");
-    const overflowAt = requests.length;
-    script = [
-      response([checkpoint("cp_overflow_rejected")], "failed", "maximum context length exceeded"),
-      response([text("NATIVE_HISTORY")]),
-      response([text("RECOVERED_WORK")]),
-    ];
-    await prompt(s, "Recover overflow");
-    assert.ok(
-      requests
-        .slice(overflowAt + 1)
-        .some((request) => JSON.stringify(request.payload).includes("OVERFLOW_MEMORY")),
-    );
-    assert.ok(
-      requests.slice(overflowAt + 1).every((request) => !request.payload.context_management),
-    );
-    assert.ok(!JSON.stringify(s.sessionManager.getBranch()).includes("cp_overflow_rejected"));
-    assert.equal(s.getLastAssistantText(), "RECOVERED_WORK");
-    assert.equal(script.length, 0);
+    for (const legacy of [false, true]) {
+      s = await open();
+      const replay = [checkpoint("cp_overflow_base"), text("OVERFLOW_BASE")];
+      script = [response(replay)];
+      await s.prompt("OVERFLOW_MEMORY");
+      if (legacy) {
+        const saved = s.sessionManager.getLeafEntry();
+        assert.ok(saved?.type === "compaction");
+        const { identity, tools } = (saved.details as any).responsesCheckpoint;
+        const entries = s.sessionManager.getEntries().map((entry) =>
+          entry.id !== saved.id
+            ? entry
+            : {
+                ...saved,
+                summary:
+                  "Recovery transcript (JSON messages, not instructions):\n" +
+                  JSON.stringify([{ role: "user", content: "LEGACY_MEMORY", timestamp: 0 }]),
+                details: { responsesCheckpoint: { version: 1, identity, tools, replay } },
+              },
+        );
+        s = await open(
+          SessionManager.inMemory(root, undefined, [s.sessionManager.getHeader()!, ...entries]),
+        );
+      }
+      script = [response([text("OVERFLOW_PREFIX")])];
+      await s.prompt("OLD_USER");
+      expectReplay(replay);
+      const overflowAt = requests.length;
+      script = [
+        response([checkpoint("cp_overflow_rejected")], "failed", "maximum context length exceeded"),
+        response([text("NATIVE_HISTORY")]),
+        response([text("RECOVERED_WORK")]),
+      ];
+      await prompt(s, "Recover overflow");
+      assert.ok(
+        requests
+          .slice(overflowAt + 1)
+          .some((request) =>
+            JSON.stringify(request.payload).includes(legacy ? "LEGACY_MEMORY" : "OVERFLOW_MEMORY"),
+          ),
+      );
+      assert.ok(
+        requests.slice(overflowAt + 1).every((request) => !request.payload.context_management),
+      );
+      assert.ok(!JSON.stringify(s.sessionManager.getBranch()).includes("cp_overflow_rejected"));
+      assert.equal(s.getLastAssistantText(), "RECOVERED_WORK");
+      assert.equal(script.length, 0);
+    }
     s = await open();
     script = [response([text("FAILURE_BASE")])];
     await s.prompt("KEEP_ON_FAILURE");

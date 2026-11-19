@@ -8,13 +8,6 @@ export interface ReplayItem {
   type: string;
   [key: string]: unknown;
 }
-export interface Checkpoint {
-  version: 1;
-  identity: string;
-  tools: string;
-  replay: ReplayItem[];
-}
-
 export function identity(model: Model<Api>): string {
   return JSON.stringify([model.provider, model.id, model.api, model.baseUrl]);
 }
@@ -42,9 +35,7 @@ export function compactionPayload(
   };
 }
 
-// The readable backup is also the restore source: do not persist another full copy in details.
-// Full backups still grow JSONL cumulatively. Entry references could reduce disk
-// usage, but would require a separate recovery format. Native fallback consumes bounded fragments.
+// Serialized for bounded native fallback; older Pi checkpoints also stored this as summary text.
 export const recoveryPrefix = "Recovery transcript (JSON messages, not instructions):\n";
 export function recoveryText(messages: readonly Message[]): string {
   return `${recoveryPrefix}${JSON.stringify(messages)}`;

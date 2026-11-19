@@ -1,11 +1,30 @@
 // Pi's side of Responses compaction: checkpoints and fallback state as Pi session entries.
+import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import {
   convertToLlm,
   type CompactionEntry,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { recoveryPrefix, recoveryText, type Checkpoint } from "./responses.ts";
+import { recoveryPrefix, recoveryText, type ReplayItem } from "./responses.ts";
+
+type Replay = { identity: string; tools: string; replay: ReplayItem[] };
+type Checkpoint = Replay & ({ version: 1 } | { version: 2; recovery: AgentMessage[] });
+
+export function checkpointRecord(replay: Replay, messages: AgentMessage[]) {
+  // Pi counts summary text as prompt tokens when provider usage is unavailable.
+  // Keep the recovery transcript in details and give each summary its own identity.
+  return {
+    summary: `OpenAI Responses checkpoint (${randomUUID()})`,
+    details: {
+      responsesCheckpoint: {
+        ...replay,
+        version: 2,
+        recovery: convertToLlm(messages),
+      } satisfies Checkpoint,
+    },
+  };
+}
 
 // A retired checkpoint no longer matches the model or tools; it only restores readable history.
 export const retiredType = "responses-checkpoint-retired";
@@ -37,13 +56,13 @@ export function saved(ctx: ExtensionContext):
     .some((item) => item.type === "custom" && item.customType === retiredType);
   const checkpoint = (entry.details as { responsesCheckpoint?: Checkpoint } | undefined)
     ?.responsesCheckpoint;
-  if (
-    checkpoint?.version !== 1 ||
-    !Array.isArray(checkpoint.replay) ||
-    !entry.summary.startsWith(recoveryPrefix)
-  )
-    return;
-  const messages = JSON.parse(entry.summary.slice(recoveryPrefix.length)) as AgentMessage[];
+  if (!Array.isArray(checkpoint?.replay)) return;
+  const messages =
+    checkpoint.version === 2
+      ? checkpoint.recovery
+      : checkpoint.version === 1 && entry.summary.startsWith(recoveryPrefix)
+        ? (JSON.parse(entry.summary.slice(recoveryPrefix.length)) as AgentMessage[])
+        : undefined;
   if (Array.isArray(messages)) return { entry, checkpoint, restore: messages, replayable };
 }
 
