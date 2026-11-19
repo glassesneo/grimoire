@@ -6,8 +6,11 @@
 }:
 delib.module ({cfg, ...}: {
   name = "zsh";
-  tests.fixture = ["exclusive"];
-  meta.description = "Enable Zsh and provide the foundation required for its use.";
+  tests.fixture = ["exclusive" "roles.login-shell"];
+  meta = {
+    description = "Enable Zsh and provide the foundation required for its use.";
+    role = "login-shell";
+  };
 
   options = {pkgs, ...}:
     with delib; {
@@ -17,6 +20,8 @@ delib.module ({cfg, ...}: {
 
   hjem.always.options.zsh.zshenv = mylib.fragments.option;
 
+  myconfig.always.roles.login-shell.holder = "zsh";
+
   hjem.ifEnabled = {config, ...}: {
     packages = [cfg.package];
 
@@ -24,6 +29,14 @@ delib.module ({cfg, ...}: {
       exclusive = true;
       text = mylib.fragments.render config.zsh.zshenv;
     };
+
+    # Every Zsh, login shell or not, loads the Hjem environment once.
+    zsh.zshenv.hjem-environment.text = ''
+      if [ -z "''${__HJEM_ENV_LOADED-}" ]; then
+        export __HJEM_ENV_LOADED=1
+        . ${config.environment.loadEnv}
+      fi
+    '';
   };
 
   darwin.ifEnabled = {config, ...}: {

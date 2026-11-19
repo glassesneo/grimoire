@@ -119,7 +119,6 @@ Modules whose only option is `enable`:
 | [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
 | [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
 | [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
-| [<code>zsh.login</code>](../../abstractions/modules/shell/zsh/login/default.nix) | <code>myconfig.zsh.enable &amp;&amp; myconfig.shell.loginShell == "zsh"</code> | Configure the behavior required to use Zsh as a login shell. |  |
 
 ### <code>agents</code>
 
@@ -983,6 +982,17 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 | <code>rex.paddingY</code> | <code>null or signed integer</code> | <code>null</code> | Vertical terminal padding; null leaves Rex's stored value unchanged. |
 | <code>rex.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs. |
 
+### <code>roles.editor</code>
+
+Seat the editor that programs open through `EDITOR`.
+
+Source: [<code>abstractions/modules/roles/editor/default.nix</code>](../../abstractions/modules/roles/editor/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>roles.editor.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>roles.editor.holder</code> | <code>value "neovim" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "editor"`. |
+
 ### <code>roles.launcher</code>
 
 Seat the one application launcher a graphical host runs.
@@ -993,6 +1003,17 @@ Source: [<code>abstractions/modules/roles/launcher/default.nix</code>](../../abs
 | --- | --- | --- | --- |
 | <code>roles.launcher.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>roles.launcher.holder</code> | <code>value "vicinae" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "launcher"`. |
+
+### <code>roles.login-shell</code>
+
+Seat the user's login shell and register it with the system.
+
+Source: [<code>abstractions/modules/roles/login-shell/default.nix</code>](../../abstractions/modules/roles/login-shell/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>roles.login-shell.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.login-shell.holder</code> | <code>value "zsh" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "login-shell"`. |
 
 ### <code>secrets</code>
 
@@ -1032,17 +1053,6 @@ Source: [<code>abstractions/modules/services/default.nix</code>](../../abstracti
 | <code>userServices.&lt;name&gt;.type</code> | <code>one of "process", "scripted", "internal"</code> | <code>"process"</code> | A process runs until it exits; a scripted service is started when its command has succeeded; an internal service runs nothing and groups its dependencies. |
 | <code>userServices.&lt;name&gt;.waitsFor</code> | <code>list of string</code> | <code>[ ]</code> | Services started with this one and waited for, whose failure does not prevent it. |
 | <code>userServices.&lt;name&gt;.workingDirectory</code> | <code>null or string</code> | <code>null</code> |  |
-
-### <code>shell</code>
-
-Define a shared configuration interface for shells and configure the selected login shell.
-
-Source: [<code>abstractions/modules/shell/default.nix</code>](../../abstractions/modules/shell/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>shell.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>shell.loginShell</code> | <code>null or value "zsh" (singular enum)</code> | <code>null</code> | Shell that becomes the user's login shell; `null` leaves the login shell unmanaged. |
 
 ### <code>skills</code>
 

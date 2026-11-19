@@ -10,7 +10,6 @@ in {
     root = anchorRoot;
   };
   assertions = import ./assertions.nix {inherit lib;};
-  choice = import ./choice.nix {inherit lib;};
   fragments = import ./fragments.nix {inherit lib;};
   plist = import ./plist.nix {inherit lib;};
   inherit sources;

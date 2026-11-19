@@ -54,7 +54,10 @@ in
       else null;
   in {
     name = "neovim";
-    meta.description = "Provide and configure neovim";
+    meta = {
+      description = "Provide and configure neovim";
+      role = "editor";
+    };
 
     options = {pkgs, ...}:
       with delib; {
@@ -91,6 +94,8 @@ in
 
     constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
+    myconfig.always.roles.editor.holder = "neovim";
+
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
       plugins.start = lib.optionals (cfg.snacks != {}) [
@@ -112,10 +117,6 @@ in
       packages = [
         cfg.package
       ];
-
-      # A name rather than a store path: the session keeps the value it logged
-      # in with, and a path would go stale when the package is rebuilt.
-      environment.sessionVariables.EDITOR = "nvim";
 
       zsh.zabrze.snippets.neovim = {
         trigger = "nv";
@@ -152,7 +153,7 @@ in
 
     # A fixture stands in for a feature module, so the case covers how
     # contributions reach the package rather than any particular feature.
-    tests.fixture = ["zsh.interactive.zabrze"];
+    tests.fixture = ["roles.editor" "zsh.interactive.zabrze"];
     tests.cases = {pkgs, ...}: let
       hasTheme = package: lib.elem pkgs.vimPlugins.rose-pine package.config.plugins.start;
     in {

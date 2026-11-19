@@ -18,7 +18,7 @@ delib.module ({
   theme = themes.select cfg myconfig.colorscheme.resolved;
 in {
   name = "vicinae";
-  tests.fixture = ["defaults" "exclusive" "services"];
+  tests.fixture = ["defaults" "exclusive" "roles.launcher" "services"];
   meta = {
     description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
     tags = ["gui"];

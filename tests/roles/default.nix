@@ -10,8 +10,9 @@
   # replaced by a rice or host; a seated-only role enables its holder alone,
   # whatever the candidates' tags, and rejects an enabled candidate outside the
   # seat; a role whose candidates keep their own enable only requires the
-  # holder enabled; and the roles namespace and `meta.role` accept only roles
-  # declared with `delib.role`.
+  # holder enabled, while a candidate without `enable` can always hold it; and
+  # the roles namespace and `meta.role` accept only roles declared with
+  # `delib.role`.
   role = name: seatedOnly: {delib, ...}:
     delib.role {
       inherit name seatedOnly;
@@ -50,6 +51,7 @@
           tags.enabled = ["gui"];
           roles.single.enable = true;
           roles.shared.enable = true;
+          roles.data.enable = true;
         }
         myconfig;
     };
@@ -65,6 +67,16 @@
       enable = true;
     })
     (candidate "shared-b" "shared" {})
+    (role "data" false)
+    ({delib, ...}:
+      delib.module {
+        name = "data-a";
+        meta = {
+          description = "Fixture candidate without enable.";
+          role = "data";
+        };
+        myconfig.always.roles.data.holder = "data-a";
+      })
     rice
   ];
 

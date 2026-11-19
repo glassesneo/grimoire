@@ -4,7 +4,7 @@ This file owns the judgments made when designing a module's interface and valida
 
 ## Interface
 
-Where a value is placed and which kind of option declares it follow from concepts defined in [Architecture](architecture.md): `myconfig` as the input layer, source priorities with atomic and accumulating options, and choices among modules. Among values that a higher source replaces, one whose parts only make sense together, such as a scheme and its variant, is declared with `mylib.atomicOption`, so that no part is inherited from a lower source.
+Where a value is placed and which kind of option declares it follow from concepts defined in [Architecture](architecture.md): `myconfig` as the input layer, source priorities with atomic and accumulating options, and roles. Among values that a higher source replaces, one whose parts only make sense together, such as a scheme and its variant, is declared with `mylib.atomicOption`, so that no part is inherited from a lower source.
 
 ### Roles
 

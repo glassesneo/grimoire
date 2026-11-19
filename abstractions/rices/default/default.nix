@@ -2,7 +2,7 @@
 mylib.rice {
   name = "default";
   myconfig = {
-    shell.loginShell = "zsh";
+    roles.login-shell.enable = true;
     colorscheme.selection.name = "rose-pine";
     neovim.bars.modeEnds = {
       left = "█";

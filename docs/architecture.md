@@ -46,8 +46,6 @@ A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` c
 
 The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's. A module that embeds upstream options marks those that collect by applying it to a declaration without a type.
 
-A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A part that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately; it is not a [role](#roles).
-
 ## Roles
 
 A role (`delib.role` under `abstractions/modules/roles/`) is a seat on the host that one module takes, such as the application launcher. It is the module `roles.<name>`: its `enable` states whether the host has the seat, and its `holder` selects the module that takes it among the candidates, the modules declaring `meta.role = "<name>"`. A candidate joins whatever its enable and may define the default holder; a rice or host replaces it, and turns the seat off with `enable`. A role owns what calling its holder takes, such as an entrance the environment reads; a candidate keeps its own configuration.
@@ -100,7 +98,6 @@ Each mechanism is specified at the top of its file and by its option description
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery of `checks/` and `tests/` that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
-- `lib/choice.nix`: single-choice options that candidates join by declaration.
 - `lib/roles.nix` and `extensions/roles.nix`: `delib.role`, the seat it declares and its holder; the candidates' `meta.role` and the rejection of undeclared roles.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
