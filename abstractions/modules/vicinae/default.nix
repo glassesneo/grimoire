@@ -22,6 +22,7 @@ in {
   meta = {
     description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
     tags = ["gui"];
+    role = "launcher";
   };
 
   options = {pkgs, ...}:
@@ -36,6 +37,8 @@ in {
     };
 
   constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
+
+  myconfig.always.roles.launcher.holder = "vicinae";
 
   hjem.always = {pkgs, ...}: {
     options.vicinae.settings = lib.mkOption {

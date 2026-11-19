@@ -19,7 +19,11 @@
     compose = abstractions:
       denix.lib.denixConfiguration {
         extraInputs = inputs;
-        specialArgs = {inherit mylib;};
+        specialArgs = {
+          inherit mylib;
+          # Merged into Denix's own `delib`.
+          delib.role = mylib.roles.declare denix.lib;
+        };
 
         modules =
           [
@@ -33,6 +37,7 @@
             ./extensions/module-tests.nix
             ./extensions/provenance.nix
             ./extensions/rices.nix
+            ./extensions/roles.nix
           ]
           ++ abstractions;
       };

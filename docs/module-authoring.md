@@ -6,6 +6,10 @@ This file owns the judgments made when designing a module's interface and valida
 
 Where a value is placed and which kind of option declares it follow from concepts defined in [Architecture](architecture.md): `myconfig` as the input layer, source priorities with atomic and accumulating options, and choices among modules. Among values that a higher source replaces, one whose parts only make sense together, such as a scheme and its variant, is declared with `mylib.atomicOption`, so that no part is inherited from a lower source.
 
+### Roles
+
+A module that can take a [role](architecture.md#roles)'s seat declares `meta.role`, and the one the repository uses by default also defines the role's `holder` in `myconfig.always`, where it does not depend on its own enable. A role is `seatedOnly` when nothing outside it keeps a second candidate from acting: when the environment reads a single entrance, as for a login shell, an installed candidate that does not hold the seat is harmless, while two launchers would contend for the same shortcuts and windows.
+
 ### Translations
 
 An application-specific translation belongs to the application's module, and more generally a translation into a format belongs to the module that owns that format. An application module maps shared data into its own configuration; a capability module lowers the declarations it receives into each platform's form. Other modules write only in the vocabulary of the options that the owner declares.

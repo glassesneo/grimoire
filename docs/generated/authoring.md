@@ -11,6 +11,7 @@ Options this repository adds to Denix declarations.
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
 | <code>meta.description</code> | <code>string</code> |  | One-sentence responsibility of this module, not an inventory of its current settings. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
+| <code>meta.role</code> | <code>null or string</code> | <code>null</code> | Role whose seat this module can hold, by the role's name; `roles.&lt;name&gt;.holder` selects the holder. | [<code>extensions/roles.nix</code>](../../extensions/roles.nix) |
 | <code>meta.tags</code> | <code>list of string</code> | <code>[ ]</code> | Classification labels declared for this module. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
 | <code>tests.cases</code> | <code>function that evaluates to a(n) attribute set of (submodule)</code> | <code>_: { }</code> | Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig, typescriptCheck}`, where `home` is the fixture user's home directory, `oxlintConfig` the repository's oxlint configuration, and `typescriptCheck {name, src, types}` a derivation that type-checks and lints the TypeScript directory `src` against the types of the Bun project directory `types` (`lib/typescript-check.nix`). | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.build</code> | <code>function that evaluates to a(n) package</code> |  | One of the modes: maps the fixture's result to a derivation that the module's check builds. Cannot be combined with `expr`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
@@ -982,6 +983,17 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 | <code>rex.paddingY</code> | <code>null or signed integer</code> | <code>null</code> | Vertical terminal padding; null leaves Rex's stored value unchanged. |
 | <code>rex.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs. |
 
+### <code>roles.launcher</code>
+
+Seat the one application launcher a graphical host runs.
+
+Source: [<code>abstractions/modules/roles/launcher/default.nix</code>](../../abstractions/modules/roles/launcher/default.nix)<br>Tags: <code>gui</code>
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>roles.launcher.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.launcher.holder</code> | <code>value "vicinae" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "launcher"`. |
+
 ### <code>secrets</code>
 
 Manage the selected encrypted secrets with nix-secrets.
@@ -1084,7 +1096,7 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 
 ### <code>tags</code>
 
-Enable by default the modules that carry a tag selected for the host.
+Enable by default the modules that carry a tag selected for the host, except candidates whose seat decides their enable.
 
 Source: [<code>abstractions/modules/tags/default.nix</code>](../../abstractions/modules/tags/default.nix)
 

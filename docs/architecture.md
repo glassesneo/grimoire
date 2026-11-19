@@ -46,7 +46,13 @@ A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` c
 
 The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's. A module that embeds upstream options marks those that collect by applying it to a declaration without a type.
 
-A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A role that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately.
+A choice among modules, such as `shell.loginShell`, is one option that its owner declares with `mylib.choice.option`; each candidate joins it with `mylib.choice.candidate`, whatever its enable. A part that follows the choice, such as `zsh.login.enable`, is derived read-only, not chosen separately; it is not a [role](#roles).
+
+## Roles
+
+A role (`delib.role` under `abstractions/modules/roles/`) is a seat on the host that one module takes, such as the application launcher. It is the module `roles.<name>`: its `enable` states whether the host has the seat, and its `holder` selects the module that takes it among the candidates, the modules declaring `meta.role = "<name>"`. A candidate joins whatever its enable and may define the default holder; a rice or host replaces it, and turns the seat off with `enable`. A role owns what calling its holder takes, such as an entrance the environment reads; a candidate keeps its own configuration.
+
+Most candidates keep their own enable: several may be installed while one holds the seat, which then requires its holder enabled. In a role declared `seatedOnly`, a candidate's enable belongs to the seat instead: the role enables its holder, tags do not enable candidates, and an enabled candidate outside the seat fails.
 
 ## Declaring choices
 
@@ -58,7 +64,7 @@ A setting affects only the scope that needs it. User preferences are declared in
 
 - `abstractions/hosts/` owns machine-specific facts and choices.
 - `abstractions/rices/` owns rices: choices that span modules and that hosts select.
-- `abstractions/modules/` owns modules: application features and the capabilities other modules use, such as user services, user defaults and single-definer files. A module keeps its options and its Darwin, Hjem, and other module-system outputs together, with the anchors it pins.
+- `abstractions/modules/` owns modules: application features, the capabilities other modules use, such as user services, user defaults and single-definer files, and roles under `roles/`. A module keeps its options and its Darwin, Hjem, and other module-system outputs together, with the anchors it pins.
 - `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
@@ -95,6 +101,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
 - `lib/choice.nix`: single-choice options that candidates join by declaration.
+- `lib/roles.nix` and `extensions/roles.nix`: `delib.role`, the seat it declares and its holder; the candidates' `meta.role` and the rejection of undeclared roles.
 - `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
 - `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
 - `abstractions/modules/services/`: user service declarations, their lowering to dinit descriptions and the LaunchAgent that starts dinit on Darwin, with the switch-time lifecycle in `reconcile.nu`.
