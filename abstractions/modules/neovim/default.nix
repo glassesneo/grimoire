@@ -65,6 +65,11 @@ in
           default = {};
           description = "Snacks setup options contributed by features; the parent installs and configures the shared plugin once.";
         };
+        snacksDependencies = mylib.accumulatingOption (lib.mkOption {
+          type = lib.types.listOf lib.types.package;
+          default = [];
+          description = "Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements.";
+        });
         settings = lib.mkOption {
           # mnw's own option declarations, as its modules evaluate them.
           type = lib.types.submoduleWith {
@@ -88,7 +93,10 @@ in
 
     myconfig.always.neovim.settings = {pkgs, ...}: {
       inherit (cfg) enable;
-      plugins.start = lib.optionals (cfg.snacks != {}) [pkgs.vimPlugins.snacks-nvim];
+      plugins.start = lib.optionals (cfg.snacks != {}) [
+        (pkgs.vimPlugins.snacks-nvim
+          // {dependencies = lib.unique ((pkgs.vimPlugins.snacks-nvim.dependencies or []) ++ cfg.snacksDependencies);})
+      ];
       initLua = lib.optionalString (cfg.snacks != {}) ''
         require("snacks").setup(${lib.generators.toLua {} cfg.snacks})
       '';

@@ -84,7 +84,6 @@ Modules whose only option is `enable`:
 | [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Insert paired delimiters and track generated closers in Neovim. |  |
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
-| [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
 | [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
 | [<code>neovim.languages</code>](../../abstractions/modules/neovim/languages/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Group language-specific Neovim editing support. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
@@ -654,6 +653,7 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | <code>neovim.settings.vimlFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | VimL config files to load at startup |
 | <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
 | <code>neovim.snacks</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Snacks setup options contributed by features; the parent installs and configures the shared plugin once. |
+| <code>neovim.snacksDependencies</code> | <code>list of package</code> | <code>[ ]</code> | Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements. |
 | <code>neovim.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether the package takes its theme from `colorscheme.resolved`. |
 
 ### <code>neovim.ai-completion</code>
@@ -682,6 +682,17 @@ Source: [<code>abstractions/modules/neovim/bars/default.nix</code>](../../abstra
 | <code>neovim.bars.modeEnds</code> | <code>submodule</code> | <code>{ }</code> | Literal left and right mode-indicator glyphs, selected together independently of the colorscheme. |
 | <code>neovim.bars.modeEnds.left</code> | <code>string</code> | <code>"█"</code> |  |
 | <code>neovim.bars.modeEnds.right</code> | <code>string</code> | <code>"█"</code> |  |
+
+### <code>neovim.finder</code>
+
+Find files, search their contents and browse directories in Neovim with Snacks.
+
+Source: [<code>abstractions/modules/neovim/finder/default.nix</code>](../../abstractions/modules/neovim/finder/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.finder.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
+| <code>neovim.finder.icons</code> | <code>boolean</code> | <code>true</code> | Request nvim-web-devicons for Snacks file icons; other enabled features may also supply an icon provider. |
 
 ### <code>neovim.languages.bash</code>
 
