@@ -11,7 +11,7 @@ delib.module ({
 }: let
   settings = {
     defaultProvider = "openai";
-    defaultModel = "gpt-6.1-sol";
+    defaultModel = "gpt-6.2-sol";
     defaultThinkingLevel = "medium";
     theme = "system";
     retry = {

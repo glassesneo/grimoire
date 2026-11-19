@@ -25,7 +25,7 @@ delib.host {
         profile = {
           model = {
             provider = "openai";
-            modelId = "gpt-6.1-sol";
+            modelId = "gpt-6.2-sol";
           };
           thinkingLevel = "medium";
           tools = ["web"];
