@@ -49,12 +49,19 @@
   };
 in {
   inherit directory;
+  # The hooks path names the store directory itself, so the Git directory
+  # holds no link to the store; Claude Code's sandbox moves aside such links
+  # when they appear during a session. The GC root lives in the main
+  # worktree's ignored `.direnv/`, shared by every worktree like the hooks path.
   shellHook = ''
-    if ${pkgs.git}/bin/git rev-parse --git-dir >/dev/null 2>&1; then
-      hooks_root="$(${pkgs.git}/bin/git rev-parse --path-format=absolute --git-common-dir)/nix-hooks"
+    if common_dir="$(${pkgs.git}/bin/git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+      hooks_root="$(dirname "$common_dir")/.direnv/nix-hooks"
+      mkdir -p "$(dirname "$hooks_root")"
       nix-store --add-root "$hooks_root" --indirect --realise ${directory} >/dev/null
-      ${pkgs.git}/bin/git config --local core.hooksPath "$hooks_root"
-      unset hooks_root
+      ${pkgs.git}/bin/git config --local core.hooksPath ${directory}
+      # The former GC root inside the Git directory.
+      if [ -L "$common_dir/nix-hooks" ]; then rm -f "$common_dir/nix-hooks"; fi
+      unset common_dir hooks_root
     fi
   '';
 }
