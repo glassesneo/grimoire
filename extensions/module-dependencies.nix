@@ -1,19 +1,24 @@
-# Owns the enable dependency of a dotted module on its immediate parent.
+# Owns the enable dependency of a module on its immediate parent and on the
+# roles it follows.
 #
 # `zsh.interactive` depends on `zsh` when that parent is registered and both
-# declare `enable`. The child's declared default becomes its original condition
-# AND the parent's enable value, and its `defaultText` says so. Explicit child
-# overrides are preserved; an enabled child with a disabled parent fails through
-# the child's constraints (`extensions/module-constraints.nix`) in every module system. Missing parents and modules without `enable` are skipped;
-# more distant ancestors are not searched, and unconditional sections are not
-# gated.
+# declare `enable`. A module that reads a role's seat, such as its holder,
+# declares `meta.follows = [ "<role>" ]` and depends on each `roles.<role>`
+# being enabled. The module's declared default becomes its original condition
+# AND those enable values, and its `defaultText` says so. Explicit overrides
+# are preserved; an enabled module whose parent or followed seat is disabled
+# fails through its constraints (`extensions/module-constraints.nix`) in every
+# module system, as does a followed role that is not declared. Missing parents
+# and modules without `enable` are skipped; more distant ancestors are not
+# searched, and unconditional sections are not gated.
 {
   delib,
   lib,
   config,
   ...
 }: {
-  settings.modules.extraSubmodules = {name, ...}: let
+  settings.modules.extraSubmodules = {name, ...} @ module: let
+    inherit (module.config.meta) follows;
     parts = lib.splitString "." name;
     parent = lib.concatStringsSep "." (lib.init parts);
     hasParent = builtins.length parts > 1 && builtins.hasAttr parent config.modules;
@@ -21,7 +26,19 @@
       hasParent
       && lib.hasAttrByPath (parts ++ ["enable"]) myoptions
       && lib.hasAttrByPath (lib.init parts ++ ["enable"]) myoptions;
+    hasEnable = myoptions: lib.hasAttrByPath (parts ++ ["enable"]) myoptions;
+    # The modules whose enable this module's default requires.
+    requirements = myoptions:
+      lib.optional (participates myoptions) parent
+      ++ lib.optionals (hasEnable myoptions) (map (role: "roles.${role}") follows);
+    enabled = myconfig: other: delib.getAttrByStrPath myconfig "${other}.enable" false;
   in {
+    options.meta.follows = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "Roles whose seat this module reads, by name; the module is enabled by default only while each `roles.<name>` is.";
+    };
+
     # Transform option defaults, not values: explicit overrides still reach constraints.
     options.options = lib.mkOption {
       apply = entries:
@@ -31,7 +48,7 @@
               myoptions,
               ...
             } @ args: let
-              gated = participates myoptions;
+              required = requirements myoptions;
             in
               delib.processModule (declarations:
                 declarations
@@ -39,15 +56,12 @@
                   enable =
                     declarations.enable
                     // {
-                      default =
-                        if gated
-                        then (delib.getAttrByStrPath myconfig "${parent}.enable" false) && declarations.enable.default
-                        else declarations.enable.default;
+                      default = lib.all (enabled myconfig) required && declarations.enable.default;
                     }
-                    // lib.optionalAttrs gated {
-                      defaultText = lib.literalExpression "myconfig.${parent}.enable && ${
-                        declarations.enable.defaultText.text or (lib.generators.toPretty {} declarations.enable.default)
-                      }";
+                    // lib.optionalAttrs (required != []) {
+                      defaultText =
+                        lib.literalExpression (lib.concatMapStrings (other: "myconfig.${other}.enable && ") required
+                          + declarations.enable.defaultText.text or (lib.generators.toPretty {} declarations.enable.default));
                     };
                 }) (delib.callIfDenixArgs entry args));
         in
@@ -57,18 +71,34 @@
         entries;
     };
 
-    # Checked whatever the child's enable, so an enabled child under a disabled
-    # parent is rejected.
-    config.constraints.always = lib.optional hasParent (delib.toDenixArgs ({
-      myconfig,
-      myoptions,
-      ...
-    }: {
-      assertion =
-        !(participates myoptions)
-        || !(delib.getAttrByStrPath myconfig "${name}.enable" false)
-        || delib.getAttrByStrPath myconfig "${parent}.enable" false;
-      message = "${name}.enable requires ${parent}.enable = true";
-    }));
+    # Checked whatever the module's enable, so an enabled module under a
+    # disabled parent or seat is rejected.
+    config.constraints.always =
+      map (role: {
+        assertion = config.modules ? "roles.${role}";
+        message = "${name}: meta.follows names \"${role}\", which no module roles.${role} declares";
+      })
+      follows
+      ++ lib.optional (follows != []) (delib.toDenixArgs ({
+        myconfig,
+        myoptions,
+        ...
+      }: let
+        missing = lib.filter (role: !(enabled myconfig "roles.${role}")) follows;
+      in {
+        assertion = !(hasEnable myoptions) || !(enabled myconfig name) || missing == [];
+        message = "${name}.enable = true requires ${lib.concatMapStringsSep " and " (role: "roles.${role}.enable = true") missing}";
+      }))
+      ++ lib.optional hasParent (delib.toDenixArgs ({
+        myconfig,
+        myoptions,
+        ...
+      }: {
+        assertion =
+          !(participates myoptions)
+          || !(delib.getAttrByStrPath myconfig "${name}.enable" false)
+          || delib.getAttrByStrPath myconfig "${parent}.enable" false;
+        message = "${name}.enable requires ${parent}.enable = true";
+      }));
   };
 }

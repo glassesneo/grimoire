@@ -6,7 +6,7 @@
 }: let
   inherit (lib) types;
 
-  inherit (mylib.anchors.sources ./anchors.json) nix-wrapper-modules rose-pine;
+  inherit (mylib.anchors.sources ./anchors.json) nix-wrapper-modules;
   wrapperLib = import "${nix-wrapper-modules}/lib" {inherit lib;};
 
   # Zellij parses KDL v1 only.
@@ -78,26 +78,17 @@
     };
   };
 
-  # An entry is the theme the file declares and the file, which Zellij loads
-  # from the `themes` directory beside `config.kdl`.
-  themes = mylib.schemeThemes {
-    name = "zellij";
-    themes.rose-pine = {
-      name = "rose-pine";
-      source = _: "${rose-pine}/dist/rose-pine.kdl";
-    };
-  };
+  themes = import ./themes.nix {inherit mylib;};
 in
   delib.module ({
     cfg,
     myconfig,
     ...
   }: let
-    theme = themes.select cfg myconfig.colorscheme.resolved;
-
     # Zellij's configuration with a theme, or null for none: `config.kdl` as
     # text, and the directory's other files by their relative path. A theme
-    # the settings name explicitly takes precedence.
+    # the settings name explicitly takes precedence. The host's theme reaches
+    # the settings through `zellij.colorscheme`.
     configText = theme:
       toKdl [
         (renderKeybinds cfg.keybinds)
@@ -121,7 +112,6 @@ in
 
     options = with delib; {
       enable = boolOption true;
-      useColorscheme = boolOption true "Whether Zellij takes its colors from `colorscheme.resolved`.";
       settings = lib.mkOption {
         type = types.attrsOf node;
         default = {};
@@ -140,8 +130,6 @@ in
         description = "Actions bound by mode and key, replacing Zellij's default keybindings; `shared` binds in every mode, and `null` leaves a key unbound. An action is an attribute set of one action name to its arguments, or to `args` and `children` for an action with a block.";
       };
     };
-
-    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     myconfig.ifEnabled.zellij = {
       settings = {
@@ -283,14 +271,14 @@ in
         {
           "zellij/config.kdl" = {
             exclusive = true;
-            text = configText theme;
+            text = configText null;
           };
         }
         // lib.mapAttrs' (path: source:
           lib.nameValuePair "zellij/${path}" {
             exclusive = true;
             inherit source;
-          }) (files pkgs theme);
+          }) (files pkgs null);
     };
 
     # `zellij` carries no theme; `zellij-<combination>` follows each
@@ -326,7 +314,6 @@ in
     in {
       valid-config = {
         protects = "the KDL rendered from keybinds is configuration Zellij accepts";
-        uses = ["colorscheme"];
         modules.fixture = {
           hjem.always.xdg.config.directory = configDir;
           myconfig.always.zellij.keybinds.shared."Super x" = [{CloseFocus = [];}];
@@ -345,7 +332,6 @@ in
 
       null-unbinds = {
         protects = "a null action leaves its key unbound";
-        uses = ["colorscheme"];
         host.myconfig.ifEnabled.zellij.keybinds.shared."Super t" = null;
         expr = result: lib.hasInfix "Super t" (config result);
         expected = false;
@@ -355,7 +341,7 @@ in
       # selects that scheme's official theme, which it carries.
       bundle-themes = {
         protects = "each published configuration is accepted by Zellij and selects its combination's theme";
-        uses = ["colorscheme"];
+        uses = ["colorscheme" "colorscheme.rose-pine"];
         moduleSystem = "bundles";
         build = result:
           pkgs.runCommand "zellij-bundle-themes" {

@@ -59,7 +59,6 @@ in
       with delib; {
         enable = boolOption false;
         package = packageOption (pkgs.callPackage "${omniwm}/nix/package.nix" {});
-        useColorscheme = boolOption true "Whether OmniWM takes its focused-window border color from `colorscheme.resolved`.";
         settings = lib.mkOption {
           type = lib.types.attrsOf (pkgs.formats.toml {}).type;
           default = {};
@@ -152,9 +151,6 @@ in
           // bindings
           // {toggleOverview = "Control+Command+F18";}
         );
-        borders.color =
-          lib.mkIf (cfg.useColorscheme && myconfig.colorscheme.resolved != null)
-          (upstream.colors.fromHex myconfig.colorscheme.resolved.palette.cursor);
       };
     };
 

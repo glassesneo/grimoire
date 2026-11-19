@@ -38,9 +38,9 @@
         description = "Attributes merged into the fixture's `delib.host` declaration, such as `myconfig.ifEnabled` choices or `system`. The fixture's module system is evaluated for that `system`.";
       };
       modules = mkOption {
-        type = types.attrsOf types.attrs;
+        type = types.attrsOf (types.either types.attrs (types.functionTo types.attrs));
         default = {};
-        description = "Contributor modules by name: `delib.module` attributes without `name` or `meta.description`.";
+        description = "Contributor modules by name: `delib.module` attributes, or a function of its Denix arguments returning them, without `name` or `meta.description`.";
       };
       moduleSystem = mkOption {
         type = types.enum (lib.subtractLists ["myconfig" "constraints"] (builtins.attrNames config.moduleSystems));

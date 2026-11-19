@@ -1,70 +1,29 @@
-{
-  delib,
-  lib,
-  mylib,
-  ...
-}: let
-  inherit (mylib.anchors.sources ./anchors.json) rose-pine;
+{delib, ...}:
+delib.module {
+  name = "eza";
+  tests.fixture = ["exclusive" "zsh.interactive.zabrze"];
+  meta.description = "Provide eza for listing files and directories.";
 
-  # eza considers theme.yml unstable; the port states the eza release it was
-  # tested against.
-  themes = mylib.schemeThemes {
-    name = "eza";
-    themes.rose-pine = _: "${rose-pine}/dist/rose-pine.yml";
-  };
-in
-  delib.module ({
-    cfg,
-    myconfig,
-    ...
-  }: let
-    theme = themes.select cfg myconfig.colorscheme.resolved;
+  options.enable = delib.boolOption true;
+
+  hjem.ifEnabled = {pkgs, ...}: let
+    flags = "--git --icons=auto -a";
   in {
-    name = "eza";
-    tests.fixture = ["exclusive" "zsh.interactive.zabrze"];
-    meta.description = "Provide eza for listing files and directories.";
+    packages = [pkgs.eza];
 
-    options = with delib; {
-      enable = boolOption true;
-      useColorscheme = boolOption true "Whether eza takes its colors from `colorscheme.resolved`.";
-    };
-
-    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
-
-    hjem.ifEnabled = {
-      config,
-      pkgs,
-      ...
-    }: let
-      flags = "--git --icons=auto -a";
-    in {
-      packages = [pkgs.eza];
-
-      # Without EZA_CONFIG_DIR, eza looks in the platform's configuration
-      # directory, which on Darwin is not XDG_CONFIG_HOME.
-      environment.sessionVariables = lib.mkIf (theme != null) {
-        EZA_CONFIG_DIR = "${config.xdg.config.directory}/eza";
+    zsh.zabrze.snippets = {
+      "eza" = {
+        trigger = "ls";
+        snippet = "eza ${flags}";
       };
-      xdg.config.files = lib.mkIf (theme != null) {
-        "eza/theme.yml" = {
-          exclusive = true;
-          source = theme pkgs;
-        };
+      "eza -l" = {
+        trigger = "ll";
+        snippet = "eza -l ${flags}";
       };
-
-      zsh.zabrze.snippets = {
-        "eza" = {
-          trigger = "ls";
-          snippet = "eza ${flags}";
-        };
-        "eza -l" = {
-          trigger = "ll";
-          snippet = "eza -l ${flags}";
-        };
-        "eza -T" = {
-          trigger = "tree";
-          snippet = "eza -T ${flags}";
-        };
+      "eza -T" = {
+        trigger = "tree";
+        snippet = "eza -T ${flags}";
       };
     };
-  })
+  };
+}

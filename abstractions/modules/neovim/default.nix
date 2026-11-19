@@ -6,21 +6,7 @@
 }: let
   inherit (mylib.anchors.flakes ./anchors.json) mnw neovim-nightly-overlay;
 
-  # An entry builds mnw settings from Nixpkgs and the resolved scheme.
-  themes = mylib.schemeThemes {
-    name = "neovim";
-    themes = {
-      # The upstream colorscheme covers far more highlight groups than a palette
-      # carries; this scheme has only the main variant.
-      rose-pine = pkgs: _: {
-        plugins.start = [pkgs.vimPlugins.rose-pine];
-        initLua = ''
-          require("rose-pine").setup({ variant = "main", dark_variant = "main" })
-          vim.cmd.colorscheme("rose-pine")
-        '';
-      };
-    };
-  };
+  themes = import ./themes.nix {inherit lib mylib;};
 in
   delib.module ({
     cfg,
@@ -47,11 +33,6 @@ in
       if failedAssertions != []
       then throw "\nFailed mnw assertions:\n${lib.concatMapStrings (message: "- ${message}\n") failedAssertions}"
       else lib.showWarnings final.config.warnings (mnw.lib.uncheckedWrap pkgs final.config);
-
-    colorscheme =
-      if themes.select cfg myconfig.colorscheme.resolved != null
-      then myconfig.colorscheme.resolved
-      else null;
   in {
     name = "neovim";
     meta = {
@@ -62,7 +43,6 @@ in
     options = {pkgs, ...}:
       with delib; {
         enable = boolOption true;
-        useColorscheme = boolOption true "Whether the package takes its theme from `colorscheme.resolved`.";
         snacks = lib.mkOption {
           type = lib.types.attrsOf (pkgs.formats.json {}).type;
           default = {};
@@ -89,10 +69,9 @@ in
           default = {};
           description = "mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory.";
         };
-        package = packageOption (mkPackage pkgs colorscheme);
+        # The host's theme reaches the settings through `neovim.colorscheme`.
+        package = packageOption (mkPackage pkgs null);
       };
-
-    constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
     myconfig.always.roles.editor.holder = "neovim";
 
@@ -189,10 +168,13 @@ in
       };
       bundles = {
         protects = "one bundle is published per combination, and a combination's theme adds to the features' plugins";
-        uses = ["colorscheme"];
+        uses = ["colorscheme" "colorscheme.rose-pine"];
         moduleSystem = "bundles";
         # The host's selection does not change which bundles are published.
-        host.myconfig.ifEnabled.colorscheme.selection.name = "rose-pine";
+        host.myconfig.ifEnabled.roles.colorscheme = {
+          enable = true;
+          holder = "colorscheme.rose-pine";
+        };
         modules.fixture-feature.myconfig.always.neovim.settings.plugins.start = [pkgs.vimPlugins.plenary-nvim];
         expr = result: {
           names = builtins.attrNames result.packages;

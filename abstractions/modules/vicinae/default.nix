@@ -10,12 +10,6 @@ delib.module ({
   ...
 }: let
   inherit (mylib.anchors.flakes ./anchors.json) vicinae;
-  # Themes Vicinae bundles.
-  themes = mylib.schemeThemes {
-    name = "vicinae";
-    themes.rose-pine = "rose-pine";
-  };
-  theme = themes.select cfg myconfig.colorscheme.resolved;
 in {
   name = "vicinae";
   tests.fixture = ["defaults" "exclusive" "roles.launcher" "services"];
@@ -33,10 +27,7 @@ in {
       upstreamPackage = packageOption vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
       package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
       sourceFiles = mylib.sourceFiles.option "upstreamPackage";
-      useColorscheme = boolOption true "Whether Vicinae takes its theme from `colorscheme.resolved`.";
     };
-
-  constraints.ifEnabled = [(themes.constraint cfg myconfig.colorscheme.resolved)];
 
   myconfig.always.roles.launcher.holder = "vicinae";
 
@@ -81,12 +72,6 @@ in {
       command = ["${app}/Contents/MacOS/vicinae-cli" "server"];
       environment.VICINAE_OVERRIDES = toString ((pkgs.formats.json {}).generate "vicinae-settings.json" config.vicinae.settings);
       restart = "on-failure";
-    };
-
-    # The scheme applies whatever the system appearance.
-    vicinae.settings.theme = lib.mkIf (theme != null) {
-      dark.name = theme;
-      light.name = theme;
     };
 
     vicinae.settings = {

@@ -35,12 +35,19 @@
       }
       attrs);
 
-  contributor = name: attrs: {delib, ...}:
-    delib.module ({
-        inherit name;
-        meta.description = "Contribute to a module test fixture.";
-      }
-      // attrs);
+  # As in `delib.module`, the attributes may be a function of the Denix
+  # arguments; theirs replace the defaults.
+  contributor = name: attrs: {delib, ...}: let
+    defaults = {
+      inherit name;
+      meta.description = "Contribute to a module test fixture.";
+    };
+  in
+    delib.module (
+      if lib.isFunction attrs
+      then lib.mirrorFunctionArgs attrs (args: defaults // attrs args)
+      else defaults // attrs
+    );
 
   generate = name: case: let
     fixtureSystem = case.host.system or system;

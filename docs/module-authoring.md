@@ -4,11 +4,11 @@ This file owns the judgments made when designing a module's interface and valida
 
 ## Interface
 
-Where a value is placed and which kind of option declares it follow from concepts defined in [Architecture](architecture.md): `myconfig` as the input layer, source priorities with atomic and accumulating options, and roles. Among values that a higher source replaces, one whose parts only make sense together, such as a scheme and its variant, is declared with `mylib.atomicOption`, so that no part is inherited from a lower source.
+Where a value is placed and which kind of option declares it follow from concepts defined in [Architecture](architecture.md): `myconfig` as the input layer, source priorities with atomic and accumulating options, and roles. Among values that a higher source replaces, one whose parts only make sense together, such as the two ends of a Neovim bar segment, is declared with `mylib.atomicOption`, so that no part is inherited from a lower source.
 
 ### Roles
 
-A module that can take a [role](architecture.md#roles)'s seat declares `meta.role`, and the one the repository uses by default also defines the role's `holder` in `myconfig.always`, where it does not depend on its own enable. A role is `seatedOnly` when nothing outside it keeps a second candidate from acting: when the environment reads a single entrance, as for a login shell, an installed candidate that does not hold the seat is harmless, while two launchers would contend for the same shortcuts and windows.
+A module that can take a [role](architecture.md#roles)'s seat declares `meta.role`, and the one the repository uses by default also defines the role's `holder` in `myconfig.always`, where it does not depend on its own enable. What an application does only with a seat's value, such as taking its colors from the held scheme, is a dotted module of the application that follows the role, so that it can be turned off alone. A role is `seatedOnly` when nothing outside it keeps a second candidate from acting: when the environment reads a single entrance, as for a login shell, an installed candidate that does not hold the seat is harmless, while two launchers would contend for the same shortcuts and windows.
 
 ### Translations
 

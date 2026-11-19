@@ -3,7 +3,10 @@ mylib.rice {
   name = "default";
   myconfig = {
     roles.login-shell.enable = true;
-    colorscheme.selection.name = "rose-pine";
+    roles.colorscheme = {
+      enable = true;
+      holder = "colorscheme.rose-pine";
+    };
     neovim.bars.modeEnds = {
       left = "█";
       right = "█";

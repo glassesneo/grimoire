@@ -3,30 +3,22 @@
 #
 # `schemeThemes { name, themes }` takes the application's module name and its
 # table by scheme name; what an entry holds is the application's own. `of`
-# returns the entry for a resolved scheme, or null for none or an absent
-# scheme. `select` returns the entry the module follows: null while its
-# `useColorscheme` is false or no scheme is selected. A followed scheme absent
-# from the table cannot be realized, so `constraint` rejects it and names
-# `<name>.useColorscheme = false`, which leaves the application's colors
-# unmanaged. Bundles published per combination keep those `of` finds.
+# returns the entry for a resolved scheme, or null for a scheme absent from
+# the table. The application's `<name>.colorscheme` module follows the role
+# `roles.colorscheme`; a held scheme absent from the table cannot be realized,
+# so `constraint` rejects it and names `<name>.colorscheme.enable = false`,
+# which leaves the application's colors unmanaged. Bundles published per
+# combination keep those `of` finds.
 {
   name,
   themes,
 }: let
-  of = resolved:
-    if resolved == null
-    then null
-    else themes.${resolved.name} or null;
+  of = resolved: themes.${resolved.name} or null;
 in {
   inherit of;
 
-  select = cfg: resolved:
-    if cfg.useColorscheme
-    then of resolved
-    else null;
-
-  constraint = cfg: resolved: {
-    assertion = !cfg.useColorscheme || resolved == null || of resolved != null;
-    message = "${name} has no theme for colorscheme \"${resolved.name or ""}\"; set ${name}.useColorscheme = false to leave its colors unmanaged";
+  constraint = resolved: {
+    assertion = of resolved != null;
+    message = "${name} has no theme for colorscheme \"${resolved.name}\"; set ${name}.colorscheme.enable = false to leave its colors unmanaged";
   };
 }

@@ -50,7 +50,9 @@ The order applies to choices. An option that collects contributions, such as ass
 
 A role (`delib.role` under `abstractions/modules/roles/`) is a seat on the host that one module takes, such as the application launcher. It is the module `roles.<name>`: its `enable` states whether the host has the seat, and its `holder` selects the module that takes it among the candidates, the modules declaring `meta.role = "<name>"`. A candidate joins whatever its enable and may define the default holder; a rice or host replaces it, and turns the seat off with `enable`. A role owns what calling its holder takes, such as an entrance the environment reads; a candidate keeps its own configuration.
 
-Most candidates keep their own enable: several may be installed while one holds the seat, which then requires its holder enabled. In a role declared `seatedOnly`, a candidate's enable belongs to the seat instead: the role enables its holder, tags do not enable candidates, and an enabled candidate outside the seat fails.
+Most candidates keep their own enable: several may be installed while one holds the seat, which then requires its holder enabled. A candidate without `enable`, such as a color scheme, is data the seat selects among and can always hold it. In a role declared `seatedOnly`, a candidate's enable belongs to the seat instead: the role enables its holder, tags do not enable candidates, and an enabled candidate outside the seat fails.
+
+A module that reads a seat, such as the part of an application that takes its colors from `roles.colorscheme`, declares `meta.follows`. It is enabled by default only while the seats it follows are, and turning it off leaves the rest of the application in place.
 
 ## Declaring choices
 
@@ -73,7 +75,7 @@ A concern has one owner. Shared outputs have one final writer, and adapters tran
 
 A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
 
-A module owns its declaration's directory, independently of its dotted interface name. It does not directly reference feature files outside that directory. A module's test fixture holds the module and the modules its `tests.fixture` names, transitively, such as the owners of options it defines; a case adds modules it reads from with `uses`. This is a statement about tests, not a dependency between modules: a host loads every module, and a reference to a module that is not enabled fails or reads defaults there as it would anywhere. Shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows `tests.fixture` and `uses` in reverse. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
+A module owns its declaration's directory, independently of its dotted interface name. Modules do not import each other's declarations, since Denix discovers every `default.nix`; other files are helpers that declarations read, such as a package or a table. A module reads the helpers of its own directory and of an ancestor module's directory, naming that ancestor in its `tests.fixture` so that incremental selection follows their changes, and no other feature's files. A module's test fixture holds the module and the modules its `tests.fixture` names, transitively, such as the owners of options it defines; a case adds modules it reads from with `uses`. This is a statement about tests, not a dependency between modules: a host loads every module, and a reference to a module that is not enabled fails or reads defaults there as it would anywhere. Shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows `tests.fixture` and `uses` in reverse. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
 
 Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Repository mechanisms use the language of the layer they own:
 
@@ -92,7 +94,7 @@ Each mechanism is specified at the top of its file and by its option description
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/rices.nix`: rice registration, a host's `rice` selection, and `riceConfig`.
 - `extensions/module-constraints.nix`: modules' constraints, enforced in every module system.
-- `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent.
+- `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent, and a module's on the roles it follows.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
 - `extensions/module-tests.nix`: module-owned inline test cases and fixtures, typed as options, declaration locations and the reverse fixture and `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`; `lib/typescript-check.nix` builds the `typescriptCheck` that cases receive.
 - `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery of `checks/` and `tests/` that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
@@ -104,12 +106,12 @@ Each mechanism is specified at the top of its file and by its option description
 - `abstractions/modules/services/`: user service declarations, their lowering to dinit descriptions and the LaunchAgent that starts dinit on Darwin, with the switch-time lifecycle in `reconcile.nu`.
 - `abstractions/modules/imprynt/`: real-file deployment declarations and their Hjem apply step, delegating file ownership, conflicts, and recovery to imprynt; `abstractions/modules/fonts/` lowers user font packages into those declarations.
 - `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service restarts go through the services module's `serviceManager.restart`.
-- `abstractions/modules/colorscheme/`: registered color schemes (data files in `schemes/`, with or without variants), the shared `colorscheme.selection`, and its validation and resolution to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, and a `useColorscheme` switch that leaves its colors unmanaged. An application with scheme-specific themes fails evaluation when it follows a scheme it has no theme for.
+- `abstractions/modules/colorscheme/`: color schemes, each the module `colorscheme.<name>` declared with `mylib.colorschemes.scheme` (`lib/colorschemes.nix`), with or without variants, and the combinations of all of them. `roles.colorscheme` holds the one applications share and resolves it to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, in its `<application>.colorscheme` module, which follows the role and whose `enable` leaves its colors unmanaged. An application with scheme-specific themes fails evaluation when it follows a scheme it has no theme for.
 - `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
 - `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `lib/plist.nix`: the plist values that defaults accept and their serialization, also used for the services module's LaunchAgent.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
-- `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry it follows, and the rejection of a followed scheme absent from the table.
+- `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry for a scheme, and the rejection of a held scheme absent from the table.
 - `lib/source-files.nix`: whole files of a package's source replaced before it is built, guarded by the hash of the upstream file each replacement was written against.
 - `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` lists, compares, and updates them.
 - `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.

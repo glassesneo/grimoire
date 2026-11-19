@@ -11,6 +11,7 @@ Options this repository adds to Denix declarations.
 | Option | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
 | <code>meta.description</code> | <code>string</code> |  | One-sentence responsibility of this module, not an inventory of its current settings. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
+| <code>meta.follows</code> | <code>list of string</code> | <code>[ ]</code> | Roles whose seat this module reads, by name; the module is enabled by default only while each `roles.&lt;name&gt;` is. | [<code>extensions/module-dependencies.nix</code>](../../extensions/module-dependencies.nix) |
 | <code>meta.role</code> | <code>null or string</code> | <code>null</code> | Role whose seat this module can hold, by the role's name; `roles.&lt;name&gt;.holder` selects the holder. | [<code>extensions/roles.nix</code>](../../extensions/roles.nix) |
 | <code>meta.tags</code> | <code>list of string</code> | <code>[ ]</code> | Classification labels declared for this module. | [<code>extensions/module-metadata.nix</code>](../../extensions/module-metadata.nix) |
 | <code>tests.cases</code> | <code>function that evaluates to a(n) attribute set of (submodule)</code> | <code>_: { }</code> | Inline cases of this module's contract, by name. A function of `{pkgs, lib, system, home, oxlintConfig, typescriptCheck}`, where `home` is the fixture user's home directory, `oxlintConfig` the repository's oxlint configuration, and `typescriptCheck {name, src, types}` a derivation that type-checks and lints the TypeScript directory `src` against the types of the Bun project directory `types` (`lib/typescript-check.nix`). | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
@@ -20,7 +21,7 @@ Options this repository adds to Denix declarations.
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.fails</code> | <code>value true (singular enum) or string</code> |  | One of the modes: `true` requires `expr` to fail evaluation; a string requires a failed constraint or module-system assertion containing it. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.host</code> | <code>attribute set</code> | <code>{ }</code> | Attributes merged into the fixture's `delib.host` declaration, such as `myconfig.ifEnabled` choices or `system`. The fixture's module system is evaluated for that `system`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.moduleSystem</code> | <code>one of "bundles", "darwin", "hjem", "nixos"</code> | <code>"hjem"</code> | Module system whose result the case observes. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
-| <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.modules</code> | <code>attribute set of (attribute set)</code> | <code>{ }</code> | Contributor modules by name: `delib.module` attributes without `name` or `meta.description`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
+| <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.modules</code> | <code>attribute set of ((attribute set) or function that evaluates to a(n) (attribute set))</code> | <code>{ }</code> | Contributor modules by name: `delib.module` attributes, or a function of its Denix arguments returning them, without `name` or `meta.description`. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.platforms</code> | <code>list of string</code> | <code>[<br>  "aarch64-darwin"<br>  "aarch64-linux"<br>  "x86_64-linux"<br>]</code> | Systems on which the case runs. Read before any fixture is generated. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.protects</code> | <code>non-empty string</code> |  | What this repository wrote or changed that the case protects, and the behavior it keeps. Required. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
 | <code>tests.cases.&lt;function body&gt;.&lt;name&gt;.tsRoots</code> | <code>list of module-relative path without `..` segments</code> | <code>[ ]</code> | TypeScript roots whose coverage this case provides, relative to the module directory; `.` is the module directory. | [<code>extensions/module-tests.nix</code>](../../extensions/module-tests.nix) |
@@ -68,22 +69,32 @@ Modules whose only option is `enable`:
 | Module | <code>enable</code> | Responsibility | Tags |
 | --- | --- | --- | --- |
 | [<code>ai-mop</code>](../../abstractions/modules/ai-mop/default.nix) | <code>false</code> | Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls. |  |
+| [<code>alacritty.colorscheme</code>](../../abstractions/modules/alacritty/colorscheme/default.nix) | <code>myconfig.alacritty.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Alacritty the colors of the held color scheme. |  |
 | [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
+| [<code>bat.colorscheme</code>](../../abstractions/modules/bat/colorscheme/default.nix) | <code>myconfig.bat.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give bat the theme of the held color scheme. |  |
 | [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | <code>true</code> | Provide batman and configure it as Zsh's manual page pager. |  |
+| [<code>claude-code.colorscheme</code>](../../abstractions/modules/agents/claude-code/colorscheme/default.nix) | <code>myconfig.claude-code.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Claude Code the theme matching the held color scheme. |  |
 | [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |
 | [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | <code>true</code> | Provide and configure direnv, including its Zsh integration. |  |
 | [<code>dock</code>](../../abstractions/modules/dock/default.nix) | <code>true</code> | Configure the Dock and the actions of screen hot corners. |  |
+| [<code>elio.colorscheme</code>](../../abstractions/modules/elio/colorscheme/default.nix) | <code>myconfig.elio.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give elio a theme from the held color scheme's palette. |  |
 | [<code>elio.ctrl-np</code>](../../abstractions/modules/elio/ctrl-np/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Move through elio's search results and scroll its help with Ctrl-N and Ctrl-P, which elio hard-codes to the arrow keys. |  |
 | [<code>elio.quit-after-open</code>](../../abstractions/modules/elio/quit-after-open/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully. |  |
+| [<code>eza</code>](../../abstractions/modules/eza/default.nix) | <code>true</code> | Provide eza for listing files and directories. |  |
+| [<code>eza.colorscheme</code>](../../abstractions/modules/eza/colorscheme/default.nix) | <code>myconfig.eza.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give eza the theme of the held color scheme. |  |
 | [<code>fd</code>](../../abstractions/modules/fd/default.nix) | <code>true</code> | Provide fd for finding files and directories. |  |
 | [<code>files</code>](../../abstractions/modules/files/default.nix) | <code>true</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
+| [<code>fzf</code>](../../abstractions/modules/fzf/default.nix) | <code>true</code> | Provide and configure fzf, including its Zsh integration. |  |
+| [<code>fzf.colorscheme</code>](../../abstractions/modules/fzf/colorscheme/default.nix) | <code>myconfig.fzf.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give fzf the colors of the held color scheme. |  |
 | [<code>gh</code>](../../abstractions/modules/gh/default.nix) | <code>true</code> | Provide the GitHub CLI. |  |
+| [<code>ghostty.colorscheme</code>](../../abstractions/modules/ghostty/colorscheme/default.nix) | <code>myconfig.ghostty.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Ghostty the colors of the held color scheme's palette. |  |
 | [<code>git.include</code>](../../abstractions/modules/git/include/default.nix) | <code>myconfig.git.enable &amp;&amp; true</code> | Configure Git settings through includes. |  |
 | [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | <code>true</code> | Provide gomi and integrate it into Zsh. |  |
 | [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | <code>true</code> | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
 | [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Insert paired delimiters and track generated closers in Neovim. |  |
 | [<code>neovim.cmdline</code>](../../abstractions/modules/neovim/cmdline/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Present Neovim command and search input in a popup without replacing messages or notifications. |  |
+| [<code>neovim.colorscheme</code>](../../abstractions/modules/neovim/colorscheme/default.nix) | <code>myconfig.neovim.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Neovim the colorscheme plugin of the held color scheme. |  |
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
@@ -97,12 +108,14 @@ Modules whose only option is `enable`:
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
 | [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
+| [<code>omniwm.colorscheme</code>](../../abstractions/modules/omniwm/colorscheme/default.nix) | <code>myconfig.omniwm.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Color OmniWM's focused-window border with the held color scheme's cursor color. |  |
 | [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
 | [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | <code>myconfig.pay-respects.enable &amp;&amp; true</code> | Replace command typo recovery with a playful response. |  |
 | [<code>pi.compaction</code>](../../abstractions/modules/agents/pi/compaction/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Compact Pi conversations through the public Responses API. |  |
 | [<code>pi.input</code>](../../abstractions/modules/agents/pi/input/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Provide Pi's command palette and stop confirmation. |  |
 | [<code>pi.question</code>](../../abstractions/modules/agents/pi/question/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Ask the user for decisions through Pi's question tool. |  |
 | [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | <code>true</code> | Limit what the system shares and what it opens without being asked. |  |
+| [<code>rex.colorscheme</code>](../../abstractions/modules/rex/colorscheme/default.nix) | <code>myconfig.rex.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Generate Rex's dark theme from the held color scheme's palette; Rex selects it only once `rex-import-theme` runs. |  |
 | [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | <code>true</code> | Provide ripgrep for searching file contents. |  |
 | [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | <code>true</code> | Configure where screenshots are saved and in which format. |  |
 | [<code>security</code>](../../abstractions/modules/security/default.nix) | <code>true</code> | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
@@ -113,9 +126,11 @@ Modules whose only option is `enable`:
 | [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
 | [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | <code>true</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
 | [<code>vfkit.persistence</code>](../../abstractions/modules/vfkit/persistence/default.nix) | <code>myconfig.vfkit.enable &amp;&amp; false</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
+| [<code>vicinae.colorscheme</code>](../../abstractions/modules/vicinae/colorscheme/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Vicinae the bundled theme of the held color scheme. |  |
 | [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae launcher window between its compact and expanded states. |  |
 | [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae selection highlight as it moves between list items. |  |
 | [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | <code>false</code> | Provide the web retrieval MCP server and its backend configuration. |  |
+| [<code>zellij.colorscheme</code>](../../abstractions/modules/zellij/colorscheme/default.nix) | <code>myconfig.zellij.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Zellij the official theme of the held color scheme. |  |
 | [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
 | [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
 | [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
@@ -140,7 +155,6 @@ Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstract
 | --- | --- | --- | --- |
 | <code>alacritty.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>alacritty.package</code> | <code>package</code> | <code>nixpkgs: alacritty</code> |  |
-| <code>alacritty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Alacritty takes its colors from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
@@ -192,7 +206,6 @@ Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/m
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>bat.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>bat.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether bat takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
@@ -232,7 +245,6 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 | --- | --- | --- | --- |
 | <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>claude-code.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged. |
-| <code>claude-code.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Claude Code takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
@@ -242,69 +254,49 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 
 ### <code>colorscheme</code>
 
-Register color schemes and resolve the one selected for applications to share.
+Collect the combinations of every registered color scheme, for features that publish one per combination.
 
 Source: [<code>abstractions/modules/colorscheme/default.nix</code>](../../abstractions/modules/colorscheme/default.nix)
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>colorscheme.combinations</code> | <code>attribute set of raw value</code> | every registered scheme and variant, resolved | read-only; Every scheme and variant, resolved like `resolved`, by name: `&lt;scheme&gt;` for a scheme's default and `&lt;scheme&gt;-&lt;variant&gt;` for each variant. |
-| <code>colorscheme.resolved</code> | <code>null or raw value</code> | the resolved `colorscheme.selection` | read-only; The selected scheme as `{ name, variant, palette }`, or `null` without a selection. |
-| <code>colorscheme.schemes</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Registered schemes by name. A scheme has either a `palette` or `variants` with a `default`. |
-| <code>colorscheme.schemes.&lt;name&gt;.default</code> | <code>null or string</code> | <code>null</code> | Variant used when a selection names none; set exactly when `variants` is. |
-| <code>colorscheme.schemes.&lt;name&gt;.palette</code> | <code>null or (submodule)</code> | <code>null</code> | Palette of a scheme without variants. |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi</code> | <code>submodule</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.palette.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Palettes of a scheme with variants, by variant name. |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi</code> | <code>submodule</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.schemes.&lt;name&gt;.variants.&lt;name&gt;.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.selection</code> | <code>null or (submodule)</code> | <code>null</code> | Scheme that applications share; `null` selects none. A higher source replaces it whole, so a variant always comes with its scheme's name. |
-| <code>colorscheme.selection.name</code> | <code>string</code> |  |  |
-| <code>colorscheme.selection.variant</code> | <code>null or string</code> | <code>null</code> | Variant of the scheme; `null` uses the scheme's default. |
+| <code>colorscheme.combinations</code> | <code>attribute set of raw value</code> | every registered scheme's `combinations` | read-only; Every scheme and variant, resolved as `roles.colorscheme.resolved` is, by name: `&lt;scheme&gt;` for a scheme's default and `&lt;scheme&gt;-&lt;variant&gt;` for each variant. |
+
+### <code>colorscheme.rose-pine</code>
+
+Register the Rosé Pine color scheme, its main variant.
+
+Source: [<code>abstractions/modules/colorscheme/rose-pine/default.nix</code>](../../abstractions/modules/colorscheme/rose-pine/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>colorscheme.rose-pine.combinations</code> | <code>attribute set of raw value</code> | <code>{<br>  rose-pine = {<br>    name = "rose-pine";<br>    palette = {<br>      ansi = {<br>        black = "#26233a";<br>        blue = "#9ccfd8";<br>        brightBlack = "#6e6a86";<br>        brightBlue = "#9ccfd8";<br>        brightCyan = "#ebbcba";<br>        brightGreen = "#31748f";<br>        brightMagenta = "#c4a7e7";<br>        brightRed = "#eb6f92";<br>        brightWhite = "#e0def4";<br>        brightYellow = "#f6c177";<br>        cyan = "#ebbcba";<br>        green = "#31748f";<br>        magenta = "#c4a7e7";<br>        red = "#eb6f92";<br>        white = "#e0def4";<br>        yellow = "#f6c177";<br>      };<br>      background = "#191724";<br>      cursor = "#e0def4";<br>      cursorText = "#191724";<br>      foreground = "#e0def4";<br>      named = {<br>        base = "#191724";<br>        foam = "#9ccfd8";<br>        gold = "#f6c177";<br>        highlightHigh = "#524f67";<br>        highlightLow = "#21202e";<br>        highlightMed = "#403d52";<br>        iris = "#c4a7e7";<br>        love = "#eb6f92";<br>        muted = "#6e6a86";<br>        overlay = "#26233a";<br>        pine = "#31748f";<br>        rose = "#ebbcba";<br>        subtle = "#908caa";<br>        surface = "#1f1d2e";<br>        text = "#e0def4";<br>      };<br>      selectionBackground = "#403d52";<br>      selectionForeground = "#e0def4";<br>    };<br>    variant = null;<br>  };<br>}</code> | read-only; Every variant resolved like `resolved`, by name: `rose-pine` for the default and `rose-pine-&lt;variant&gt;` for each variant. |
+| <code>colorscheme.rose-pine.palette</code> | <code>submodule</code> | <code>{<br>  ansi = {<br>    black = "#26233a";<br>    blue = "#9ccfd8";<br>    brightBlack = "#6e6a86";<br>    brightBlue = "#9ccfd8";<br>    brightCyan = "#ebbcba";<br>    brightGreen = "#31748f";<br>    brightMagenta = "#c4a7e7";<br>    brightRed = "#eb6f92";<br>    brightWhite = "#e0def4";<br>    brightYellow = "#f6c177";<br>    cyan = "#ebbcba";<br>    green = "#31748f";<br>    magenta = "#c4a7e7";<br>    red = "#eb6f92";<br>    white = "#e0def4";<br>    yellow = "#f6c177";<br>  };<br>  background = "#191724";<br>  cursor = "#e0def4";<br>  cursorText = "#191724";<br>  foreground = "#e0def4";<br>  named = {<br>    base = "#191724";<br>    foam = "#9ccfd8";<br>    gold = "#f6c177";<br>    highlightHigh = "#524f67";<br>    highlightLow = "#21202e";<br>    highlightMed = "#403d52";<br>    iris = "#c4a7e7";<br>    love = "#eb6f92";<br>    muted = "#6e6a86";<br>    overlay = "#26233a";<br>    pine = "#31748f";<br>    rose = "#ebbcba";<br>    subtle = "#908caa";<br>    surface = "#1f1d2e";<br>    text = "#e0def4";<br>  };<br>  selectionBackground = "#403d52";<br>  selectionForeground = "#e0def4";<br>}</code> | read-only; Palette of the scheme. |
+| <code>colorscheme.rose-pine.palette.ansi</code> | <code>submodule</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
+| <code>colorscheme.rose-pine.palette.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.palette.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
+| <code>colorscheme.rose-pine.resolved</code> | <code>raw value</code> | <code>{<br>  name = "rose-pine";<br>  palette = {<br>    ansi = {<br>      black = "#26233a";<br>      blue = "#9ccfd8";<br>      brightBlack = "#6e6a86";<br>      brightBlue = "#9ccfd8";<br>      brightCyan = "#ebbcba";<br>      brightGreen = "#31748f";<br>      brightMagenta = "#c4a7e7";<br>      brightRed = "#eb6f92";<br>      brightWhite = "#e0def4";<br>      brightYellow = "#f6c177";<br>      cyan = "#ebbcba";<br>      green = "#31748f";<br>      magenta = "#c4a7e7";<br>      red = "#eb6f92";<br>      white = "#e0def4";<br>      yellow = "#f6c177";<br>    };<br>    background = "#191724";<br>    cursor = "#e0def4";<br>    cursorText = "#191724";<br>    foreground = "#e0def4";<br>    named = {<br>      base = "#191724";<br>      foam = "#9ccfd8";<br>      gold = "#f6c177";<br>      highlightHigh = "#524f67";<br>      highlightLow = "#21202e";<br>      highlightMed = "#403d52";<br>      iris = "#c4a7e7";<br>      love = "#eb6f92";<br>      muted = "#6e6a86";<br>      overlay = "#26233a";<br>      pine = "#31748f";<br>      rose = "#ebbcba";<br>      subtle = "#908caa";<br>      surface = "#1f1d2e";<br>      text = "#e0def4";<br>    };<br>    selectionBackground = "#403d52";<br>    selectionForeground = "#e0def4";<br>  };<br>  variant = null;<br>}</code> | read-only; The scheme as `{ name, variant, palette }`, with the chosen variant. |
 
 ### <code>defaults</code>
 
@@ -366,7 +358,6 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | <code>elio.theme.palette</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.upstreamPackage</code> | <code>package</code> | <code>elio/elio: elio</code> | Package whose source `sourceFiles` patches. |
-| <code>elio.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether elio takes its colors from `colorscheme.resolved`. |
 
 ### <code>exclusive</code>
 
@@ -390,17 +381,6 @@ Source: [<code>abstractions/modules/exclusive/default.nix</code>](../../abstract
 | <code>xdg.data.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 | <code>xdg.state.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 
-### <code>eza</code>
-
-Provide eza for listing files and directories.
-
-Source: [<code>abstractions/modules/eza/default.nix</code>](../../abstractions/modules/eza/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>eza.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>eza.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether eza takes its colors from `colorscheme.resolved`. |
-
 ### <code>fonts</code>
 
 Register font families for applications and install their packages as real files in the user's font directory.
@@ -414,17 +394,6 @@ Source: [<code>abstractions/modules/fonts/default.nix</code>](../../abstractions
 | <code>fonts.entries.&lt;name&gt;.family</code> | <code>non-empty string</code> |  |  |
 | <code>fonts.entries.&lt;name&gt;.package</code> | <code>package</code> |  |  |
 | <code>fonts.packages</code> | <code>list of package</code> | the unique packages in `fonts.entries` | read-only |
-
-### <code>fzf</code>
-
-Provide and configure fzf, including its Zsh integration.
-
-Source: [<code>abstractions/modules/fzf/default.nix</code>](../../abstractions/modules/fzf/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>fzf.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>fzf.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether fzf takes its colors from `colorscheme.resolved`. |
 
 ### <code>ghostty</code>
 
@@ -441,7 +410,6 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | <code>ghostty.font.primary</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Ghostty's primary font at its own default. |
 | <code>ghostty.package</code> | <code>package</code> | <code>casks/cask2nix: ghostty</code> |  |
 | <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map. |
-| <code>ghostty.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Ghostty takes its colors from `colorscheme.resolved`. |
 
 ### <code>git</code>
 
@@ -655,7 +623,6 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
 | <code>neovim.snacks</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Snacks setup options contributed by features; the parent installs and configures the shared plugin once. |
 | <code>neovim.snacksDependencies</code> | <code>list of package</code> | <code>[ ]</code> | Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements. |
-| <code>neovim.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether the package takes its theme from `colorscheme.resolved`. |
 
 ### <code>neovim.ai-completion</code>
 
@@ -939,7 +906,6 @@ Source: [<code>abstractions/modules/omniwm/default.nix</code>](../../abstraction
 | <code>omniwm.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>omniwm.package</code> | <code>package</code> | <code>omniwm/omniwm: omniwm</code> |  |
 | <code>omniwm.settings</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> | Settings layered over the pinned OmniWM defaults; hotkeys are merged by id. The switch reapplies them to the writable settings file. |
-| <code>omniwm.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether OmniWM takes its focused-window border color from `colorscheme.resolved`. |
 
 ### <code>phi</code>
 
@@ -980,7 +946,18 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 | <code>rex.fontSize</code> | <code>null or signed integer or floating point number</code> | <code>null</code> | Terminal font size in points; null leaves Rex's stored size unchanged. |
 | <code>rex.paddingX</code> | <code>null or signed integer</code> | <code>null</code> | Horizontal terminal padding; null leaves Rex's stored value unchanged. |
 | <code>rex.paddingY</code> | <code>null or signed integer</code> | <code>null</code> | Vertical terminal padding; null leaves Rex's stored value unchanged. |
-| <code>rex.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Rex's dark theme is generated from `colorscheme.resolved`; Rex selects it only once `rex-import-theme` runs. |
+
+### <code>roles.colorscheme</code>
+
+Seat the color scheme that applications share.
+
+Source: [<code>abstractions/modules/roles/colorscheme/default.nix</code>](../../abstractions/modules/roles/colorscheme/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>roles.colorscheme.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.colorscheme.holder</code> | <code>value "colorscheme.rose-pine" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "colorscheme"`. |
+| <code>roles.colorscheme.resolved</code> | <code>raw value</code> | the holder's `resolved` | read-only; The held scheme as `{ name, variant, palette }`; modules that read it declare `meta.follows = ["colorscheme"]`. |
 
 ### <code>roles.editor</code>
 
@@ -1139,7 +1116,6 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
 | <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
 | <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
-| <code>vicinae.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Vicinae takes its theme from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
@@ -1187,7 +1163,6 @@ Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstraction
 | <code>zellij.keybinds.tab</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
 | <code>zellij.keybinds.tmux</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
 | <code>zellij.settings</code> | <code>attribute set of (KDL node: arguments, or an attribute set of child nodes)</code> | <code>{ }</code> | Top-level nodes of Zellij's `config.kdl` other than `keybinds`; a list repeats the node's arguments. |
-| <code>zellij.useColorscheme</code> | <code>boolean</code> | <code>true</code> | Whether Zellij takes its colors from `colorscheme.resolved`. |
 
 <code>hjem</code> options:
 
