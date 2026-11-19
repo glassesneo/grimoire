@@ -85,6 +85,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
 | [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
 | [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
+| [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Create missing parent directories when saving ordinary Neovim files. |  |
 | [<code>neovim.motion</code>](../../abstractions/modules/neovim/motion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide search and line-movement aids in Neovim. |  |
