@@ -671,6 +671,18 @@ Source: [<code>abstractions/modules/neovim/ai-completion/default.nix</code>](../
 | <code>neovim.ai-completion.endpoint</code> | <code>string</code> | <code>"https://api.openai.iniad.org/api/v1/chat/completions"</code> | Endpoint for the OpenAI-compatible choice. |
 | <code>neovim.ai-completion.model</code> | <code>string</code> | <code>"gpt-6.2-sol"</code> | OpenAI-compatible model used at startup. |
 
+### <code>neovim.animations</code>
+
+Animate Neovim edits and movement while preserving existing key semantics.
+
+Source: [<code>abstractions/modules/neovim/animations/default.nix</code>](../../abstractions/modules/neovim/animations/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>neovim.animations.edit.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>neovim.animations.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
+| <code>neovim.animations.scroll.enable</code> | <code>boolean</code> | <code>true</code> |  |
+
 ### <code>neovim.bars</code>
 
 Compose Neovim status and buffer displays from placement-independent Heirline components.
