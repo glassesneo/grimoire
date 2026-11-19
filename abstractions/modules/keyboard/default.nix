@@ -28,6 +28,14 @@ delib.module {
       settings.AppleSymbolicHotKeys = {
         "32".enabled = false; # Mission Control: Ctrl + Up
         "34".enabled = false; # Mission Control (slow)
+        # Spotlight search: Cmd + Space, left to whatever claims it.
+        "64" = {
+          enabled = false;
+          value = {
+            type = "standard";
+            parameters = [32 49 1048576];
+          };
+        };
       };
       onChange.activateSettings = true;
     };

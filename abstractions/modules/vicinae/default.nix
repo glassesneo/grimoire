@@ -80,18 +80,6 @@ in {
       restart = "on-failure";
     };
 
-    # The toggle shortcut takes ⌘Space over from Spotlight's search shortcut.
-    platform.darwin.defaults."com.apple.symbolichotkeys" = {
-      settings.AppleSymbolicHotKeys."64" = {
-        enabled = false;
-        value = {
-          type = "standard";
-          parameters = [32 49 1048576];
-        };
-      };
-      onChange.activateSettings = true;
-    };
-
     # The scheme applies whatever the system appearance.
     vicinae.settings.theme = lib.mkIf (theme != null) {
       dark.name = theme;
