@@ -87,6 +87,7 @@ Modules whose only option is `enable`:
 | [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Find files, search their contents and browse directories in Neovim with Snacks. |  |
 | [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
 | [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Create missing parent directories when saving ordinary Neovim files. |  |
+| [<code>neovim.motion</code>](../../abstractions/modules/neovim/motion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide search and line-movement aids in Neovim. |  |
 | [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
 | [<code>neovim.surround</code>](../../abstractions/modules/neovim/surround/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Edit surrounding delimiters through a consistent Neovim command namespace. |  |
 | [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Browse Neovim undo branches and changes with Snacks. |  |
