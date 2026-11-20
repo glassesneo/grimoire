@@ -20,7 +20,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption false;
-    appPath = strOption "/Applications/Rex Beta.app";
+    appPath = strOption "/Applications/Rex.app";
     font = allowNull (strOption null) "Name in fonts.entries; null leaves Rex's terminal font as set in the app.";
     fontSize = allowNull (numberOption null) "Terminal font size in points; null leaves Rex's stored size unchanged.";
     paddingX = allowNull (intOption null) "Horizontal terminal padding; null leaves Rex's stored value unchanged.";

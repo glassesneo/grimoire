@@ -940,7 +940,7 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex Beta.app"</code> |  |
+| <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex.app"</code> |  |
 | <code>rex.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>rex.font</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Rex's terminal font as set in the app. |
 | <code>rex.fontSize</code> | <code>null or signed integer or floating point number</code> | <code>null</code> | Terminal font size in points; null leaves Rex's stored size unchanged. |
