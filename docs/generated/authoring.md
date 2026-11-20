@@ -1001,8 +1001,8 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>secrets.names</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
-| <code>secrets.required</code> | <code>list of (one of "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
+| <code>secrets.names</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
+| <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
 

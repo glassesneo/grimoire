@@ -136,8 +136,12 @@ run automatically by a switch; GUI-only changes remain until an explicit import.
 
 Run `nix run .#ai-mop` without activating a host. Supply the key through
 `AI_MOP_API_KEY`, or set `AI_MOP_API_KEY_FILE` to an already decrypted file.
-The workbench reads the file at runtime; it does not decrypt, issue or rotate
-keys. Its OpenAI providers are `ai-mop-responses` and `ai-mop-chat`; its
+When a host selects `ai-mop-api-key` in `secrets.names`, its Hjem switch
+activates the secret and exports its path through the Hjem environment loaded
+by Zsh. Start a fresh terminal session after the switch to pick up the variable.
+The workbench and Minuet (including `neovim.devMode`) share that path at runtime;
+starting a bundle does not activate secrets or include the key in the package.
+The workbench does not issue or rotate keys. Its OpenAI providers are `ai-mop-responses` and `ai-mop-chat`; its
 Anthropic provider is `ai-mop-anthropic`. Select a route and model with Pi's
 `--provider` and `--model`, or `/model` in the TUI.
 
@@ -207,8 +211,8 @@ adapter or silent field removal is enabled by this workbench.
 The `neovim.ai-completion` feature uses Minuet's virtual-text frontend, separately
 from Blink's completion menu. It reads `AI_MOP_API_KEY`, or the file named by
 `AI_MOP_API_KEY_FILE`, at runtime; it stores no key in the package. Missing or
-unreadable credentials disable automatic requests. Setting up encrypted-secret
-deployment is separate from this feature.
+unreadable credentials disable automatic requests. For the shared Hjem secret
+and session variable, see [AI MOP workbench](#ai-mop-workbench).
 
 Use `nix run .#neovim.devMode` to try the working tree without activation.
 Suggestions trigger automatically in eligible buffers. Ctrl-E accepts a visible

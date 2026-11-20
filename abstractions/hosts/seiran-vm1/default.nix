@@ -13,6 +13,7 @@ delib.host {
     web.enable = true;
     pi.mcpServers = ["web"];
     secrets.names = [
+      "ai-mop-api-key"
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
       "opencode-api-key"

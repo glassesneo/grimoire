@@ -5,10 +5,17 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "ai-mop";
-  tests.fixture = ["agents"];
+  tests.fixture = ["agents" "nix-secrets"];
   meta.description = "Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls.";
 
   options.enable = delib.boolOption false;
+
+  hjem.always = {config, ...}: let
+    secrets = config.security.nix-secrets.secrets;
+  in
+    lib.mkIf (secrets ? ai-mop-api-key) {
+      environment.sessionVariables.AI_MOP_API_KEY_FILE = secrets.ai-mop-api-key.path;
+    };
 
   hjem.ifEnabled = {pkgs, ...}: {
     packages = [
