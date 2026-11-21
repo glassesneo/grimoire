@@ -22,11 +22,11 @@
     parts = lib.splitString "." name;
     parent = lib.concatStringsSep "." (lib.init parts);
     hasParent = builtins.length parts > 1 && builtins.hasAttr parent config.modules;
+    hasEnable = myoptions: lib.hasAttrByPath (parts ++ ["enable"]) myoptions;
     participates = myoptions:
       hasParent
-      && lib.hasAttrByPath (parts ++ ["enable"]) myoptions
+      && hasEnable myoptions
       && lib.hasAttrByPath (lib.init parts ++ ["enable"]) myoptions;
-    hasEnable = myoptions: lib.hasAttrByPath (parts ++ ["enable"]) myoptions;
     # The modules whose enable this module's default requires.
     requirements = myoptions:
       lib.optional (participates myoptions) parent
@@ -96,8 +96,8 @@
       }: {
         assertion =
           !(participates myoptions)
-          || !(delib.getAttrByStrPath myconfig "${name}.enable" false)
-          || delib.getAttrByStrPath myconfig "${parent}.enable" false;
+          || !(enabled myconfig name)
+          || enabled myconfig parent;
         message = "${name}.enable requires ${parent}.enable = true";
       }));
   };
