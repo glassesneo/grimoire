@@ -121,6 +121,8 @@ Modules whose only option is `enable`:
 | [<code>skills.ponytail</code>](../../abstractions/modules/agents/skills/ponytail/default.nix) | <code>myconfig.skills.enable &amp;&amp; false</code> | Deploy the Ponytail skill. |  |
 | [<code>sound</code>](../../abstractions/modules/sound/default.nix) | <code>true</code> | Configure system sounds and alert feedback. |  |
 | [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
+| [<code>spicetify</code>](../../abstractions/modules/spicetify/default.nix) | <code>false</code> | Provide Spotify patched by Spicetify with its extensions, and keep Spotify from updating itself. |  |
+| [<code>spicetify.colorscheme</code>](../../abstractions/modules/spicetify/colorscheme/default.nix) | <code>myconfig.spicetify.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Spotify colors from the held color scheme's palette. |  |
 | [<code>ssh.remote</code>](../../abstractions/modules/ssh/remote/default.nix) | <code>myconfig.ssh.enable &amp;&amp; false</code> | Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends. |  |
 | [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
 | [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |

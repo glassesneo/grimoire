@@ -1,0 +1,18 @@
+{
+  "pins": {
+    "spicetify-nix": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "Gerg-L",
+        "repo": "spicetify-nix"
+      },
+      "branch": "master",
+      "submodules": false,
+      "revision": "cd7d88aca6db91899373d5574bb252547f4c8c2c",
+      "url": "https://github.com/Gerg-L/spicetify-nix/archive/cd7d88aca6db91899373d5574bb252547f4c8c2c.tar.gz",
+      "hash": "sha256-An9Qcr31Z+PmF4TlJWY6RkM4yPbBKc2vkyp6NctvMEk="
+    }
+  },
+  "version": 8
+}

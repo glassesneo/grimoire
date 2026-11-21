@@ -46,6 +46,7 @@ delib.host {
     };
     tailscale.enable = true;
     tart.enable = true;
+    spicetify.enable = true;
     ssh.keyholder = {
       enable = true;
       remoteHosts = ["kurogane" "seiran-vm1"];
