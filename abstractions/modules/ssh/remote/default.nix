@@ -64,7 +64,13 @@ delib.module ({myconfig, ...}: {
         export WFA_PUSH_KEY=${lib.escapeShellArg myconfig.ssh.keys.github.publicKey}
         export WFA_SSH_ADD=${tool "ssh-add"} WFA_SSH_KEYGEN=${tool "ssh-keygen"} WFA_SSH=${tool "ssh"}
         export WFA_REX_SOCKET=${lib.escapeShellArg "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket}"} WFA_TIMEOUT=${pkgs.coreutils}/bin/timeout
-        exec ${pkgs.nushell}/bin/nu --no-config-file ${./forwarded_agent.nu} ${mode} "$@"
+        index=0
+        for argument; do
+          export "WFA_ARG_$index=$argument"
+          index=$((index + 1))
+        done
+        export WFA_ARGC=$index
+        exec ${pkgs.nushell}/bin/nu --no-config-file ${./forwarded_agent.nu} ${mode}
       '';
     withAgent = entry "with-forwarded-agent" "exec" null;
     keygen = entry "forwarded-ssh-keygen" "ssh-keygen" {
@@ -118,7 +124,7 @@ delib.module ({myconfig, ...}: {
 
   tests.cases = {pkgs, ...}: {
     agent-selection = {
-      protects = "forwarded_agent.nu uses only a live agent holding the signing key and no foreign key, requires the unlocked GitHub key to push, and leaves other ssh and ssh-keygen calls alone";
+      protects = "forwarded_agent.nu uses only a live agent holding the signing key and no foreign key, requires the unlocked GitHub key to push, and leaves other ssh and ssh-keygen calls alone with their arguments intact";
       build = _:
         pkgs.runCommand "forwarded-agent-test" {nativeBuildInputs = [pkgs.nushell pkgs.socat pkgs.coreutils];} ''
           export FAKE_SSH_ADD=$PWD/fake-ssh-add

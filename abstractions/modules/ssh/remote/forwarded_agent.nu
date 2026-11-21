@@ -15,9 +15,13 @@
 #   ssh-keygen ARG...   ssh-keygen for Git's gpg.ssh.program; only -Y sign picks
 #   ssh ARG...          ssh for Git's core.sshCommand; only GitHub picks
 #
-# The environment configures it: WFA_SIGNING_KEY and WFA_PUSH_KEY (OpenSSH
-# public keys), WFA_SSH_ADD, WFA_SSH_KEYGEN, WFA_SSH and WFA_TIMEOUT (GNU
-# timeout) as programs, and WFA_REX_SOCKET.
+# The mode is the only command-line argument. The arguments after it arrive
+# in the environment as WFA_ARGC and WFA_ARG_0, WFA_ARG_1, ...: Nushell parses
+# a script's command-line arguments as its own literals, so an argument such
+# as `true` would not reach it as a string. The environment also configures
+# it: WFA_SIGNING_KEY and WFA_PUSH_KEY (OpenSSH public keys), WFA_SSH_ADD,
+# WFA_SSH_KEYGEN, WFA_SSH and WFA_TIMEOUT (GNU timeout) as programs, and
+# WFA_REX_SOCKET.
 
 const candidate_timeout = 1sec
 const total_timeout = 3sec
@@ -86,9 +90,10 @@ def targets-github [args: list<string>]: nothing -> bool {
   $args | any {|arg| $arg == 'github.com' or ($arg | str ends-with '@github.com') }
 }
 
-def --wrapped main [...argv: string] {
-  let mode = $argv | first
-  mut args = $argv | skip 1
+def main [mode: string] {
+  let count = $env.WFA_ARGC? | default '0' | into int
+  mut args = 0..<$count | each {|index| $env | get $"WFA_ARG_($index)" }
+  for index in 0..<$count { hide-env $"WFA_ARG_($index)" }
   let failure = if $mode == ssh { 255 } else { 1 }
   let chosen = try {
     match $mode {

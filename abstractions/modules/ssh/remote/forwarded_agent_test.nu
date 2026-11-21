@@ -29,8 +29,11 @@ def teardown [world: record] {
   open ($world.home | path join pids) | lines | each {|pid| ^kill $pid } | ignore
 }
 
-def --wrapped invoke [script: path, world: record, ...args: string] {
-  with-env {
+# Passes the arguments as the wrapper in default.nix does, through the
+# environment.
+def --wrapped invoke [script: path, world: record, mode: string, ...args: string] {
+  let arguments = $args | enumerate | reduce --fold {WFA_ARGC: ($args | length | into string)} {|it, acc| $acc | insert $"WFA_ARG_($it.index)" $it.item }
+  with-env ($arguments | merge {
     HOME: $world.home
     WFA_SIGNING_KEY: $signing
     WFA_PUSH_KEY: $push
@@ -40,8 +43,8 @@ def --wrapped invoke [script: path, world: record, ...args: string] {
     WFA_TIMEOUT: timeout
     WFA_REX_SOCKET: ($world.home | path join .ssh rex-agent.sock)
     FAKE_AGENTS: ($world.agents | to json --raw)
-  } {
-    ^nu --no-config-file $script ...$args | complete
+  }) {
+    ^nu --no-config-file $script $mode | complete
   }
 }
 
@@ -92,6 +95,8 @@ def main [script: path] {
   assert ((invoke $script $world ssh-keygen -Y sign -n git).exit_code != 0) 'signing needs an agent'
   assert equal (invoke $script $world ssh -G git@github.com).exit_code 0 'ssh -G passes through'
   assert equal (invoke $script $world ssh git@example.org git-upload-pack).exit_code 0 'other hosts pass through'
+  let literal = invoke $script $world ssh git@example.org 'true' '' 'null' '-x' ')'
+  assert equal [$literal.exit_code ($literal.stdout | str trim --right --char "\n")] [0 'git@example.org true  null -x )'] 'arguments that read as Nushell literals pass through as strings'
   assert equal (invoke $script $world ssh git@github.com "git-receive-pack 'x.git'").exit_code 255 'a GitHub push needs an agent'
   print 'forwarded_agent.nu: all cases passed'
 }
