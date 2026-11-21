@@ -966,7 +966,9 @@ Source: [<code>abstractions/modules/roles/colorscheme/default.nix</code>](../../
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>roles.colorscheme.candidates</code> | <code>list of string</code> | <code>[<br>  "colorscheme.rose-pine"<br>]</code> | read-only; Modules declaring `meta.role = "colorscheme"`, which can hold the seat. |
 | <code>roles.colorscheme.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.colorscheme.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
 | <code>roles.colorscheme.holder</code> | <code>value "colorscheme.rose-pine" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "colorscheme"`. |
 | <code>roles.colorscheme.resolved</code> | <code>raw value</code> | the holder's `resolved` | read-only; The held scheme as `{ name, variant, palette }`; modules that read it declare `meta.follows = ["colorscheme"]`. |
 
@@ -978,7 +980,9 @@ Source: [<code>abstractions/modules/roles/editor/default.nix</code>](../../abstr
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>roles.editor.candidates</code> | <code>list of string</code> | <code>[<br>  "neovim"<br>]</code> | read-only; Modules declaring `meta.role = "editor"`, which can hold the seat. |
 | <code>roles.editor.enable</code> | <code>boolean</code> | <code>true</code> |  |
+| <code>roles.editor.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
 | <code>roles.editor.holder</code> | <code>value "neovim" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "editor"`. |
 
 ### <code>roles.launcher</code>
@@ -989,7 +993,9 @@ Source: [<code>abstractions/modules/roles/launcher/default.nix</code>](../../abs
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>roles.launcher.candidates</code> | <code>list of string</code> | <code>[<br>  "vicinae"<br>]</code> | read-only; Modules declaring `meta.role = "launcher"`, which can hold the seat. |
 | <code>roles.launcher.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.launcher.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
 | <code>roles.launcher.holder</code> | <code>value "vicinae" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "launcher"`. |
 
 ### <code>roles.login-shell</code>
@@ -1000,7 +1006,9 @@ Source: [<code>abstractions/modules/roles/login-shell/default.nix</code>](../../
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>roles.login-shell.candidates</code> | <code>list of string</code> | <code>[<br>  "zsh"<br>]</code> | read-only; Modules declaring `meta.role = "login-shell"`, which can hold the seat. |
 | <code>roles.login-shell.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>roles.login-shell.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
 | <code>roles.login-shell.holder</code> | <code>value "zsh" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "login-shell"`. |
 
 ### <code>secrets</code>

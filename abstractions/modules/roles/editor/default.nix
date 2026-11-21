@@ -3,15 +3,11 @@
   lib,
   ...
 }:
-delib.role ({
-  cfg,
-  myconfig,
-  ...
-}: let
+delib.role ({cfg, ...}: let
   # A candidate provides the editor as `package`. EDITOR names its program
   # rather than a store path: the session keeps the value it logged in with,
   # and a path would go stale when the package is rebuilt.
-  package = lib.getAttrFromPath (lib.splitString "." cfg.holder ++ ["package"]) myconfig;
+  inherit (cfg.held) package;
 in {
   name = "editor";
   enable = true;

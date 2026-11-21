@@ -13,8 +13,12 @@
 # the holder while the seat is enabled, `tags` does not enable candidates, and
 # an enabled candidate that does not hold the enabled seat fails.
 #
+# The role also declares the read-only `candidates`, their names, and
+# `held`, the holder's `myconfig`, from which a role's own options and
+# sections read what the holder provides.
+#
 # Every other attribute is the module's own, as in `delib.module`. Its
-# `options` add to `enable` and `holder`, which the role declares itself, such
+# `options` add to those the role declares itself, such
 # as what the role derives from its holder; its `meta`, sections, constraints
 # and tests are written as for any module, and `myconfig.ifEnabled` and the
 # constraint lists merge with those the role generates. As with
@@ -45,8 +49,8 @@
     enabled = myconfig: candidate: lib.attrByPath (path candidate) false myconfig;
     available = myconfig: candidate: lib.attrByPath (path candidate) true myconfig;
   in
-    if static ? options.enable || static ? options.holder
-    then throw "delib.role ${name}: a role declares `enable` and `holder` itself; write `enable` as an argument"
+    if lib.any (option: static ? options.${option}) ["enable" "holder" "candidates" "held"]
+    then throw "delib.role ${name}: a role declares `enable`, `holder`, `candidates` and `held` itself; write `enable` as an argument"
     else {
       imports = [
         ({config, ...}: let
@@ -91,6 +95,12 @@
                       type = lib.types.enum candidates;
                       description = "Module holding the seat, among those declaring `meta.role = \"${name}\"`.";
                     };
+                    candidates = readOnly (listOfOption str candidates "Modules declaring `meta.role = \"${name}\"`, which can hold the seat.");
+                    held = readOnly (defaultText (lib.mkOption {
+                      type = lib.types.raw;
+                      default = lib.getAttrFromPath (lib.splitString "." cfg.holder) myconfig;
+                      description = "The holder's `myconfig`, from which the role reads what the holder provides.";
+                    }) (lib.literalMD "the holder's `myconfig`"));
                   };
                 constraints = {
                   always = generated.constraints.always ++ own.constraints.always or [];

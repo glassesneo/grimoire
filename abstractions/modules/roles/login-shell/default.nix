@@ -1,15 +1,11 @@
-{
-  delib,
-  lib,
-  ...
-}:
+{delib, ...}:
 delib.role ({
   cfg,
   myconfig,
   ...
 }: let
   # A candidate provides the shell as `package`.
-  package = lib.getAttrFromPath (lib.splitString "." cfg.holder ++ ["package"]) myconfig;
+  inherit (cfg.held) package;
 in {
   name = "login-shell";
   meta.description = "Seat the user's login shell and register it with the system.";

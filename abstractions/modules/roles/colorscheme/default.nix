@@ -4,18 +4,14 @@
   mylib,
   ...
 }:
-delib.role ({
-  cfg,
-  myconfig,
-  ...
-}: {
+delib.role ({cfg, ...}: {
   name = "colorscheme";
   meta.description = "Seat the color scheme that applications share.";
 
   # A candidate is a scheme declared with `mylib.colorschemes.scheme`.
   options.resolved = delib.readOnly (delib.defaultText (lib.mkOption {
     type = lib.types.raw;
-    default = lib.getAttrFromPath (lib.splitString "." cfg.holder ++ ["resolved"]) myconfig;
+    default = cfg.held.resolved;
     description = "The held scheme as `{ name, variant, palette }`; modules that read it declare `meta.follows = [\"colorscheme\"]`.";
   }) (lib.literalMD "the holder's `resolved`"));
 
