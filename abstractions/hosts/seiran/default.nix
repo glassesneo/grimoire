@@ -45,9 +45,10 @@ delib.host {
       selection-highlight.enable = true;
     };
     tailscale.enable = true;
+    tart.enable = true;
     ssh.keyholder = {
       enable = true;
-      remoteHosts = ["kurogane"];
+      remoteHosts = ["kurogane" "seiran-vm1"];
     };
     web.enable = true;
     pi.mcpServers = ["web"];

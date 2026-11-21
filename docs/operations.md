@@ -256,6 +256,8 @@ GitHub registrations are manual: the GitHub key as an authentication key and the
 
 The remote agent is a user service on the key holder. It always holds the signing key; `push-unlock [DURATION]` adds the GitHub key for a limited time and `push-lock` removes it earlier. On a remote host, `with-forwarded-agent ssh-add -l` shows the keys that a signing or a push there would use; Git picks a live forwarded agent itself. A Rex host reaches a remote host through the host name that `ssh.keyholder.remoteHosts` lists. Rex reaches a host on the local network only while macOS grants Rex the Local Network permission, which a Rex update can withdraw; its tunnel then fails with `No route to host`.
 
+SSH reaches every Tart machine under `~/.tart/vms` (`TART_HOME` is not read) by its name, without declaring it: Tart starts a machine that is not running in the background, logging to `~/.cache/tart`, and SSH connects once its port accepts connections, within 120 s. Only machines listed in `ssh.keyholder.remoteHosts` get the login key and the remote agent, for Rex sessions and ordinary sessions under that one name; any other machine asks for its own credentials, such as a fresh image's password.
+
 ## EDITH's tool user
 
 With `edith.toolUser.loginKey` set, nix-darwin creates the hidden user `edith.toolUser.name` (default `edith`), and EDITH runs the profiles' tools as that user through a pi-env daemon it reaches over ssh to the same host; EDITH itself and its MCP servers stay with the host's user. Before the first switch, create EDITH's login key as the host's user and put its public key in `edith.toolUser.loginKey`:

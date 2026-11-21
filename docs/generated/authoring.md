@@ -1152,6 +1152,17 @@ Source: [<code>abstractions/modules/tailscale/default.nix</code>](../../abstract
 | <code>tailscale.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>tailscale.tailnet</code> | <code>string</code> | <code>"marten-pierce.ts.net"</code> | read-only; DNS name of the tailnet these hosts join. MagicDNS resolves a joined host as `&lt;host name&gt;.&lt;tailnet&gt;` from any other. |
 
+### <code>tart</code>
+
+Provide Tart and reach each of its virtual machines over SSH by name, starting one that is not running.
+
+Source: [<code>abstractions/modules/tart/default.nix</code>](../../abstractions/modules/tart/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>tart.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>tart.package</code> | <code>package</code> | <code>nixpkgs: tart</code> |  |
+
 ### <code>vicinae</code>
 
 Provide the Vicinae launcher as a login service with a stable code-signing identity.
