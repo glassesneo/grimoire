@@ -1,7 +1,16 @@
 {delib, ...}:
-delib.module ({myconfig, ...}: {
+delib.module ({
+  cfg,
+  myconfig,
+  ...
+}: {
   name = "nix";
   meta.description = "Configure Nix itself.";
+
+  options = with delib; {
+    minFree = intOption 50 "GiB of free space below which the daemon collects garbage during builds and copies; it must stay below what the host's disk can keep free, or every addition to the store runs a collection.";
+    maxFree = intOption 150 "GiB of free space at which such a collection stops.";
+  };
 
   darwin.always = {pkgs, ...}: {
     # Backport of NixOS/nix#16626 (merged after 2.35.6): root skips the chmod
@@ -14,8 +23,8 @@ delib.module ({myconfig, ...}: {
       trusted-users = ["root" "@admin" myconfig.host.user.name];
       # The daemon collects garbage during builds when free space falls below
       # min-free, until max-free is available, even if the scheduled job fails.
-      min-free = 50 * 1024 * 1024 * 1024;
-      max-free = 150 * 1024 * 1024 * 1024;
+      min-free = cfg.minFree * 1024 * 1024 * 1024;
+      max-free = cfg.maxFree * 1024 * 1024 * 1024;
     };
 
     nix.gc = {

@@ -10,6 +10,12 @@ delib.host {
 
   myconfig.ifEnabled = {
     zoom.enable = false;
+    # The VM's disk keeps about 35 GiB free, below the default threshold, which
+    # made every copy into the store run a collection.
+    nix = {
+      minFree = 5;
+      maxFree = 15;
+    };
     web.enable = true;
     pi.mcpServers = ["web"];
     secrets.names = [

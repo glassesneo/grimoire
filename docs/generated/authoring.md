@@ -106,7 +106,6 @@ Modules whose only option is `enable`:
 | [<code>neovim.surround</code>](../../abstractions/modules/neovim/surround/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Edit surrounding delimiters through a consistent Neovim command namespace. |  |
 | [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Browse Neovim undo branches and changes with Snacks. |  |
 | [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
-| [<code>nix</code>](../../abstractions/modules/nix/default.nix) |  | Configure Nix itself. |  |
 | [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
 | [<code>omniwm.colorscheme</code>](../../abstractions/modules/omniwm/colorscheme/default.nix) | <code>myconfig.omniwm.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Color OmniWM's focused-window border with the held color scheme's cursor color. |  |
 | [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
@@ -871,6 +870,17 @@ Source: [<code>abstractions/modules/neovim/treesitter/default.nix</code>](../../
 | <code>neovim.treesitter.registrations.&lt;name&gt;.grammars</code> | <code>list of package</code> | <code>[ ]</code> | Parser packages, including any auxiliary parsers needed by this language. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.highlight</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.indent</code> | <code>boolean</code> | <code>true</code> |  |
+
+### <code>nix</code>
+
+Configure Nix itself.
+
+Source: [<code>abstractions/modules/nix/default.nix</code>](../../abstractions/modules/nix/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>nix.maxFree</code> | <code>signed integer</code> | <code>150</code> | GiB of free space at which such a collection stops. |
+| <code>nix.minFree</code> | <code>signed integer</code> | <code>50</code> | GiB of free space below which the daemon collects garbage during builds and copies; it must stay below what the host's disk can keep free, or every addition to the store runs a collection. |
 
 ### <code>nix-secrets</code>
 
