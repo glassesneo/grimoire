@@ -49,17 +49,32 @@ delib.module ({myconfig, ...}: {
       if darwin
       then "/usr/bin/${name}"
       else "${pkgs.openssh}/bin/${name}";
-    entry = name: mode:
+    # forwarded_agent.nu leaves most calls alone; passing those straight to
+    # the program spares starting Nushell, as for each signature Git verifies.
+    # A call matching the pattern still goes through it, which decides.
+    entry = name: mode: passUnless:
       pkgs.writeShellScriptBin name ''
+        ${lib.optionalString (passUnless != null) ''
+          case " $* " in
+            ${passUnless.pattern}) ;;
+            *) exec ${tool passUnless.program} "$@" ;;
+          esac
+        ''}
         export WFA_SIGNING_KEY=${lib.escapeShellArg myconfig.ssh.keys.signing.publicKey}
         export WFA_PUSH_KEY=${lib.escapeShellArg myconfig.ssh.keys.github.publicKey}
         export WFA_SSH_ADD=${tool "ssh-add"} WFA_SSH_KEYGEN=${tool "ssh-keygen"} WFA_SSH=${tool "ssh"}
         export WFA_REX_SOCKET=${lib.escapeShellArg "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket}"} WFA_TIMEOUT=${pkgs.coreutils}/bin/timeout
         exec ${pkgs.nushell}/bin/nu --no-config-file ${./forwarded_agent.nu} ${mode} "$@"
       '';
-    withAgent = entry "with-forwarded-agent" "exec";
-    keygen = entry "forwarded-ssh-keygen" "ssh-keygen";
-    forwardedSsh = entry "forwarded-ssh" "ssh";
+    withAgent = entry "with-forwarded-agent" "exec" null;
+    keygen = entry "forwarded-ssh-keygen" "ssh-keygen" {
+      pattern = ''*" sign "*'';
+      program = "ssh-keygen";
+    };
+    forwardedSsh = entry "forwarded-ssh" "ssh" {
+      pattern = "*github.com*";
+      program = "ssh";
+    };
     token = config.security.nix-secrets.secrets.github-read-token.path;
     # Answers Git's `get` with the read-only token; Git ignores a helper's
     # output for `store` and `erase`.
