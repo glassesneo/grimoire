@@ -95,7 +95,8 @@ export function liveCalls(live: LiveState | undefined, callId: string): Call[] {
       return {
         name: shortName(slot.name),
         args: JSON.stringify(slot.arguments),
-        status: slot.status === "done" ? done : slot.status,
+        // A parked call, sleeping or waiting, shows as pending.
+        status: slot.status === "done" ? done : slot.status === "running" ? "running" : "pending",
         ...(summary?.durationMs !== undefined && { durationMs: summary.durationMs }),
         ...(summary?.error !== undefined && { error: summary.error }),
       };

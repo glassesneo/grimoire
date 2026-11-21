@@ -6,7 +6,7 @@ import {
   createMcpToolName,
   limitMcpContent,
   McpClient,
-  mcpNamespace,
+  mcpServerSummary,
   normalizeMcpInputSchema,
   StdioTransport,
   toLlmContent,
@@ -16,9 +16,8 @@ import {
 export type ServerConfig = Pick<McpStdioServerConfig, "command" | "args" | "env">;
 
 export type Server = {
+  // Its namespace groups the server's tools for code mode scripts.
   readonly extension: Extension;
-  // The code mode namespace grouping the server's tools.
-  readonly namespace: { readonly name: string; readonly prefix: string };
   close(): Promise<void>;
 };
 
@@ -53,9 +52,17 @@ export async function connectServer(name: string, config: ServerConfig): Promise
       },
     }),
   );
+  const instructions = client.instructions;
   return {
-    extension: defineExtension({ name: serverExtensionName(name), tools }),
-    namespace: { name, prefix: `${mcpNamespace(name)}__` },
+    extension: defineExtension({
+      name: serverExtensionName(name),
+      namespace: {
+        name,
+        description: mcpServerSummary(undefined, instructions) || `The ${name} MCP server.`,
+        ...(instructions !== undefined && { instructions }),
+      },
+      tools,
+    }),
     close: () => client.close(),
   };
 }

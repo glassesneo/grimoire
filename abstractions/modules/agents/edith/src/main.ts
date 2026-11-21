@@ -55,7 +55,6 @@ const codemode = createCodemodeExtension({
   sandbox,
   // Scripts get no paid model calls of their own.
   models: false,
-  namespaces: servers.map((server) => server.namespace),
 });
 
 const edith = await Edith.open(
