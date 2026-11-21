@@ -28,16 +28,14 @@ in
         modules."colorscheme.fixture" = mylib.colorschemes.scheme {
           name = "fixture";
           description = "A scheme elio has no named theme for.";
-          palette = let
-            colors = lib.genAttrs ["black" "red" "green" "yellow" "blue" "magenta" "cyan" "white"] (_: "#000000");
-          in {
+          palette = {
             background = "#191724";
             foreground = "#e0def4";
             cursor = "#e0def4";
             cursorText = "#191724";
             selectionBackground = "#403d52";
             selectionForeground = "#e0def4";
-            ansi = colors // lib.mapAttrs' (name: lib.nameValuePair "bright${lib.toUpper (lib.substring 0 1 name)}${lib.substring 1 (-1) name}") colors // {blue = "#9ccfd8";};
+            ansi = lib.genAttrs mylib.colorschemes.ansiNames (_: "#000000") // {blue = "#9ccfd8";};
           };
         };
         host.myconfig.ifEnabled = {

@@ -12,7 +12,9 @@
 #
 # The palette is the contract between schemes and applications: terminal roles
 # and the sixteen ANSI colors; `named` carries a scheme's own vocabulary, which
-# only scheme-specific mappings read.
+# only scheme-specific mappings read. `ansiNames` lists the sixteen ANSI
+# colors in terminal index order, and `ghosttyTheme palette` maps a palette
+# to the keys of Ghostty's theme format, which Rex also imports.
 {lib}: let
   inherit (lib) types;
 
@@ -40,6 +42,16 @@
     };
 in {
   palette = paletteType;
+  inherit ansiNames;
+
+  ghosttyTheme = palette: {
+    inherit (palette) background foreground;
+    cursor-color = palette.cursor;
+    cursor-text = palette.cursorText;
+    selection-background = palette.selectionBackground;
+    selection-foreground = palette.selectionForeground;
+    palette = lib.imap0 (index: name: "${toString index}=${palette.ansi.${name}}") ansiNames;
+  };
 
   scheme = {
     name,

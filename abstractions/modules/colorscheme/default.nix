@@ -24,7 +24,7 @@ delib.module ({myconfig, ...}: {
       cursorText = "#191724";
       selectionBackground = "#403d52";
       selectionForeground = "#e0def4";
-      ansi = lib.genAttrs ["black" "red" "green" "yellow" "blue" "magenta" "cyan" "white" "brightBlack" "brightRed" "brightGreen" "brightYellow" "brightBlue" "brightMagenta" "brightCyan" "brightWhite"] (_: "#000000");
+      ansi = lib.genAttrs mylib.colorschemes.ansiNames (_: "#000000");
     };
   in {
     combinations = {
