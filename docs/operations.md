@@ -248,6 +248,14 @@ reasoning setting. Their success does not establish Pi's tool-and-reasoning comp
 A headless request and insertion check does not verify visual readability,
 SKK interaction or normal use alongside Blink; check those in the terminal UI.
 
+## SSH keys and the remote agent
+
+The person's SSH keys (`ssh.keys`) live in the Secure Enclave of the key holder, the host with `ssh.keyholder.enable`, and cannot be copied. `ssh-keys create` creates the identities that are missing and writes the key handles ssh reads under `~/.ssh/id_grimoire_<purpose>`; `ssh-keys check`, which every switch on the key holder runs without failing it, reports identities that are missing, differ from `ssh.keys`, or expire within 30 days. Interactive shells on every host warn in the same 30 days. An identity's certificate expires a year after creation, and the key may stop working then; rotate it before: delete the identity with `sc_auth delete-ctk-identity`, run `ssh-keys create`, replace its entry in `ssh.keys`, switch the remote hosts while the old login key still works, and replace the key on GitHub.
+
+GitHub registrations are manual: the GitHub key as an authentication key and the signing key as a signing key. The login key needs no registration; `ssh.remote` authorizes it on the remote hosts.
+
+The remote agent is a user service on the key holder. It always holds the signing key; `push-unlock [DURATION]` adds the GitHub key for a limited time and `push-lock` removes it earlier. On a remote host, `with-forwarded-agent ssh-add -l` shows the keys that a signing or a push there would use; Git picks a live forwarded agent itself. A Rex host reaches a remote host through the host name that `ssh.keyholder.remoteHosts` lists. Rex reaches a host on the local network only while macOS grants Rex the Local Network permission, which a Rex update can withdraw; its tunnel then fails with `No route to host`.
+
 ## Verification boundary
 
 The full gate runs every check applicable to the current system, including formatting and reference freshness. The published outputs and the configurations of the current system's hosts are evaluated, not built, as `checks/default.nix` states; their build failures surface only when they are built or applied. Checks do not rewrite repository files. A check that applies only to some platforms declares them beside its definition and is omitted elsewhere, and checks of published configurations cover the hosts of the current system. A successful check on one system does not establish another system's build or activation behavior.

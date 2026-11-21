@@ -10,6 +10,7 @@ delib.host {
 
   myconfig.ifEnabled = {
     zoom.enable = false;
+    ssh.remote.enable = true;
     # The VM's disk keeps about 35 GiB free, below the default threshold, which
     # made every copy into the store run a collection.
     nix = {

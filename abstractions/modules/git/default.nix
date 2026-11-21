@@ -5,7 +5,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "git";
-  tests.fixture = ["exclusive" "zsh.interactive.zabrze"];
+  tests.fixture = ["exclusive" "ssh" "zsh.interactive.zabrze"];
   meta.description = "Provide Git and configure the user's Git environment.";
 
   options.enable = delib.boolOption true;
@@ -13,7 +13,7 @@ delib.module ({myconfig, ...}: {
   hjem.always = {pkgs, ...}: {
     options.git = {
       settings = lib.mkOption {
-        inherit (pkgs.formats.gitIni {}) type;
+        inherit (pkgs.formats.gitIni {listsAsDuplicateKeys = true;}) type;
         default = {};
         description = "Settings written to the user's Git configuration file.";
       };
@@ -50,7 +50,7 @@ delib.module ({myconfig, ...}: {
         name = myconfig.identity.fullName;
         email = myconfig.identity.email;
         useConfigOnly = true;
-        signingkey = myconfig.ssh.personalKeyFile;
+        signingkey = "key::${myconfig.ssh.keys.signing.publicKey}";
       };
       commit = {
         verbose = true;
@@ -59,10 +59,10 @@ delib.module ({myconfig, ...}: {
       };
       tag.gpgsign = true;
       gpg.format = "ssh";
+      gpg.ssh.allowedSignersFile = "${pkgs.writeText "allowed-signers" "${myconfig.identity.email} ${myconfig.ssh.keys.signing.publicKey}\n"}";
       push.default = "nothing";
       init.defaultBranch = "main";
       core.excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
-      url."git@github.com:".insteadOf = "https://github.com/";
       filter.lfs = {
         clean = "git-lfs clean -- %f";
         smudge = "git-lfs smudge -- %f";

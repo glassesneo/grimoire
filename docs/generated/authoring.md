@@ -425,7 +425,7 @@ Source: [<code>abstractions/modules/git/default.nix</code>](../../abstractions/m
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>git.ignore</code> | <code>list of string</code> | <code>[ ]</code> | Patterns of the user's global Git ignore file. |
-| <code>git.settings</code> | <code>attribute set of attribute set of (INI atom (null, bool, int, float or string) or attribute set of (INI atom (null, bool, int, float or string)))</code> | <code>{ }</code> | Settings written to the user's Git configuration file. |
+| <code>git.settings</code> | <code>attribute set of attribute set of (INI atom (null, bool, int, float or string) or a list of them for duplicate keys or attribute set of (INI atom (null, bool, int, float or string) or a list of them for duplicate keys))</code> | <code>{ }</code> | Settings written to the user's Git configuration file. |
 
 ### <code>grok-bot</code>
 
@@ -1011,8 +1011,8 @@ Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>secrets.names</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
-| <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
+| <code>secrets.names</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
+| <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
 
@@ -1071,14 +1071,25 @@ Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions
 
 ### <code>ssh</code>
 
-Configure the OpenSSH client, the user's personal key, and the commands sshd runs as the user at the start of each session.
+Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session.
 
 Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix)
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>ssh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>ssh.personalKeyFile</code> | <code>string</code> | <code>"~/.ssh/id_ed25519_personal"</code> | read-only; Path of the personal SSH private key on each host, used for GitHub authentication and Git commit signing. |
+| <code>ssh.keys.github</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-github";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBDUocTvx3mH51FDxU0y3vkXvoGNCgqgJaQs7VVxmVnl9uryejdcQkbyFNY2FLGNgamIH4x0QW64C4CXOOHYTob8AAAAEc3NoOg==";<br>}</code> | read-only; Key that authenticates to GitHub, the one remote hosts can use only while it is unlocked. |
+| <code>ssh.keys.github.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
+| <code>ssh.keys.github.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
+| <code>ssh.keys.github.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
+| <code>ssh.keys.login</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-login";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBMV/ehrmAU9vUsqDWE9LKNxxO6pfe6MAwbRPHkgUGqrb/nQ9mhqOPiNhWDG0luLO6J5R7u7A9RFxgIkfCljMshgAAAAEc3NoOg==";<br>}</code> | read-only; Key that logs in to the person's hosts. |
+| <code>ssh.keys.login.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
+| <code>ssh.keys.login.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
+| <code>ssh.keys.login.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
+| <code>ssh.keys.signing</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-signing";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBLYQMPIMWApDrb3ET6bYuN5WLs+c38CNlUV/ecU6X49Sy/G3Oq1krIPXNNFp0diD/9dvgIW9kx+AhEirNOEVPxQAAAAEc3NoOg==";<br>}</code> | read-only; Key that signs commits and tags. |
+| <code>ssh.keys.signing.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
+| <code>ssh.keys.signing.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
+| <code>ssh.keys.signing.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
 
 <code>hjem</code> options:
 
@@ -1086,10 +1097,37 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 | --- | --- | --- | --- |
 | <code>ssh.defaults</code> | <code>attribute set of (boolean or signed integer or string or list of (boolean or signed integer or string))</code> | <code>{ }</code> | SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them. |
 | <code>ssh.hosts</code> | <code>attribute set of SSH parameters named by literal host names, without patterns, negation, lists or whitespace</code> | <code>{ }</code> | SSH client parameters by literal host name. A parameter set here takes precedence over `ssh.defaults`; the values of a cumulative parameter such as `IdentityFile` are tried before those of `ssh.defaults`. `true` and `false` render as `yes` and `no`, and a list repeats its parameter. |
+| <code>ssh.matches</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | `Match` blocks by name. They precede every block of `ssh.hosts` and `ssh.defaults`, so a parameter they set wins over those, and a cumulative one such as `RemoteForward` is added to theirs. Their order among themselves is unspecified, so two of them do not set the same single-valued parameter. |
+| <code>ssh.matches.&lt;name&gt;.criteria</code> | <code>string</code> |  | Criteria of the `Match` line, written as ssh_config(5) reads them. |
+| <code>ssh.matches.&lt;name&gt;.parameters</code> | <code>attribute set of (boolean or signed integer or string or list of (boolean or signed integer or string))</code> | <code>{ }</code> | Parameters applied when the criteria hold, rendered as in `ssh.hosts`. |
 | <code>ssh.rc</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Fragments of `~/.ssh/rc`, which sshd runs with /bin/sh before the shell or command of every session of this user, whatever the login shell. sshd sends the file's standard output to the client, where it corrupts protocols such as scp and sftp, so a fragment writes nothing there; it also reads nothing from standard input. Without fragments the file is not written. |
 | <code>ssh.rc.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must precede this one. |
 | <code>ssh.rc.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
 | <code>ssh.rc.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
+
+### <code>ssh.keyholder</code>
+
+Hold the person's SSH keys in this host's Secure Enclave and lend them to the other hosts through a forwarded agent.
+
+Source: [<code>abstractions/modules/ssh/keyholder/default.nix</code>](../../abstractions/modules/ssh/keyholder/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>ssh.keyholder.enable</code> | <code>boolean</code> | <code>myconfig.ssh.enable &amp;&amp; false</code> |  |
+| <code>ssh.keyholder.remoteHosts</code> | <code>list of string</code> | <code>[ ]</code> | Hosts, by their literal names in `ssh.hosts`, that log in with the login key and receive the remote agent. |
+| <code>ssh.keyholder.remoteSocket</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock"</code> | Path on the remote hosts where Rex's tunnel binds the remote agent; it must be the one `ssh.remote` reads there. |
+| <code>ssh.keyholder.unlockDuration</code> | <code>string</code> | <code>"15m"</code> | How long `push-unlock` without an argument lends the GitHub key, as ssh-add(1) reads a lifetime. |
+
+### <code>ssh.remote</code>
+
+Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends.
+
+Source: [<code>abstractions/modules/ssh/remote/default.nix</code>](../../abstractions/modules/ssh/remote/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>ssh.remote.enable</code> | <code>boolean</code> | <code>myconfig.ssh.enable &amp;&amp; false</code> |  |
+| <code>ssh.remote.rexSocket</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock"</code> | Path where Rex's tunnel from the key holder binds the remote agent; it must be the key holder's `ssh.keyholder.remoteSocket`. |
 
 ### <code>tags</code>
 

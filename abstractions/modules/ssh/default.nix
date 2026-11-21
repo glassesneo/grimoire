@@ -3,104 +3,179 @@
   lib,
   mylib,
   ...
-}:
-delib.module ({cfg, ...}: {
-  name = "ssh";
-  tests.fixture = ["exclusive"];
-  meta.description = "Configure the OpenSSH client, the user's personal key, and the commands sshd runs as the user at the start of each session.";
-
-  options = with delib; {
-    enable = boolOption true;
-    personalKeyFile = readOnly (description (strOption "~/.ssh/id_ed25519_personal") "Path of the personal SSH private key on each host, used for GitHub authentication and Git commit signing.");
-  };
-
-  hjem.always.options.ssh = let
-    inherit (lib) types;
-    atom = types.oneOf [types.bool types.int types.str];
-    parameters = types.attrsOf (types.either atom (types.listOf atom));
-    # A literal name matches only itself, so no two blocks of `hosts` apply to
-    # the same host and their order cannot matter.
-    literal = name: builtins.match ''[^*?!,"[:space:]]+'' name != null;
-    hostSet =
-      types.addCheck (types.attrsOf parameters) (hosts: lib.all literal (lib.attrNames hosts))
-      // {description = "attribute set of SSH parameters named by literal host names, without patterns, negation, lists or whitespace";};
-  in {
-    hosts = lib.mkOption {
-      type = hostSet;
-      default = {};
-      description = "SSH client parameters by literal host name. A parameter set here takes precedence over `ssh.defaults`; the values of a cumulative parameter such as `IdentityFile` are tried before those of `ssh.defaults`. `true` and `false` render as `yes` and `no`, and a list repeats its parameter.";
-    };
-    defaults = lib.mkOption {
-      type = parameters;
-      default = {};
-      description = "SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them.";
-    };
-    rc =
-      mylib.fragments.option
-      // {
-        description = "Fragments of `~/.ssh/rc`, which sshd runs with /bin/sh before the shell or command of every session of this user, whatever the login shell. sshd sends the file's standard output to the client, where it corrupts protocols such as scp and sftp, so a fragment writes nothing there; it also reads nothing from standard input. Without fragments the file is not written.";
+}: let
+  inherit (lib) types;
+  key = types.submodule {
+    options = {
+      label = lib.mkOption {
+        type = types.strMatching "[A-Za-z0-9._-]+";
+        description = "Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave.";
       };
+      publicKey = lib.mkOption {
+        type = types.strMatching "[a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?";
+        description = "OpenSSH public key.";
+      };
+      expires = lib.mkOption {
+        type = types.strMatching "[0-9]{4}-[0-9]{2}-[0-9]{2}";
+        description = "Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then.";
+      };
+    };
   };
+  # The person's keys live in the key holder's Secure Enclave and cannot be
+  # copied; rotating one means creating a new identity there and replacing its
+  # entry here.
+  keyOption = description: default:
+    lib.mkOption {
+      type = key;
+      inherit default description;
+      readOnly = true;
+    };
+in
+  delib.module ({cfg, ...}: {
+    name = "ssh";
+    tests.fixture = ["exclusive" "zsh.interactive"];
+    meta.description = "Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session.";
 
-  hjem.ifEnabled = {
-    config,
-    pkgs,
-    ...
-  }: {
-    ssh.hosts."github.com" = {
-      HostName = "github.com";
-      User = "git";
-      IdentityFile = cfg.personalKeyFile;
+    options = with delib; {
+      enable = boolOption true;
+      keys = {
+        login = keyOption "Key that logs in to the person's hosts." {
+          label = "grimoire-login";
+          publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBMV/ehrmAU9vUsqDWE9LKNxxO6pfe6MAwbRPHkgUGqrb/nQ9mhqOPiNhWDG0luLO6J5R7u7A9RFxgIkfCljMshgAAAAEc3NoOg==";
+          expires = "2027-11-21";
+        };
+        signing = keyOption "Key that signs commits and tags." {
+          label = "grimoire-signing";
+          publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBLYQMPIMWApDrb3ET6bYuN5WLs+c38CNlUV/ecU6X49Sy/G3Oq1krIPXNNFp0diD/9dvgIW9kx+AhEirNOEVPxQAAAAEc3NoOg==";
+          expires = "2027-11-21";
+        };
+        github = keyOption "Key that authenticates to GitHub, the one remote hosts can use only while it is unlocked." {
+          label = "grimoire-github";
+          publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBDUocTvx3mH51FDxU0y3vkXvoGNCgqgJaQs7VVxmVnl9uryejdcQkbyFNY2FLGNgamIH4x0QW64C4CXOOHYTob8AAAAEc3NoOg==";
+          expires = "2027-11-21";
+        };
+      };
     };
 
-    ssh.defaults = {
-      AddKeysToAgent = true;
-      IdentitiesOnly = true;
-      UseKeychain = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin true;
-    };
-
-    # ssh uses the first value it obtains for a parameter, so `Host *` comes
-    # after every host's block.
-    files.".ssh/config" = let
-      atom = value:
-        if lib.isBool value
-        then lib.boolToYesNo value
-        else toString value;
-      block = pattern: parameters:
-        lib.concatLines ([
-            "Host ${pattern}"
-          ]
-          ++ lib.concatLists (lib.mapAttrsToList (key: value: map (item: "  ${key} ${atom item}") (lib.toList value)) parameters));
+    hjem.always.options.ssh = let
+      atom = types.oneOf [types.bool types.int types.str];
+      parameters = types.attrsOf (types.either atom (types.listOf atom));
+      # A literal name matches only itself, so no two blocks of `hosts` apply to
+      # the same host and their order cannot matter.
+      literal = name: builtins.match ''[^*?!,"[:space:]]+'' name != null;
+      hostSet =
+        types.addCheck (types.attrsOf parameters) (hosts: lib.all literal (lib.attrNames hosts))
+        // {description = "attribute set of SSH parameters named by literal host names, without patterns, negation, lists or whitespace";};
     in {
-      exclusive = true;
-      text =
-        lib.concatStringsSep "\n" (lib.mapAttrsToList block config.ssh.hosts
-          ++ lib.optional (config.ssh.defaults != {}) (block "*" config.ssh.defaults));
-    };
-
-    files.".ssh/rc" = lib.mkIf (config.ssh.rc != {}) {
-      exclusive = true;
-      text = mylib.fragments.render config.ssh.rc;
-    };
-  };
-
-  tests.cases = _: let
-    lines = result: lib.splitString "\n" result.options.files.value.".ssh/config".text;
-    declare = hosts: {declaration.hjem.always.ssh.hosts = hosts;};
-  in
-    {
-      # No published host declares a list.
-      list-repeats-parameter = {
-        protects = "a list value writes its parameter once per element, in order";
-        modules = declare {"a.example".IdentityFile = ["~/.ssh/fixture-first" "~/.ssh/fixture-second"];};
-        expr = result: lib.filter (lib.hasPrefix "  IdentityFile ~/.ssh/fixture-") (lines result);
-        expected = ["  IdentityFile ~/.ssh/fixture-first" "  IdentityFile ~/.ssh/fixture-second"];
+      hosts = lib.mkOption {
+        type = hostSet;
+        default = {};
+        description = "SSH client parameters by literal host name. A parameter set here takes precedence over `ssh.defaults`; the values of a cumulative parameter such as `IdentityFile` are tried before those of `ssh.defaults`. `true` and `false` render as `yes` and `no`, and a list repeats its parameter.";
       };
-    }
-    // lib.mapAttrs' (name: lib.nameValuePair "rejects-host-${builtins.toJSON name}") (lib.genAttrs ["" "*" "*.example" "host?" "!github.com" "a,b" "a b"] (name: {
-      protects = "a key of ssh.hosts is a literal host name, so no two of its blocks match the same host";
-      modules = declare {${name}.User = "x";};
-      expr = lines;
-      fails = true;
-    }));
-})
+      matches = lib.mkOption {
+        type = types.attrsOf (types.submodule {
+          options = {
+            criteria = lib.mkOption {
+              type = types.str;
+              description = "Criteria of the `Match` line, written as ssh_config(5) reads them.";
+            };
+            parameters = lib.mkOption {
+              type = parameters;
+              description = "Parameters applied when the criteria hold, rendered as in `ssh.hosts`.";
+            };
+          };
+        });
+        default = {};
+        description = "`Match` blocks by name. They precede every block of `ssh.hosts` and `ssh.defaults`, so a parameter they set wins over those, and a cumulative one such as `RemoteForward` is added to theirs. Their order among themselves is unspecified, so two of them do not set the same single-valued parameter.";
+      };
+      defaults = lib.mkOption {
+        type = parameters;
+        default = {};
+        description = "SSH client parameters for every host; `ssh.hosts` states how a host's own parameters combine with them.";
+      };
+      rc =
+        mylib.fragments.option
+        // {
+          description = "Fragments of `~/.ssh/rc`, which sshd runs with /bin/sh before the shell or command of every session of this user, whatever the login shell. sshd sends the file's standard output to the client, where it corrupts protocols such as scp and sftp, so a fragment writes nothing there; it also reads nothing from standard input. Without fragments the file is not written.";
+        };
+    };
+
+    hjem.ifEnabled = {
+      config,
+      pkgs,
+      ...
+    }: {
+      # The modules of the key holder and of remote hosts say which key GitHub
+      # sees.
+      ssh.hosts."github.com" = {
+        HostName = "github.com";
+        User = "git";
+      };
+
+      ssh.defaults = {
+        AddKeysToAgent = true;
+        IdentitiesOnly = true;
+        UseKeychain = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin true;
+      };
+
+      # ssh uses the first value it obtains for a parameter, so `Host *` comes
+      # after every host's block.
+      files.".ssh/config" = let
+        atom = value:
+          if lib.isBool value
+          then lib.boolToYesNo value
+          else toString value;
+        block = header: parameters:
+          lib.concatLines ([
+              header
+            ]
+            ++ lib.concatLists (lib.mapAttrsToList (key: value: map (item: "  ${key} ${atom item}") (lib.toList value)) parameters));
+      in {
+        exclusive = true;
+        text = lib.concatStringsSep "\n" (lib.mapAttrsToList (_: match: block "Match ${match.criteria}" match.parameters) config.ssh.matches
+          ++ lib.mapAttrsToList (host: block "Host ${host}") config.ssh.hosts
+          ++ lib.optional (config.ssh.defaults != {}) (block "Host *" config.ssh.defaults));
+      };
+
+      files.".ssh/rc" = lib.mkIf (config.ssh.rc != {}) {
+        exclusive = true;
+        text = mylib.fragments.render config.ssh.rc;
+      };
+
+      # A key whose certificate has expired may stop working on the key holder,
+      # which would also lock its holder out of the remote hosts; the warning
+      # leaves a month to rotate it.
+      zsh.zshrc.ssh-key-expiry.text = ''
+        () {
+          zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS
+          local name expires epoch
+          for name expires in ${lib.concatStringsSep " " (lib.mapAttrsToList (_: key: "${key.label} ${key.expires}") cfg.keys)}; do
+            strftime -r -s epoch '%Y-%m-%d' $expires
+            if (( epoch - EPOCHSECONDS < 30 * 86400 )); then
+              print -u2 "warning: SSH key $name expires on $expires; rotate it on the key holder and update ssh.keys"
+            fi
+          done
+        }
+      '';
+    };
+
+    tests.cases = _: let
+      lines = result: lib.splitString "\n" result.options.files.value.".ssh/config".text;
+      declare = hosts: {declaration.hjem.always.ssh.hosts = hosts;};
+    in
+      {
+        # No published host declares a list.
+        list-repeats-parameter = {
+          protects = "a list value writes its parameter once per element, in order";
+          modules = declare {"a.example".IdentityFile = ["~/.ssh/fixture-first" "~/.ssh/fixture-second"];};
+          expr = result: lib.filter (lib.hasPrefix "  IdentityFile ~/.ssh/fixture-") (lines result);
+          expected = ["  IdentityFile ~/.ssh/fixture-first" "  IdentityFile ~/.ssh/fixture-second"];
+        };
+      }
+      // lib.mapAttrs' (name: lib.nameValuePair "rejects-host-${builtins.toJSON name}") (lib.genAttrs ["" "*" "*.example" "host?" "!github.com" "a,b" "a b"] (name: {
+        protects = "a key of ssh.hosts is a literal host name, so no two of its blocks match the same host";
+        modules = declare {${name}.User = "x";};
+        expr = lines;
+        fails = true;
+      }));
+  })

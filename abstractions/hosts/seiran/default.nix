@@ -45,6 +45,10 @@ delib.host {
       selection-highlight.enable = true;
     };
     tailscale.enable = true;
+    ssh.keyholder = {
+      enable = true;
+      remoteHosts = ["kurogane"];
+    };
     web.enable = true;
     pi.mcpServers = ["web"];
     secrets.names = [
@@ -68,7 +72,6 @@ delib.host {
     ssh.hosts.kurogane = {
       HostName = "kurogane.${config.myconfig.tailscale.tailnet}";
       User = "neo";
-      IdentityFile = config.myconfig.ssh.personalKeyFile;
     };
   };
 
