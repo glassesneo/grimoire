@@ -8,18 +8,13 @@
   lib,
   ...
 }:
-delib.module ({
-  cfg,
-  myconfig,
-  ...
-}: {
+delib.module ({myconfig, ...}: {
   name = "ssh.remote";
   tests.fixture = ["host" "ssh" "git" "users" "secrets" "zsh"];
   meta.description = "Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends.";
 
   options = with delib; {
     enable = boolOption false;
-    rexSocket = strOption "${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock" "Path where Rex's tunnel from the key holder binds the remote agent; it must be the key holder's `ssh.keyholder.remoteSocket`.";
   };
 
   constraints.ifEnabled = [
@@ -59,7 +54,7 @@ delib.module ({
         export WFA_SIGNING_KEY=${lib.escapeShellArg myconfig.ssh.keys.signing.publicKey}
         export WFA_PUSH_KEY=${lib.escapeShellArg myconfig.ssh.keys.github.publicKey}
         export WFA_SSH_ADD=${tool "ssh-add"} WFA_SSH_KEYGEN=${tool "ssh-keygen"} WFA_SSH=${tool "ssh"}
-        export WFA_REX_SOCKET=${lib.escapeShellArg cfg.rexSocket} WFA_TIMEOUT=${pkgs.coreutils}/bin/timeout
+        export WFA_REX_SOCKET=${lib.escapeShellArg "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket}"} WFA_TIMEOUT=${pkgs.coreutils}/bin/timeout
         exec ${pkgs.nushell}/bin/nu --no-config-file ${./forwarded_agent.nu} ${mode} "$@"
       '';
     withAgent = entry "with-forwarded-agent" "exec";

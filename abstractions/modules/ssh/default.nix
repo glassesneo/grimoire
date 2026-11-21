@@ -38,6 +38,7 @@ in
 
     options = with delib; {
       enable = boolOption true;
+      rexAgentSocket = strOption ".ssh/rex-agent.sock" "Path, relative to the user's home on a remote host, where Rex's tunnel from the key holder binds the remote agent; `ssh.keyholder` forwards to it and `ssh.remote` reads it.";
       keys = {
         login = keyOption "Key that logs in to the person's hosts." {
           label = "grimoire-login";

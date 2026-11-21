@@ -4,7 +4,7 @@
 # system's, that holds the signing key at all times and the GitHub key only
 # while `push-unlock` has unlocked it. Only that agent is forwarded: ordinary
 # sessions forward it with ForwardAgent, and Rex's tunnel, which opens no
-# session, carries it to `remoteSocket` with a RemoteForward.
+# session, carries it to `ssh.rexAgentSocket` with a RemoteForward.
 {
   delib,
   lib,
@@ -22,7 +22,6 @@ delib.module ({
   options = with delib; {
     enable = boolOption false;
     remoteHosts = listOfOption lib.types.str [] "Hosts, by their literal names in `ssh.hosts`, that log in with the login key and receive the remote agent.";
-    remoteSocket = strOption "${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock" "Path on the remote hosts where Rex's tunnel binds the remote agent; it must be the one `ssh.remote` reads there.";
     unlockDuration = strOption "15m" "How long `push-unlock` without an argument lends the GitHub key, as ssh-add(1) reads a lifetime.";
   };
 
@@ -73,7 +72,8 @@ delib.module ({
     # Creates the Secure Enclave identities that are missing and writes the key
     # handles ssh reads, then checks them against `ssh.keys`.
     sshKeys = pkgs.writeShellScriptBin "ssh-keys" ''
-      export SSH_KEYS=${lib.escapeShellArg (builtins.toJSON keys)}
+      export SSH_KEYS=${lib.escapeShellArg (builtins.toJSON (lib.mapAttrs (purpose: key: key // {handle = handle purpose;}) keys))}
+      export SSH_KEY_PROVIDER=${provider}
       export PATH=${lib.makeBinPath [pkgs.coreutils]}:$PATH
       exec ${pkgs.nushell}/bin/nu --no-config-file ${./ssh_keys.nu} "$@"
     '';
@@ -112,7 +112,8 @@ delib.module ({
     ssh.matches = lib.listToAttrs (map (host:
       lib.nameValuePair "rex-${host}" {
         criteria = ''originalhost ${host} exec "/bin/ps -o command= -p $PPID | /usr/bin/grep -Eq '/rex/ssh/[0-9a-f]+[.]sock:'"'';
-        parameters.RemoteForward = "${cfg.remoteSocket} ${socket}";
+        # The remote hosts share this host's home directory path.
+        parameters.RemoteForward = "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket} ${socket}";
       })
     cfg.remoteHosts);
 

@@ -121,6 +121,7 @@ Modules whose only option is `enable`:
 | [<code>skills.ponytail</code>](../../abstractions/modules/agents/skills/ponytail/default.nix) | <code>myconfig.skills.enable &amp;&amp; false</code> | Deploy the Ponytail skill. |  |
 | [<code>sound</code>](../../abstractions/modules/sound/default.nix) | <code>true</code> | Configure system sounds and alert feedback. |  |
 | [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
+| [<code>ssh.remote</code>](../../abstractions/modules/ssh/remote/default.nix) | <code>myconfig.ssh.enable &amp;&amp; false</code> | Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends. |  |
 | [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
 | [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
 | [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | <code>true</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
@@ -1090,6 +1091,7 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 | <code>ssh.keys.signing.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
 | <code>ssh.keys.signing.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
 | <code>ssh.keys.signing.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
+| <code>ssh.rexAgentSocket</code> | <code>string</code> | <code>".ssh/rex-agent.sock"</code> | Path, relative to the user's home on a remote host, where Rex's tunnel from the key holder binds the remote agent; `ssh.keyholder` forwards to it and `ssh.remote` reads it. |
 
 <code>hjem</code> options:
 
@@ -1115,19 +1117,7 @@ Source: [<code>abstractions/modules/ssh/keyholder/default.nix</code>](../../abst
 | --- | --- | --- | --- |
 | <code>ssh.keyholder.enable</code> | <code>boolean</code> | <code>myconfig.ssh.enable &amp;&amp; false</code> |  |
 | <code>ssh.keyholder.remoteHosts</code> | <code>list of string</code> | <code>[ ]</code> | Hosts, by their literal names in `ssh.hosts`, that log in with the login key and receive the remote agent. |
-| <code>ssh.keyholder.remoteSocket</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock"</code> | Path on the remote hosts where Rex's tunnel binds the remote agent; it must be the one `ssh.remote` reads there. |
 | <code>ssh.keyholder.unlockDuration</code> | <code>string</code> | <code>"15m"</code> | How long `push-unlock` without an argument lends the GitHub key, as ssh-add(1) reads a lifetime. |
-
-### <code>ssh.remote</code>
-
-Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends.
-
-Source: [<code>abstractions/modules/ssh/remote/default.nix</code>](../../abstractions/modules/ssh/remote/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>ssh.remote.enable</code> | <code>boolean</code> | <code>myconfig.ssh.enable &amp;&amp; false</code> |  |
-| <code>ssh.remote.rexSocket</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.ssh/rex-agent.sock"</code> | Path where Rex's tunnel from the key holder binds the remote agent; it must be the key holder's `ssh.keyholder.remoteSocket`. |
 
 ### <code>tags</code>
 

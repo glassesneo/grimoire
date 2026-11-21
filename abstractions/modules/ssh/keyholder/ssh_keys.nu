@@ -1,16 +1,10 @@
 # Creates and checks the key holder's Secure Enclave identities against
 # ssh.keys. SSH_KEYS holds the declared keys as JSON, by purpose: label,
-# publicKey and expires. A key's handle, which ssh reads, is
-# ~/.ssh/id_grimoire_<purpose>.
-
-const provider = '/usr/lib/ssh-keychain.dylib'
+# publicKey, expires, and handle, the file ssh reads the key's handle from.
+# SSH_KEY_PROVIDER is the security key provider that lists the identities.
 
 def declared []: nothing -> table {
   $env.SSH_KEYS | from json | transpose purpose key | flatten
-}
-
-def handle [purpose: string]: nothing -> path {
-  $env.HOME | path join .ssh $"id_grimoire_($purpose)"
 }
 
 # The identities sc_auth lists, with their SSH fingerprints and validity.
@@ -31,7 +25,7 @@ def problems []: nothing -> list<string> {
   let present = identities
   declared | each {|key|
     let identity = $present | where label == $key.label | get --optional 0
-    let file = handle $key.purpose
+    let file = $key.handle
     let pair = $key.publicKey | split row ' ' | first 2 | str join ' '
     let handle_pair = if ($"($file).pub" | path exists) { open --raw $"($file).pub" | split row ' ' | first 2 | str join ' ' }
     [
@@ -58,13 +52,13 @@ def create [] {
   let work = mktemp --directory
   do {
     cd $work
-    ^/usr/bin/ssh-keygen -w $provider -K -N ''
+    ^/usr/bin/ssh-keygen -w $env.SSH_KEY_PROVIDER -K -N ''
   }
   for key in (declared) {
     let source = $work | path join $"id_ecdsa_sk_rk_($key.label)"
     if ($source | path exists) {
-      ^install -m 600 $source (handle $key.purpose)
-      ^install -m 644 $"($source).pub" $"(handle $key.purpose).pub"
+      ^install -m 600 $source $key.handle
+      ^install -m 644 $"($source).pub" $"($key.handle).pub"
     }
   }
   rm --recursive --force $work
