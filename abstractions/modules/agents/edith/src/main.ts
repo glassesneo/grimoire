@@ -11,6 +11,7 @@ import { FileCredentialStore } from "./credentials.ts";
 import { Discord } from "./discord.ts";
 import { connectServer, type Server, type ServerConfig } from "./mcp.ts";
 import { listen } from "./socket.ts";
+import { type ToolEnvironmentConfig, toolEnvironment, toolsExtension } from "./tools.ts";
 
 type Config = {
   readonly storage: string;
@@ -24,6 +25,8 @@ type Config = {
   // The MCP servers some profile names, by name.
   readonly mcpServers: Readonly<Record<string, ServerConfig>>;
   readonly discord: { readonly tokenFile: string; readonly allowedUsers: readonly string[] } | null;
+  // Where the tools run; without it, no profile selects any.
+  readonly toolEnvironment: ToolEnvironmentConfig | null;
 };
 
 const configPath = process.env["EDITH_CONFIG"];
@@ -35,7 +38,11 @@ for (const [variable, path] of Object.entries(config.providerKeys))
   process.env[variable] = secret(path);
 
 const context = BACKGROUND_CONTEXT;
-for (const path of [config.storage, config.socket])
+for (const path of [
+  config.storage,
+  config.socket,
+  config.toolEnvironment?.knownHostsFile ?? [],
+].flat())
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 
 // A server that fails to start is left out, so its profiles run without its tools.
@@ -56,6 +63,7 @@ const codemode = createCodemodeExtension({
   // Scripts get no paid model calls of their own.
   models: false,
 });
+const env = config.toolEnvironment && toolEnvironment(config.toolEnvironment);
 
 const edith = await Edith.open(
   await openNodeSqliteStorage(config.storage),
@@ -65,6 +73,7 @@ const edith = await Edith.open(
     namespaces: config.namespaces,
     codemode,
     servers: servers.map((server) => server.extension),
+    ...(env && { tools: toolsExtension, env: () => env }),
     onReport: (report) => console.error(`report: ${report.kind}`, report.error),
   },
   context,

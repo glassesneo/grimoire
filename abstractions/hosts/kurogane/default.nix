@@ -29,7 +29,8 @@ delib.host {
             modelId = "gpt-6.2-sol";
           };
           thinkingLevel = "medium";
-          tools = ["web"];
+          tools = ["read" "write"];
+          mcpServers = ["web"];
           maxTurns = null;
         };
       in {
@@ -41,6 +42,7 @@ delib.host {
         discord = "restricted";
       };
       providers = ["openrouter"];
+      toolUser.loginKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKdeGFni0r9owhP5wTpq3HuBsnA6ra/iH+9vEzoVr203 edith-tools@kurogane";
       discord = {
         enable = true;
         allowedUsers = ["594106068544782338"];

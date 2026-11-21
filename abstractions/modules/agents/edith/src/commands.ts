@@ -46,6 +46,7 @@ export function describe(status: Status): string {
     `model: ${model} (${origin(status.overrides.model !== null)})`,
     `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null)})`,
     `tools: ${status.tools.length === 0 ? "(none)" : status.tools.join(", ")}`,
+    `mcp servers: ${status.mcpServers.length === 0 ? "(none)" : status.mcpServers.join(", ")}`,
   ].join("\n");
 }
 

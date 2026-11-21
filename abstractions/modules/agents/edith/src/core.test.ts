@@ -11,6 +11,7 @@ import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { Edith, type Options, type Profile } from "./core.ts";
+import { toolsExtension } from "./tools.ts";
 
 const context = BACKGROUND_CONTEXT;
 const directory = mkdtempSync(join(tmpdir(), "edith-core-"));
@@ -43,6 +44,7 @@ const profile = (modelId: string, extra: Partial<Profile> = {}): Profile => ({
   model: { provider: "faux", modelId },
   thinkingLevel: "off",
   tools: [],
+  mcpServers: [],
   maxTurns: null,
   ...extra,
 });
@@ -141,7 +143,7 @@ void test("a profile's servers are callable only through code mode, and changed 
 
   const before = await open(
     "tools.sqlite",
-    { full: profile("a", { tools: ["web"] }), restricted: profile("a", { maxTurns: 3 }) },
+    { full: profile("a", { mcpServers: ["web"] }), restricted: profile("a", { maxTurns: 3 }) },
     extra,
   );
   await ask(before, "cli");
@@ -161,7 +163,7 @@ void test("a profile's servers are callable only through code mode, and changed 
   const after = await open(
     "tools.sqlite",
     {
-      full: profile("a", { tools: ["web", "news"] }),
+      full: profile("a", { mcpServers: ["web", "news"] }),
       restricted: profile("a"),
     },
     extra,
@@ -173,6 +175,66 @@ void test("a profile's servers are callable only through code mode, and changed 
     "mcp__news__search",
   ]);
   assert.equal((await equipment(after, "discord:1")).maxTurns, undefined);
+  await after.close(context);
+  await sandbox.close();
+});
+
+void test("a profile's tools are callable only through code mode, by name, beside its servers, and changes reach existing conversations", async () => {
+  const sandbox = new CodemodeSandbox();
+  const web = defineExtension({
+    name: "mcp:web",
+    tools: [
+      defineTool({
+        name: "mcp__web__search",
+        description: "search",
+        parameters: { type: "object", properties: {} },
+        callers: ["tools"],
+        execute: () => Promise.resolve({ output: [{ type: "text", text: "found" }] }),
+      }),
+    ],
+  });
+  const extra = {
+    codemode: createCodemodeExtension({ sandbox, models: false }),
+    servers: [web],
+    tools: toolsExtension,
+  };
+  const equipment = async (edith: Edith, address: string) => {
+    const agent = await (await edith.conversation(address, context)).agent(context);
+    return {
+      offered: agent.tools.map((tool) => tool.name),
+      callable: agent.callable.map((tool) => tool.name).sort(),
+    };
+  };
+
+  const before = await open(
+    "own-tools.sqlite",
+    {
+      full: profile("a", { tools: ["read", "write"], mcpServers: ["web"] }),
+      restricted: profile("a", { tools: ["read"] }),
+    },
+    extra,
+  );
+  await ask(before, "cli");
+  await ask(before, "discord:1");
+  assert.deepEqual(await equipment(before, "cli"), {
+    offered: ["codemode"],
+    callable: ["mcp__web__search", "read", "write"],
+  });
+  assert.deepEqual(await equipment(before, "discord:1"), {
+    offered: ["codemode"],
+    callable: ["read"],
+  });
+  await before.close(context);
+
+  const after = await open(
+    "own-tools.sqlite",
+    { full: profile("a", { mcpServers: ["web"] }), restricted: profile("a", { tools: ["bash"] }) },
+    extra,
+  );
+  await ask(after, "cli");
+  await ask(after, "discord:1");
+  assert.deepEqual((await equipment(after, "cli")).callable, ["mcp__web__search"]);
+  assert.deepEqual((await equipment(after, "discord:1")).callable, ["bash"]);
   await after.close(context);
   await sandbox.close();
 });

@@ -1,7 +1,7 @@
 // EDITH's core: one Harness whose conversations clients reach by address. An address is
 // `<namespace>:<name>`, such as `discord:<channel id>` or `cli`. Its namespace picks a profile:
-// the model and thinking level the conversation follows unless it overrides them, and the MCP
-// servers and turn limit, which only the configuration sets. A namespace without a profile of
+// the model and thinking level the conversation follows unless it overrides them, and the tools,
+// MCP servers and turn limit, which only the configuration sets. A namespace without a profile of
 // its own gets `restricted`.
 import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
@@ -15,6 +15,7 @@ import {
   type Conversation,
   type ConversationId,
   type Extension,
+  type HarnessOptions,
   type InputSubmissionDraft,
   type ModelRef,
   type Report,
@@ -25,12 +26,15 @@ import {
 } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
 import { serverExtensionName } from "./mcp.ts";
+import type { ToolName } from "./tools.ts";
 
 export type Profile = {
   readonly model: ModelRef;
   readonly thinkingLevel: ModelThinkingLevel;
-  // MCP servers whose tools the conversation's code mode scripts may call.
-  readonly tools: readonly string[];
+  // Tools of `Options.tools`, by name, and MCP servers whose tools the conversation's code mode
+  // scripts may call.
+  readonly tools: readonly ToolName[];
+  readonly mcpServers: readonly string[];
   readonly maxTurns: number | null;
 };
 
@@ -48,6 +52,7 @@ export type Status = {
   readonly model: ModelRef;
   readonly thinkingLevel: ModelThinkingLevel;
   readonly tools: readonly string[];
+  readonly mcpServers: readonly string[];
   readonly overrides: Readonly<Overrides>;
 };
 
@@ -64,6 +69,9 @@ export type Options = {
   readonly codemode?: Extension;
   // Extensions of the MCP servers that started, from `connectServer`.
   readonly servers?: readonly Extension[];
+  // The extension of the tools profiles select by name, and the environment they run in.
+  readonly tools?: Extension;
+  readonly env?: HarnessOptions["env"];
   readonly onReport?: (report: Report) => void;
 };
 
@@ -93,8 +101,12 @@ export function namespaceOf(address: string): string {
 
 type Equipment = {
   readonly extensions: readonly Extension[];
+  // The selected extensions' tools a profile leaves out.
+  readonly tools: { readonly remove: readonly ToolRegistration[] } | null;
   readonly modelTools: readonly ToolRegistration[] | null;
 };
+
+const unequipped: Equipment = { extensions: [], tools: null, modelTools: null };
 
 export class Edith {
   readonly harness: Harness;
@@ -112,11 +124,20 @@ export class Edith {
 
   static async open(storage: Storage, options: Options, context: Context): Promise<Edith> {
     const registry = createRegistry();
-    for (const extension of [options.codemode ?? [], options.servers ?? []].flat())
+    for (const extension of [
+      options.codemode ?? [],
+      options.tools ?? [],
+      options.servers ?? [],
+    ].flat())
       registry.install(extension);
     const harness = await Harness.open(
       storage,
-      { models: options.models, registry, ...(options.onReport && { onReport: options.onReport }) },
+      {
+        models: options.models,
+        registry,
+        ...(options.env && { env: options.env }),
+        ...(options.onReport && { onReport: options.onReport }),
+      },
       context,
     );
     harness.resume();
@@ -132,17 +153,27 @@ export class Edith {
       : [fallbackProfile, this.#options.profiles.restricted];
   }
 
-  // What a profile's conversations run with: nothing callable without servers, otherwise code
-  // mode as the model's only tool and the servers' tools behind it. A server that did not
-  // start is left out.
+  // What a profile's conversations run with: nothing callable without tools or servers,
+  // otherwise code mode as the model's only tool and the selected tools and the servers' tools
+  // behind it. A server that did not start is left out.
   #equipment(profile: Profile): Equipment {
     const codemode = this.#options.codemode;
-    const servers = profile.tools.flatMap(
+    const tool = codemode?.tools?.find((candidate) => candidate.name === CODEMODE_TOOL_NAME);
+    const servers = profile.mcpServers.flatMap(
       (server) => this.#servers.get(serverExtensionName(server)) ?? [],
     );
-    const tool = codemode?.tools?.find((candidate) => candidate.name === CODEMODE_TOOL_NAME);
-    if (!codemode || !tool || servers.length === 0) return { extensions: [], modelTools: null };
-    return { extensions: [codemode, ...servers], modelTools: [tool] };
+    const own = this.#options.tools;
+    const selected = (own?.tools ?? []).filter((candidate) =>
+      (profile.tools as readonly string[]).includes(candidate.name),
+    );
+    if (!codemode || !tool || (selected.length === 0 && servers.length === 0)) return unequipped;
+    if (!own || selected.length === 0)
+      return { extensions: [codemode, ...servers], tools: null, modelTools: [tool] };
+    return {
+      extensions: [codemode, own, ...servers],
+      tools: { remove: (own.tools ?? []).filter((candidate) => !selected.includes(candidate)) },
+      modelTools: [tool],
+    };
   }
 
   conversation(address: string, context: Context): Promise<Conversation> {
@@ -183,6 +214,7 @@ export class Edith {
       model: overrides.model ?? profile.model,
       thinkingLevel: overrides.thinkingLevel ?? profile.thinkingLevel,
       tools: profile.tools,
+      mcpServers: profile.mcpServers,
       overrides: { ...overrides },
     };
   }
@@ -215,6 +247,7 @@ export class Edith {
         model: wanted.model,
         thinkingLevel: wanted.thinkingLevel,
         extensions: equipment.extensions,
+        tools: equipment.tools,
         modelTools: equipment.modelTools,
         maxTurns: profile.maxTurns,
       });

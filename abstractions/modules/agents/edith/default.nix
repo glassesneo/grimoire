@@ -32,7 +32,12 @@ delib.module ({cfg, ...}: let
   keyed = lib.filter (name: providers.${name} ? secret) (
     lib.unique (lib.mapAttrsToList (_: profile: profile.model.provider) cfg.profiles ++ cfg.providers)
   );
-  servers = lib.unique (lib.concatMap (profile: profile.tools) (lib.attrValues cfg.profiles));
+  servers = lib.unique (lib.concatMap (profile: profile.mcpServers) (lib.attrValues cfg.profiles));
+  toolNames = ["read" "write" "edit" "bash"];
+  # The tools run as this user, whom EDITH logs in as over ssh to this host.
+  toolUser = cfg.toolUser.name;
+  toolHome = "/Users/${toolUser}";
+  hasToolUser = cfg.toolUser.loginKey != null;
   # Every field is required, so a profile states each choice it makes.
   profile = lib.types.submodule {
     options = {
@@ -50,8 +55,12 @@ delib.module ({cfg, ...}: let
         description = "Thinking level of the profile's conversations unless one sets its own.";
       };
       tools = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum toolNames);
+        description = "pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. Only the configuration changes it.";
+      };
+      mcpServers = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        description = "Registered MCP servers whose tools the conversations' code mode scripts may call; with none, the model gets no tools. Only the configuration changes it.";
+        description = "Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. Only the configuration changes it.";
       };
       maxTurns = lib.mkOption {
         type = lib.types.nullOr lib.types.ints.positive;
@@ -79,6 +88,11 @@ in {
     });
     namespaces = delib.attrsOfOption lib.types.str {} "Profile name by address namespace, such as `cli` or `discord`; a namespace not listed gets `restricted`.";
     providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models.";
+    toolUser = {
+      name = delib.strOption "edith" "User the profiles' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach.";
+      uid = delib.intOption 550 "UID, and GID of its group of the same name, of `edith.toolUser.name`.";
+      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no profile may name tools.";
+    };
     discord = {
       enable = delib.boolOption false;
       allowedUsers = delib.listOfOption (lib.types.strMatching "[0-9]+") [] "Discord user IDs whose messages EDITH answers; it ignores everyone else.";
@@ -95,10 +109,38 @@ in {
       message = "edith.namespaces names a profile that edith.profiles does not declare";
     }
     {
+      assertion = hasToolUser || lib.all (profile: profile.tools == []) (lib.attrValues cfg.profiles);
+      message = "a profile in edith.profiles names tools, which requires edith.toolUser.loginKey";
+    }
+    {
       assertion = !cfg.discord.enable || cfg.discord.allowedUsers != [];
       message = "edith.discord.enable = true requires a non-empty edith.discord.allowedUsers";
     }
   ];
+
+  darwin.ifEnabled = lib.mkIf hasToolUser {
+    users = {
+      knownUsers = [toolUser];
+      knownGroups = [toolUser];
+      groups.${toolUser}.gid = cfg.toolUser.uid;
+      users.${toolUser} = {
+        inherit (cfg.toolUser) uid;
+        gid = cfg.toolUser.uid;
+        home = toolHome;
+        createHome = true;
+        isHidden = true;
+        shell = "/bin/zsh";
+        # restrict: no forwarding, terminal or ~/.ssh/rc.
+        openssh.authorizedKeys.keys = [''from="127.0.0.1,::1",restrict ${cfg.toolUser.loginKey}''];
+      };
+    };
+    # With Remote Login limited to some users, sshd admits only members of this group.
+    system.activationScripts.postActivation.text = ''
+      if /usr/sbin/dseditgroup -o read com.apple.access_ssh >/dev/null 2>&1; then
+        /usr/sbin/dseditgroup -o edit -a ${lib.escapeShellArg toolUser} -t user com.apple.access_ssh
+      fi
+    '';
+  };
 
   myconfig.ifEnabled.secrets.required = map (name: providers.${name}.secret) keyed ++ lib.optional cfg.discord.enable discordToken;
 
@@ -118,6 +160,16 @@ in {
       providerKeys = lib.listToAttrs (map (name: lib.nameValuePair providers.${name}.variable (secret providers.${name}.secret)) keyed);
       inherit (cfg) profiles namespaces;
       mcpServers = config.mcp.selected.edith;
+      toolEnvironment =
+        if hasToolUser
+        then {
+          user = toolUser;
+          cwd = toolHome;
+          identityFile = "${stateDirectory}/tools/id_ed25519";
+          knownHostsFile = "${stateDirectory}/tools/known_hosts";
+          hostKeyFile = "/etc/ssh/ssh_host_ed25519_key.pub";
+        }
+        else null;
       discord =
         if cfg.discord.enable
         then {
@@ -133,6 +185,13 @@ in {
   in {
     packages = [client];
     mcp.selections.edith = servers;
+
+    # The tool user could otherwise read whatever of the home is readable by others.
+    applySteps.edith-private-home = lib.mkIf hasToolUser {
+      package = pkgs.linkFarm "hjem-edith-private-home" {
+        "bin/apply" = pkgs.writeShellScript "edith-private-home" "chmod 700 ${lib.escapeShellArg config.directory}";
+      };
+    };
     userServices.edith = {
       command = node pkgs ++ ["${program pkgs}/lib/src/main.ts"];
       environment.EDITH_CONFIG = toString settings;
