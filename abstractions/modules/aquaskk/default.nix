@@ -17,7 +17,7 @@ delib.module ({
     enable = boolOption false;
     package = packageOption myconfig.casks.packages.aquaskk;
     directClients = listOfOption lib.types.str [] "Bundle IDs of applications in which AquaSKK uses direct input instead of Japanese conversion.";
-    userDictionaryPath = strOption "${myconfig.xdg.data}/skkeleton/jisyo" "Writable learning dictionary, retained at the former shared skkeleton path independently of whether skkeleton is installed.";
+    userDictionaryPath = strOption "${myconfig.xdg.data}/skk/jisyo" "Writable learning dictionary, which AquaSKK writes and no deployment replaces.";
   };
 
   myconfig.ifEnabled.input-methods.enable = true;

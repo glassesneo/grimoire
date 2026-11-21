@@ -195,7 +195,7 @@ Source: [<code>abstractions/modules/aquaskk/default.nix</code>](../../abstractio
 | <code>aquaskk.directClients</code> | <code>list of string</code> | <code>[ ]</code> | Bundle IDs of applications in which AquaSKK uses direct input instead of Japanese conversion. |
 | <code>aquaskk.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>aquaskk.package</code> | <code>package</code> | <code>casks/cask2nix: aquaskk</code> |  |
-| <code>aquaskk.userDictionaryPath</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share/skkeleton/jisyo"</code> | Writable learning dictionary, retained at the former shared skkeleton path independently of whether skkeleton is installed. |
+| <code>aquaskk.userDictionaryPath</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share/skk/jisyo"</code> | Writable learning dictionary, which AquaSKK writes and no deployment replaces. |
 
 ### <code>bat</code>
 
