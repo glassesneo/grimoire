@@ -76,8 +76,15 @@ delib.host {
     };
   };
 
-  darwin.ifEnabled = {
+  darwin.ifEnabled = {config, ...}: {
     system.stateVersion = 4;
     ids.gids.nixbld = 350;
+
+    # seiran-vm1's Nix builds here as a remote builder with root's key there.
+    # The key reaches only the Nix daemon, from the VM network; the user is a
+    # trusted user, so the VM can still add unsigned paths to the store.
+    users.users.neo.openssh.authorizedKeys.keys = [
+      ''from="192.168.64.0/24",restrict,command="${config.nix.package}/bin/nix-daemon --stdio" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHCXv3HHggPxbwTFYFTK8eZcTjUyi1bWQyUVH1rjhfaj root@seiran-vm1''
+    ];
   };
 }
