@@ -9,6 +9,7 @@ build $host=`hostname -s`:
 
 [arg('host', help='Denix configuration name; defaults to hostname -s. A different host requires --target')]
 [arg('target', long, help='SSH destination; takes precedence over local application. Omit only for this machine')]
+[arg('source', long='flake', help='Local candidate store path; defaults to the recipe checkout')]
 [doc('''
   Apply Hjem files/packages, then reconcile services and user defaults as the
   same target user. Preflight failure leaves the existing home unchanged;
@@ -18,5 +19,5 @@ build $host=`hostname -s`:
   Remote application builds locally, copies closures and flake source over ssh-ng
   without signature checks, then activates over SSH.
 ''')]
-switch $host=`hostname -s` $target='':
-  use {{ quote(apply) }} *; hjem $env.host --target $env.target
+switch $host=`hostname -s` $target='' $source='':
+  use {{ quote(apply) }} *; hjem $env.host --target $env.target --flake $env.source

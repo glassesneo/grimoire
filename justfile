@@ -7,6 +7,9 @@ mod darwin 'just/darwin.just'
 # Build or apply every layer of a host in order: just all <build|switch> [host]
 mod all 'just/all.just'
 
+# Import an unapplied flake source from another machine.
+mod candidate 'just/candidate.just'
+
 # List, compare, or update modules' pinned dependencies: just anchors <list|outdated|update> [module]
 mod anchors 'just/anchors.just'
 

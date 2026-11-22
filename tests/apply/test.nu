@@ -3,8 +3,9 @@ use std/assert
 # Runs `all` against a remote target and returns its result and the calls made.
 def apply [script: string, environment: record]: nothing -> record {
   let calls = mktemp --tmpdir
+  let selection = if "SOURCE" in $environment { $" --flake ($environment.SOURCE)" } else { "" }
   let result = with-env ($environment | merge {CALLS: $calls}) {
-    ^nu --no-config-file -c $"use ($script) *; all fixture --target remote" | complete
+    ^nu --no-config-file -c $"use ($script) *; all fixture --target remote($selection)" | complete
   }
   $result | merge {calls: (open --raw $calls | lines)}
 }
@@ -26,6 +27,16 @@ def main [script: string] {
   let activation = $calls | where {|call| $call | str contains "standalone switch" } | first
   assert str contains $activation $"($built.2)/bin/hjem standalone switch"
   assert str contains $activation $"($built.1)/bin/apply"
+
+  let source = "/nix/store/0123456789abcdefghijklmnopqrstuv-source"
+  let candidate = apply $script {SOURCE: $source}
+  assert equal $candidate.exit_code 0 $candidate.stderr
+  for pattern in [darwinConfigurations ".preflight" "flake metadata" "flake archive"] {
+    let i = index-of $candidate.calls $pattern
+    assert str contains ($candidate.calls | get $i) $"path:($source)"
+  }
+  let activated = index-of $candidate.calls "standalone switch"
+  assert str contains ($candidate.calls | get $activated) $"--flake ($source)"
 
   for with_path in ["" "1"] {
     let failed = apply $script {FAIL_ON: ".preflight", FAIL_WITH_PATH: $with_path}

@@ -13,9 +13,14 @@ def --wrapped main [command: string, ...args: string] {
       $args | where {|arg| $arg | str contains '#' } | each {|attr| $"/nix/store/fake-($attr | hash md5)" } | str join "\n" | print
     }
     [nix flake] => {
-      if ($args | get 1) == metadata { print '{"path": "/nix/store/fake-source"}' }
+      if ($args | get 1) == metadata {
+        let ref = $args | last
+        let path = if ($ref | str starts-with "path:") { $ref | str substring 5.. } else { "/nix/store/fake-source" }
+        print ({path: $path} | to json)
+      }
     }
     [nix copy] => {}
+    [nix-store --add-root] => {}
     [ssh _] => {
       if ($args | last) == whoami { print fixture }
     }

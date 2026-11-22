@@ -9,6 +9,7 @@ build $host=`hostname -s`:
 
 [arg('host', help='Denix configuration name; defaults to hostname -s. A different host requires --target')]
 [arg('target', long, help='SSH destination; takes precedence over local application. Omit only for this machine')]
+[arg('source', long='flake', help='Local candidate store path; defaults to the recipe checkout')]
 [doc('''
   Apply nix-darwin, then Hjem, stopping at the first failure without rollback.
   Hjem preflight runs after nix-darwin activation: its failure leaves the home
@@ -16,5 +17,5 @@ build $host=`hostname -s`:
   reconciliation failures can leave partial changes. Layer effects, remote transfer, and user
   selection are described by just --list darwin and just --list hjem.
 ''')]
-switch $host=`hostname -s` $target='':
-  use {{ quote(apply) }} *; all $env.host --target $env.target
+switch $host=`hostname -s` $target='' $source='':
+  use {{ quote(apply) }} *; all $env.host --target $env.target --flake $env.source

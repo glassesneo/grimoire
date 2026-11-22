@@ -9,10 +9,11 @@ build $host=`hostname -s`:
 
 [arg('host', help='Denix configuration name; defaults to hostname -s. A different host requires --target')]
 [arg('target', long, help='SSH destination; takes precedence over local application. Omit only for this machine')]
+[arg('source', long='flake', help='Local candidate store path; defaults to the recipe checkout')]
 [doc('''
   Set the system profile and activate nix-darwin with sudo on the target machine.
   Builds locally; with --target, copies the closure over ssh-ng without signature
   checks and activates over SSH. Does not apply Hjem.
 ''')]
-switch $host=`hostname -s` $target='':
-  use {{ quote(apply) }} *; darwin $env.host --target $env.target
+switch $host=`hostname -s` $target='' $source='':
+  use {{ quote(apply) }} *; darwin $env.host --target $env.target --flake $env.source
