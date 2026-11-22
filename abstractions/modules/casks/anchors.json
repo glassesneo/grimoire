@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "022d106a7ec5643f53ce058ce93ac978b2100b5d",
-      "url": "https://github.com/BatteredBunny/brew-api/archive/022d106a7ec5643f53ce058ce93ac978b2100b5d.tar.gz",
-      "hash": "sha256-/1onQr7bgJShsdcb7xefpaZ7MtQ1HypQH0F62+EgAy4="
+      "revision": "05f06c37ee033671a7fb4afd7a287bd67e26a177",
+      "url": "https://github.com/BatteredBunny/brew-api/archive/05f06c37ee033671a7fb4afd7a287bd67e26a177.tar.gz",
+      "hash": "sha256-Le1ZtzrCfZMWWfl/o6jzejGYPezkZdrzvhwv4Lfm+V8="
     },
     "brew-taps-api": {
       "type": "Git",
@@ -22,9 +22,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "029329f47a667ba3f4e60485fb09d14e170bffd5",
-      "url": "https://github.com/glassesneo/brew-taps-api/archive/029329f47a667ba3f4e60485fb09d14e170bffd5.tar.gz",
-      "hash": "sha256-l4cvKGPzct3Lp+CspfeCzTazVOJ0AuPsYHLsFJEjKV8="
+      "revision": "f9c333bb2e8998f3efa85b48bffaf1984843d19c",
+      "url": "https://github.com/glassesneo/brew-taps-api/archive/f9c333bb2e8998f3efa85b48bffaf1984843d19c.tar.gz",
+      "hash": "sha256-4Y3lucqNZdXXLQk+9AooDxGhLVQnO8aI8IoR7wgZ/DU="
     },
     "cask2nix": {
       "type": "Git",

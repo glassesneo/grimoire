@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "c36fa7feb82dca492342f61da4f7bb10a48f0764",
-      "url": "https://github.com/nix-community/nix-wrapper-modules/archive/c36fa7feb82dca492342f61da4f7bb10a48f0764.tar.gz",
-      "hash": "sha256-wHdMM1K4TYrGKjzvb67RfBr57Q4w8LwxlxPd2nEWGuM="
+      "revision": "e1e6cc3094ce733b82a0b4345c1bd3eb0776a709",
+      "url": "https://github.com/nix-community/nix-wrapper-modules/archive/e1e6cc3094ce733b82a0b4345c1bd3eb0776a709.tar.gz",
+      "hash": "sha256-x6Xm7pweplmSNhmrdLMx1oZw8tZzhFoYKsq7f+vHpE4="
     },
     "rose-pine": {
       "type": "Git",

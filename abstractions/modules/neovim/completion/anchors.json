@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "7b31e1b6497be70f620bbad83a789929248697ac",
-      "url": "https://github.com/saghen/blink.cmp/archive/7b31e1b6497be70f620bbad83a789929248697ac.tar.gz",
-      "hash": "sha256-8m/YJF19Ws2WQAcYX8qc/nEKPMVhRyR/tU9WRwPHOtE="
+      "revision": "3d3631f641e6e9b60066f269f435d23c524ceeb0",
+      "url": "https://github.com/saghen/blink.cmp/archive/3d3631f641e6e9b60066f269f435d23c524ceeb0.tar.gz",
+      "hash": "sha256-t0S5HAz6WMPmtRS5qWYcUKwQ41cPLyMSx1kSuFyFmt4="
     }
   },
   "version": 8
