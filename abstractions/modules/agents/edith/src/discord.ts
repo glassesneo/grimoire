@@ -4,10 +4,13 @@
 // admitted in one commit, and the reply is forgotten once it is posted. Discord deduplicates a
 // repeated post by its nonce for a few minutes.
 //
-// Unless a channel turns it off with /trace, a run's thinking, its text beside tool calls, and
-// its code mode calls are posted as they are committed, as silent messages before the answer,
-// which alone notifies. A code mode call's message lists the script's calls while it runs and
-// is edited once its result is committed. Thinking and scripts are collapsed behind a button.
+// Unless a channel turns it off with /trace, a run is posted as it streams: thinking as a card
+// edited while it grows, text in complete units (paragraphs, a heading with what follows it,
+// whole lists, tables and code blocks; see `paragraphs.ts`) gathered for a few seconds into one
+// message, and code mode calls once committed. All of it is silent but the answer's last unit,
+// which is held until the answer is done and alone notifies. A code mode call's message lists the
+// script's calls while it runs and is edited once its result is committed. Thinking and scripts
+// are collapsed behind a button. With the trace off, the whole answer is posted once done.
 import type { Context } from "@earendil-works/chord/context";
 import {
   ApplicationCommandOptionType,
@@ -30,6 +33,7 @@ import { REST } from "@discordjs/rest";
 import { WebSocketManager } from "@discordjs/ws";
 import type { WatchHandle } from "@earendil-works/chord/watch";
 import {
+  AssistantEntry,
   defineDoc,
   type Conversation,
   type ConversationId,
@@ -40,6 +44,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { describe, followDefault, levels, parseModel, parseThinking, split } from "./commands.ts";
 import type { Edith } from "./core.ts";
+import { completePrefix } from "./paragraphs.ts";
 import {
   itemAt,
   itemsOf,
@@ -61,10 +66,15 @@ const messageLimit = 2000;
 const cardLimit = 3800;
 // How long an answer waits for the trace before it to be posted.
 const traceWait = 30_000;
+// How long complete units gather after a post before the next one, and how often a thinking card
+// is edited at most.
+const gatherWait = 2_500;
+const thinkingEditWait = 1_500;
 // Channel history fetched per channel when the gateway connects again.
 const catchUpLimit = 100;
 
-type Pending = { channel: string; submission: number };
+// An input's reply, and whether a message already replies to its message.
+type Pending = { channel: string; submission: number; replied?: boolean };
 // A code mode call's message, edited until its result is committed.
 type ToolPost = {
   message: string;
@@ -73,8 +83,26 @@ type ToolPost = {
   part: number;
   expanded?: boolean;
 };
-// A channel's trace: the newest entry handled, whether it is off, and the calls still running.
-type Trace = { after: number; off?: boolean; tools: Record<string, ToolPost> };
+// The streaming generation's posts, by its key (its task and attempt): how much of its text and
+// how many messages are posted, and its thinking card. Kept for an answer once committed, so the
+// answer posts only the rest.
+type Stream = {
+  key: string;
+  consumed: number;
+  sent: number;
+  thinking?: { part: number; message: string };
+};
+type Streamed = Pick<Stream, "consumed" | "sent">;
+// A channel's trace: the newest entry handled, whether it is off, the calls still running, the
+// generation streaming, the last one committed, and what answers already posted, by entry.
+type Trace = {
+  after: number;
+  off?: boolean;
+  tools: Record<string, ToolPost>;
+  stream?: Stream;
+  finished?: string;
+  streamed?: Record<string, Streamed>;
+};
 type DiscordState = {
   pending: Record<string, Pending>;
   lastSeen: Record<string, string>;
@@ -91,6 +119,16 @@ const State = defineDoc<DiscordState>({
 });
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
+
+// A content part of a message, as streamed or committed.
+type StreamPart = { readonly type: string; readonly text?: string; readonly thinking?: string };
+
+// The text of a message's text parts, as an answer joins them.
+const textOf = (content: readonly StreamPart[]) =>
+  content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("");
+
+const entryContent = (entry: EntryRecord): readonly StreamPart[] =>
+  (entry.model ?? []).flatMap((message) => (message.role === "assistant" ? message.content : []));
 type Toggle = { id: string; expanded: boolean };
 
 // A button's custom ID: the item and the state a press brings its message to.
@@ -206,6 +244,11 @@ export class Discord {
   readonly #live = new Map<string, Call[]>();
   // Answers waiting for the trace to reach their entry, by channel.
   readonly #waiting = new Map<string, { entry: number; resolve: () => void }[]>();
+  // Per channel: when streamed text was last posted, and the key of the generation last seen
+  // streaming, which the next assistant entry finishes. Per thinking card: when it was edited.
+  readonly #lastPost = new Map<string, number>();
+  readonly #streaming = new Map<string, string>();
+  readonly #thinkingEdited = new Map<string, number>();
   #application: string | undefined;
 
   constructor(edith: Edith, options: DiscordOptions, context: Context) {
@@ -387,16 +430,26 @@ export class Discord {
         clearInterval(typing);
       }
       if (answer.status === "done") await this.#tracedTo(api, pending.channel, answer.entry);
+      // What the trace already streamed of the answer is not posted again.
+      const streamed =
+        answer.status === "done"
+          ? (await this.#trace(pending.channel))?.streamed?.[answer.entry]
+          : undefined;
       const text =
         answer.status === "done"
-          ? answer.text || "(empty answer)"
+          ? answer.text.slice(streamed?.consumed ?? 0).trim() || (streamed ? "" : "(empty answer)")
           : `⚠️ unanswered: ${answer.reason}`;
-      await this.#post(api, pending.channel, text, {
-        nonce: (index) => `${id}-${index}`,
-        replyTo: id,
-      });
+      const replied = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id]
+        ?.replied;
+      if (text !== "")
+        await this.#post(api, pending.channel, text, {
+          nonce: (index) => `${id}-${index}`,
+          ...(!replied && { replyTo: id }),
+        });
       await this.#edith.harness.commit(async (tx) => {
-        delete (await tx.doc(State)).pending[id];
+        const state = await tx.doc(State);
+        delete state.pending[id];
+        if (answer.status === "done") delete state.trace[pending.channel]?.streamed?.[answer.entry];
       }, this.#context);
     } finally {
       this.#delivering.delete(id);
@@ -494,8 +547,27 @@ export class Discord {
   ): Promise<Trace> {
     for (const entry of entries.filter((candidate) => candidate.id > trace.after)) {
       const posted: Record<string, ToolPost> = {};
-      if (!trace.off)
-        for (const item of itemsOf(entry)) {
+      // The generation that streamed this entry, if it posted anything.
+      const assistant = AssistantEntry.is(entry);
+      const stream = assistant ? trace.stream : undefined;
+      const finished = assistant ? this.#streaming.get(channel) : undefined;
+      const text = assistant ? textOf(entryContent(entry)) : "";
+      const items = itemsOf(entry);
+      const answers = assistant && !items.some((item) => item.kind === "tool");
+      if (!trace.off) {
+        for (const item of items) {
+          if (item.kind === "thinking" && stream?.thinking?.part === item.part) {
+            await this.#finishThinking(
+              api,
+              channel,
+              conversation.id,
+              entry.id,
+              item,
+              stream.thinking.message,
+            );
+            continue;
+          }
+          if (item.kind === "commentary" && stream && stream.consumed > 0) continue;
           const message = await this.#postItem(api, channel, conversation.id, entry.id, item);
           if (item.kind !== "tool" || !message) continue;
           posted[item.callId] = {
@@ -506,6 +578,14 @@ export class Discord {
           };
           this.#items.set(item.callId, item);
         }
+        // Text beside tool calls that streamed only in part posts its rest.
+        const rest = text.slice(stream?.consumed ?? 0).trim();
+        if (stream && stream.consumed > 0 && !answers && rest !== "")
+          await this.#post(api, channel, rest, {
+            nonce: (index) => `r${entry.id}-${index}`,
+            flags: MessageFlags.SuppressNotifications,
+          });
+      }
       const result = resultOf(entry);
       const post = result && (trace.tools[result.callId] ?? posted[result.callId]);
       if (result && post) {
@@ -523,9 +603,17 @@ export class Discord {
         current.after = entry.id;
         Object.assign(current.tools, posted);
         if (result) delete current.tools[result.callId];
+        if (!assistant) return;
+        delete current.stream;
+        if (finished !== undefined) current.finished = finished;
+        if (answers && stream && stream.consumed > 0)
+          (current.streamed ??= {})[entry.id] = { consumed: stream.consumed, sent: stream.sent };
       }, this.#context);
+      if (assistant) this.#lastPost.delete(channel);
+      const { stream: _finishedStream, ...kept } = trace;
       trace = {
-        ...trace,
+        ...(assistant ? kept : trace),
+        ...(assistant && finished !== undefined && { finished }),
         after: entry.id,
         tools: Object.fromEntries(
           Object.entries({ ...trace.tools, ...posted }).filter(([id]) => id !== result?.callId),
@@ -536,13 +624,15 @@ export class Discord {
     return trace;
   }
 
-  // Edits running code mode calls whose script made new calls since they were last seen.
+  // Posts what the streaming generation added, and edits running code mode calls whose script
+  // made new calls since they were last seen.
   async #handleLive(
     api: API,
     channel: string,
     live: LiveState | undefined,
     trace: Trace,
   ): Promise<void> {
+    await this.#stream(api, channel, live, trace);
     for (const [callId, post] of Object.entries(trace.tools)) {
       const calls = liveCalls(live, callId);
       if (calls.length === 0) continue;
@@ -551,6 +641,106 @@ export class Discord {
       const item = await this.#toolItem(callId, post);
       if (item) await this.#editTool(api, channel, post, item, "running", calls);
     }
+  }
+
+  // The streaming generation's thinking card, posted at once and edited at most every few
+  // seconds, and its complete text units once they have gathered for a while.
+  async #stream(
+    api: API,
+    channel: string,
+    live: LiveState | undefined,
+    trace: Trace,
+  ): Promise<void> {
+    const run = live?.run;
+    const generation = live?.generation;
+    const message = generation?.message;
+    if (trace.off || !run || !generation || !message) return;
+    const key = `${run.taskId}.${generation.attempt}`;
+    if (key === trace.finished) return;
+    this.#streaming.set(channel, key);
+    const before = trace.stream?.key === key ? trace.stream : undefined;
+    let stream: Stream = before ?? { key, consumed: 0, sent: 0 };
+    const content = message.content as readonly StreamPart[];
+
+    const part = content.findIndex(
+      (candidate) => candidate.type === "thinking" && (candidate.thinking ?? "").trim() !== "",
+    );
+    if (part >= 0) {
+      const rendered = renderThinking((content[part]?.thinking ?? "").trim(), false, cardLimit);
+      if (!stream.thinking) {
+        const posted = await api.channels.createMessage(channel, {
+          components: card(rendered),
+          nonce: `k${key}`,
+          enforce_nonce: true,
+          allowed_mentions: { parse: [] },
+          flags: MessageFlags.SuppressNotifications | MessageFlags.IsComponentsV2,
+        });
+        this.#rendered.set(posted.id, rendered);
+        this.#thinkingEdited.set(posted.id, Date.now());
+        stream = { ...stream, thinking: { part, message: posted.id } };
+      } else if (
+        this.#rendered.get(stream.thinking.message) !== rendered &&
+        Date.now() - (this.#thinkingEdited.get(stream.thinking.message) ?? 0) >= thinkingEditWait
+      ) {
+        await api.channels.editMessage(channel, stream.thinking.message, {
+          components: card(rendered),
+        });
+        this.#rendered.set(stream.thinking.message, rendered);
+        this.#thinkingEdited.set(stream.thinking.message, Date.now());
+      }
+    }
+
+    const text = textOf(content);
+    const end = completePrefix(text);
+    const ready = text.slice(stream.consumed, end).trim();
+    const gathered = Date.now() - (this.#lastPost.get(channel) ?? 0) >= gatherWait;
+    let replied: string | undefined;
+    if (ready !== "" && (gathered || ready.length >= messageLimit)) {
+      // The first message a run posts replies to the input it answers.
+      const state = await this.#edith.harness.snapshot(State, this.#context);
+      const input = Object.entries(state?.pending ?? {}).find(
+        ([, pending]) =>
+          pending.channel === channel && run.inputs.includes(pending.submission as SubmissionId),
+      );
+      const replyTo = input && !input[1].replied ? input[0] : undefined;
+      const sent = stream.sent;
+      await this.#post(api, channel, ready, {
+        nonce: (index) => `s${key}.${sent + index}`,
+        flags: MessageFlags.SuppressNotifications,
+        ...(replyTo !== undefined && { replyTo }),
+      });
+      replied = replyTo;
+      stream = { ...stream, consumed: end, sent: sent + split(ready, messageLimit).length };
+      this.#lastPost.set(channel, Date.now());
+    }
+    if (stream === before) return;
+    await this.#edith.harness.commit(async (tx) => {
+      const state = await tx.doc(State);
+      const current = state.trace[channel];
+      if (current) current.stream = stream;
+      const pending = replied === undefined ? undefined : state.pending[replied];
+      if (pending) pending.replied = true;
+    }, this.#context);
+  }
+
+  // A thinking card posted while it streamed, edited to its final rendering with its button.
+  async #finishThinking(
+    api: API,
+    channel: string,
+    conversation: number,
+    entry: number,
+    item: Extract<Item, { kind: "thinking" }>,
+    message: string,
+  ): Promise<void> {
+    const text = renderThinking(item.text, false, cardLimit);
+    await api.channels.editMessage(channel, message, {
+      components: card(text, {
+        id: toggleId(conversation, entry, item.part, true),
+        expanded: false,
+      }),
+    });
+    this.#rendered.set(message, text);
+    this.#thinkingEdited.delete(message);
   }
 
   async #conversationOf(id: number): Promise<Conversation | undefined> {
