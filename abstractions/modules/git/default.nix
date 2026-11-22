@@ -62,6 +62,9 @@ delib.module ({myconfig, ...}: {
       gpg.ssh.allowedSignersFile = "${pkgs.writeText "allowed-signers" "${myconfig.identity.email} ${myconfig.ssh.keys.signing.publicKey}\n"}";
       push.default = "nothing";
       init.defaultBranch = "main";
+      # git difftool compares by syntax with difftastic.
+      diff.tool = "difftastic";
+      difftool.difftastic.cmd = "${pkgs.difftastic}/bin/difft \"$LOCAL\" \"$REMOTE\"";
       core.excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
       filter.lfs = {
         clean = "git-lfs clean -- %f";
