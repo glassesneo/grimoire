@@ -14,6 +14,7 @@ delib.module ({
 
   options = with delib; {
     enable = boolOption true;
+    unattended = boolOption false "Run every tool call without permission prompts or the Bash sandbox, and disable auto mode.";
     mcpServers = listOfOption lib.types.str [] "Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged.";
   };
 
@@ -59,44 +60,53 @@ delib.module ({
     mcp.selections.claude-code = cfg.mcpServers;
     skillDirs = [".claude/skills"];
 
-    claude-code.settings = {
-      "$schema" = "https://json.schemastore.org/claude-code-settings.json";
-      model = "claude-opus-5-5";
-      effortLevel = "medium";
-      autoMemoryEnabled = false;
-      tui = "fullscreen";
-      disableClaudeAiConnectors = true;
-      permissions.defaultMode = "auto";
-      sandbox = {
-        enabled = true;
-        autoAllowBashIfSandboxed = true;
-        # nix keeps its evaluation and fetcher caches here as SQLite databases,
-        # and treefmt, run by `nix fmt` and commit hooks, keeps its cache beside them.
-        filesystem.allowWrite = ["~/.cache/nix" "~/.cache/treefmt"];
-        network = {
-          # nix commands talk to the daemon instead of opening the store themselves.
-          allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
-          # Mix listens on a localhost port to coordinate concurrent builds.
-          allowLocalBinding = true;
+    claude-code.settings =
+      {
+        "$schema" = "https://json.schemastore.org/claude-code-settings.json";
+        model = "claude-opus-5-5";
+        effortLevel = "medium";
+        autoMemoryEnabled = false;
+        tui = "fullscreen";
+        disableClaudeAiConnectors = true;
+        permissions.defaultMode =
+          if cfg.unattended
+          then "bypassPermissions"
+          else "auto";
+        sandbox = {
+          enabled = !cfg.unattended;
+          autoAllowBashIfSandboxed = true;
+          # nix keeps its evaluation and fetcher caches here as SQLite databases,
+          # and treefmt, run by `nix fmt` and commit hooks, keeps its cache beside them.
+          filesystem.allowWrite = ["~/.cache/nix" "~/.cache/treefmt"];
+          network = {
+            # nix commands talk to the daemon instead of opening the store themselves.
+            allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
+            # Mix listens on a localhost port to coordinate concurrent builds.
+            allowLocalBinding = true;
+          };
         };
+        hooks.SessionStart = [
+          {
+            hooks = [
+              {
+                type = "command";
+                command = "${runtimeTools}";
+              }
+            ];
+          }
+        ];
+        env = {
+          DISABLE_AUTOUPDATER = "1";
+          ENABLE_TOOL_SEARCH = "true";
+          # Claude Code reads this from the shell, user settings or --settings only.
+          CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1";
+        };
+      }
+      // lib.optionalAttrs cfg.unattended {
+        disableAutoMode = "disable";
+        # Otherwise the first bypassPermissions session waits for confirmation.
+        skipDangerousModePermissionPrompt = true;
       };
-      hooks.SessionStart = [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = "${runtimeTools}";
-            }
-          ];
-        }
-      ];
-      env = {
-        DISABLE_AUTOUPDATER = "1";
-        ENABLE_TOOL_SEARCH = "true";
-        # Claude Code reads this from the shell, user settings or --settings only.
-        CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1";
-      };
-    };
 
     files.".claude/settings.json" = {
       exclusive = true;

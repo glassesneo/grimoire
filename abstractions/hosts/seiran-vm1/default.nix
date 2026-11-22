@@ -19,6 +19,7 @@ delib.host {
     };
     web.enable = true;
     pi.mcpServers = ["web"];
+    claude-code.unattended = true;
     secrets.names = [
       "ai-mop-api-key"
       "vercel-ai-gateway-api-key"

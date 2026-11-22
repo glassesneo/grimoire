@@ -247,6 +247,7 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 | --- | --- | --- | --- |
 | <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>claude-code.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged. |
+| <code>claude-code.unattended</code> | <code>boolean</code> | <code>false</code> | Run every tool call without permission prompts or the Bash sandbox, and disable auto mode. |
 
 <code>hjem</code> options:
 
