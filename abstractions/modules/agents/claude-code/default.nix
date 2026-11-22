@@ -61,6 +61,8 @@ delib.module ({
 
     claude-code.settings = {
       "$schema" = "https://json.schemastore.org/claude-code-settings.json";
+      model = "claude-opus-5-5";
+      effortLevel = "medium";
       autoMemoryEnabled = false;
       tui = "fullscreen";
       disableClaudeAiConnectors = true;
@@ -71,8 +73,12 @@ delib.module ({
         # nix keeps its evaluation and fetcher caches here as SQLite databases,
         # and treefmt, run by `nix fmt` and commit hooks, keeps its cache beside them.
         filesystem.allowWrite = ["~/.cache/nix" "~/.cache/treefmt"];
-        # nix commands talk to the daemon instead of opening the store themselves.
-        network.allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
+        network = {
+          # nix commands talk to the daemon instead of opening the store themselves.
+          allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
+          # Mix listens on a localhost port to coordinate concurrent builds.
+          allowLocalBinding = true;
+        };
       };
       hooks.SessionStart = [
         {
@@ -87,6 +93,8 @@ delib.module ({
       env = {
         DISABLE_AUTOUPDATER = "1";
         ENABLE_TOOL_SEARCH = "true";
+        # Claude Code reads this from the shell, user settings or --settings only.
+        CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1";
       };
     };
 
