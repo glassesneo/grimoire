@@ -21,6 +21,7 @@ delib.host {
     pi.mcpServers = ["web"];
     edith = {
       enable = true;
+      resident.enable = true;
       # Both profiles grant the same for now; they diverge once tools beyond web search exist.
       profiles = let
         profile = {

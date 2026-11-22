@@ -20,6 +20,20 @@ delib.host {
     web.enable = true;
     pi.mcpServers = ["web"];
     claude-code.unattended = true;
+    # `edith dev` only, on a free OpenRouter model.
+    edith = {
+      enable = true;
+      profiles.restricted = {
+        model = {
+          provider = "openrouter";
+          modelId = "nvidia/nemotron-3-ultra-550b-a55b:free";
+        };
+        thinkingLevel = "medium";
+        tools = [];
+        mcpServers = ["web"];
+        maxTurns = 20;
+      };
+    };
     secrets.names = [
       "ai-mop-api-key"
       "vercel-ai-gateway-api-key"

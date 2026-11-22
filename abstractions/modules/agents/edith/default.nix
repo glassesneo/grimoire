@@ -48,7 +48,7 @@ delib.module ({cfg, ...}: let
             modelId = lib.mkOption {type = lib.types.nonEmptyStr;};
           };
         };
-        description = "Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, placed there by hand.";
+        description = "Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand.";
       };
       thinkingLevel = lib.mkOption {
         type = lib.types.enum thinkingLevels;
@@ -77,10 +77,11 @@ delib.module ({cfg, ...}: let
 in {
   name = "edith";
   tests.fixture = ["mcp" "secrets" "services"];
-  meta.description = "Run EDITH, a resident agent on pi-durable whose conversations clients such as Discord reach by address.";
+  meta.description = "Provide EDITH, an agent on pi-durable whose conversations clients such as Discord reach by address, as a resident service and as `edith dev` for trying it out.";
 
   options = {
     enable = delib.boolOption false;
+    resident.enable = delib.boolOption false;
     profiles = mylib.atomicOption (lib.mkOption {
       type = lib.types.attrsOf profile;
       default = {};
@@ -111,6 +112,10 @@ in {
     {
       assertion = hasToolUser || lib.all (profile: profile.tools == []) (lib.attrValues cfg.profiles);
       message = "a profile in edith.profiles names tools, which requires edith.toolUser.loginKey";
+    }
+    {
+      assertion = !cfg.discord.enable || cfg.resident.enable;
+      message = "edith.discord.enable = true requires edith.resident.enable = true";
     }
     {
       assertion = !cfg.discord.enable || cfg.discord.allowedUsers != [];
@@ -157,6 +162,7 @@ in {
       # A login, such as a copy of Pi's ChatGPT login in its auth.json, is placed here by hand.
       credentials = "${stateDirectory}/auth.json";
       inherit socket;
+      devDirectory = "${config.xdg.state.directory}/edith-dev";
       providerKeys = lib.listToAttrs (map (name: lib.nameValuePair providers.${name}.variable (secret providers.${name}.secret)) keyed);
       inherit (cfg) profiles namespaces;
       mcpServers = config.mcp.selected.edith;
@@ -179,7 +185,8 @@ in {
         else null;
     });
     client = pkgs.writeShellScriptBin "edith" ''
-      export EDITH_SOCKET=${lib.escapeShellArg socket}
+      export EDITH_CONFIG=${lib.escapeShellArg (toString settings)}
+      export EDITH_SOCKET=${lib.escapeShellArg (lib.optionalString cfg.resident.enable socket)}
       exec ${lib.escapeShellArgs (node pkgs)} ${program pkgs}/lib/src/cli.ts "$@"
     '';
   in {
@@ -192,7 +199,7 @@ in {
         "bin/apply" = pkgs.writeShellScript "edith-private-home" "chmod 700 ${lib.escapeShellArg config.directory}";
       };
     };
-    userServices.edith = {
+    userServices.edith = lib.mkIf cfg.resident.enable {
       command = node pkgs ++ ["${program pkgs}/lib/src/main.ts"];
       environment.EDITH_CONFIG = toString settings;
       # Keys and the bot token are in place only once activation has run.
@@ -218,7 +225,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
+      protects = "EDITH reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
       tsRoots = ["src"];
       build = _:
         pkgs.runCommand "edith-contracts" {} ''
