@@ -1,10 +1,18 @@
 # Conventional Commits: <type>: <summary>
 # Optional scope: <type>(<scope>): <summary>
 #
-# feat: a new feature
-# fix: a bug fix
-# Other types may follow the repository's conventions, for example:
-# docs, refactor, perf, test, build, ci, chore, style, revert.
+# Types:
+# feat:     a new feature for the user
+# fix:      a bug fix for the user
+# docs:     documentation only
+# refactor: a code change that neither fixes a bug nor adds a feature
+# perf:     a code change that improves performance
+# test:     adding or correcting tests
+# build:    the build system or external dependencies
+# ci:       continuous integration configuration and scripts
+# chore:    other changes that touch neither source nor tests
+# style:    formatting that does not change meaning
+# revert:   reverts a previous commit
 #
 # Optionally add a body after a blank line to explain the change.
 # Put footers after another blank line.
