@@ -1,8 +1,8 @@
 // EDITH's core: one Harness whose conversations clients reach by address. An address is
-// `<namespace>:<name>`, such as `discord:<channel id>` or `cli`. Its namespace picks a profile:
-// the model and thinking level the conversation follows unless it overrides them, and the tools,
-// MCP servers and turn limit, which only the configuration sets. A namespace without a profile of
-// its own gets `restricted`.
+// `<namespace>:<name>`, such as `discord:<channel id>` or `cli`. A conversation runs with a
+// profile: the model and thinking level it follows unless it overrides them, and the tools, MCP
+// servers and turn limit, which only the configuration sets. The profile is the one a client chose
+// for the conversation among the configured ones, or else its namespace's, or else `restricted`.
 import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
 import {
@@ -40,11 +40,15 @@ export type Profile = {
 
 const fallbackProfile = "restricted";
 
-// A null field follows the profile; `configure` sets or clears an override.
+// A null field follows the default: the namespace's profile, or the profile's model and thinking
+// level; `configure` sets or clears an override.
 export type Overrides = {
+  profile: string | null;
   model: ModelRef | null;
   thinkingLevel: ModelThinkingLevel | null;
 };
+
+const noOverrides: Overrides = { profile: null, model: null, thinkingLevel: null };
 
 export type Status = {
   readonly address: string;
@@ -86,11 +90,13 @@ const Address = defineDocFamily<{ conversation: number | null }, null>({
 
 const OverridesDoc = defineDoc<Overrides>({
   kind: "edith.overrides",
-  version: 1,
+  // Version 2 adds `profile`.
+  version: 2,
   scope: "conversation",
   history: "latest",
   fork: "current",
-  initial: () => ({ model: null, thinkingLevel: null }),
+  initial: () => ({ ...noOverrides }),
+  migrate: (value) => ({ ...noOverrides, ...(value as Partial<Overrides>) }),
   checkpointWhen: () => true,
 });
 
@@ -144,13 +150,26 @@ export class Edith {
     return new Edith(harness, options);
   }
 
-  // The profile an address's namespace selects, by name.
-  profile(address: string): [string, Profile] {
-    const name = this.#options.namespaces[namespaceOf(address)];
-    const profile = name === undefined ? undefined : this.#options.profiles[name];
-    return name !== undefined && profile
-      ? [name, profile]
-      : [fallbackProfile, this.#options.profiles.restricted];
+  // The configured profiles' names.
+  profiles(): string[] {
+    return Object.keys(this.#options.profiles);
+  }
+
+  // The profile a conversation runs with, by name: its chosen one while the configuration still
+  // has it, else its namespace's, else `restricted`.
+  #profile(address: string, chosen: string | null): [string, Profile] {
+    for (const name of [chosen, this.#options.namespaces[namespaceOf(address)]]) {
+      const profile = name == null ? undefined : this.#options.profiles[name];
+      if (name != null && profile) return [name, profile];
+    }
+    return [fallbackProfile, this.#options.profiles.restricted];
+  }
+
+  async #overrides(conversation: Conversation, context: Context): Promise<Overrides> {
+    return {
+      ...noOverrides,
+      ...(await this.harness.snapshot(OverridesDoc, conversation.id, context)),
+    };
   }
 
   // What a profile's conversations run with: nothing callable without tools or servers,
@@ -203,11 +222,8 @@ export class Edith {
 
   async status(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
-    const overrides = (await this.harness.snapshot(OverridesDoc, conversation.id, context)) ?? {
-      model: null,
-      thinkingLevel: null,
-    };
-    const [name, profile] = this.profile(address);
+    const overrides = await this.#overrides(conversation, context);
+    const [name, profile] = this.#profile(address, overrides.profile);
     return {
       address,
       profile: name,
@@ -219,10 +235,14 @@ export class Edith {
     };
   }
 
+  // Sets or clears a conversation's overrides; a profile must be a configured one.
   async configure(address: string, change: Partial<Overrides>, context: Context): Promise<Status> {
+    if (change.profile != null && !(change.profile in this.#options.profiles))
+      throw new UnknownProfile(change.profile);
     const conversation = await this.conversation(address, context);
     await conversation.commit(async (tx) => {
       const overrides = await tx.doc(OverridesDoc, conversation.id);
+      if (change.profile !== undefined) overrides.profile = change.profile;
       if (change.model !== undefined) overrides.model = change.model;
       if (change.thinkingLevel !== undefined) overrides.thinkingLevel = change.thinkingLevel;
     }, context);
@@ -238,7 +258,7 @@ export class Edith {
   ): Promise<SubmissionId> {
     const conversation = await this.conversation(address, context);
     const wanted = await this.status(address, context);
-    const [, profile] = this.profile(address);
+    const profile = this.#options.profiles[wanted.profile] ?? this.#options.profiles.restricted;
     const equipment = this.#equipment(profile);
     return this.harness.commit(async (tx) => {
       // The profile can change between runs of the daemon, so the agent is brought to the
@@ -287,5 +307,11 @@ export class Edith {
 
   close(context: Context): Promise<void> {
     return this.harness.close(context);
+  }
+}
+
+export class UnknownProfile extends Error {
+  constructor(name: string) {
+    super(`no profile named ${name}`);
   }
 }

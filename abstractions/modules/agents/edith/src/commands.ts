@@ -42,7 +42,7 @@ export function describe(status: Status): string {
   const model = `${status.model.provider}/${status.model.modelId}`;
   const origin = (overridden: boolean) => (overridden ? "set here" : "profile");
   return [
-    `profile: ${status.profile}`,
+    `profile: ${status.profile} (${status.overrides.profile === null ? "default" : "set here"})`,
     `model: ${model} (${origin(status.overrides.model !== null)})`,
     `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null)})`,
     `tools: ${status.tools.length === 0 ? "(none)" : status.tools.join(", ")}`,

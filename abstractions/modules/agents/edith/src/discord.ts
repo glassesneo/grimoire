@@ -1,5 +1,6 @@
 // The Discord client: each channel is the conversation `discord:<channel id>`, answering the
-// allowed users only, who set a channel's model and thinking level with slash commands.
+// allowed users only, who set a channel's profile, model and thinking level with slash commands
+// and create channels with a profile of their own. A channel's topic shows its profile.
 // Replies are delivered at least once across restarts: the input and its pending reply are
 // admitted in one commit, and the reply is forgotten once it is posted. Discord deduplicates a
 // repeated post by its nonce for a few minutes.
@@ -16,6 +17,7 @@ import {
   ApplicationCommandOptionType,
   ApplicationCommandType,
   ButtonStyle,
+  ChannelType,
   Client,
   ComponentType,
   GatewayDispatchEvents,
@@ -173,8 +175,9 @@ const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
         expanded: post.expanded ?? false,
       };
 
-// Registered in every guild the bot is in, where they are available at once.
-const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
+// Registered in every guild the bot is in, where they are available at once. Profiles are the
+// configured ones, which a restart registers again.
+const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCommandsJSONBody => [
   {
     type: ApplicationCommandType.ChatInput,
     name: "status",
@@ -221,7 +224,43 @@ const commands: RESTPutAPIApplicationGuildCommandsJSONBody = [
       },
     ],
   },
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "profile",
+    description: "Set this channel's profile",
+    options: [
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "profile",
+        description: `A configured profile, or ${followDefault} to follow the configuration`,
+        required: true,
+        choices: [...profiles, followDefault].map((value) => ({ name: value, value })),
+      },
+    ],
+  },
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "new",
+    description: "Create a channel beside this one with a profile of its own",
+    options: [
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "name",
+        description: "The channel's name",
+        required: true,
+      },
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "profile",
+        description: "A configured profile",
+        required: true,
+        choices: profiles.map((value) => ({ name: value, value })),
+      },
+    ],
+  },
 ];
+
+const topicOf = (profile: string) => `EDITH · profile: ${profile}`;
 
 const later = (a: string, b: string | undefined) =>
   b === undefined || BigInt(a) > BigInt(b) ? a : b;
@@ -284,7 +323,11 @@ export class Discord {
       if (this.#application === undefined) return;
       this.#spawn(
         api.applicationCommands
-          .bulkOverwriteGuildCommands(this.#application, data.id, commands)
+          .bulkOverwriteGuildCommands(
+            this.#application,
+            data.id,
+            commandsFor(this.#edith.profiles()),
+          )
           .then(() => undefined),
       );
     });
@@ -392,6 +435,53 @@ export class Discord {
         await reply(`trace: ${off ? "off" : "on"}`);
         return;
       }
+      case "profile": {
+        const value = option("profile");
+        await reply(
+          describe(
+            await this.#edith.configure(
+              address,
+              { profile: value === followDefault ? null : value },
+              this.#context,
+            ),
+          ),
+        );
+        await this.#showProfile(api, channel);
+        return;
+      }
+      case "new": {
+        const guild = interaction.guild_id;
+        if (guild === undefined) {
+          await reply("Channels are created in a server only.", MessageFlags.Ephemeral);
+          return;
+        }
+        const profile = option("profile");
+        if (!this.#edith.profiles().includes(profile)) {
+          await reply(`No profile named ${profile}.`, MessageFlags.Ephemeral);
+          return;
+        }
+        // Beside this channel: in its category, if it has one.
+        const here = await api.channels.get(channel);
+        const parent = "parent_id" in here ? here.parent_id : null;
+        let created;
+        try {
+          created = await api.guilds.createChannel(guild, {
+            name: option("name"),
+            type: ChannelType.GuildText,
+            ...(parent && { parent_id: parent }),
+            topic: topicOf(profile),
+          });
+        } catch (error) {
+          await reply(
+            `Could not create the channel: ${error instanceof Error ? error.message : String(error)}`,
+            MessageFlags.Ephemeral,
+          );
+          return;
+        }
+        await this.#edith.configure(`discord:${created.id}`, { profile }, this.#context);
+        await reply(`<#${created.id}> runs ${profile}.`);
+        return;
+      }
       case "thinking": {
         const parsed = parseThinking(option("level"));
         await reply(
@@ -410,6 +500,15 @@ export class Discord {
       default:
         await reply(`Unknown command /${data.name}.`, MessageFlags.Ephemeral);
     }
+  }
+
+  // Shows a channel's profile in its topic; Discord allows two topic changes in ten minutes, so a
+  // change it refuses is left for /status to show.
+  async #showProfile(api: API, channel: string): Promise<void> {
+    const status = await this.#edith.status(`discord:${channel}`, this.#context);
+    await api.channels
+      .edit(channel, { topic: topicOf(status.profile) })
+      .catch((error: unknown) => console.error("discord topic:", error));
   }
 
   async #deliver(api: API, id: string): Promise<void> {

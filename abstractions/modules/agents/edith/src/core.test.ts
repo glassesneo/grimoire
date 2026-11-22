@@ -10,7 +10,7 @@ import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
-import { Edith, type Options, type Profile } from "./core.ts";
+import { Edith, type Options, type Profile, UnknownProfile } from "./core.ts";
 import { toolsExtension } from "./tools.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -93,17 +93,47 @@ void test("a namespace follows its profile, an unlisted one `restricted`, until 
   await edith.close(context);
 });
 
+void test("a conversation's chosen profile replaces its namespace's, only among configured ones, until it is cleared", async () => {
+  const edith = await open("chosen.sqlite", { full: profile("a"), restricted: profile("b") });
+  assert.equal(await ask(edith, "discord:1"), "b:1");
+  const chosen = await edith.configure("discord:1", { profile: "full" }, context);
+  assert.equal(chosen.profile, "full");
+  assert.equal(await ask(edith, "discord:1"), "a:2");
+  assert.equal(await ask(edith, "discord:2"), "b:1");
+  await assert.rejects(
+    edith.configure("discord:1", { profile: "missing" }, context),
+    UnknownProfile,
+  );
+  assert.equal((await edith.status("discord:1", context)).profile, "full");
+  await edith.configure("discord:1", { profile: null }, context);
+  assert.equal(await ask(edith, "discord:1"), "b:3");
+  await edith.close(context);
+});
+
 void test("after a restart, addresses, history and overrides persist and a changed profile reaches the rest", async () => {
-  const before = await open("restart.sqlite", { restricted: profile("a") });
+  const before = await open("restart.sqlite", {
+    extra: profile("a"),
+    full: profile("a"),
+    restricted: profile("a"),
+  });
   assert.equal(await ask(before, "discord:1"), "a:1");
   assert.equal(await ask(before, "discord:2"), "a:1");
   await before.configure("discord:2", { model: { provider: "faux", modelId: "c" } }, context);
+  await before.configure("discord:3", { profile: "full" }, context);
+  await before.configure("cli", { profile: "extra" }, context);
   await before.close(context);
 
-  const after = await open("restart.sqlite", { restricted: profile("b") });
+  const after = await open("restart.sqlite", { full: profile("a"), restricted: profile("b") });
   assert.equal(await ask(after, "discord:1"), "b:2");
   assert.equal(await ask(after, "discord:2"), "c:2");
+  assert.equal(await ask(after, "discord:3"), "a:1");
   await after.close(context);
+
+  // A chosen profile the configuration no longer has falls back to the namespace's.
+  const removed = await open("restart.sqlite", { full: profile("c"), restricted: profile("b") });
+  assert.equal(await ask(removed, "cli"), "c:1");
+  assert.equal((await removed.status("cli", context)).profile, "full");
+  await removed.close(context);
 });
 
 void test("concurrent first inputs to a new address share one conversation", async () => {

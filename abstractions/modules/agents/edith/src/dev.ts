@@ -24,6 +24,7 @@ const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
 const help = [
   "/status            this conversation's profile, model and thinking level",
+  "/profile <name>    run with a configured profile, or `default` for the configuration's",
   "/model <p>/<id>    set the model, or `default` to follow the profile",
   "/thinking <level>  set the thinking level, or `default`",
   "/exit              leave (also Ctrl-D)",
@@ -168,6 +169,19 @@ export async function dev(args: readonly string[]): Promise<void> {
           ? parsed.error
           : describe(await edith.configure(address, { model: parsed.value }, context)),
       );
+    } else if (command === "/profile") {
+      if (argument === "") console.log(`profiles: ${edith.profiles().join(", ")}`);
+      else
+        console.log(
+          describe(
+            await edith
+              .configure(address, { profile: argument === "default" ? null : argument }, context)
+              .catch(async (error: unknown) => {
+                console.log(error instanceof Error ? error.message : String(error));
+                return edith.status(address, context);
+              }),
+          ),
+        );
     } else if (command === "/thinking") {
       const parsed = parseThinking(argument);
       console.log(
