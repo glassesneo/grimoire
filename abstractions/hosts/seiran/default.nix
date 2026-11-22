@@ -1,4 +1,8 @@
-{delib, ...}:
+{
+  delib,
+  lib,
+  ...
+}:
 delib.host {
   name = "seiran";
   system = "aarch64-darwin";
@@ -27,6 +31,20 @@ delib.host {
     kanata = {
       enable = true;
       profile = "default";
+      layers.base = lib.mapAttrs (key: action: ["fork" action key ["fn"]]) {
+        f1 = "brdn";
+        f2 = "brup";
+        f3 = "mctl";
+        f4 = "sls";
+        f5 = "dtn";
+        f6 = "dnd";
+        f7 = "prev";
+        f8 = "pp";
+        f9 = "next";
+        f10 = "mute";
+        f11 = "vold";
+        f12 = "volu";
+      };
     };
     ghostty.settings = {
       font-size = 16;
