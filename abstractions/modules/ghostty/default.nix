@@ -13,6 +13,11 @@ delib.module ({
       option = "ghostty.font.primary";
       name = cfg.font.primary;
     }
+    ++ lib.imap0 (index: name: {
+      option = "ghostty.font.fallbacks[${toString index}]";
+      inherit name;
+    })
+    cfg.font.fallbacks
     ++ lib.imap0 (index: mapping: {
       option = "ghostty.font.codepointMap[${toString index}].font";
       name = mapping.font;
@@ -24,7 +29,7 @@ delib.module ({
     then myconfig.fonts.entries.${name}.family
     else throw "ghostty: unknown font `${name}`; register it with fonts.entries";
   fontSettings =
-    lib.optionalAttrs (cfg.font.primary != null) {font-family = resolve cfg.font.primary;}
+    lib.optionalAttrs (cfg.font.primary != null) {font-family = map resolve ([cfg.font.primary] ++ cfg.font.fallbacks);}
     // lib.optionalAttrs (cfg.font.codepointMap != []) {
       font-codepoint-map = map (mapping: "${lib.concatStringsSep "," mapping.ranges}=${resolve mapping.font}") cfg.font.codepointMap;
     };
@@ -42,6 +47,7 @@ in {
       package = packageOption myconfig.casks.packages.ghostty;
       font = {
         primary = allowNull (strOption null) "Name in fonts.entries; null leaves Ghostty's primary font at its own default.";
+        fallbacks = listOfOption lib.types.nonEmptyStr [] "Names in fonts.entries that Ghostty searches in order for characters missing from the primary font.";
         codepointMap = listOfOption (lib.types.submodule {
           options = {
             ranges = lib.mkOption {
@@ -68,6 +74,10 @@ in {
       message = "ghostty.font requires fonts.enable = true when selecting registered fonts";
     }
     {
+      assertion = cfg.font.fallbacks == [] || cfg.font.primary != null;
+      message = "ghostty.font.fallbacks requires ghostty.font.primary to be set";
+    }
+    {
       assertion = referenceProblems == [];
       message = lib.concatMapStringsSep "\n" (ref: "${ref.option} = \"${ref.name}\" is not registered in fonts.entries") referenceProblems;
     }
@@ -78,7 +88,7 @@ in {
   ];
 
   myconfig.ifEnabled.ghostty.font = {
-    primary = "maple";
+    primary = "maple-nf-jp";
     codepointMap = [
       {
         ranges = ["U+0030-U+0039"];
@@ -122,6 +132,15 @@ in {
         };
       }
       attrs;
+    fixtureFonts =
+      lib.mapAttrs (_: family: {
+        package = pkgs.emptyDirectory;
+        inherit family;
+      }) {
+        fixture-primary = "Fixture Primary";
+        fixture-first = "Fixture First";
+        fixture-second = "Fixture Second";
+      };
   in {
     unknown-primary-is-rejected = withGhostty {
       protects = "an enabled Ghostty cannot select an unregistered primary font";
@@ -144,6 +163,24 @@ in {
       expr = result: result.options.xdg.config.files.value."ghostty/config.ghostty".value;
       fails = true;
     };
+    unknown-fallback-is-rejected = withGhostty {
+      protects = "fallback fonts are checked against the font registry";
+      host.myconfig.ifEnabled.ghostty.font.fallbacks = ["miracode" "missing-fallback"];
+      expr = result: result.options.xdg.config.files.value."ghostty/config.ghostty".value;
+      fails = true;
+    };
+    fallbacks-follow-primary = withGhostty {
+      protects = "fallback fonts are written as font-family entries after the primary font, in declared order, resolved to their families";
+      host.myconfig.ifEnabled = {
+        fonts.entries = fixtureFonts;
+        ghostty.font = {
+          primary = "fixture-primary";
+          fallbacks = ["fixture-second" "fixture-first"];
+        };
+      };
+      expr = result: result.options.xdg.config.files.value."ghostty/config.ghostty".value.font-family;
+      expected = ["Fixture Primary" "Fixture Second" "Fixture First"];
+    };
     mappings-without-primary = withGhostty {
       protects = "codepoint-only font selection preserves mapping order and resolves each family without setting a primary font";
       host.myconfig.ifEnabled.ghostty.font = {
@@ -155,7 +192,7 @@ in {
           }
           {
             ranges = ["U+0041-U+005A"];
-            font = "maple";
+            font = "maple-nf-jp";
           }
         ];
       };
@@ -167,7 +204,7 @@ in {
       };
       expected = {
         primary = false;
-        mappings = ["U+0030,U+0032=Miracode" "U+0041-U+005A=Maple Mono"];
+        mappings = ["U+0030,U+0032=Miracode" "U+0041-U+005A=Maple Mono NF JP"];
       };
     };
   };

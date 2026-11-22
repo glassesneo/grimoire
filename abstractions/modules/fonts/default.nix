@@ -1,6 +1,7 @@
 {
   delib,
   lib,
+  mylib,
   ...
 }: let
   entry = lib.types.submodule {
@@ -21,15 +22,21 @@ in
       packages = readOnly (defaultText (listOfOption lib.types.package (lib.unique (map (font: font.package) (lib.attrValues cfg.entries)))) (lib.literalMD "the unique packages in `fonts.entries`"));
     };
 
-    myconfig.always = {pkgs, ...}: {
+    myconfig.always = {pkgs, ...}: let
+      anchors = mylib.anchors.sources ./anchors.json;
+    in {
       fonts.entries = {
-        maple = {
-          package = pkgs.maple-mono.truetype;
-          family = "Maple Mono";
-        };
         miracode = {
           package = pkgs.miracode;
           family = "Miracode";
+        };
+        maple-nf-jp = {
+          package = pkgs.callPackage ./maple-nf-jp.nix {
+            source = anchors.maple-font;
+            jpBase = anchors.maple-font-jp-base;
+            scaleFactor = "1.2,1.1";
+          };
+          family = "Maple Mono NF JP";
         };
       };
     };
@@ -63,11 +70,11 @@ in
       shared-package-is-installed-once = {
         protects = "several registered families from one package produce a single installation tree";
         host.myconfig.ifEnabled.fonts.entries = {
-          maple = {
+          miracode = {
             package = pkgs.emptyDirectory;
             family = "Fixture Regular";
           };
-          miracode = {
+          maple-nf-jp = {
             package = pkgs.emptyDirectory;
             family = "Fixture Alternate";
           };

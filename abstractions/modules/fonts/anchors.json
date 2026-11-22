@@ -1,0 +1,27 @@
+{
+  "pins": {
+    "maple-font": {
+      "type": "GitRelease",
+      "repository": {
+        "type": "GitHub",
+        "owner": "subframe7536",
+        "repo": "maple-font"
+      },
+      "pre_releases": true,
+      "version_upper_bound": null,
+      "release_prefix": null,
+      "submodules": false,
+      "version": "v8.0-beta.3",
+      "revision": "41afd29452d564a869b77e9f803578582ea883ad",
+      "url": "https://api.github.com/repos/subframe7536/maple-font/tarball/refs/tags/v8.0-beta.3",
+      "hash": "sha256-Nra2oje4qFFAb6eS/S2pu/dIx+uZmNErlMCYCo3NA78="
+    },
+    "maple-font-jp-base": {
+      "type": "Url",
+      "url": "https://github.com/subframe7536/maple-font/releases/download/cjk-base/jp-base-static.zip",
+      "unpack": false,
+      "hash": "sha256-pRFoSzrTZzb231hlHLWnP6aMkI85Uv1hWXiOzv1r0mo="
+    }
+  },
+  "version": 8
+}

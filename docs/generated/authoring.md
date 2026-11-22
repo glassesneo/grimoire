@@ -413,6 +413,7 @@ Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractio
 | <code>ghostty.font.codepointMap</code> | <code>list of (submodule)</code> | <code>[ ]</code> |  |
 | <code>ghostty.font.codepointMap.*.font</code> | <code>non-empty string</code> |  | Name in fonts.entries. |
 | <code>ghostty.font.codepointMap.*.ranges</code> | <code>non-empty (list of non-empty string)</code> |  | Ghostty codepoint ranges such as U+0030-U+0039, joined with commas for one mapping. |
+| <code>ghostty.font.fallbacks</code> | <code>list of non-empty string</code> | <code>[ ]</code> | Names in fonts.entries that Ghostty searches in order for characters missing from the primary font. |
 | <code>ghostty.font.primary</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Ghostty's primary font at its own default. |
 | <code>ghostty.package</code> | <code>package</code> | <code>casks/cask2nix: ghostty</code> |  |
 | <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map. |
@@ -960,6 +961,7 @@ Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/m
 | --- | --- | --- | --- |
 | <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex.app"</code> |  |
 | <code>rex.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>rex.fallbackFonts</code> | <code>null or list of non-empty string</code> | <code>null</code> | Names in fonts.entries that Rex searches in order for characters missing from the terminal font; null leaves Rex's stored list unchanged. |
 | <code>rex.font</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Rex's terminal font as set in the app. |
 | <code>rex.fontSize</code> | <code>null or signed integer or floating point number</code> | <code>null</code> | Terminal font size in points; null leaves Rex's stored size unchanged. |
 | <code>rex.paddingX</code> | <code>null or signed integer</code> | <code>null</code> | Horizontal terminal padding; null leaves Rex's stored value unchanged. |
