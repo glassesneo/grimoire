@@ -467,6 +467,7 @@ Source: [<code>abstractions/modules/identity/default.nix</code>](../../abstracti
 | --- | --- | --- | --- |
 | <code>identity.email</code> | <code>string</code> | <code>"glassesneo@protonmail.com"</code> | read-only; Email address of the person. |
 | <code>identity.fullName</code> | <code>string</code> | <code>"Neo Kitani"</code> | read-only; Full name of the person. |
+| <code>identity.handleName</code> | <code>string</code> | <code>"neo"</code> | read-only; Handle name of the person. |
 
 ### <code>imprynt</code>
 

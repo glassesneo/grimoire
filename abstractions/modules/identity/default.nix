@@ -5,6 +5,7 @@ delib.module {
 
   options = with delib; {
     fullName = readOnly (strOption "Neo Kitani" "Full name of the person.");
+    handleName = readOnly (strOption "neo" "Handle name of the person.");
     email = readOnly (strOption "glassesneo@protonmail.com" "Email address of the person.");
   };
 }

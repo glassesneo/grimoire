@@ -47,7 +47,7 @@ delib.module ({myconfig, ...}: {
 
     git.settings = {
       user = {
-        name = myconfig.identity.fullName;
+        name = myconfig.identity.handleName;
         email = myconfig.identity.email;
         useConfigOnly = true;
         signingkey = "key::${myconfig.ssh.keys.signing.publicKey}";
