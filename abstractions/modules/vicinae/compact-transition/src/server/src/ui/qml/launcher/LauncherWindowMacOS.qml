@@ -32,7 +32,6 @@ LauncherWindow {
     }
 
     onAboutToShow: Launcher.prepareShow()
-    onShown: Launcher.finalizeShow()
 
     MacOSWindow.enabled: true
     MacOSWindow.cornerRadius: cornerRadius

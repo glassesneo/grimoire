@@ -2,11 +2,11 @@
   sourceFiles = {
     "src/server/src/ui/qml/launcher/LauncherWindow.qml" = {
       source = ./src/server/src/ui/qml/launcher/LauncherWindow.qml;
-      upstreamSha256 = "09863bba71d553a68b81ee9133daba670a3c75ba19f64d64d07e56a71652f260";
+      upstreamSha256 = "535138aef1609e134356a7d5e014e01b57e0a5a4c83095f1e451be6311f80d86";
     };
     "src/server/src/ui/qml/launcher/LauncherWindowMacOS.qml" = {
       source = ./src/server/src/ui/qml/launcher/LauncherWindowMacOS.qml;
-      upstreamSha256 = "1cb72509572ba21058247f0420313c8f551792076399b7e43ad6bb2d12150a44";
+      upstreamSha256 = "2fa94318692d0ea498e3db3ad5a6d25ad169f1d3594bf4e44e84b52bf6d3e279";
     };
   };
 in
