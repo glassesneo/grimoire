@@ -1,7 +1,9 @@
 # EDITH's sources with their installed dependencies, run by Node.js with type stripping.
+# `aiMop` is the directory of AI MOP's `providers.ts`, placed at `src/ai-mop/`.
 {
   lib,
   bun2nix,
+  aiMop,
 }:
 bun2nix.mkDerivation {
   pname = "edith";
@@ -15,5 +17,7 @@ bun2nix.mkDerivation {
   installPhase = ''
     mkdir -p "$out/lib"
     cp -r package.json node_modules src "$out/lib/"
+    mkdir -p "$out/lib/src/ai-mop"
+    cp ${aiMop}/providers.ts "$out/lib/src/ai-mop/"
   '';
 }

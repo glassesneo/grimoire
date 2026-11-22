@@ -5,11 +5,23 @@
   mylib,
   ...
 }:
-delib.module ({cfg, ...}: let
+delib.module ({
+  cfg,
+  myconfig,
+  ...
+}: let
+  aiMopKey = {
+    secret = "ai-mop-api-key";
+    variable = "AI_MOP_API_KEY";
+  };
   # Providers EDITH can use: by the stored secret holding an API key and the variable pi-ai
   # reads it from, or, with `login`, by a credential placed in EDITH's credentials file.
   providers = {
     openai.login = true;
+    # AI MOP's routes, from `ai-mop.providerSources`, share one key.
+    ai-mop-responses = aiMopKey;
+    ai-mop-chat = aiMopKey;
+    ai-mop-anthropic = aiMopKey;
     openrouter = {
       secret = "openrouter-api-key";
       variable = "OPENROUTER_API_KEY";
@@ -68,15 +80,16 @@ delib.module ({cfg, ...}: let
       };
     };
   };
-  program = pkgs:
+  # AI MOP's providers, from `ai-mop.providerSources`.
+  program = pkgs: aiMop:
     import ./package.nix {
-      inherit lib;
+      inherit lib aiMop;
       bun2nix = inputs.bun2nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
     };
   node = pkgs: [(lib.getExe pkgs.nodejs) "--experimental-strip-types" "--disable-warning=ExperimentalWarning"];
 in {
   name = "edith";
-  tests.fixture = ["mcp" "secrets" "services"];
+  tests.fixture = ["ai-mop" "mcp" "secrets" "services"];
   meta.description = "Provide EDITH, an agent on pi-durable whose conversations clients such as Discord reach by address, as a resident service and as `edith dev` for trying it out.";
 
   options = {
@@ -147,7 +160,7 @@ in {
     '';
   };
 
-  myconfig.ifEnabled.secrets.required = map (name: providers.${name}.secret) keyed ++ lib.optional cfg.discord.enable discordToken;
+  myconfig.ifEnabled.secrets.required = lib.unique (map (name: providers.${name}.secret) keyed) ++ lib.optional cfg.discord.enable discordToken;
 
   hjem.ifEnabled = {
     config,
@@ -187,7 +200,7 @@ in {
     client = pkgs.writeShellScriptBin "edith" ''
       export EDITH_CONFIG=${lib.escapeShellArg (toString settings)}
       export EDITH_SOCKET=${lib.escapeShellArg (lib.optionalString cfg.resident.enable socket)}
-      exec ${lib.escapeShellArgs (node pkgs)} ${program pkgs}/lib/src/cli.ts "$@"
+      exec ${lib.escapeShellArgs (node pkgs)} ${program pkgs myconfig.ai-mop.providerSources}/lib/src/cli.ts "$@"
     '';
   in {
     packages = [client];
@@ -200,7 +213,7 @@ in {
       };
     };
     userServices.edith = lib.mkIf cfg.resident.enable {
-      command = node pkgs ++ ["${program pkgs}/lib/src/main.ts"];
+      command = node pkgs ++ ["${program pkgs myconfig.ai-mop.providerSources}/lib/src/main.ts"];
       environment.EDITH_CONFIG = toString settings;
       # Keys and the bot token are in place only once activation has run.
       dependsOn = lib.optional (config.userServices ? nix-secrets-activate) "nix-secrets-activate";
@@ -213,24 +226,32 @@ in {
     pkgs,
     typescriptCheck,
     ...
-  }: {
+  }: let
+    aiMopOf = result: result.options.myconfig.ai-mop.providerSources.value;
+  in {
     typescript = {
       protects = "EDITH's core, clients and tests type-check and lint against pi-durable, discord.js core and the Node.js that runs them";
       tsRoots = ["src"];
-      build = _:
+      build = result:
         typescriptCheck {
           name = "edith";
-          src = ./src;
+          # The sources as the package lays them out, with AI MOP's providers.
+          src = pkgs.runCommand "edith-src" {} ''
+            cp -r ${./src} "$out"
+            chmod -R u+w "$out"
+            mkdir "$out/ai-mop"
+            cp ${aiMopOf result}/providers.ts "$out/ai-mop/"
+          '';
           types = ./.;
         };
     };
     contracts = {
-      protects = "EDITH reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
+      protects = "EDITH answers a profile's AI MOP model through AI MOP's endpoint with its key, reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation overrides its model or thinking level, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
       tsRoots = ["src"];
-      build = _:
+      build = result:
         pkgs.runCommand "edith-contracts" {} ''
           export HOME=$TMPDIR
-          ${lib.escapeShellArgs (node pkgs)} --test ${program pkgs}/lib/src/*.test.ts
+          ${lib.escapeShellArgs (node pkgs)} --test ${program pkgs (aiMopOf result)}/lib/src/*.test.ts
           touch "$out"
         '';
     };

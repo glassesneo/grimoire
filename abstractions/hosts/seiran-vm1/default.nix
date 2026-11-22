@@ -33,6 +33,8 @@ delib.host {
         mcpServers = ["web"];
         maxTurns = 20;
       };
+      # `/model ai-mop-responses/<OpenAI model>` switches to AI MOP.
+      providers = ["ai-mop-responses"];
     };
     secrets.names = [
       "ai-mop-api-key"

@@ -8,7 +8,19 @@ delib.module ({myconfig, ...}: {
   tests.fixture = ["agents" "nix-secrets"];
   meta.description = "Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls.";
 
-  options.enable = delib.boolOption false;
+  options = {
+    enable = delib.boolOption false;
+    providerSources = delib.readOnly (lib.mkOption {
+      type = lib.types.path;
+      default = lib.fileset.toSource {
+        root = ./src;
+        fileset = ./src/providers.ts;
+      };
+      # The store path changes with every change of the file.
+      defaultText = lib.literalExpression "./src/providers.ts";
+      description = "Directory holding `providers.ts`, which defines AI MOP's routes as pi-ai providers for agents built on pi-ai, which supply the `@earendil-works/pi-ai` it imports.";
+    });
+  };
 
   hjem.always = {config, ...}: let
     secrets = config.security.nix-secrets.secrets;

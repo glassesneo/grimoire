@@ -68,7 +68,6 @@ Modules whose only option is `enable`:
 
 | Module | <code>enable</code> | Responsibility | Tags |
 | --- | --- | --- | --- |
-| [<code>ai-mop</code>](../../abstractions/modules/ai-mop/default.nix) | <code>false</code> | Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls. |  |
 | [<code>alacritty.colorscheme</code>](../../abstractions/modules/alacritty/colorscheme/default.nix) | <code>myconfig.alacritty.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Alacritty the colors of the held color scheme. |  |
 | [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
 | [<code>bat.colorscheme</code>](../../abstractions/modules/bat/colorscheme/default.nix) | <code>myconfig.bat.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give bat the theme of the held color scheme. |  |
@@ -146,6 +145,17 @@ Source: [<code>abstractions/modules/agents/default.nix</code>](../../abstraction
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>agents.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Agent packages of llm-agents.nix for the evaluation's system, by name. |
+
+### <code>ai-mop</code>
+
+Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls.
+
+Source: [<code>abstractions/modules/ai-mop/default.nix</code>](../../abstractions/modules/ai-mop/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>ai-mop.enable</code> | <code>boolean</code> | <code>false</code> |  |
+| <code>ai-mop.providerSources</code> | <code>absolute path</code> | <code>./src/providers.ts</code> | read-only; Directory holding `providers.ts`, which defines AI MOP's routes as pi-ai providers for agents built on pi-ai, which supply the `@earendil-works/pi-ai` it imports. |
 
 ### <code>alacritty</code>
 
@@ -334,10 +344,10 @@ Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstr
 | <code>edith.profiles.&lt;name&gt;.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. Only the configuration changes it. |
 | <code>edith.profiles.&lt;name&gt;.model</code> | <code>submodule</code> |  | Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand. |
 | <code>edith.profiles.&lt;name&gt;.model.modelId</code> | <code>non-empty string</code> |  |  |
-| <code>edith.profiles.&lt;name&gt;.model.provider</code> | <code>one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
+| <code>edith.profiles.&lt;name&gt;.model.provider</code> | <code>one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
 | <code>edith.profiles.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the profile's conversations unless one sets its own. |
 | <code>edith.profiles.&lt;name&gt;.tools</code> | <code>list of (one of "read", "write", "edit", "bash")</code> | <code>[ ]</code> | pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. Only the configuration changes it. |
-| <code>edith.providers</code> | <code>list of (one of "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
+| <code>edith.providers</code> | <code>list of (one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
 | <code>edith.resident.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no profile may name tools. |
 | <code>edith.toolUser.name</code> | <code>string</code> | <code>"edith"</code> | User the profiles' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach. |

@@ -4,12 +4,12 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Context } from "@earendil-works/chord/context";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { Edith, type Options } from "./core.ts";
 import { FileCredentialStore } from "./credentials.ts";
+import { edithModels } from "./models.ts";
 import { connectServer, type Server, type ServerConfig } from "./mcp.ts";
 import { type ToolEnvironmentConfig, toolEnvironment, toolsExtension } from "./tools.ts";
 
@@ -82,7 +82,7 @@ export async function start(
   const edith = await Edith.open(
     await openNodeSqliteStorage(paths.storage),
     {
-      models: builtinModels({ credentials: new FileCredentialStore(paths.credentials) }),
+      models: edithModels(new FileCredentialStore(paths.credentials)),
       profiles: config.profiles,
       namespaces: config.namespaces,
       codemode,
