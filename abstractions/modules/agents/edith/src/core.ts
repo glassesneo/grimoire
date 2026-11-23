@@ -182,9 +182,10 @@ const LabelDoc = defineDoc<Label>({
   checkpointWhen: () => true,
 });
 
-// Written after a stopped run, as the user's.
+// Written after a stopped run, in a user message, since the model reads instructions there; it
+// says who wrote it, so that the model does not take it for the user's words.
 export const stoppedNote =
-  "[The user stopped the request above before it was finished. Do not continue it unless asked again.]";
+  "[Chat client note, not the user's words: the user stopped you while you were working on the request above. Treat that request as closed. Respond to the user's next message, and take the stopped work up again only if that message asks for it.]";
 
 const raise = (label: Label, access: Grant) => {
   for (const tool of access.tools) if (!label.tools.includes(tool)) label.tools.push(tool);
