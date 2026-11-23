@@ -128,7 +128,7 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   );
   assert.equal(parked.length, 1);
   assert.equal(parked[0]?.state.kind === "sleeping" && parked[0].state.until, undefined);
-  assert.equal(await edith.held("cli", context), "tool");
+  assert.equal(await edith.whenHeld("cli", 10, context), "tool");
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.deepEqual(answer, {
@@ -157,12 +157,12 @@ void test("a run paused during a round of tools makes no next request until resu
   await settle(800);
   assert.deepEqual([counts.searches, counts.requests], [1, 1]);
   assert.equal(await toolResults(edith, "cli"), 1);
-  assert.equal(await edith.held("cli", context), "request");
+  assert.equal(await edith.whenHeld("cli", 10, context), "request");
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.equal(answer.status === "done" && answer.text, "done:1");
   assert.equal(counts.requests, 2);
-  assert.equal(await edith.held("cli", context), undefined);
+  assert.equal(await edith.whenHeld("cli", 10, context), undefined);
   await edith.close(context);
 });
 
@@ -177,7 +177,7 @@ void test("a message to a run held before a tool call resumes it without that ca
   await edith.pause("cli", context);
   answered.resolve();
   await settle(500);
-  assert.equal(await edith.held("cli", context), "tool");
+  assert.equal(await edith.whenHeld("cli", 10, context), "tool");
   const interjection = await edith.submit("cli", { content: "never mind" }, context);
   assert.equal((await edith.status("cli", context)).paused, false);
   const answers = await Promise.all([
@@ -207,8 +207,8 @@ void test("stopping ends the run and its pause, and withdraws input not yet give
   assert.equal(stopped.paused, false);
   const answers = await Promise.all([edith.answer(first, context), edith.answer(queued, context)]);
   assert.deepEqual(
-    answers.map((answer) => answer.status === "unanswered" && answer.reason.startsWith("aborted")),
-    [true, true],
+    answers.map((answer) => answer.status),
+    ["stopped", "stopped"],
   );
   assert.equal(counts.searches, 0);
   // The model is told the stopped request is not to be taken up again.

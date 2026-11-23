@@ -9,7 +9,7 @@
 // with, lies within the namespace's ceiling, so that nothing a higher access reached is shown where
 // that access is not allowed. A conversation can be paused (see `control.ts`) and stopped.
 import type { Context } from "@earendil-works/chord/context";
-import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
+import { contentText, type ModelThinkingLevel, type Models } from "@earendil-works/pi-ai";
 import {
   AssistantEntry,
   configure,
@@ -20,6 +20,7 @@ import {
   type Conversation,
   type ConversationId,
   type Extension,
+  type HarnessInspection,
   type HarnessOptions,
   type InputSubmissionDraft,
   type ModelRef,
@@ -90,6 +91,12 @@ export type Overrides = {
 
 const noOverrides: Overrides = { access: null, persona: null, model: null, thinkingLevel: null };
 
+// Overrides with a change's fields applied; a field the change leaves out stays.
+const changed = (overrides: Overrides, change: Partial<Overrides>): Overrides => ({
+  ...overrides,
+  ...Object.fromEntries(Object.entries(change).filter(([, value]) => value !== undefined)),
+});
+
 export type Status = {
   readonly address: string;
   readonly access: string;
@@ -116,6 +123,8 @@ export type SessionInfo = {
 
 export type Answer =
   | { readonly status: "done"; readonly text: string; readonly entry: number }
+  // Stopped, or withdrawn before the model was given it.
+  | { readonly status: "stopped" }
   | { readonly status: "unanswered"; readonly reason: string };
 
 export type Options = {
@@ -188,6 +197,8 @@ export const stoppedNote =
   "[Chat client note, not the user's words: the user stopped you while you were working on the request above. Treat that request as closed. Respond to the user's next message, and take the stopped work up again only if that message asks for it.]";
 
 const titleLimit = 60;
+const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+const stoppedKind = "edith.stopped";
 const excerptLimit = 6000;
 
 // Asks for a session's title: the excerpt is the conversation as data, the reply the title alone.
@@ -285,9 +296,9 @@ export class Edith {
     return this.#options.namespaces[namespace] ?? fallbackNamespace;
   }
 
-  // The accesses a namespace's conversations may choose: those within its ceiling.
-  accessChoices(namespace: string): string[] {
-    const ceiling = this.#options.access[this.#namespace(namespace).ceiling];
+  // The accesses an address may choose: those within its namespace's ceiling.
+  accessChoices(address: string): string[] {
+    const ceiling = this.#ceiling(address);
     return Object.entries(this.#options.access).flatMap(([name, access]) =>
       ceiling && within(access, ceiling) ? [name] : [],
     );
@@ -301,9 +312,8 @@ export class Edith {
   // The access a conversation runs with, by name: its chosen one while the configuration still
   // has it within the namespace's ceiling, else its namespace's, else `restricted`.
   #access(address: string, chosen: string | null): [string, Access] {
-    const namespace = namespaceOf(address);
-    const allowed = this.accessChoices(namespace);
-    for (const name of [chosen, this.#namespace(namespace).access]) {
+    const allowed = this.accessChoices(address);
+    for (const name of [chosen, this.#namespace(namespaceOf(address)).access]) {
       const access = name == null ? undefined : this.#options.access[name];
       if (name != null && access && allowed.includes(name)) return [name, access];
     }
@@ -411,26 +421,27 @@ export class Edith {
     };
   }
 
-  // Sets or clears an address's overrides; an access must be one its namespace may choose,
-  // and a persona a configured one.
-  async configure(address: string, change: Partial<Overrides>, context: Context): Promise<Status> {
+  // Refuses a change an address may not make: an access must be one it may choose, and a persona
+  // a configured one.
+  check(address: string, change: Partial<Overrides>): void {
     if (change.access != null) {
       if (!(change.access in this.#options.access))
         throw new Refused(`no access named ${change.access}`);
-      if (!this.accessChoices(namespaceOf(address)).includes(change.access))
+      if (!this.accessChoices(address).includes(change.access))
         throw new Refused(
           `access ${change.access} exceeds what ${namespaceOf(address)} may choose`,
         );
     }
     if (change.persona != null && !(change.persona in this.#options.personas))
       throw new Refused(`no persona named ${change.persona}`);
+  }
+
+  // Sets or clears an address's overrides, as `check` allows.
+  async configure(address: string, change: Partial<Overrides>, context: Context): Promise<Status> {
+    this.check(address, change);
     const current = await this.#overrides(address, context);
     await this.harness.commit(async (tx) => {
-      const overrides = Object.assign(await tx.doc(Settings, address, null), current);
-      if (change.access !== undefined) overrides.access = change.access;
-      if (change.persona !== undefined) overrides.persona = change.persona;
-      if (change.model !== undefined) overrides.model = change.model;
-      if (change.thinkingLevel !== undefined) overrides.thinkingLevel = change.thinkingLevel;
+      Object.assign(await tx.doc(Settings, address, null), changed(current, change));
     }, context);
     return this.status(address, context);
   }
@@ -449,7 +460,8 @@ export class Edith {
     const access = this.#options.access[wanted.access] ?? this.#options.access.restricted;
     const equipment = this.#equipment(access);
     const ceiling = this.#ceiling(address);
-    const interjects = wanted.paused && (await this.busy(address, context));
+    const interjects =
+      wanted.paused && this.#busy(await this.harness.inspect(context), conversation.id);
     const steer = interjects ? { whenBusy: "steer" as const } : {};
     const id = await this.harness.commit(async (tx) => {
       if (wanted.paused) (await tx.doc(PauseDoc, conversation.id)).paused = false;
@@ -508,23 +520,37 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // Whether an address's conversation is running or has input waiting.
-  async busy(address: string, context: Context): Promise<boolean> {
-    const conversation = await this.conversation(address, context);
-    const inspection = await this.harness.inspect(context);
+  // Whether a conversation is running or has input waiting.
+  #busy(inspection: HarnessInspection, conversation: ConversationId): boolean {
     return (
       inspection.tasks.some(
-        (task) => task.record.conversationId === conversation.id && !task.record.background,
-      ) ||
-      inspection.submissions.some((submission) => submission.conversationId === conversation.id)
+        (task) => task.record.conversationId === conversation && !task.record.background,
+      ) || inspection.submissions.some((submission) => submission.conversationId === conversation)
     );
   }
 
-  // Where an address's paused conversation holds, once it does: before a tool call the model
-  // asked for, or before its next model request.
-  async held(address: string, context: Context): Promise<"tool" | "request" | undefined> {
+  async paused(address: string, context: Context): Promise<boolean> {
     const conversation = await this.conversation(address, context);
-    return heldStep(await this.harness.inspect(context), conversation.id);
+    return (await this.harness.snapshot(PauseDoc, conversation.id, context))?.paused ?? false;
+  }
+
+  // Where an address's paused conversation comes to hold, looked at every `interval`: before a
+  // tool call the model asked for, or before its next model request; undefined once it is no
+  // longer paused, or has nothing left to do.
+  async whenHeld(
+    address: string,
+    interval: number,
+    context: Context,
+  ): Promise<"tool" | "request" | undefined> {
+    const conversation = await this.conversation(address, context);
+    for (;;) {
+      const pause = await this.harness.snapshot(PauseDoc, conversation.id, context);
+      if (!pause?.paused) return undefined;
+      const inspection = await this.harness.inspect(context);
+      const held = heldStep(inspection, conversation.id);
+      if (held || !this.#busy(inspection, conversation.id)) return held;
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
   }
 
   // Stops what an address's conversation is doing and withdraws the input not yet given to the
@@ -533,14 +559,14 @@ export class Edith {
   // again on its own.
   async stop(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
-    const busy = await this.busy(address, context);
+    const busy = this.#busy(await this.harness.inspect(context), conversation.id);
     await conversation.abort(context);
     if (busy)
       await conversation.submit(
         {
           type: "write",
           entry: {
-            kind: "edith.stopped",
+            kind: stoppedKind,
             model: [{ role: "user", content: stoppedNote, timestamp: Date.now() }],
           },
         },
@@ -573,40 +599,52 @@ export class Edith {
   }
 
   // Starts a new conversation at an address, stopping the current one, which stays among its
-  // sessions.
-  async reset(address: string, context: Context): Promise<{ previous: number; current: number }> {
-    const previous = await this.conversation(address, context);
-    await this.stop(address, context);
+  // sessions; `choices` change the address's overrides with it.
+  async reset(
+    address: string,
+    context: Context,
+    choices: Partial<Overrides> = {},
+  ): Promise<{ previous: number; current: number }> {
+    this.check(address, choices);
     const created = await this.harness.createConversation(
       { ownership: { kind: "ownerless" } },
       context,
     );
-    await this.#rebind(address, previous.id, created.id, Date.now(), context);
-    this.#conversations.set(address, Promise.resolve(created));
-    this.#titleLater(address, previous.id, context);
-    return { previous: previous.id, current: created.id };
+    return this.#moveTo(address, created, Date.now(), choices, context);
   }
 
-  // Switches an address back to one of its earlier conversations, stopping the current one.
+  // Switches an address back to one of its earlier conversations, stopping the current one, and
+  // returns that conversation's session.
   async switchTo(
     address: string,
     target: number,
     context: Context,
-  ): Promise<{ previous: number; current: number }> {
-    const previous = await this.conversation(address, context);
-    if (target === previous.id) return { previous: previous.id, current: target };
+  ): Promise<{ previous: number; current: number; started: number | null; preview: string }> {
     const state = await this.harness.snapshot(Address, address, context);
     const found = state?.sessions.find((session) => session.conversation === target);
     const conversation =
       found && (await this.harness.conversation(target as ConversationId, context));
-    if (!found || !conversation) throw new Refused("not a session of this address");
+    if (!found || !conversation) throw new Refused("not an earlier session of this address");
     if (!within(await this.#label(address, target, context), this.#ceiling(address)))
       throw new Refused(`that session ran with more than ${namespaceOf(address)} may reach`);
+    const preview = found.title ?? (await this.#preview(target, context));
+    const moved = await this.#moveTo(address, conversation, found.started, {}, context);
+    return { ...moved, started: found.started, preview };
+  }
+
+  async #moveTo(
+    address: string,
+    next: Conversation,
+    started: number | null,
+    choices: Partial<Overrides>,
+    context: Context,
+  ): Promise<{ previous: number; current: number }> {
+    const previous = await this.conversation(address, context);
     await this.stop(address, context);
-    await this.#rebind(address, previous.id, target, found.started, context);
-    this.#conversations.set(address, Promise.resolve(conversation));
+    await this.#rebind(address, previous.id, next.id, started, choices, context);
+    this.#conversations.set(address, Promise.resolve(next));
     this.#titleLater(address, previous.id, context);
-    return { previous: previous.id, current: target };
+    return { previous: previous.id, current: next.id };
   }
 
   // Titles a conversation the address left, in the background, with the address's model; one with
@@ -623,12 +661,7 @@ export class Edith {
       const reply = await this.#options.models.completeSimple(model, {
         messages: [{ role: "user", content: titlePrompt(excerpt), timestamp: Date.now() }],
       });
-      const title = reply.content
-        .flatMap((part) => (part.type === "text" ? [part.text] : []))
-        .join("")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, titleLimit);
+      const title = oneLine(contentText(reply.content, "")).slice(0, titleLimit);
       if (title === "") return;
       await this.harness.commit(async (tx) => {
         const session = (await tx.doc(Address, address, null)).sessions.find(
@@ -649,18 +682,10 @@ export class Edith {
     const page = await found?.entries({ order: "ascending" }, 200, undefined, context);
     const lines: string[] = [];
     for (const entry of page?.items ?? [])
-      for (const message of entry.model ?? []) {
+      for (const message of entry.kind === stoppedKind ? [] : (entry.model ?? [])) {
         if (message.role !== "user" && message.role !== "assistant") continue;
-        const text = (
-          typeof message.content === "string"
-            ? [message.content]
-            : message.content.flatMap((part) => (part.type === "text" ? [part.text] : []))
-        )
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim();
-        if (text !== "" && text !== stoppedNote)
-          lines.push(`${message.role === "user" ? "User" : "Assistant"}: ${text}`);
+        const text = oneLine(contentText(message.content, " "));
+        if (text !== "") lines.push(`${message.role === "user" ? "User" : "Assistant"}: ${text}`);
       }
     return lines.join("\n").slice(0, excerptLimit);
   }
@@ -672,9 +697,10 @@ export class Edith {
     leaving: number,
     next: number,
     started: number | null,
+    choices: Partial<Overrides>,
     context: Context,
   ): Promise<void> {
-    const overrides = await this.#overrides(address, context);
+    const overrides = changed(await this.#overrides(address, context), choices);
     const label = await this.#label(address, leaving, context);
     await this.harness.commit(async (tx) => {
       Object.assign(await tx.doc(Settings, address, null), overrides);
@@ -710,16 +736,8 @@ export class Edith {
     const found = await this.harness.conversation(conversation as ConversationId, context);
     const page = await found?.entries({ order: "ascending" }, 20, undefined, context);
     for (const entry of page?.items ?? [])
-      for (const message of entry.model ?? []) {
-        if (message.role !== "user") continue;
-        const text =
-          typeof message.content === "string"
-            ? message.content
-            : message.content
-                .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                .join(" ");
-        return text.replace(/\s+/g, " ").trim().slice(0, 80);
-      }
+      for (const message of entry.model ?? [])
+        if (message.role === "user") return oneLine(contentText(message.content, " ")).slice(0, 80);
     return "";
   }
 
@@ -729,6 +747,7 @@ export class Edith {
     const settled = await handle.wait(context);
     if (settled.type !== "input") return { status: "unanswered", reason: "not an input" };
     if (settled.status !== "done") {
+      if (settled.reason === "aborted") return { status: "stopped" };
       const detail = settled.detail === undefined ? "" : ` ${JSON.stringify(settled.detail)}`;
       return { status: "unanswered", reason: `${settled.reason}${detail}` };
     }
@@ -741,8 +760,7 @@ export class Edith {
     );
     const entry = page?.items.find((found) => AssistantEntry.is(found));
     const text = (entry?.model ?? [])
-      .flatMap((message) => (message.role === "assistant" ? message.content : []))
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .map((message) => (message.role === "assistant" ? contentText(message.content, "") : ""))
       .join("");
     return { status: "done", text, entry: settled.answer };
   }

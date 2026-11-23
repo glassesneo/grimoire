@@ -16,7 +16,10 @@ async function serve(edith: Edith, socket: Socket, context: Context): Promise<vo
       response =
         answer.status === "done"
           ? { type: "answer", text: answer.text }
-          : { type: "error", message: `unanswered: ${answer.reason}` };
+          : {
+              type: "error",
+              message: answer.status === "stopped" ? "stopped" : `unanswered: ${answer.reason}`,
+            };
       break;
     }
   } catch (error) {

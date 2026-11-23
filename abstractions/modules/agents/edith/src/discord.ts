@@ -54,15 +54,20 @@ import {
 } from "@earendil-works/pi-durable";
 import {
   describe,
+  describeHold,
   describeSessions,
   followDefault,
   levels,
   parseModel,
   parseThinking,
+  sessionLabel,
+  messageOf,
+  sessionStarted,
   split,
 } from "./commands.ts";
 import { type Edith, Refused, type Status } from "./core.ts";
 import { completePrefix } from "./paragraphs.ts";
+import { EntryWaiters } from "./stream.ts";
 import {
   itemAt,
   itemsOf,
@@ -352,9 +357,9 @@ export class Discord {
   readonly #rendered = new Map<string, string>();
   // Per running code mode call: its item, once read, and its script's calls as last seen live.
   readonly #items = new Map<string, ToolItem>();
-  readonly #live = new Map<string, Call[]>();
+  readonly #live = new Map<string, { calls: Call[]; seen: string }>();
   // Answers waiting for the trace to reach their entry, by channel.
-  readonly #waiting = new Map<string, { entry: number; resolve: () => void }[]>();
+  readonly #waiting = new Map<string, EntryWaiters>();
   // Per channel: when streamed text was last posted, and the key of the generation last seen
   // streaming, which the next assistant entry finishes. Per thinking card: when it was edited.
   readonly #lastPost = new Map<string, number>();
@@ -438,9 +443,10 @@ export class Discord {
     if (message.content.trim() === "") return;
     // Followed before the input is admitted, so that the trace sees everything it causes.
     await this.#follow(api, channel);
-    const paused = (await this.#edith.status(address, this.#context)).paused;
+    const paused = await this.#edith.paused(address, this.#context);
+    let submission: SubmissionId;
     try {
-      await this.#edith.submit(
+      submission = await this.#edith.submit(
         address,
         {
           content: message.content,
@@ -472,19 +478,19 @@ export class Discord {
       return;
     }
     if (paused) await this.#endHold(api, channel, "💬 resumed with your message");
-    await this.#markWaiting(api, channel, message.id);
+    await this.#markWaiting(api, channel, message.id, submission);
     await this.#deliver(api, message.id);
   }
 
   // Marks an input that waits for the run before it with ⏳, until the model is given it.
-  async #markWaiting(api: API, channel: string, id: string): Promise<void> {
-    const queued = async () => {
-      const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
-      const handle =
-        pending &&
-        (await this.#edith.harness.submission(pending.submission as SubmissionId, this.#context));
-      return (await handle?.status(this.#context))?.status === "queued";
-    };
+  async #markWaiting(
+    api: API,
+    channel: string,
+    id: string,
+    submission: SubmissionId,
+  ): Promise<void> {
+    const handle = await this.#edith.harness.submission(submission, this.#context);
+    const queued = async () => (await handle?.status(this.#context))?.status === "queued";
     if (!(await queued())) return;
     await api.channels.addMessageReaction(channel, id, waitingMark);
     await this.#edith.harness.commit(async (tx) => {
@@ -495,9 +501,10 @@ export class Discord {
     if (!(await queued())) await this.#unmarkWaiting(api, channel, id);
   }
 
-  async #unmarkWaiting(api: API, channel: string, id: string): Promise<void> {
-    const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
-    if (!pending?.waiting) return;
+  async #unmarkWaiting(api: API, channel: string, id: string, waiting?: boolean): Promise<void> {
+    const marked =
+      waiting ?? (await this.#edith.harness.snapshot(State, this.#context))?.pending[id]?.waiting;
+    if (!marked) return;
     await api.channels
       .deleteOwnMessageReaction(channel, id, waitingMark)
       .catch((error: unknown) => console.error("discord reaction:", error));
@@ -507,28 +514,36 @@ export class Discord {
     }, this.#context);
   }
 
+  // Commands and buttons answer the allowed users only.
   async #interact(api: API, interaction: APIInteraction): Promise<void> {
+    if (
+      interaction.type !== InteractionType.MessageComponent &&
+      interaction.type !== InteractionType.ApplicationCommand
+    )
+      return;
+    const user = interaction.member?.user ?? interaction.user;
+    if (!user || !this.#options.allowedUsers.includes(user.id) || !interaction.channel) {
+      await api.interactions.reply(interaction.id, interaction.token, {
+        content: "Not available here.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
     if (interaction.type === InteractionType.MessageComponent) {
       const id = interaction.data.custom_id;
       if (id.startsWith("x:")) return this.#toggle(api, interaction);
       if (id.startsWith("c:")) return this.#control(api, interaction);
       return this.#switchFrom(api, interaction);
     }
-    if (interaction.type !== InteractionType.ApplicationCommand) return;
     const data = interaction.data;
     if (data.type !== ApplicationCommandType.ChatInput) return;
-    const user = interaction.member?.user ?? interaction.user;
-    const channel = interaction.channel?.id;
+    const channel = interaction.channel.id;
     const reply = (content: string, flags?: MessageFlags) =>
       api.interactions.reply(interaction.id, interaction.token, {
         content,
         allowed_mentions: { parse: [] },
         ...(flags !== undefined && { flags }),
       });
-    if (!user || !this.#options.allowedUsers.includes(user.id) || !channel) {
-      await reply("Not available here.", MessageFlags.Ephemeral);
-      return;
-    }
     const address = `discord:${channel}`;
     const option = (name: string) => {
       const found = data.options?.find((candidate) => candidate.name === name);
@@ -581,29 +596,26 @@ export class Discord {
         return;
       }
       case "new": {
-        // Checked before anything starts, so that a refused choice changes nothing.
-        const chosen = { access: option("access") || null, persona: option("persona") || null };
-        if (
-          (chosen.access !== null &&
-            !this.#edith.accessChoices("discord").includes(chosen.access)) ||
-          (chosen.persona !== null && !this.#edith.personas().includes(chosen.persona))
-        ) {
-          await reply("Not a choice this server offers.", MessageFlags.Ephemeral);
+        // The choices given; checked before anything starts, so that a refused one changes nothing.
+        const chosen = Object.fromEntries(
+          (["access", "persona"] as const).flatMap((name) =>
+            option(name) === "" ? [] : [[name, option(name)]],
+          ),
+        );
+        try {
+          this.#edith.check(address, chosen);
+        } catch (error) {
+          if (!(error instanceof Refused)) throw error;
+          await reply(error.message, MessageFlags.Ephemeral);
           return;
         }
         // Without a name, here; the choices given replace the channel's.
         if (option("name") === "") {
           await api.interactions.defer(interaction.id, interaction.token);
-          await this.#move(api, channel, () => this.#edith.reset(address, this.#context));
+          await this.#move(api, channel, () => this.#edith.reset(address, this.#context, chosen));
           await this.#endHold(api, channel, "⏹️ stopped");
-          const given = Object.fromEntries(
-            Object.entries(chosen).filter(([, value]) => value !== null),
-          );
-          const status =
-            Object.keys(given).length > 0
-              ? await this.#edith.configure(address, given, this.#context)
-              : await this.#edith.status(address, this.#context);
-          if (Object.keys(given).length > 0) await this.#showChoices(api, channel);
+          const status = await this.#edith.status(address, this.#context);
+          if (Object.keys(chosen).length > 0) await this.#showChoices(api, channel);
           await api.interactions.editReply(
             interaction.application_id,
             interaction.token,
@@ -629,10 +641,7 @@ export class Discord {
             ...(parent && { parent_id: parent }),
           });
         } catch (error) {
-          await reply(
-            `Could not create the channel: ${error instanceof Error ? error.message : String(error)}`,
-            MessageFlags.Ephemeral,
-          );
+          await reply(`Could not create the channel: ${messageOf(error)}`, MessageFlags.Ephemeral);
           return;
         }
         const status = await this.#edith.configure(`discord:${created.id}`, chosen, this.#context);
@@ -671,17 +680,14 @@ export class Discord {
                     type: ComponentType.StringSelect,
                     custom_id: "sessions",
                     placeholder: "Switch to…",
-                    options: earlier.map((session, index) => ({
-                      label:
-                        `${index + 2}. ${session.allowed ? "" : "🔒 "}${session.preview || "(empty)"}`.slice(
-                          0,
-                          100,
-                        ),
-                      value: String(session.conversation),
-                      ...(session.started !== null && {
-                        description: new Date(session.started).toISOString().slice(0, 16),
-                      }),
-                    })),
+                    options: earlier.map((session, index) => {
+                      const started = sessionStarted(session);
+                      return {
+                        label: sessionLabel(session, index + 1).slice(0, 100),
+                        value: String(session.conversation),
+                        ...(started !== undefined && { description: started }),
+                      };
+                    }),
                   },
                 ],
               },
@@ -719,29 +725,20 @@ export class Discord {
       .catch((error: unknown) => console.error("discord topic:", error));
   }
 
-  // Once a paused conversation holds, posts where: after what the run has shown so far. Gives up
-  // once it is resumed or has nothing left to do.
+  // Once a paused conversation holds, posts where: after what the run has shown so far.
   async #showHold(api: API, channel: string): Promise<void> {
-    const address = `discord:${channel}`;
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, holdPoll));
-      if (!(await this.#edith.status(address, this.#context)).paused) return;
-      const held = await this.#edith.held(address, this.#context);
-      if (held) {
-        const text = `⏸️ Paused before ${held === "tool" ? "the next tool call" : "the next model request"}; /resume goes on.`;
-        const message = await api.channels.createMessage(channel, {
-          content: text,
-          allowed_mentions: { parse: [] },
-          flags: MessageFlags.SuppressNotifications,
-          components: [
-            { type: ComponentType.ActionRow, components: controlButtons(["resume", "stop"]) },
-          ],
-        });
-        this.#holds.set(channel, { message: message.id, text });
-        return;
-      }
-      if (!(await this.#edith.busy(address, this.#context))) return;
-    }
+    const held = await this.#edith.whenHeld(`discord:${channel}`, holdPoll, this.#context);
+    if (!held) return;
+    const text = `${describeHold(held)}; /resume goes on.`;
+    const message = await api.channels.createMessage(channel, {
+      content: text,
+      allowed_mentions: { parse: [] },
+      flags: MessageFlags.SuppressNotifications,
+      components: [
+        { type: ComponentType.ActionRow, components: controlButtons(["resume", "stop"]) },
+      ],
+    });
+    this.#holds.set(channel, { message: message.id, text });
   }
 
   async #endHold(api: API, channel: string, how: string): Promise<void> {
@@ -755,11 +752,11 @@ export class Discord {
 
   // Moves a channel to another conversation: once the trace has posted what the stopped one
   // committed, it follows the channel's new conversation.
-  async #move(
+  async #move<Moved extends { previous: number }>(
     api: API,
     channel: string,
-    move: () => Promise<{ previous: number; current: number }>,
-  ): Promise<{ previous: number; current: number }> {
+    move: () => Promise<Moved>,
+  ): Promise<Moved> {
     const moved = await move();
     const left = await this.#conversationOf(moved.previous);
     const newest = (await left?.entries({}, 1, undefined, this.#context))?.items[0]?.id;
@@ -780,14 +777,6 @@ export class Discord {
 
   // The pause, resume and stop buttons of a running step's message and of a pause's marker.
   async #control(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
-    const user = interaction.member?.user ?? interaction.user;
-    if (!user || !this.#options.allowedUsers.includes(user.id)) {
-      await api.interactions.reply(interaction.id, interaction.token, {
-        content: "Not available here.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
     const channel = interaction.channel.id;
     const address = `discord:${channel}`;
     await api.interactions.deferMessageUpdate(interaction.id, interaction.token);
@@ -809,39 +798,19 @@ export class Discord {
 
   // Switches a channel to the conversation the sessions menu names.
   async #switchFrom(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
-    const user = interaction.member?.user ?? interaction.user;
     const channel = interaction.channel.id;
     const data = interaction.data;
     const value =
       data.component_type === ComponentType.StringSelect && data.custom_id === "sessions"
         ? data.values[0]
         : undefined;
-    if (!user || !this.#options.allowedUsers.includes(user.id) || value === undefined) {
-      await api.interactions.reply(interaction.id, interaction.token, {
-        content: "Not available here.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-    const address = `discord:${channel}`;
-    const target = Number(value);
-    const known = (await this.#edith.sessions(address, this.#context)).find(
-      (session) => session.conversation === target,
-    );
-    if (!known || known.current || !known.allowed) {
-      await api.interactions.reply(interaction.id, interaction.token, {
-        content: !known
-          ? "Not a session of this channel."
-          : known.current
-            ? "Already the current session."
-            : "That session ran with more than this channel may reach.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
+    if (value === undefined) return;
     await api.interactions.defer(interaction.id, interaction.token);
+    let session;
     try {
-      await this.#move(api, channel, () => this.#edith.switchTo(address, target, this.#context));
+      session = await this.#move(api, channel, () =>
+        this.#edith.switchTo(`discord:${channel}`, Number(value), this.#context),
+      );
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       await api.interactions.editReply(interaction.application_id, interaction.token, {
@@ -849,11 +818,13 @@ export class Discord {
       });
       return;
     }
-    const when = known.started === null ? "" : ` from <t:${Math.floor(known.started / 1000)}:f>`;
+    await this.#endHold(api, channel, "⏹️ stopped");
+    const when =
+      session.started === null ? "" : ` from <t:${Math.floor(session.started / 1000)}:f>`;
     await api.interactions.editReply(
       interaction.application_id,
       interaction.token,
-      divider(`**── Switched to the session${when} ──**\n${known.preview || "(empty)"}`),
+      divider(`**── Switched to the session${when} ──**\n${session.preview || "(empty)"}`),
     );
   }
 
@@ -867,10 +838,8 @@ export class Discord {
       const typing = setInterval(
         () =>
           void this.#edith
-            .status(`discord:${pending.channel}`, this.#context)
-            .then((status) =>
-              status.paused ? undefined : api.channels.showTyping(pending.channel),
-            )
+            .paused(`discord:${pending.channel}`, this.#context)
+            .then((paused) => (paused ? undefined : api.channels.showTyping(pending.channel)))
             .catch(() => {}),
         8000,
       );
@@ -882,25 +851,25 @@ export class Discord {
         clearInterval(typing);
       }
       if (answer.status === "done") await this.#tracedTo(api, pending.channel, answer.entry);
+      const state = await this.#edith.harness.snapshot(State, this.#context);
       // What the trace already streamed of the answer is not posted again.
       const streamed =
         answer.status === "done"
-          ? (await this.#trace(pending.channel))?.streamed?.[answer.entry]
+          ? state?.trace[pending.channel]?.streamed?.[answer.entry]
           : undefined;
       const text =
         answer.status === "done"
           ? answer.text.slice(streamed?.consumed ?? 0).trim() || (streamed ? "" : "(empty answer)")
-          : answer.reason.startsWith("aborted")
+          : answer.status === "stopped"
             ? "⏹️ stopped"
             : `⚠️ unanswered: ${answer.reason}`;
-      const replied = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id]
-        ?.replied;
+      const replied = state?.pending[id]?.replied;
       if (text !== "")
         await this.#post(api, pending.channel, text, {
           nonce: (index) => `${id}-${index}`,
           ...(!replied && { replyTo: id }),
         });
-      await this.#unmarkWaiting(api, pending.channel, id);
+      await this.#unmarkWaiting(api, pending.channel, id, state?.pending[id]?.waiting ?? false);
       await this.#edith.harness.commit(async (tx) => {
         const state = await tx.doc(State);
         delete state.pending[id];
@@ -1056,28 +1025,22 @@ export class Discord {
         this.#items.delete(result.callId);
         this.#live.delete(result.callId);
       }
-      await this.#edith.harness.commit(async (tx) => {
+      // The trace as committed, which the next entry starts from.
+      trace = await this.#edith.harness.commit(async (tx) => {
         const current = (await tx.doc(State)).trace[channel];
-        if (!current) return;
+        if (!current) return trace;
         current.after = entry.id;
         Object.assign(current.tools, posted);
         if (result) delete current.tools[result.callId];
-        if (!assistant) return;
-        delete current.stream;
-        if (finished !== undefined) current.finished = finished;
-        if (answers && stream && stream.consumed > 0)
-          (current.streamed ??= {})[entry.id] = { consumed: stream.consumed, sent: stream.sent };
+        if (assistant) {
+          delete current.stream;
+          if (finished !== undefined) current.finished = finished;
+          if (answers && stream && stream.consumed > 0)
+            (current.streamed ??= {})[entry.id] = { consumed: stream.consumed, sent: stream.sent };
+        }
+        return JSON.parse(JSON.stringify(current)) as Trace;
       }, this.#context);
       if (assistant) this.#lastPost.delete(channel);
-      const { stream: _finishedStream, ...kept } = trace;
-      trace = {
-        ...(assistant ? kept : trace),
-        ...(assistant && finished !== undefined && { finished }),
-        after: entry.id,
-        tools: Object.fromEntries(
-          Object.entries({ ...trace.tools, ...posted }).filter(([id]) => id !== result?.callId),
-        ),
-      };
       this.#release(channel, entry.id);
     }
     return trace;
@@ -1095,8 +1058,9 @@ export class Discord {
     for (const [callId, post] of Object.entries(trace.tools)) {
       const calls = liveCalls(live, callId);
       if (calls.length === 0) continue;
-      if (JSON.stringify(calls) === JSON.stringify(this.#live.get(callId))) continue;
-      this.#live.set(callId, calls);
+      const seen = JSON.stringify(calls);
+      if (seen === this.#live.get(callId)?.seen) continue;
+      this.#live.set(callId, { calls, seen });
       const item = await this.#toolItem(callId, post);
       if (item) await this.#editTool(api, channel, post, item, "running", calls);
     }
@@ -1284,12 +1248,7 @@ export class Discord {
 
   // Wakes the answers waiting for the trace to reach `entry`.
   #release(channel: string, entry: number): void {
-    const waiting = this.#waiting.get(channel) ?? [];
-    for (const waiter of waiting.filter((candidate) => candidate.entry <= entry)) waiter.resolve();
-    this.#waiting.set(
-      channel,
-      waiting.filter((candidate) => candidate.entry > entry),
-    );
+    this.#waiting.get(channel)?.release(entry);
   }
 
   // Waits until the trace has handled `entry`, so the answer follows what led to it; gives up
@@ -1298,27 +1257,16 @@ export class Discord {
     await this.#follow(api, channel).catch(() => {});
     const trace = await this.#trace(channel);
     if (!trace || trace.after >= entry) return;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, traceWait);
-      const waiting = this.#waiting.get(channel) ?? [];
-      waiting.push({
-        entry,
-        resolve: () => {
-          clearTimeout(timer);
-          resolve();
-        },
-      });
-      this.#waiting.set(channel, waiting);
-    });
+    let waiting = this.#waiting.get(channel);
+    if (!waiting) this.#waiting.set(channel, (waiting = new EntryWaiters()));
+    await waiting.wait(entry, traceWait);
   }
 
   // Expands or collapses a traced message, rebuilt from the conversation's entries.
   async #toggle(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
-    const user = interaction.member?.user ?? interaction.user;
     const match = /^x:(\d+):(\d+):(\d+):([01])$/.exec(interaction.data.custom_id);
-    const allowed = user !== undefined && this.#options.allowedUsers.includes(user.id);
     const [id, entry, part] = [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])];
-    const conversation = allowed && match ? await this.#conversationOf(id) : undefined;
+    const conversation = match ? await this.#conversationOf(id) : undefined;
     const item = await this.#itemOf(conversation, { entry, part });
     if (!conversation || !item || item.kind === "commentary") {
       await api.interactions.reply(interaction.id, interaction.token, {
@@ -1342,7 +1290,7 @@ export class Discord {
       text = renderTool(
         item,
         toolState(result),
-        result?.calls ?? this.#live.get(item.callId) ?? [],
+        result?.calls ?? this.#live.get(item.callId)?.calls ?? [],
         expanded,
         cardLimit,
       );

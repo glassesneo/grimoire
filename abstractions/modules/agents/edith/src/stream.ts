@@ -54,3 +54,26 @@ export class StreamReader {
     this.#attempt = undefined;
   }
 }
+
+// Waits for a client's cursor to reach an entry; each wait gives up after a while.
+export class EntryWaiters {
+  #waiting: { entry: number; resolve: () => void }[] = [];
+
+  wait(entry: number, timeout: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, timeout);
+      function done() {
+        clearTimeout(timer);
+        resolve();
+      }
+      this.#waiting.push({ entry, resolve: done });
+    });
+  }
+
+  // The cursor has reached `entry`.
+  release(entry: number): void {
+    const ready = this.#waiting.filter((waiter) => waiter.entry <= entry);
+    this.#waiting = this.#waiting.filter((waiter) => waiter.entry > entry);
+    for (const waiter of ready) waiter.resolve();
+  }
+}

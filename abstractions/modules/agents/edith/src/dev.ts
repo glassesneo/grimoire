@@ -15,16 +15,28 @@ import {
   type LiveState,
   type SubmissionId,
 } from "@earendil-works/pi-durable";
-import { describe, describeSessions, parseModel, parseThinking } from "./commands.ts";
+import {
+  describe,
+  describeHold,
+  describeSessions,
+  followDefault,
+  messageOf,
+  parseModel,
+  parseThinking,
+} from "./commands.ts";
 import type { Status } from "./core.ts";
 import { readConfig, start } from "./start.ts";
-import { StreamReader } from "./stream.ts";
+import { EntryWaiters, StreamReader } from "./stream.ts";
 import { itemsOf, liveCalls, resultOf, type Call } from "./trace.ts";
 
 const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
 // How soon a second Ctrl-C leaves.
 const exitWindow = 2_000;
+// How long a finished run waits for the watch to show its answer.
+const shownWait = 5_000;
+// How often a pause is looked at until it holds.
+const holdPoll = 500;
 const help = [
   "/status            this conversation's access, persona, model and thinking level",
   "/access [name]     run with an access `cli` may choose, or `default`; alone, lists them",
@@ -77,7 +89,7 @@ export async function dev(args: readonly string[]): Promise<void> {
     await edith.conversation(address, context)
   ).entries({}, 1, undefined, context);
   let handled = newest.items[0]?.id ?? 0;
-  const waiting: { entry: number; resolve: () => void }[] = [];
+  const waiting = new EntryWaiters();
   const shownCalls = new Map<string, number>();
   let retryShown: number | undefined;
 
@@ -120,11 +132,7 @@ export async function dev(args: readonly string[]): Promise<void> {
         shownCalls.delete(result.callId);
       }
       handled = entry.id;
-      for (const waiter of waiting.splice(0).filter((candidate) => {
-        if (candidate.entry > handled) waiting.push(candidate);
-        return candidate.entry <= handled;
-      }))
-        waiter.resolve();
+      waiting.release(handled);
     }
     const generation = live?.generation;
     if (generation?.message) pieces(generation.message.content, generation.attempt);
@@ -159,11 +167,7 @@ export async function dev(args: readonly string[]): Promise<void> {
 
   // Waits for the watch to show an entry, or gives up after a while.
   const shown = (entry: number) =>
-    new Promise<void>((resolve) => {
-      if (entry <= handled) return resolve();
-      const timer = setTimeout(resolve, 5000);
-      waiting.push({ entry, resolve: () => (clearTimeout(timer), resolve()) });
-    });
+    entry <= handled ? Promise.resolve() : waiting.wait(entry, shownWait);
 
   const lines = createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
   // Input piped in may end while a run is still answering.
@@ -177,7 +181,7 @@ export async function dev(args: readonly string[]): Promise<void> {
   const show = (status: Promise<Status>) =>
     status.then(
       (value) => console.log(describe(value)),
-      (error: unknown) => console.log(error instanceof Error ? error.message : String(error)),
+      (error: unknown) => console.log(messageOf(error)),
     );
   // Ctrl-C stops a run; pressed again soon after, or with nothing running, it leaves.
   let interrupted = 0;
@@ -189,16 +193,8 @@ export async function dev(args: readonly string[]): Promise<void> {
   });
   // Once a pause holds, shows where, in the run's output.
   const showHold = async () => {
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      if (closed || !(await edith.status(address, context)).paused) return;
-      const held = await edith.held(address, context);
-      if (held)
-        return stamp(
-          `⏸️ paused before ${held === "tool" ? "the next tool call" : "the next model request"}`,
-        );
-      if (!(await edith.busy(address, context))) return;
-    }
+    const held = await edith.whenHeld(address, holdPoll, context);
+    if (held && !closed) stamp(describeHold(held));
   };
   const run = async (text: string) => {
     // An input taken in by a run under way shares that run's clock.
@@ -208,7 +204,7 @@ export async function dev(args: readonly string[]): Promise<void> {
     try {
       submission = await edith.submit(address, { content: text }, context);
     } catch (error) {
-      console.log(error instanceof Error ? error.message : String(error));
+      console.log(messageOf(error));
       return;
     }
     const answer = await edith.answer(submission, context);
@@ -220,7 +216,13 @@ export async function dev(args: readonly string[]): Promise<void> {
           : `first ${kind} +${((clock[kind] - clock.at) / 1000).toFixed(2)}s`,
       )
       .join(", ");
-    stamp(answer.status === "done" ? `done: ${firsts}` : `unanswered: ${answer.reason}`);
+    stamp(
+      answer.status === "done"
+        ? `done: ${firsts}`
+        : answer.status === "stopped"
+          ? "⏹️ stopped"
+          : `unanswered: ${answer.reason}`,
+    );
     out("\n");
     if (current === clock) current = undefined;
     prompt();
@@ -249,7 +251,11 @@ export async function dev(args: readonly string[]): Promise<void> {
         );
       else
         await show(
-          edith.configure(address, { [kind]: argument === "default" ? null : argument }, context),
+          edith.configure(
+            address,
+            { [kind]: argument === followDefault ? null : argument },
+            context,
+          ),
         );
     } else if (command === "/thinking") {
       const parsed = parseThinking(argument);
@@ -270,9 +276,7 @@ export async function dev(args: readonly string[]): Promise<void> {
       else
         await edith
           .switchTo(address, target.conversation, context)
-          .then(moved, (error: unknown) =>
-            console.log(error instanceof Error ? error.message : String(error)),
-          );
+          .then(moved, (error: unknown) => console.log(messageOf(error)));
     } else if (command?.startsWith("/"))
       console.log(`unknown command ${command}; /help lists them`);
     else {

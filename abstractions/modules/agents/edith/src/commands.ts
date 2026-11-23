@@ -52,17 +52,34 @@ export function describe(status: Status): string {
   ].join("\n");
 }
 
-// One line per session, numbered from 1, the current one first.
+// When a session started, if known, to the minute.
+export const sessionStarted = (session: Pick<SessionInfo, "started">): string | undefined =>
+  session.started === null ? undefined : new Date(session.started).toISOString().slice(0, 16);
+
+// A session's line in a list numbered from 1: its number, whether it is current or not allowed,
+// and its title or the start of its first input.
+export const sessionLabel = (session: SessionInfo, index: number): string =>
+  `${index + 1}. ${session.current ? "(current) " : ""}${session.allowed ? "" : "🔒 "}${
+    session.preview || "(empty)"
+  }`;
+
+// One line per session, the current one first.
 export function describeSessions(sessions: readonly SessionInfo[]): string {
   return sessions
-    .map(
-      (session, index) =>
-        `${index + 1}. ${session.current ? "(current) " : ""}${session.allowed ? "" : "(not allowed) "}${
-          session.started === null ? "" : `${new Date(session.started).toISOString().slice(0, 16)} `
-        }${session.preview || "(empty)"}`,
-    )
+    .map((session, index) => {
+      const started = sessionStarted(session);
+      return `${sessionLabel(session, index)}${started === undefined ? "" : ` (${started})`}`;
+    })
     .join("\n");
 }
+
+// Where a paused run holds, as a line in its output.
+export const describeHold = (held: "tool" | "request"): string =>
+  `⏸️ Paused before ${held === "tool" ? "the next tool call" : "the next model request"}`;
+
+// An error's message, for a reply.
+export const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 // Splits text into chunks of at most `limit` UTF-16 units, preferring line breaks.
 export function split(text: string, limit: number): string[] {
