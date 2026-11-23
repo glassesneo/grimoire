@@ -77,6 +77,7 @@ import {
   resultOf,
   type Call,
   type Item,
+  type ToolState,
 } from "./trace.ts";
 
 export type DiscordOptions = {
@@ -172,12 +173,12 @@ const controlButtons = (names: readonly ("pause" | "resume" | "stop")[]) =>
     custom_id: `c:${name}`,
   }));
 
-// A traced message's card: its text, then its expand button and, while its step runs, the run's
-// pause and stop buttons.
+// A traced message's card: its text, then its expand button and the run's controls its step
+// offers.
 function card(
   text: string,
   toggle?: { id: string; expanded: boolean },
-  running = false,
+  controls: readonly ("pause" | "resume" | "stop")[] = [],
 ): APIContainerComponent[] {
   const buttons = [
     ...(toggle
@@ -190,7 +191,7 @@ function card(
           },
         ]
       : []),
-    ...(running ? controlButtons(["pause", "stop"]) : []),
+    ...controlButtons(controls),
   ];
   return [
     {
@@ -205,8 +206,17 @@ function card(
   ];
 }
 
-const toolState = (result: { isError: boolean } | undefined) =>
+const toolState = (result: { isError: boolean } | undefined): ToolState =>
   result === undefined ? "running" : result.isError ? "error" : "ok";
+
+// The controls a step's card offers in a state: a running step can be paused or stopped, a held
+// one resumed or stopped.
+const controlsOf = (state: ToolState) =>
+  state === "running"
+    ? (["pause", "stop"] as const)
+    : state === "paused"
+      ? (["resume", "stop"] as const)
+      : [];
 
 // The button of a tool message, which only a script makes expandable.
 const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
@@ -366,7 +376,12 @@ export class Discord {
   readonly #streaming = new Map<string, string>();
   readonly #thinkingEdited = new Map<string, number>();
   // Per channel: the message showing where its paused conversation holds.
-  readonly #holds = new Map<string, { message: string; text: string }>();
+  // Per channel: where its paused conversation holds, as shown: a tool call's card, or a message.
+  readonly #holds = new Map<
+    string,
+    | { kind: "card"; callId: string; post: ToolPost }
+    | { kind: "message"; message: string; text: string }
+  >();
   #application: string | undefined;
 
   constructor(edith: Edith, options: DiscordOptions, context: Context) {
@@ -725,10 +740,21 @@ export class Discord {
       .catch((error: unknown) => console.error("discord topic:", error));
   }
 
-  // Once a paused conversation holds, posts where: after what the run has shown so far.
+  // Once a paused conversation holds, shows where: on the held tool call's card, or else in a
+  // message after what the run has shown so far.
   async #showHold(api: API, channel: string): Promise<void> {
     const held = await this.#edith.whenHeld(`discord:${channel}`, holdPoll, this.#context);
     if (!held) return;
+    if (held.kind === "tool") {
+      await this.#tracedTo(api, channel, held.assistant);
+      const post = (await this.#trace(channel))?.tools[held.callId];
+      const item = post && (await this.#toolItem(held.callId, post));
+      if (post && item) {
+        await this.#editTool(api, channel, post, item, "paused", []);
+        this.#holds.set(channel, { kind: "card", callId: held.callId, post });
+        return;
+      }
+    }
     const text = `${describeHold(held)}; /resume goes on.`;
     const message = await api.channels.createMessage(channel, {
       content: text,
@@ -738,13 +764,22 @@ export class Discord {
         { type: ComponentType.ActionRow, components: controlButtons(["resume", "stop"]) },
       ],
     });
-    this.#holds.set(channel, { message: message.id, text });
+    this.#holds.set(channel, { kind: "message", message: message.id, text });
   }
 
+  // Ends what shows a pause: a held card runs again, or its result shows; a message is struck.
   async #endHold(api: API, channel: string, how: string): Promise<void> {
     const hold = this.#holds.get(channel);
     if (!hold) return;
     this.#holds.delete(channel);
+    if (hold.kind === "card") {
+      const item = await this.#toolItem(hold.callId, hold.post);
+      if (item && (await this.#trace(channel))?.tools[hold.callId])
+        await this.#editTool(api, channel, hold.post, item, "running", []).catch((error: unknown) =>
+          console.error("discord hold:", error),
+        );
+      return;
+    }
     await api.channels
       .editMessage(channel, hold.message, { content: `~~${hold.text}~~ ${how}`, components: [] })
       .catch((error: unknown) => console.error("discord hold:", error));
@@ -1092,7 +1127,7 @@ export class Discord {
       const rendered = renderThinking((content[part]?.thinking ?? "").trim(), false, cardLimit);
       if (!stream.thinking) {
         const posted = await api.channels.createMessage(channel, {
-          components: card(rendered, undefined, true),
+          components: card(rendered, undefined, controlsOf("running")),
           nonce: `k${key}`,
           enforce_nonce: true,
           allowed_mentions: { parse: [] },
@@ -1106,7 +1141,7 @@ export class Discord {
         Date.now() - (this.#thinkingEdited.get(stream.thinking.message) ?? 0) >= thinkingEditWait
       ) {
         await api.channels.editMessage(channel, stream.thinking.message, {
-          components: card(rendered, undefined, true),
+          components: card(rendered, undefined, controlsOf("running")),
         });
         this.#rendered.set(stream.thinking.message, rendered);
         this.#thinkingEdited.set(stream.thinking.message, Date.now());
@@ -1219,7 +1254,7 @@ export class Discord {
         expandable
           ? { id: toggleId(conversation, entry, item.part, true), expanded: false }
           : undefined,
-        item.kind === "tool",
+        item.kind === "tool" ? controlsOf("running") : [],
       ),
       nonce: `${item.kind === "thinking" ? "t" : "u"}${entry}-${item.part}`,
       enforce_nonce: true,
@@ -1235,13 +1270,13 @@ export class Discord {
     channel: string,
     post: ToolPost,
     item: ToolItem,
-    state: "running" | "ok" | "error",
+    state: ToolState,
     calls: readonly Call[],
   ): Promise<void> {
     const text = renderTool(item, state, calls, post.expanded ?? false, cardLimit);
     if (this.#rendered.get(post.message) === text) return;
     await api.channels.editMessage(channel, post.message, {
-      components: card(text, toolToggle(post, item), state === "running"),
+      components: card(text, toolToggle(post, item), controlsOf(state)),
     });
     this.#rendered.set(post.message, text);
   }
@@ -1278,6 +1313,7 @@ export class Discord {
     const expanded = match?.[4] === "1";
     let text: string;
     let running = false;
+    let paused = false;
     if (item.kind === "thinking") text = renderThinking(item.text, expanded, cardLimit);
     else {
       const later = await conversation.entries(
@@ -1287,15 +1323,17 @@ export class Discord {
         this.#context,
       );
       const result = later.items.map(resultOf).find((found) => found?.callId === item.callId);
+      const channel = interaction.channel.id;
+      const hold = this.#holds.get(channel);
+      running = !result;
+      paused = running && hold?.kind === "card" && hold.callId === item.callId;
       text = renderTool(
         item,
-        toolState(result),
+        paused ? "paused" : toolState(result),
         result?.calls ?? this.#live.get(item.callId)?.calls ?? [],
         expanded,
         cardLimit,
       );
-      const channel = interaction.channel.id;
-      running = !result;
       if (!result)
         await this.#edith.harness.commit(async (tx) => {
           const post = (await tx.doc(State)).trace[channel]?.tools[item.callId];
@@ -1303,7 +1341,11 @@ export class Discord {
         }, this.#context);
     }
     await api.interactions.updateMessage(interaction.id, interaction.token, {
-      components: card(text, { id: toggleId(id, entry, part, !expanded), expanded }, running),
+      components: card(
+        text,
+        { id: toggleId(id, entry, part, !expanded), expanded },
+        controlsOf(paused ? "paused" : running ? "running" : "ok"),
+      ),
     });
     this.#rendered.set(interaction.message.id, text);
   }

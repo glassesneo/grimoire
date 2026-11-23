@@ -114,6 +114,10 @@ const mark: Record<Call["status"], string> = {
   cancelled: "⊘",
 };
 
+// A code mode call's state: running, held by a pause before it runs, or done.
+export type ToolState = "running" | "paused" | "ok" | "error";
+const stateMark: Record<ToolState, string> = { ...mark, paused: "⏸️" };
+
 function callLine(call: Call): string {
   const time = call.durationMs === undefined ? "" : ` ${(call.durationMs / 1000).toFixed(1)}s`;
   const error = call.error ? ` — ${clip(call.error.replace(/\s+/g, " "), 120)}` : "";
@@ -123,12 +127,12 @@ function callLine(call: Call): string {
 // A tool item's rendering: its state and calls, and when expanded, its script.
 export function renderTool(
   item: Extract<Item, { kind: "tool" }>,
-  state: "running" | "ok" | "error",
+  state: ToolState,
   calls: readonly Call[],
   expanded: boolean,
   limit: number,
 ): string {
-  const lines = [`🔧 **${item.name}** ${mark[state]}`, ...calls.map(callLine)].join("\n");
+  const lines = [`🔧 **${item.name}** ${stateMark[state]}`, ...calls.map(callLine)].join("\n");
   if (!expanded || item.code === undefined) return clip(lines, limit);
   const fence = item.code.includes("```") ? "~~~" : "```";
   const room = limit - lines.length - 16;

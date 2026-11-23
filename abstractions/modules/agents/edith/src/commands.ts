@@ -2,6 +2,7 @@
 // into a client's message limit.
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import type { ModelRef } from "@earendil-works/pi-durable";
+import type { Held } from "./control.ts";
 import type { SessionInfo, Status } from "./core.ts";
 
 export const levels: readonly ModelThinkingLevel[] = [
@@ -74,8 +75,8 @@ export function describeSessions(sessions: readonly SessionInfo[]): string {
 }
 
 // Where a paused run holds, as a line in its output.
-export const describeHold = (held: "tool" | "request"): string =>
-  `⏸️ Paused before ${held === "tool" ? "the next tool call" : "the next model request"}`;
+export const describeHold = (held: Held): string =>
+  `⏸️ Paused before ${held.kind === "tool" ? "the next tool call" : "the next model request"}`;
 
 // An error's message, for a reply.
 export const messageOf = (error: unknown): string =>

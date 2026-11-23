@@ -31,7 +31,7 @@ import {
   type Tx,
 } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
-import { controlExtension, heldStep, PauseDoc, wake } from "./control.ts";
+import { controlExtension, type Held, heldStep, PauseDoc, wake } from "./control.ts";
 import { serverExtensionName } from "./mcp.ts";
 import type { ToolName } from "./tools.ts";
 
@@ -537,11 +537,7 @@ export class Edith {
   // Where an address's paused conversation comes to hold, looked at every `interval`: before a
   // tool call the model asked for, or before its next model request; undefined once it is no
   // longer paused, or has nothing left to do.
-  async whenHeld(
-    address: string,
-    interval: number,
-    context: Context,
-  ): Promise<"tool" | "request" | undefined> {
+  async whenHeld(address: string, interval: number, context: Context): Promise<Held | undefined> {
     const conversation = await this.conversation(address, context);
     for (;;) {
       const pause = await this.harness.snapshot(PauseDoc, conversation.id, context);

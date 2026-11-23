@@ -21,6 +21,7 @@ import {
   type Harness,
   type HarnessInspection,
   type SignalKey,
+  type ToolTaskInput,
 } from "@earendil-works/pi-durable";
 
 export type Pause = { paused: boolean; epoch: number };
@@ -128,17 +129,23 @@ export async function wake(
   );
 }
 
-// Where a paused conversation holds: before a tool call the model asked for, or before its next
-// model request; undefined while nothing is held.
+// Where a paused conversation holds: before a tool call the model asked for, by its call and the
+// answer that asked for it, or before its next model request.
+export type Held =
+  | { readonly kind: "tool"; readonly callId: string; readonly assistant: number }
+  | { readonly kind: "request" };
+
+// Where a paused conversation holds; undefined while nothing is held.
 export function heldStep(
   inspection: HarnessInspection,
   conversation: ConversationId,
-): "tool" | "request" | undefined {
+): Held | undefined {
   for (const task of inspection.tasks) {
     if (task.record.conversationId !== conversation || task.state.kind !== "sleeping") continue;
-    if (task.record.kind === Hold.definition.name) return "request";
-    const input = task.record.input as { kind?: string } | null;
-    if (task.record.kind === ToolTask.definition.name && input?.kind === "model") return "tool";
+    if (task.record.kind === Hold.definition.name) return { kind: "request" };
+    const input = task.record.input as Partial<ToolTaskInput> | null;
+    if (task.record.kind === ToolTask.definition.name && input?.kind === "model")
+      return { kind: "tool", callId: input.callId ?? "", assistant: input.assistant ?? 0 };
   }
   return undefined;
 }

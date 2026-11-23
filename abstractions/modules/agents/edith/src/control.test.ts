@@ -128,7 +128,17 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   );
   assert.equal(parked.length, 1);
   assert.equal(parked[0]?.state.kind === "sleeping" && parked[0].state.until, undefined);
-  assert.equal(await edith.whenHeld("cli", 10, context), "tool");
+  // Held at the call the model's answer asked for, which a client can show on that call.
+  const held = await edith.whenHeld("cli", 10, context);
+  const conversation = await edith.conversation("cli", context);
+  const asking = (await conversation.entries({}, 10, undefined, context)).items.find(
+    (entry) => entry.kind === "pi.assistant",
+  );
+  const call =
+    asking?.model?.[0]?.role === "assistant"
+      ? asking.model[0].content.find((part) => part.type === "toolCall")
+      : undefined;
+  assert.deepEqual(held, { kind: "tool", callId: call?.id, assistant: asking?.id });
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.deepEqual(answer, {
@@ -157,7 +167,7 @@ void test("a run paused during a round of tools makes no next request until resu
   await settle(800);
   assert.deepEqual([counts.searches, counts.requests], [1, 1]);
   assert.equal(await toolResults(edith, "cli"), 1);
-  assert.equal(await edith.whenHeld("cli", 10, context), "request");
+  assert.equal((await edith.whenHeld("cli", 10, context))?.kind, "request");
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.equal(answer.status === "done" && answer.text, "done:1");
@@ -177,7 +187,7 @@ void test("a message to a run held before a tool call resumes it without that ca
   await edith.pause("cli", context);
   answered.resolve();
   await settle(500);
-  assert.equal(await edith.whenHeld("cli", 10, context), "tool");
+  assert.equal((await edith.whenHeld("cli", 10, context))?.kind, "tool");
   const interjection = await edith.submit("cli", { content: "never mind" }, context);
   assert.equal((await edith.status("cli", context)).paused, false);
   const answers = await Promise.all([
