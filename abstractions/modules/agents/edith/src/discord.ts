@@ -85,6 +85,8 @@ const traceWait = 30_000;
 // is edited at most.
 const gatherWait = 2_500;
 const thinkingEditWait = 1_500;
+// How often a pause is looked at until it holds.
+const holdPoll = 1_000;
 // Channel history fetched per channel when the gateway connects again.
 const catchUpLimit = 100;
 
@@ -338,6 +340,8 @@ export class Discord {
   readonly #lastPost = new Map<string, number>();
   readonly #streaming = new Map<string, string>();
   readonly #thinkingEdited = new Map<string, number>();
+  // Per channel: the message showing where its paused conversation holds.
+  readonly #holds = new Map<string, { message: string; text: string }>();
   #application: string | undefined;
 
   constructor(edith: Edith, options: DiscordOptions, context: Context) {
@@ -561,19 +565,23 @@ export class Discord {
       }
       case "pause":
         await reply(describe(await this.#edith.pause(address, this.#context)));
+        this.#spawn(this.#showHold(api, channel));
         return;
       case "resume":
         await reply(describe(await this.#edith.resume(address, this.#context)));
+        await this.#endHold(api, channel, "▶️ resumed");
         return;
       case "stop":
         await api.interactions.defer(interaction.id, interaction.token);
         await api.interactions.editReply(interaction.application_id, interaction.token, {
           content: `⏹️ stopped\n${describe(await this.#edith.stop(address, this.#context))}`,
         });
+        await this.#endHold(api, channel, "⏹️ stopped");
         return;
       case "reset": {
         await api.interactions.defer(interaction.id, interaction.token);
         await this.#move(api, channel, () => this.#edith.reset(address, this.#context));
+        await this.#endHold(api, channel, "⏹️ stopped");
         await api.interactions.editReply(
           interaction.application_id,
           interaction.token,
@@ -643,6 +651,37 @@ export class Discord {
     await api.channels
       .edit(channel, { topic: topicOf(status) })
       .catch((error: unknown) => console.error("discord topic:", error));
+  }
+
+  // Once a paused conversation holds, posts where: after what the run has shown so far. Gives up
+  // once it is resumed or has nothing left to do.
+  async #showHold(api: API, channel: string): Promise<void> {
+    const address = `discord:${channel}`;
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, holdPoll));
+      if (!(await this.#edith.status(address, this.#context)).paused) return;
+      const held = await this.#edith.held(address, this.#context);
+      if (held) {
+        const text = `⏸️ Paused before ${held === "tool" ? "the next tool call" : "the next model request"}; /resume goes on.`;
+        const message = await api.channels.createMessage(channel, {
+          content: text,
+          allowed_mentions: { parse: [] },
+          flags: MessageFlags.SuppressNotifications,
+        });
+        this.#holds.set(channel, { message: message.id, text });
+        return;
+      }
+      if (!(await this.#edith.busy(address, this.#context))) return;
+    }
+  }
+
+  async #endHold(api: API, channel: string, how: string): Promise<void> {
+    const hold = this.#holds.get(channel);
+    if (!hold) return;
+    this.#holds.delete(channel);
+    await api.channels
+      .editMessage(channel, hold.message, { content: `~~${hold.text}~~ ${how}` })
+      .catch((error: unknown) => console.error("discord hold:", error));
   }
 
   // Moves a channel to another conversation: once the trace has posted what the stopped one
@@ -726,8 +765,15 @@ export class Discord {
     try {
       const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
       if (!pending) return;
+      // Not while the conversation is paused, which is not typing.
       const typing = setInterval(
-        () => void api.channels.showTyping(pending.channel).catch(() => {}),
+        () =>
+          void this.#edith
+            .status(`discord:${pending.channel}`, this.#context)
+            .then((status) =>
+              status.paused ? undefined : api.channels.showTyping(pending.channel),
+            )
+            .catch(() => {}),
         8000,
       );
       void api.channels.showTyping(pending.channel).catch(() => {});

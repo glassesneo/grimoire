@@ -17,6 +17,7 @@ import {
   ToolTask,
   type ConversationId,
   type Harness,
+  type HarnessInspection,
   type SignalKey,
 } from "@earendil-works/pi-durable";
 
@@ -103,4 +104,19 @@ export async function wake(
       harness.signal(task.record.id, Resumed, `pause-${pause.epoch}`, true, context),
     ),
   );
+}
+
+// Where a paused conversation holds: before a tool call the model asked for, or before its next
+// model request; undefined while nothing is held.
+export function heldStep(
+  inspection: HarnessInspection,
+  conversation: ConversationId,
+): "tool" | "request" | undefined {
+  for (const task of inspection.tasks) {
+    if (task.record.conversationId !== conversation || task.state.kind !== "sleeping") continue;
+    if (task.record.kind === Hold.definition.name) return "request";
+    const input = task.record.input as { kind?: string } | null;
+    if (task.record.kind === ToolTask.definition.name && input?.kind === "model") return "tool";
+  }
+  return undefined;
 }

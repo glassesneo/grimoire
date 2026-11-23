@@ -181,6 +181,19 @@ export async function dev(args: readonly string[]): Promise<void> {
     if (runs.size === 0) return lines.close();
     void show(edith.stop(address, context));
   });
+  // Once a pause holds, shows where, in the run's output.
+  const showHold = async () => {
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (closed || !(await edith.status(address, context)).paused) return;
+      const held = await edith.held(address, context);
+      if (held)
+        return stamp(
+          `⏸️ paused before ${held === "tool" ? "the next tool call" : "the next model request"}`,
+        );
+      if (!(await edith.busy(address, context))) return;
+    }
+  };
   const run = async (text: string) => {
     const at = Date.now();
     current = { at };
@@ -235,8 +248,10 @@ export async function dev(args: readonly string[]): Promise<void> {
       const parsed = parseThinking(argument);
       if ("error" in parsed) console.log(parsed.error);
       else await show(edith.configure(address, { thinkingLevel: parsed.value }, context));
-    } else if (command === "/pause") await show(edith.pause(address, context));
-    else if (command === "/resume") await show(edith.resume(address, context));
+    } else if (command === "/pause") {
+      await show(edith.pause(address, context));
+      void showHold();
+    } else if (command === "/resume") await show(edith.resume(address, context));
     else if (command === "/stop") await show(edith.stop(address, context));
     else if (command === "/reset") await moved(await edith.reset(address, context));
     else if (command === "/sessions") {

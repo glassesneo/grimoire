@@ -31,7 +31,7 @@ import {
   type Tx,
 } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
-import { controlExtension, PauseDoc, wake } from "./control.ts";
+import { controlExtension, heldStep, PauseDoc, wake } from "./control.ts";
 import { serverExtensionName } from "./mcp.ts";
 import type { ToolName } from "./tools.ts";
 
@@ -488,18 +488,32 @@ export class Edith {
     return this.status(address, context);
   }
 
+  // Whether an address's conversation is running or has input waiting.
+  async busy(address: string, context: Context): Promise<boolean> {
+    const conversation = await this.conversation(address, context);
+    const inspection = await this.harness.inspect(context);
+    return (
+      inspection.tasks.some(
+        (task) => task.record.conversationId === conversation.id && !task.record.background,
+      ) ||
+      inspection.submissions.some((submission) => submission.conversationId === conversation.id)
+    );
+  }
+
+  // Where an address's paused conversation holds, once it does: before a tool call the model
+  // asked for, or before its next model request.
+  async held(address: string, context: Context): Promise<"tool" | "request" | undefined> {
+    const conversation = await this.conversation(address, context);
+    return heldStep(await this.harness.inspect(context), conversation.id);
+  }
+
   // Stops what an address's conversation is doing and withdraws the input not yet given to the
   // model; a pause ends with it. What already happened, such as a file written, stays. The stopped
   // request stays in the context unanswered, so a note after it tells the model not to take it up
   // again on its own.
   async stop(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
-    const inspection = await this.harness.inspect(context);
-    const busy =
-      inspection.tasks.some(
-        (task) => task.record.conversationId === conversation.id && !task.record.background,
-      ) ||
-      inspection.submissions.some((submission) => submission.conversationId === conversation.id);
+    const busy = await this.busy(address, context);
     await conversation.abort(context);
     if (busy)
       await conversation.submit(

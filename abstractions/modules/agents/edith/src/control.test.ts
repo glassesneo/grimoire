@@ -125,6 +125,7 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   );
   assert.equal(parked.length, 1);
   assert.equal(parked[0]?.state.kind === "sleeping" && parked[0].state.until, undefined);
+  assert.equal(await edith.held("cli", context), "tool");
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.deepEqual(answer, {
@@ -153,10 +154,12 @@ void test("a run paused during a round of tools makes no next request until resu
   await settle(800);
   assert.deepEqual([counts.searches, counts.requests], [1, 1]);
   assert.equal(await toolResults(edith, "cli"), 1);
+  assert.equal(await edith.held("cli", context), "request");
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.equal(answer.status === "done" && answer.text, "done:1");
   assert.equal(counts.requests, 2);
+  assert.equal(await edith.held("cli", context), undefined);
   await edith.close(context);
 });
 
