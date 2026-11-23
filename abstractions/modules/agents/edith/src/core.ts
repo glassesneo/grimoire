@@ -109,7 +109,7 @@ export type SessionInfo = {
   readonly current: boolean;
   // When the address started it, if known.
   readonly started: number | null;
-  // The start of its first input.
+  // Its title, once it has one, else the start of its first input.
   readonly preview: string;
   // Whether the address may switch to it.
   readonly allowed: boolean;
@@ -135,7 +135,8 @@ export type Options = {
   readonly onReport?: (report: Report) => void;
 };
 
-type Started = { conversation: number; started: number | null };
+// A title is given once the address leaves the conversation.
+type Started = { conversation: number; started: number | null; title?: string };
 // An address's conversation and its earlier ones, newest first.
 type AddressState = {
   conversation: number | null;
@@ -187,6 +188,20 @@ const LabelDoc = defineDoc<Label>({
 export const stoppedNote =
   "[Chat client note, not the user's words: the user stopped you while you were working on the request above. Treat that request as closed. Respond to the user's next message, and take the stopped work up again only if that message asks for it.]";
 
+const titleLimit = 60;
+const excerptLimit = 6000;
+
+// Asks for a session's title: the excerpt is the conversation as data, the reply the title alone.
+const titlePrompt = (excerpt: string) =>
+  [
+    "Write a title for the conversation below. It names the conversation in a list the user picks past conversations from.",
+    "Use the conversation's language and at most 40 characters. Reply with the title alone.",
+    "",
+    "<conversation>",
+    excerpt,
+    "</conversation>",
+  ].join("\n");
+
 const raise = (label: Label, access: Grant) => {
   for (const tool of access.tools) if (!label.tools.includes(tool)) label.tools.push(tool);
   for (const server of access.mcpServers)
@@ -235,6 +250,8 @@ export class Edith {
   // Conversations by address, kept once open; sharing the opening promise also makes
   // concurrent first messages share one conversation.
   readonly #conversations = new Map<string, Promise<Conversation>>();
+  // Titles being written, which closing waits for.
+  readonly #titling = new Set<Promise<void>>();
 
   private constructor(harness: Harness, options: Options) {
     this.harness = harness;
@@ -545,7 +562,7 @@ export class Edith {
       all.map(async (session, index) => ({
         ...session,
         current: index === 0,
-        preview: await this.#preview(session.conversation, context),
+        preview: session.title ?? (await this.#preview(session.conversation, context)),
         allowed:
           index === 0 || within(await this.#label(address, session.conversation, context), ceiling),
       })),
@@ -563,6 +580,7 @@ export class Edith {
     );
     await this.#rebind(address, previous.id, created.id, Date.now(), context);
     this.#conversations.set(address, Promise.resolve(created));
+    this.#titleLater(address, previous.id, context);
     return { previous: previous.id, current: created.id };
   }
 
@@ -584,7 +602,64 @@ export class Edith {
     await this.stop(address, context);
     await this.#rebind(address, previous.id, target, found.started, context);
     this.#conversations.set(address, Promise.resolve(conversation));
+    this.#titleLater(address, previous.id, context);
     return { previous: previous.id, current: target };
+  }
+
+  // Titles a conversation the address left, in the background, with the address's model; one with
+  // a title, or nothing to title, keeps what it has.
+  #titleLater(address: string, conversation: number, context: Context): void {
+    const titling = (async () => {
+      const state = await this.harness.snapshot(Address, address, context);
+      if (state?.sessions.find((session) => session.conversation === conversation)?.title) return;
+      const excerpt = await this.#excerpt(conversation, context);
+      if (excerpt === "") return;
+      const wanted = await this.status(address, context);
+      const model = this.#options.models.getModel(wanted.model.provider, wanted.model.modelId);
+      if (!model) return;
+      const reply = await this.#options.models.completeSimple(model, {
+        messages: [{ role: "user", content: titlePrompt(excerpt), timestamp: Date.now() }],
+      });
+      const title = reply.content
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, titleLimit);
+      if (title === "") return;
+      await this.harness.commit(async (tx) => {
+        const session = (await tx.doc(Address, address, null)).sessions.find(
+          (candidate) => candidate.conversation === conversation,
+        );
+        if (session) session.title = title;
+      }, context);
+    })();
+    this.#titling.add(titling);
+    titling
+      .catch((error: unknown) => console.error("session title:", error))
+      .finally(() => this.#titling.delete(titling));
+  }
+
+  // The conversation's text, as the title prompt shows it: who said what, up to a length.
+  async #excerpt(conversation: number, context: Context): Promise<string> {
+    const found = await this.harness.conversation(conversation as ConversationId, context);
+    const page = await found?.entries({ order: "ascending" }, 200, undefined, context);
+    const lines: string[] = [];
+    for (const entry of page?.items ?? [])
+      for (const message of entry.model ?? []) {
+        if (message.role !== "user" && message.role !== "assistant") continue;
+        const text = (
+          typeof message.content === "string"
+            ? [message.content]
+            : message.content.flatMap((part) => (part.type === "text" ? [part.text] : []))
+        )
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text !== "" && text !== stoppedNote)
+          lines.push(`${message.role === "user" ? "User" : "Assistant"}: ${text}`);
+      }
+    return lines.join("\n").slice(0, excerptLimit);
   }
 
   // Points an address at another conversation, keeping the one it leaves, labelled, and its
@@ -602,7 +677,8 @@ export class Edith {
       Object.assign(await tx.doc(Settings, address, null), overrides);
       Object.assign(await tx.doc(LabelDoc, leaving as ConversationId), label);
       const state = await tx.doc(Address, address, null);
-      const left = { conversation: leaving, started: state.started };
+      const kept = state.sessions.find((session) => session.conversation === leaving);
+      const left = { ...kept, conversation: leaving, started: state.started };
       state.sessions = [
         left,
         ...state.sessions.filter(
@@ -672,8 +748,9 @@ export class Edith {
     return this.answer(await this.submit(address, { content }, context), context);
   }
 
-  close(context: Context): Promise<void> {
-    return this.harness.close(context);
+  async close(context: Context): Promise<void> {
+    await Promise.allSettled(this.#titling);
+    await this.harness.close(context);
   }
 }
 

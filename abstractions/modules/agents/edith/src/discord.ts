@@ -16,7 +16,9 @@
 // /pause holds a channel's conversation before its next step and /resume lets it go on; /stop ends
 // what it is doing. /reset starts a new conversation in the channel and /sessions switches back to
 // an earlier one from a menu; either posts a divider, and the trace follows the
-// channel to its new conversation.
+// channel to its new conversation. A running step's message carries pause and stop buttons, and
+// a pause posts where it holds, with resume and stop buttons. An input that waits for the run
+// before it carries ⏳ until the model is given it.
 import type { Context } from "@earendil-works/chord/context";
 import {
   ApplicationCommandOptionType,
@@ -87,11 +89,14 @@ const gatherWait = 2_500;
 const thinkingEditWait = 1_500;
 // How often a pause is looked at until it holds.
 const holdPoll = 1_000;
+// The reaction on an input that waits for the run before it.
+const waitingMark = "⏳";
 // Channel history fetched per channel when the gateway connects again.
 const catchUpLimit = 100;
 
 // An input's reply, and whether a message already replies to its message.
-type Pending = { channel: string; submission: number; replied?: boolean };
+// `waiting`: its message carries ⏳ until the input is given to the model.
+type Pending = { channel: string; submission: number; replied?: boolean; waiting?: boolean };
 // A code mode call's message, edited until its result is committed.
 type ToolPost = {
   message: string;
@@ -152,26 +157,42 @@ type Toggle = { id: string; expanded: boolean };
 const toggleId = (conversation: number, entry: number, part: number, expand: boolean) =>
   `x:${conversation}:${entry}:${part}:${expand ? 1 : 0}`;
 
-function card(text: string, toggle?: { id: string; expanded: boolean }): APIContainerComponent[] {
+// A button's style and label for each control a running step's message offers.
+const controlButtons = (names: readonly ("pause" | "resume" | "stop")[]) =>
+  names.map((name) => ({
+    type: ComponentType.Button as const,
+    style: name === "stop" ? (ButtonStyle.Danger as const) : (ButtonStyle.Secondary as const),
+    label: { pause: "⏸️ Pause", resume: "▶️ Resume", stop: "⏹️ Stop" }[name],
+    custom_id: `c:${name}`,
+  }));
+
+// A traced message's card: its text, then its expand button and, while its step runs, the run's
+// pause and stop buttons.
+function card(
+  text: string,
+  toggle?: { id: string; expanded: boolean },
+  running = false,
+): APIContainerComponent[] {
+  const buttons = [
+    ...(toggle
+      ? [
+          {
+            type: ComponentType.Button as const,
+            style: ButtonStyle.Secondary as const,
+            label: toggle.expanded ? "Collapse" : "Expand",
+            custom_id: toggle.id,
+          },
+        ]
+      : []),
+    ...(running ? controlButtons(["pause", "stop"]) : []),
+  ];
   return [
     {
       type: ComponentType.Container,
       components: [
         { type: ComponentType.TextDisplay, content: text },
-        ...(toggle
-          ? [
-              {
-                type: ComponentType.ActionRow as const,
-                components: [
-                  {
-                    type: ComponentType.Button as const,
-                    style: ButtonStyle.Secondary as const,
-                    label: toggle.expanded ? "Collapse" : "Expand",
-                    custom_id: toggle.id,
-                  },
-                ],
-              },
-            ]
+        ...(buttons.length > 0
+          ? [{ type: ComponentType.ActionRow as const, components: buttons }]
           : []),
       ],
     },
@@ -450,13 +471,46 @@ export class Discord {
       });
       return;
     }
+    await this.#markWaiting(api, channel, message.id);
     await this.#deliver(api, message.id);
+  }
+
+  // Marks an input that waits for the run before it with ⏳, until the model is given it.
+  async #markWaiting(api: API, channel: string, id: string): Promise<void> {
+    const queued = async () => {
+      const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
+      const handle =
+        pending &&
+        (await this.#edith.harness.submission(pending.submission as SubmissionId, this.#context));
+      return (await handle?.status(this.#context))?.status === "queued";
+    };
+    if (!(await queued())) return;
+    await api.channels.addMessageReaction(channel, id, waitingMark);
+    await this.#edith.harness.commit(async (tx) => {
+      const pending = (await tx.doc(State)).pending[id];
+      if (pending) pending.waiting = true;
+    }, this.#context);
+    // Given to the model meanwhile, before the trace could see the mark.
+    if (!(await queued())) await this.#unmarkWaiting(api, channel, id);
+  }
+
+  async #unmarkWaiting(api: API, channel: string, id: string): Promise<void> {
+    const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
+    if (!pending?.waiting) return;
+    await api.channels
+      .deleteOwnMessageReaction(channel, id, waitingMark)
+      .catch((error: unknown) => console.error("discord reaction:", error));
+    await this.#edith.harness.commit(async (tx) => {
+      const current = (await tx.doc(State)).pending[id];
+      if (current) delete current.waiting;
+    }, this.#context);
   }
 
   async #interact(api: API, interaction: APIInteraction): Promise<void> {
     if (interaction.type === InteractionType.MessageComponent) {
       const id = interaction.data.custom_id;
       if (id.startsWith("x:")) return this.#toggle(api, interaction);
+      if (id.startsWith("c:")) return this.#control(api, interaction);
       return this.#switchFrom(api, interaction);
     }
     if (interaction.type !== InteractionType.ApplicationCommand) return;
@@ -667,6 +721,9 @@ export class Discord {
           content: text,
           allowed_mentions: { parse: [] },
           flags: MessageFlags.SuppressNotifications,
+          components: [
+            { type: ComponentType.ActionRow, components: controlButtons(["resume", "stop"]) },
+          ],
         });
         this.#holds.set(channel, { message: message.id, text });
         return;
@@ -680,7 +737,7 @@ export class Discord {
     if (!hold) return;
     this.#holds.delete(channel);
     await api.channels
-      .editMessage(channel, hold.message, { content: `~~${hold.text}~~ ${how}` })
+      .editMessage(channel, hold.message, { content: `~~${hold.text}~~ ${how}`, components: [] })
       .catch((error: unknown) => console.error("discord hold:", error));
   }
 
@@ -707,6 +764,35 @@ export class Discord {
     }, this.#context);
     await this.#follow(api, channel);
     return moved;
+  }
+
+  // The pause, resume and stop buttons of a running step's message and of a pause's marker.
+  async #control(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
+    const user = interaction.member?.user ?? interaction.user;
+    if (!user || !this.#options.allowedUsers.includes(user.id)) {
+      await api.interactions.reply(interaction.id, interaction.token, {
+        content: "Not available here.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const channel = interaction.channel.id;
+    const address = `discord:${channel}`;
+    await api.interactions.deferMessageUpdate(interaction.id, interaction.token);
+    switch (interaction.data.custom_id) {
+      case "c:pause":
+        await this.#edith.pause(address, this.#context);
+        this.#spawn(this.#showHold(api, channel));
+        return;
+      case "c:resume":
+        await this.#edith.resume(address, this.#context);
+        await this.#endHold(api, channel, "▶️ resumed");
+        return;
+      case "c:stop":
+        await this.#edith.stop(address, this.#context);
+        await this.#endHold(api, channel, "⏹️ stopped");
+        return;
+    }
   }
 
   // Switches a channel to the conversation the sessions menu names.
@@ -802,6 +888,7 @@ export class Discord {
           nonce: (index) => `${id}-${index}`,
           ...(!replied && { replyTo: id }),
         });
+      await this.#unmarkWaiting(api, pending.channel, id);
       await this.#edith.harness.commit(async (tx) => {
         const state = await tx.doc(State);
         delete state.pending[id];
@@ -902,6 +989,10 @@ export class Discord {
     trace: Trace,
   ): Promise<Trace> {
     for (const entry of entries.filter((candidate) => candidate.id > trace.after)) {
+      if (entry.kind === "discord.message") {
+        const placed = (entry.data as { messageId?: string } | undefined)?.messageId;
+        if (placed) await this.#unmarkWaiting(api, channel, placed);
+      }
       const posted: Record<string, ToolPost> = {};
       // The generation that streamed this entry, if it posted anything.
       const assistant = AssistantEntry.is(entry);
@@ -1025,7 +1116,7 @@ export class Discord {
       const rendered = renderThinking((content[part]?.thinking ?? "").trim(), false, cardLimit);
       if (!stream.thinking) {
         const posted = await api.channels.createMessage(channel, {
-          components: card(rendered),
+          components: card(rendered, undefined, true),
           nonce: `k${key}`,
           enforce_nonce: true,
           allowed_mentions: { parse: [] },
@@ -1039,7 +1130,7 @@ export class Discord {
         Date.now() - (this.#thinkingEdited.get(stream.thinking.message) ?? 0) >= thinkingEditWait
       ) {
         await api.channels.editMessage(channel, stream.thinking.message, {
-          components: card(rendered),
+          components: card(rendered, undefined, true),
         });
         this.#rendered.set(stream.thinking.message, rendered);
         this.#thinkingEdited.set(stream.thinking.message, Date.now());
@@ -1152,6 +1243,7 @@ export class Discord {
         expandable
           ? { id: toggleId(conversation, entry, item.part, true), expanded: false }
           : undefined,
+        item.kind === "tool",
       ),
       nonce: `${item.kind === "thinking" ? "t" : "u"}${entry}-${item.part}`,
       enforce_nonce: true,
@@ -1173,7 +1265,7 @@ export class Discord {
     const text = renderTool(item, state, calls, post.expanded ?? false, cardLimit);
     if (this.#rendered.get(post.message) === text) return;
     await api.channels.editMessage(channel, post.message, {
-      components: card(text, toolToggle(post, item)),
+      components: card(text, toolToggle(post, item), state === "running"),
     });
     this.#rendered.set(post.message, text);
   }
@@ -1225,6 +1317,7 @@ export class Discord {
     }
     const expanded = match?.[4] === "1";
     let text: string;
+    let running = false;
     if (item.kind === "thinking") text = renderThinking(item.text, expanded, cardLimit);
     else {
       const later = await conversation.entries(
@@ -1242,6 +1335,7 @@ export class Discord {
         cardLimit,
       );
       const channel = interaction.channel.id;
+      running = !result;
       if (!result)
         await this.#edith.harness.commit(async (tx) => {
           const post = (await tx.doc(State)).trace[channel]?.tools[item.callId];
@@ -1249,7 +1343,7 @@ export class Discord {
         }, this.#context);
     }
     await api.interactions.updateMessage(interaction.id, interaction.token, {
-      components: card(text, { id: toggleId(id, entry, part, !expanded), expanded }),
+      components: card(text, { id: toggleId(id, entry, part, !expanded), expanded }, running),
     });
     this.#rendered.set(interaction.message.id, text);
   }

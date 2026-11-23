@@ -23,6 +23,8 @@ import { itemsOf, liveCalls, resultOf, type Call } from "./trace.ts";
 
 const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
+// How soon a second Ctrl-C leaves.
+const exitWindow = 2_000;
 const help = [
   "/status            this conversation's access, persona, model and thinking level",
   "/access [name]     run with an access `cli` may choose, or `default`; alone, lists them",
@@ -30,7 +32,7 @@ const help = [
   "/model <p>/<id>    set the model, or `default` to follow the persona",
   "/thinking <level>  set the thinking level, or `default`",
   "/pause, /resume    hold the conversation before its next step, and let it go on",
-  "/stop              stop the run and drop input not yet read (also Ctrl-C)",
+  "/stop              stop the run and drop input not yet read (also Ctrl-C; twice leaves)",
   "/reset             start a new conversation; the current one is kept",
   "/sessions [n]      list this session's conversations, or switch to the n-th",
   "/exit              leave (also Ctrl-D)",
@@ -177,8 +179,12 @@ export async function dev(args: readonly string[]): Promise<void> {
       (value) => console.log(describe(value)),
       (error: unknown) => console.log(error instanceof Error ? error.message : String(error)),
     );
+  // Ctrl-C stops a run; pressed again soon after, or with nothing running, it leaves.
+  let interrupted = 0;
   lines.on("SIGINT", () => {
-    if (runs.size === 0) return lines.close();
+    if (runs.size === 0 || Date.now() - interrupted < exitWindow) return lines.close();
+    interrupted = Date.now();
+    console.log("\nstopping; Ctrl-C again to leave");
     void show(edith.stop(address, context));
   });
   // Once a pause holds, shows where, in the run's output.

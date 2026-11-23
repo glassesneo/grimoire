@@ -49,6 +49,8 @@ function setup(
         seen.push(JSON.stringify(transcript.messages));
         await options.respond?.(counts.requests);
         const last = transcript.messages.at(-1);
+        if (JSON.stringify(transcript.messages[0]).includes("Write a title"))
+          return fauxAssistantMessage("Searching the web");
         if (last?.role === "user")
           return fauxAssistantMessage(
             [fauxToolCall("codemode", { code: "return await tools.mcp__web__search({});" })],
@@ -201,7 +203,12 @@ void test("a reset starts a new conversation that keeps the address's choices, a
   assert.equal((await edith.status("cli", context)).thinkingLevel, "high");
   const fresh = await edith.ask("cli", "second", context);
   assert.equal(fresh.status === "done" && fresh.text, "done:1");
-  const sessions = await edith.sessions("cli", context);
+  // The session left gets a title from the model, which the list shows once it is written.
+  let sessions = await edith.sessions("cli", context);
+  for (let tries = 0; tries < 50 && sessions[1]?.preview !== "Searching the web"; tries++) {
+    await settle(20);
+    sessions = await edith.sessions("cli", context);
+  }
   assert.deepEqual(
     sessions.map((session) => [
       session.conversation,
@@ -211,7 +218,7 @@ void test("a reset starts a new conversation that keeps the address's choices, a
     ]),
     [
       [current, true, "second", true],
-      [previous, false, "first", true],
+      [previous, false, "Searching the web", true],
     ],
   );
   await edith.switchTo("cli", previous, context);
