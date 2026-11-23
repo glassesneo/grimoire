@@ -4,7 +4,9 @@
 // is resumed or aborted. Both waits are parked tasks, so a pause outlives a restart. Each pause has
 // its own resume signal key, since a key holds one value. The waits have no deadline, which would
 // expire the key; instead a resume signals every live step of the conversation, also one about to
-// park, whose later sleep on a key that already holds the value wakes at once.
+// park, whose later sleep on a key that already holds the value wakes at once. A message the user
+// writes while the run is held resumes it too, and a tool call held then is not run, so that the
+// model reads the message before it acts.
 import type { Context } from "@earendil-works/chord/context";
 import {
   defineDoc,
@@ -33,7 +35,20 @@ export const PauseDoc = defineDoc<Pause>({
   checkpointWhen: () => true,
 });
 
-const Resumed = defineSignal({ name: "edith.resumed", version: 1, schema: { type: "boolean" } });
+// How a pause ended: by a resume, or by a message the user wrote, which the run takes in first.
+type Resume = "resume" | "interject";
+
+const Resumed = defineSignal({
+  name: "edith.resumed",
+  // Version 2 tells a message from a resume.
+  version: 2,
+  schema: { type: "string", enum: ["resume", "interject"] },
+  migrate: () => "resume",
+});
+
+// The result of a held call that a message from the user ended, in place of running it.
+export const interjectedNote =
+  "Not run: the user paused you before this call and then wrote to you; their message follows. Make the call again only if it is still needed after reading it.";
 
 const resumeKey = (pause: Pause): SignalKey<unknown> => Resumed.key(`pause-${pause.epoch}`);
 
@@ -72,8 +87,14 @@ export const controlExtension = defineExtension({
       // A call a running script makes belongs to that running tool, which ends as it would.
       async beforeTool(call, api, context) {
         if (call.parent) return undefined;
-        const sleep = parked(await api.snapshot(PauseDoc, api.conversationId, context));
-        return sleep && { sleep };
+        const pause = await api.snapshot(PauseDoc, api.conversationId, context);
+        const sleep = parked(pause);
+        if (sleep) return { sleep };
+        if (!pause || pause.epoch === 0) return undefined;
+        const woke = await api.readSignal(Resumed, `pause-${pause.epoch}`, context);
+        return woke && "value" in woke && woke.value === "interject"
+          ? { block: interjectedNote }
+          : undefined;
       },
     }),
     hook(GenerationTask, {
@@ -91,6 +112,7 @@ export async function wake(
   harness: Harness,
   conversation: ConversationId,
   pause: Pause,
+  how: Resume,
   context: Context,
 ): Promise<void> {
   const inspection = await harness.inspect(context);
@@ -101,7 +123,7 @@ export async function wake(
   );
   await Promise.all(
     steps.map((task) =>
-      harness.signal(task.record.id, Resumed, `pause-${pause.epoch}`, true, context),
+      harness.signal(task.record.id, Resumed, `pause-${pause.epoch}`, how as never, context),
     ),
   );
 }

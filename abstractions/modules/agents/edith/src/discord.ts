@@ -13,8 +13,9 @@
 // script's calls while it runs and is edited once its result is committed. Thinking and scripts
 // are collapsed behind a button. With the trace off, the whole answer is posted once done.
 //
-// /pause holds a channel's conversation before its next step and /resume lets it go on; /stop ends
-// what it is doing. /reset starts a new conversation in the channel and /sessions switches back to
+// /pause holds a channel's conversation before its next step and /resume lets it go on, as does a
+// message, which the run takes in where it holds; /stop ends what it is doing. /new starts a new
+// conversation in the channel, or in a new channel when named, and /sessions switches back to
 // an earlier one from a menu; either posts a divider, and the trace follows the
 // channel to its new conversation. A running step's message carries pause and stop buttons, and
 // a pause posts where it holds, with resume and stop buttons. An input that waits for the run
@@ -294,13 +295,12 @@ const commandsFor = (
   {
     type: ApplicationCommandType.ChatInput,
     name: "new",
-    description: "Create a channel beside this one, with its own access and persona",
+    description: "Start a new conversation here, or in a new channel beside this one when named",
     options: [
       {
         type: ApplicationCommandOptionType.String,
         name: "name",
-        description: "The channel's name",
-        required: true,
+        description: "A new channel's name; without one, the conversation starts here",
       },
       {
         type: ApplicationCommandOptionType.String,
@@ -319,7 +319,6 @@ const commandsFor = (
   simple("pause", "Hold this channel's conversation before its next step"),
   simple("resume", "Let this channel's paused conversation go on"),
   simple("stop", "Stop what this channel's conversation is doing and drop input not yet read"),
-  simple("reset", "Start a new conversation in this channel; the current one is kept"),
   simple("sessions", "Switch this channel back to one of its earlier conversations"),
 ];
 
@@ -439,6 +438,7 @@ export class Discord {
     if (message.content.trim() === "") return;
     // Followed before the input is admitted, so that the trace sees everything it causes.
     await this.#follow(api, channel);
+    const paused = (await this.#edith.status(address, this.#context)).paused;
     try {
       await this.#edith.submit(
         address,
@@ -471,6 +471,7 @@ export class Discord {
       });
       return;
     }
+    if (paused) await this.#endHold(api, channel, "💬 resumed with your message");
     await this.#markWaiting(api, channel, message.id);
     await this.#deliver(api, message.id);
   }
@@ -580,12 +581,7 @@ export class Discord {
         return;
       }
       case "new": {
-        const guild = interaction.guild_id;
-        if (guild === undefined) {
-          await reply("Channels are created in a server only.", MessageFlags.Ephemeral);
-          return;
-        }
-        // Checked before the channel exists, so that a refused choice leaves no channel behind.
+        // Checked before anything starts, so that a refused choice changes nothing.
         const chosen = { access: option("access") || null, persona: option("persona") || null };
         if (
           (chosen.access !== null &&
@@ -593,6 +589,33 @@ export class Discord {
           (chosen.persona !== null && !this.#edith.personas().includes(chosen.persona))
         ) {
           await reply("Not a choice this server offers.", MessageFlags.Ephemeral);
+          return;
+        }
+        // Without a name, here; the choices given replace the channel's.
+        if (option("name") === "") {
+          await api.interactions.defer(interaction.id, interaction.token);
+          await this.#move(api, channel, () => this.#edith.reset(address, this.#context));
+          await this.#endHold(api, channel, "⏹️ stopped");
+          const given = Object.fromEntries(
+            Object.entries(chosen).filter(([, value]) => value !== null),
+          );
+          const status =
+            Object.keys(given).length > 0
+              ? await this.#edith.configure(address, given, this.#context)
+              : await this.#edith.status(address, this.#context);
+          if (Object.keys(given).length > 0) await this.#showChoices(api, channel);
+          await api.interactions.editReply(
+            interaction.application_id,
+            interaction.token,
+            divider(
+              `**── New session ──** with access ${status.access} as ${status.persona}\nThe previous one is kept; /sessions lists them.`,
+            ),
+          );
+          return;
+        }
+        const guild = interaction.guild_id;
+        if (guild === undefined) {
+          await reply("Channels are created in a server only.", MessageFlags.Ephemeral);
           return;
         }
         // Beside this channel: in its category, if it has one.
@@ -632,17 +655,6 @@ export class Discord {
         });
         await this.#endHold(api, channel, "⏹️ stopped");
         return;
-      case "reset": {
-        await api.interactions.defer(interaction.id, interaction.token);
-        await this.#move(api, channel, () => this.#edith.reset(address, this.#context));
-        await this.#endHold(api, channel, "⏹️ stopped");
-        await api.interactions.editReply(
-          interaction.application_id,
-          interaction.token,
-          divider("**── New session ──**\nThe previous one is kept; /sessions lists them."),
-        );
-        return;
-      }
       case "sessions": {
         const sessions = await this.#edith.sessions(address, this.#context);
         const earlier = sessions.slice(1, 26);

@@ -14,6 +14,7 @@ import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { interjectedNote } from "./control.ts";
 import { type Access, Edith, type Namespace, Refused, stoppedNote } from "./core.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -109,7 +110,7 @@ const toolResults = async (edith: Edith, address: string) => {
   return page.items.filter((entry) => entry.kind === "pi.tool-result").length;
 };
 
-void test("a paused conversation runs no tool the model asks for until resumed, and takes no input while idle", async () => {
+void test("a paused conversation runs no tool the model asks for until resumed, and input while nothing runs ends the pause", async () => {
   const answered = deferred();
   const { counts, open } = setup("pause-tool.sqlite", {
     respond: (call) => (call === 1 ? answered.promise : undefined),
@@ -137,10 +138,10 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   });
   assert.equal(counts.searches, 1);
 
+  // Paused with nothing under way, input just ends the pause.
   await edith.pause("cli", context);
-  await assert.rejects(edith.submit("cli", { content: "again" }, context), Refused);
-  await edith.resume("cli", context);
   assert.equal((await edith.ask("cli", "again", context)).status, "done");
+  assert.equal((await edith.status("cli", context)).paused, false);
   await edith.close(context);
 });
 
@@ -165,15 +166,42 @@ void test("a run paused during a round of tools makes no next request until resu
   await edith.close(context);
 });
 
+void test("a message to a run held before a tool call resumes it without that call, and the model reads the message next", async () => {
+  const answered = deferred();
+  const { counts, seen, open } = setup("interject.sqlite", {
+    respond: (call) => (call === 1 ? answered.promise : undefined),
+  });
+  const edith = await open();
+  const first = await edith.submit("cli", { content: "go" }, context);
+  await settle(100);
+  await edith.pause("cli", context);
+  answered.resolve();
+  await settle(500);
+  assert.equal(await edith.held("cli", context), "tool");
+  const interjection = await edith.submit("cli", { content: "never mind" }, context);
+  assert.equal((await edith.status("cli", context)).paused, false);
+  const answers = await Promise.all([
+    edith.answer(first, context),
+    edith.answer(interjection, context),
+  ]);
+  assert.deepEqual(
+    answers.map((answer) => answer.status),
+    ["done", "done"],
+  );
+  // The held call was not run; the next request saw why, then the message.
+  const next = seen[1] ?? "";
+  assert.ok(next.includes(interjectedNote), next);
+  assert.ok(next.indexOf(interjectedNote) < next.indexOf("never mind"), next);
+  assert.equal(counts.searches, 1, "only the call the model made after reading the message");
+  await edith.close(context);
+});
+
 void test("stopping ends the run and its pause, and withdraws input not yet given to the model", async () => {
   const { counts, seen, open } = setup("stop.sqlite");
   const edith = await open();
-  await edith.pause("cli", context);
-  // Paused while idle refuses input, so the pause comes once the run waits at its tool.
-  await edith.resume("cli", context);
   const first = await edith.submit("cli", { content: "go" }, context);
-  await edith.pause("cli", context);
   const queued = await edith.submit("cli", { content: "then this" }, context);
+  await edith.pause("cli", context);
   await settle(300);
   const stopped = await edith.stop("cli", context);
   assert.equal(stopped.paused, false);

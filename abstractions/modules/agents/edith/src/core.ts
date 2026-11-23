@@ -12,7 +12,6 @@ import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
 import {
   AssistantEntry,
-  ConversationIdle,
   configure,
   createRegistry,
   defineDoc,
@@ -436,8 +435,9 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // Admits an input; `alsoInCommit` writes a client's own state in the same commit. A paused
-  // conversation takes input only while a run is under way, which answers it once resumed.
+  // Admits an input; `alsoInCommit` writes a client's own state in the same commit. Input to a
+  // paused conversation ends the pause: a run under way takes it in where it holds, and a tool call
+  // held there is not run.
   async submit(
     address: string,
     draft: Omit<InputSubmissionDraft, "type">,
@@ -449,37 +449,40 @@ export class Edith {
     const access = this.#options.access[wanted.access] ?? this.#options.access.restricted;
     const equipment = this.#equipment(access);
     const ceiling = this.#ceiling(address);
-    const whenIdle = wanted.paused ? { whenIdle: "reject" as const } : {};
-    try {
-      return await this.harness.commit(async (tx) => {
-        const label = await tx.doc(LabelDoc, conversation.id);
-        if (!within(label, ceiling))
-          throw new Refused(
-            `this session ran with more than ${namespaceOf(address)} may reach; start a new one`,
-          );
-        raise(label, access);
-        // The configuration can change between runs of the daemon, so the agent is brought to the
-        // effective choices with each input; writing an equal value changes nothing.
-        await configure(tx, conversation.id, {
-          model: wanted.model,
-          thinkingLevel: wanted.thinkingLevel,
-          extensions: equipment.extensions,
-          tools: equipment.tools,
-          modelTools: equipment.modelTools,
-          maxTurns: access.maxTurns,
-        });
-        const id = await conversation.submit(tx, {
-          ...draft,
-          ...whenIdle,
-          type: "input",
-        } as InputSubmissionDraft);
-        await alsoInCommit?.(tx, id);
-        return id;
-      }, context);
-    } catch (error) {
-      if (error instanceof ConversationIdle) throw new Refused("paused; resume first");
-      throw error;
+    const interjects = wanted.paused && (await this.busy(address, context));
+    const steer = interjects ? { whenBusy: "steer" as const } : {};
+    const id = await this.harness.commit(async (tx) => {
+      if (wanted.paused) (await tx.doc(PauseDoc, conversation.id)).paused = false;
+      const label = await tx.doc(LabelDoc, conversation.id);
+      if (!within(label, ceiling))
+        throw new Refused(
+          `this session ran with more than ${namespaceOf(address)} may reach; start a new one`,
+        );
+      raise(label, access);
+      // The configuration can change between runs of the daemon, so the agent is brought to the
+      // effective choices with each input; writing an equal value changes nothing.
+      await configure(tx, conversation.id, {
+        model: wanted.model,
+        thinkingLevel: wanted.thinkingLevel,
+        extensions: equipment.extensions,
+        tools: equipment.tools,
+        modelTools: equipment.modelTools,
+        maxTurns: access.maxTurns,
+      });
+      const id = await conversation.submit(tx, {
+        ...draft,
+        ...steer,
+        type: "input",
+      } as InputSubmissionDraft);
+      await alsoInCommit?.(tx, id);
+      return id;
+    }, context);
+    // Only once the input is in: a held step woken without it would only park again.
+    if (interjects) {
+      const pause = await this.harness.snapshot(PauseDoc, conversation.id, context);
+      if (pause) await wake(this.harness, conversation.id, pause, "interject", context);
     }
+    return id;
   }
 
   // Pauses an address's conversation: no new step starts until it is resumed or stopped.
@@ -501,7 +504,7 @@ export class Edith {
       pause.paused = false;
       return { ...pause };
     }, context);
-    await wake(this.harness, conversation.id, pause, context);
+    await wake(this.harness, conversation.id, pause, "resume", context);
     return this.status(address, context);
   }
 

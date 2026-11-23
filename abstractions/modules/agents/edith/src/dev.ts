@@ -33,7 +33,7 @@ const help = [
   "/thinking <level>  set the thinking level, or `default`",
   "/pause, /resume    hold the conversation before its next step, and let it go on",
   "/stop              stop the run and drop input not yet read (also Ctrl-C; twice leaves)",
-  "/reset             start a new conversation; the current one is kept",
+  "/new               start a new conversation; the current one is kept",
   "/sessions [n]      list this session's conversations, or switch to the n-th",
   "/exit              leave (also Ctrl-D)",
 ].join("\n");
@@ -201,8 +201,9 @@ export async function dev(args: readonly string[]): Promise<void> {
     }
   };
   const run = async (text: string) => {
-    const at = Date.now();
-    current = { at };
+    // An input taken in by a run under way shares that run's clock.
+    const clock = current ?? { at: Date.now() };
+    current = clock;
     let submission: SubmissionId;
     try {
       submission = await edith.submit(address, { content: text }, context);
@@ -214,14 +215,14 @@ export async function dev(args: readonly string[]): Promise<void> {
     if (answer.status === "done") await shown(answer.entry);
     const firsts = (["thinking", "text"] as const)
       .map((kind) =>
-        current?.[kind] === undefined
+        clock[kind] === undefined
           ? `no ${kind}`
-          : `first ${kind} +${((current[kind] - current.at) / 1000).toFixed(2)}s`,
+          : `first ${kind} +${((clock[kind] - clock.at) / 1000).toFixed(2)}s`,
       )
       .join(", ");
     stamp(answer.status === "done" ? `done: ${firsts}` : `unanswered: ${answer.reason}`);
     out("\n");
-    current = undefined;
+    if (current === clock) current = undefined;
     prompt();
   };
   prompt();
@@ -259,7 +260,7 @@ export async function dev(args: readonly string[]): Promise<void> {
       void showHold();
     } else if (command === "/resume") await show(edith.resume(address, context));
     else if (command === "/stop") await show(edith.stop(address, context));
-    else if (command === "/reset") await moved(await edith.reset(address, context));
+    else if (command === "/new") await moved(await edith.reset(address, context));
     else if (command === "/sessions") {
       const sessions = await edith.sessions(address, context);
       const index = Number(argument) - 1;
