@@ -182,6 +182,10 @@ const LabelDoc = defineDoc<Label>({
   checkpointWhen: () => true,
 });
 
+// Written after a stopped run, as the user's.
+export const stoppedNote =
+  "[The user stopped the request above before it was finished. Do not continue it unless asked again.]";
+
 const raise = (label: Label, access: Grant) => {
   for (const tool of access.tools) if (!label.tools.includes(tool)) label.tools.push(tool);
   for (const server of access.mcpServers)
@@ -484,10 +488,29 @@ export class Edith {
   }
 
   // Stops what an address's conversation is doing and withdraws the input not yet given to the
-  // model; a pause ends with it. What already happened, such as a file written, stays.
+  // model; a pause ends with it. What already happened, such as a file written, stays. The stopped
+  // request stays in the context unanswered, so a note after it tells the model not to take it up
+  // again on its own.
   async stop(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
+    const inspection = await this.harness.inspect(context);
+    const busy =
+      inspection.tasks.some(
+        (task) => task.record.conversationId === conversation.id && !task.record.background,
+      ) ||
+      inspection.submissions.some((submission) => submission.conversationId === conversation.id);
     await conversation.abort(context);
+    if (busy)
+      await conversation.submit(
+        {
+          type: "write",
+          entry: {
+            kind: "edith.stopped",
+            model: [{ role: "user", content: stoppedNote, timestamp: Date.now() }],
+          },
+        },
+        context,
+      );
     await this.harness.commit(async (tx) => {
       (await tx.doc(PauseDoc, conversation.id)).paused = false;
     }, context);

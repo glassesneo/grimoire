@@ -14,7 +14,7 @@ import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
-import { type Access, Edith, type Namespace, Refused } from "./core.ts";
+import { type Access, Edith, type Namespace, Refused, stoppedNote } from "./core.ts";
 
 const context = BACKGROUND_CONTEXT;
 const directory = mkdtempSync(join(tmpdir(), "edith-control-"));
@@ -37,6 +37,8 @@ function setup(
   } = {},
 ) {
   const counts = { requests: 0, searches: 0 };
+  // Each request's messages, as JSON.
+  const seen: string[] = [];
   const faux = fauxProvider({ provider: "faux", models: [{ id: "a" }] });
   // Odd requests call the tool; even ones answer with the number of user messages so far.
   faux.setResponses(
@@ -44,6 +46,7 @@ function setup(
       { length: 50 },
       () => async (transcript: { messages: readonly { role: string }[] }) => {
         counts.requests += 1;
+        seen.push(JSON.stringify(transcript.messages));
         await options.respond?.(counts.requests);
         const last = transcript.messages.at(-1);
         if (last?.role === "user")
@@ -89,7 +92,7 @@ function setup(
       },
       context,
     );
-  return { counts, open };
+  return { counts, seen, open };
 }
 
 const deferred = () => {
@@ -116,6 +119,12 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   answered.resolve();
   await settle(500);
   assert.deepEqual([counts.searches, await toolResults(edith, "cli")], [0, 0]);
+  // Parked without a deadline, which would expire its resume key and fail the call.
+  const parked = (await edith.harness.inspect(context)).tasks.filter(
+    (task) => task.state.kind === "sleeping",
+  );
+  assert.equal(parked.length, 1);
+  assert.equal(parked[0]?.state.kind === "sleeping" && parked[0].state.until, undefined);
   await edith.resume("cli", context);
   const answer = await edith.answer(submission, context);
   assert.deepEqual(answer, {
@@ -152,7 +161,7 @@ void test("a run paused during a round of tools makes no next request until resu
 });
 
 void test("stopping ends the run and its pause, and withdraws input not yet given to the model", async () => {
-  const { counts, open } = setup("stop.sqlite");
+  const { counts, seen, open } = setup("stop.sqlite");
   const edith = await open();
   await edith.pause("cli", context);
   // Paused while idle refuses input, so the pause comes once the run waits at its tool.
@@ -169,7 +178,12 @@ void test("stopping ends the run and its pause, and withdraws input not yet give
     [true, true],
   );
   assert.equal(counts.searches, 0);
+  // The model is told the stopped request is not to be taken up again.
+  const conversation = await edith.conversation("cli", context);
+  const newest = (await conversation.entries({}, 1, undefined, context)).items[0];
+  assert.equal(newest?.kind, "edith.stopped");
   assert.equal((await edith.ask("cli", "after", context)).status, "done");
+  assert.ok(seen.at(-1)?.includes(stoppedNote));
   await edith.close(context);
 });
 

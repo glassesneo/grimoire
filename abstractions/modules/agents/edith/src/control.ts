@@ -2,8 +2,9 @@
 // a model's response or a running tool, ends as it would; a tool call the model asked for waits
 // before it runs, and after a round of tools the next model request waits, until the conversation
 // is resumed or aborted. Both waits are parked tasks, so a pause outlives a restart. Each pause has
-// its own resume signal key, since a key holds one value; a parked task also looks again now and
-// then, in case it parked just after the resume that would have woken it.
+// its own resume signal key, since a key holds one value. The waits have no deadline, which would
+// expire the key; instead a resume signals every live step of the conversation, also one about to
+// park, whose later sleep on a key that already holds the value wakes at once.
 import type { Context } from "@earendil-works/chord/context";
 import {
   defineDoc,
@@ -33,13 +34,11 @@ export const PauseDoc = defineDoc<Pause>({
 
 const Resumed = defineSignal({ name: "edith.resumed", version: 1, schema: { type: "boolean" } });
 
-const recheck = 15_000;
-
 const resumeKey = (pause: Pause): SignalKey<unknown> => Resumed.key(`pause-${pause.epoch}`);
 
 // What a parked step sleeps on while the conversation is paused.
-const parked = (pause: Pause | undefined, now: number) =>
-  pause?.paused ? { until: now + recheck, signals: [resumeKey(pause)] } : undefined;
+const parked = (pause: Pause | undefined) =>
+  pause?.paused ? { signals: [resumeKey(pause)] } : undefined;
 
 // Holds a run between a round of tools and its next model request while paused.
 const Hold = defineTask<Record<string, never>, { phase: "hold" }, Record<string, never>>({
@@ -49,7 +48,7 @@ const Hold = defineTask<Record<string, never>, { phase: "hold" }, Record<string,
   phases: {
     async hold(_task, runtime, context) {
       const pause = await runtime.snapshot(PauseDoc, runtime.conversationId, context);
-      const sleep = parked(pause, Date.now());
+      const sleep = parked(pause);
       await runtime.commit(
         () =>
           sleep
@@ -72,7 +71,7 @@ export const controlExtension = defineExtension({
       // A call a running script makes belongs to that running tool, which ends as it would.
       async beforeTool(call, api, context) {
         if (call.parent) return undefined;
-        const sleep = parked(await api.snapshot(PauseDoc, api.conversationId, context), api.now());
+        const sleep = parked(await api.snapshot(PauseDoc, api.conversationId, context));
         return sleep && { sleep };
       },
     }),
@@ -85,7 +84,8 @@ export const controlExtension = defineExtension({
   ],
 });
 
-// Wakes the conversation's parked steps with the pause's resume key.
+// Wakes the conversation's parked steps with the pause's resume key, and gives it to those that
+// may still park.
 export async function wake(
   harness: Harness,
   conversation: ConversationId,
@@ -93,14 +93,13 @@ export async function wake(
   context: Context,
 ): Promise<void> {
   const inspection = await harness.inspect(context);
-  const sleeping = inspection.tasks.filter(
+  const steps = inspection.tasks.filter(
     (task) =>
       task.record.conversationId === conversation &&
-      task.state.kind === "sleeping" &&
       (task.record.kind === Hold.definition.name || task.record.kind === ToolTask.definition.name),
   );
   await Promise.all(
-    sleeping.map((task) =>
+    steps.map((task) =>
       harness.signal(task.record.id, Resumed, `pause-${pause.epoch}`, true, context),
     ),
   );

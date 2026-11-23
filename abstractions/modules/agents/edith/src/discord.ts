@@ -15,7 +15,7 @@
 //
 // /pause holds a channel's conversation before its next step and /resume lets it go on; /stop ends
 // what it is doing. /reset starts a new conversation in the channel and /sessions switches back to
-// an earlier one; either posts a divider whose button switches back, and the trace follows the
+// an earlier one from a menu; either posts a divider, and the trace follows the
 // channel to its new conversation.
 import type { Context } from "@earendil-works/chord/context";
 import {
@@ -300,31 +300,15 @@ const commandsFor = (
   simple("sessions", "Switch this channel back to one of its earlier conversations"),
 ];
 
-// A divider between a channel's conversations, whose button switches back to the one it left.
-const divider = (text: string, back: number) => ({
-  content: text,
-  allowed_mentions: { parse: [] },
-  components: [
-    {
-      type: ComponentType.ActionRow as const,
-      components: [
-        {
-          type: ComponentType.Button as const,
-          style: ButtonStyle.Secondary as const,
-          label: "Switch back",
-          custom_id: `v:${back}`,
-        },
-      ],
-    },
-  ],
-});
-
 // Commands that take no option.
 const simple = (name: string, description: string) => ({
   type: ApplicationCommandType.ChatInput as const,
   name,
   description,
 });
+
+// A divider between a channel's conversations; /sessions switches between them.
+const divider = (text: string) => ({ content: text, allowed_mentions: { parse: [] } });
 
 const topicOf = (status: Status) => `EDITH · access: ${status.access} · persona: ${status.persona}`;
 
@@ -589,16 +573,11 @@ export class Discord {
         return;
       case "reset": {
         await api.interactions.defer(interaction.id, interaction.token);
-        const { previous } = await this.#move(api, channel, () =>
-          this.#edith.reset(address, this.#context),
-        );
+        await this.#move(api, channel, () => this.#edith.reset(address, this.#context));
         await api.interactions.editReply(
           interaction.application_id,
           interaction.token,
-          divider(
-            "**── New session ──**\nThe previous one is kept; /sessions lists them.",
-            previous,
-          ),
+          divider("**── New session ──**\nThe previous one is kept; /sessions lists them."),
         );
         return;
       }
@@ -691,15 +670,15 @@ export class Discord {
     return moved;
   }
 
-  // Switches a channel to the conversation a divider's button or the sessions menu names.
+  // Switches a channel to the conversation the sessions menu names.
   async #switchFrom(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
     const user = interaction.member?.user ?? interaction.user;
     const channel = interaction.channel.id;
     const data = interaction.data;
     const value =
-      data.component_type === ComponentType.StringSelect
+      data.component_type === ComponentType.StringSelect && data.custom_id === "sessions"
         ? data.values[0]
-        : /^v:(\d+)$/.exec(data.custom_id)?.[1];
+        : undefined;
     if (!user || !this.#options.allowedUsers.includes(user.id) || value === undefined) {
       await api.interactions.reply(interaction.id, interaction.token, {
         content: "Not available here.",
@@ -724,11 +703,8 @@ export class Discord {
       return;
     }
     await api.interactions.defer(interaction.id, interaction.token);
-    let moved;
     try {
-      moved = await this.#move(api, channel, () =>
-        this.#edith.switchTo(address, target, this.#context),
-      );
+      await this.#move(api, channel, () => this.#edith.switchTo(address, target, this.#context));
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       await api.interactions.editReply(interaction.application_id, interaction.token, {
@@ -740,10 +716,7 @@ export class Discord {
     await api.interactions.editReply(
       interaction.application_id,
       interaction.token,
-      divider(
-        `**── Switched to the session${when} ──**\n${known.preview || "(empty)"}`,
-        moved.previous,
-      ),
+      divider(`**── Switched to the session${when} ──**\n${known.preview || "(empty)"}`),
     );
   }
 
