@@ -3,11 +3,16 @@
 // access and a persona. An access is what it may do: the tools, MCP servers and turn limit, which
 // only the configuration defines. A persona is who answers: the model and thinking level the
 // conversation follows unless it overrides them. Each is the one a client chose for the
-// conversation, or else its namespace's; a chosen access must lie within the namespace's ceiling.
+// address, or else its namespace's; a chosen access must lie within the namespace's ceiling. These
+// choices belong to the address, and outlive its sessions: an address can start a new conversation
+// and switch back to an earlier one, but only to one whose label, the greatest access it ever ran
+// with, lies within the namespace's ceiling, so that nothing a higher access reached is shown where
+// that access is not allowed. A conversation can be paused (see `control.ts`) and stopped.
 import type { Context } from "@earendil-works/chord/context";
 import type { ModelThinkingLevel, Models } from "@earendil-works/pi-ai";
 import {
   AssistantEntry,
+  ConversationIdle,
   configure,
   createRegistry,
   defineDoc,
@@ -26,6 +31,7 @@ import {
   type Tx,
 } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
+import { controlExtension, PauseDoc, wake } from "./control.ts";
 import { serverExtensionName } from "./mcp.ts";
 import type { ToolName } from "./tools.ts";
 
@@ -57,9 +63,16 @@ const fallbackNamespace: Namespace = {
   persona: fallbackPersona,
 };
 
+// What an access grants, as compared; a label is one too.
+type Grant = {
+  readonly tools: readonly string[];
+  readonly mcpServers: readonly string[];
+  readonly maxTurns: number | null;
+};
+
 // Whether an access grants nothing beyond another: its tools and servers are among the other's,
 // and its turn limit is no higher.
-export function within(access: Access, ceiling: Access): boolean {
+export function within(access: Grant, ceiling: Grant): boolean {
   return (
     access.tools.every((tool) => ceiling.tools.includes(tool)) &&
     access.mcpServers.every((server) => ceiling.mcpServers.includes(server)) &&
@@ -87,6 +100,19 @@ export type Status = {
   readonly tools: readonly string[];
   readonly mcpServers: readonly string[];
   readonly overrides: Readonly<Overrides>;
+  readonly paused: boolean;
+};
+
+// A conversation an address has had: the current one first.
+export type SessionInfo = {
+  readonly conversation: number;
+  readonly current: boolean;
+  // When the address started it, if known.
+  readonly started: number | null;
+  // The start of its first input.
+  readonly preview: string;
+  // Whether the address may switch to it.
+  readonly allowed: boolean;
 };
 
 export type Answer =
@@ -109,15 +135,64 @@ export type Options = {
   readonly onReport?: (report: Report) => void;
 };
 
-const Address = defineDocFamily<{ conversation: number | null }, null>({
+type Started = { conversation: number; started: number | null };
+// An address's conversation and its earlier ones, newest first.
+type AddressState = {
+  conversation: number | null;
+  started: number | null;
+  sessions: Started[];
+};
+
+const Address = defineDocFamily<AddressState, null>({
   kind: "edith.address",
-  version: 1,
+  // Version 2 adds `started` and `sessions`.
+  version: 2,
   scope: "session",
   family: true,
-  initial: () => ({ conversation: null }),
+  initial: () => ({ conversation: null, started: null, sessions: [] }),
+  migrate: (value) => ({
+    started: null,
+    sessions: [],
+    ...(value as { conversation: number | null }),
+  }),
   checkpointWhen: () => true,
 });
 
+// An address's overrides.
+const Settings = defineDocFamily<Overrides, null>({
+  kind: "edith.settings",
+  version: 1,
+  scope: "session",
+  family: true,
+  initial: () => ({ ...noOverrides }),
+  checkpointWhen: () => true,
+});
+
+type Label = { tools: string[]; mcpServers: string[]; maxTurns: number | null };
+
+// The greatest access a conversation ran with: every tool and server it was given, and the highest
+// turn limit, `null` for none.
+const LabelDoc = defineDoc<Label>({
+  kind: "edith.label",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "current",
+  initial: () => ({ tools: [], mcpServers: [], maxTurns: 0 }),
+  checkpointWhen: () => true,
+});
+
+const raise = (label: Label, access: Grant) => {
+  for (const tool of access.tools) if (!label.tools.includes(tool)) label.tools.push(tool);
+  for (const server of access.mcpServers)
+    if (!label.mcpServers.includes(server)) label.mcpServers.push(server);
+  label.maxTurns =
+    label.maxTurns === null || access.maxTurns === null
+      ? null
+      : Math.max(label.maxTurns, access.maxTurns);
+};
+
+// Where overrides were kept before they belonged to the address: read once to carry them over.
 const OverridesDoc = defineDoc<Overrides>({
   kind: "edith.overrides",
   // Version 2 added `profile`; version 3 replaces it with `access` and `persona`, leaving both
@@ -146,7 +221,7 @@ type Equipment = {
   readonly modelTools: readonly ToolRegistration[] | null;
 };
 
-const unequipped: Equipment = { extensions: [], tools: null, modelTools: null };
+const unequipped: Equipment = { extensions: [controlExtension], tools: null, modelTools: null };
 
 export class Edith {
   readonly harness: Harness;
@@ -165,6 +240,7 @@ export class Edith {
   static async open(storage: Storage, options: Options, context: Context): Promise<Edith> {
     const registry = createRegistry();
     for (const extension of [
+      controlExtension,
       options.codemode ?? [],
       options.tools ?? [],
       options.servers ?? [],
@@ -223,11 +299,22 @@ export class Edith {
     return [fallbackPersona, this.#options.personas.edith];
   }
 
-  async #overrides(conversation: Conversation, context: Context): Promise<Overrides> {
+  // An address's overrides, or, until it has its own, those its conversation kept.
+  async #overrides(address: string, context: Context): Promise<Overrides> {
+    const own = await this.harness.snapshot(Settings, address, context);
+    if (own) return { ...noOverrides, ...own };
+    const conversation = await this.conversation(address, context);
     return {
       ...noOverrides,
       ...(await this.harness.snapshot(OverridesDoc, conversation.id, context)),
     };
+  }
+
+  #ceiling(address: string): Access {
+    return (
+      this.#options.access[this.#namespace(namespaceOf(address)).ceiling] ??
+      this.#options.access.restricted
+    );
   }
 
   // What an access's conversations run with: nothing callable without tools or servers,
@@ -245,9 +332,13 @@ export class Edith {
     );
     if (!codemode || !tool || (selected.length === 0 && servers.length === 0)) return unequipped;
     if (!own || selected.length === 0)
-      return { extensions: [codemode, ...servers], tools: null, modelTools: [tool] };
+      return {
+        extensions: [controlExtension, codemode, ...servers],
+        tools: null,
+        modelTools: [tool],
+      };
     return {
-      extensions: [codemode, own, ...servers],
+      extensions: [controlExtension, codemode, own, ...servers],
       tools: { remove: (own.tools ?? []).filter((candidate) => !selected.includes(candidate)) },
       modelTools: [tool],
     };
@@ -273,14 +364,17 @@ export class Edith {
       context,
     );
     await this.harness.commit(async (tx) => {
-      (await tx.doc(Address, address, null)).conversation = created.id;
+      const state = await tx.doc(Address, address, null);
+      state.conversation = created.id;
+      state.started = Date.now();
     }, context);
     return created;
   }
 
   async status(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
-    const overrides = await this.#overrides(conversation, context);
+    const overrides = await this.#overrides(address, context);
+    const pause = await this.harness.snapshot(PauseDoc, conversation.id, context);
     const [accessName, access] = this.#access(address, overrides.access);
     const [personaName, persona] = this.#persona(address, overrides.persona);
     return {
@@ -292,10 +386,11 @@ export class Edith {
       tools: access.tools,
       mcpServers: access.mcpServers,
       overrides: { ...overrides },
+      paused: pause?.paused ?? false,
     };
   }
 
-  // Sets or clears a conversation's overrides; an access must be one its namespace may choose,
+  // Sets or clears an address's overrides; an access must be one its namespace may choose,
   // and a persona a configured one.
   async configure(address: string, change: Partial<Overrides>, context: Context): Promise<Status> {
     if (change.access != null) {
@@ -308,9 +403,9 @@ export class Edith {
     }
     if (change.persona != null && !(change.persona in this.#options.personas))
       throw new Refused(`no persona named ${change.persona}`);
-    const conversation = await this.conversation(address, context);
-    await conversation.commit(async (tx) => {
-      const overrides = await tx.doc(OverridesDoc, conversation.id);
+    const current = await this.#overrides(address, context);
+    await this.harness.commit(async (tx) => {
+      const overrides = Object.assign(await tx.doc(Settings, address, null), current);
       if (change.access !== undefined) overrides.access = change.access;
       if (change.persona !== undefined) overrides.persona = change.persona;
       if (change.model !== undefined) overrides.model = change.model;
@@ -319,7 +414,8 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // Admits an input; `alsoInCommit` writes a client's own state in the same commit.
+  // Admits an input; `alsoInCommit` writes a client's own state in the same commit. A paused
+  // conversation takes input only while a run is under way, which answers it once resumed.
   async submit(
     address: string,
     draft: Omit<InputSubmissionDraft, "type">,
@@ -330,21 +426,184 @@ export class Edith {
     const wanted = await this.status(address, context);
     const access = this.#options.access[wanted.access] ?? this.#options.access.restricted;
     const equipment = this.#equipment(access);
-    return this.harness.commit(async (tx) => {
-      // The configuration can change between runs of the daemon, so the agent is brought to the
-      // effective choices with each input; writing an equal value changes nothing.
-      await configure(tx, conversation.id, {
-        model: wanted.model,
-        thinkingLevel: wanted.thinkingLevel,
-        extensions: equipment.extensions,
-        tools: equipment.tools,
-        modelTools: equipment.modelTools,
-        maxTurns: access.maxTurns,
-      });
-      const id = await conversation.submit(tx, { ...draft, type: "input" } as InputSubmissionDraft);
-      await alsoInCommit?.(tx, id);
-      return id;
+    const ceiling = this.#ceiling(address);
+    const whenIdle = wanted.paused ? { whenIdle: "reject" as const } : {};
+    try {
+      return await this.harness.commit(async (tx) => {
+        const label = await tx.doc(LabelDoc, conversation.id);
+        if (!within(label, ceiling))
+          throw new Refused(
+            `this session ran with more than ${namespaceOf(address)} may reach; start a new one`,
+          );
+        raise(label, access);
+        // The configuration can change between runs of the daemon, so the agent is brought to the
+        // effective choices with each input; writing an equal value changes nothing.
+        await configure(tx, conversation.id, {
+          model: wanted.model,
+          thinkingLevel: wanted.thinkingLevel,
+          extensions: equipment.extensions,
+          tools: equipment.tools,
+          modelTools: equipment.modelTools,
+          maxTurns: access.maxTurns,
+        });
+        const id = await conversation.submit(tx, {
+          ...draft,
+          ...whenIdle,
+          type: "input",
+        } as InputSubmissionDraft);
+        await alsoInCommit?.(tx, id);
+        return id;
+      }, context);
+    } catch (error) {
+      if (error instanceof ConversationIdle) throw new Refused("paused; resume first");
+      throw error;
+    }
+  }
+
+  // Pauses an address's conversation: no new step starts until it is resumed or stopped.
+  async pause(address: string, context: Context): Promise<Status> {
+    const conversation = await this.conversation(address, context);
+    await this.harness.commit(async (tx) => {
+      const pause = await tx.doc(PauseDoc, conversation.id);
+      if (pause.paused) return;
+      pause.paused = true;
+      pause.epoch += 1;
     }, context);
+    return this.status(address, context);
+  }
+
+  async resume(address: string, context: Context): Promise<Status> {
+    const conversation = await this.conversation(address, context);
+    const pause = await this.harness.commit(async (tx) => {
+      const pause = await tx.doc(PauseDoc, conversation.id);
+      pause.paused = false;
+      return { ...pause };
+    }, context);
+    await wake(this.harness, conversation.id, pause, context);
+    return this.status(address, context);
+  }
+
+  // Stops what an address's conversation is doing and withdraws the input not yet given to the
+  // model; a pause ends with it. What already happened, such as a file written, stays.
+  async stop(address: string, context: Context): Promise<Status> {
+    const conversation = await this.conversation(address, context);
+    await conversation.abort(context);
+    await this.harness.commit(async (tx) => {
+      (await tx.doc(PauseDoc, conversation.id)).paused = false;
+    }, context);
+    return this.status(address, context);
+  }
+
+  // The conversations an address has had, the current one first.
+  async sessions(address: string, context: Context): Promise<SessionInfo[]> {
+    const current = await this.conversation(address, context);
+    const state = await this.harness.snapshot(Address, address, context);
+    const ceiling = this.#ceiling(address);
+    const all: Started[] = [
+      { conversation: current.id, started: state?.started ?? null },
+      ...(state?.sessions ?? []),
+    ];
+    return Promise.all(
+      all.map(async (session, index) => ({
+        ...session,
+        current: index === 0,
+        preview: await this.#preview(session.conversation, context),
+        allowed:
+          index === 0 || within(await this.#label(address, session.conversation, context), ceiling),
+      })),
+    );
+  }
+
+  // Starts a new conversation at an address, stopping the current one, which stays among its
+  // sessions.
+  async reset(address: string, context: Context): Promise<{ previous: number; current: number }> {
+    const previous = await this.conversation(address, context);
+    await this.stop(address, context);
+    const created = await this.harness.createConversation(
+      { ownership: { kind: "ownerless" } },
+      context,
+    );
+    await this.#rebind(address, previous.id, created.id, Date.now(), context);
+    this.#conversations.set(address, Promise.resolve(created));
+    return { previous: previous.id, current: created.id };
+  }
+
+  // Switches an address back to one of its earlier conversations, stopping the current one.
+  async switchTo(
+    address: string,
+    target: number,
+    context: Context,
+  ): Promise<{ previous: number; current: number }> {
+    const previous = await this.conversation(address, context);
+    if (target === previous.id) return { previous: previous.id, current: target };
+    const state = await this.harness.snapshot(Address, address, context);
+    const found = state?.sessions.find((session) => session.conversation === target);
+    const conversation =
+      found && (await this.harness.conversation(target as ConversationId, context));
+    if (!found || !conversation) throw new Refused("not a session of this address");
+    if (!within(await this.#label(address, target, context), this.#ceiling(address)))
+      throw new Refused(`that session ran with more than ${namespaceOf(address)} may reach`);
+    await this.stop(address, context);
+    await this.#rebind(address, previous.id, target, found.started, context);
+    this.#conversations.set(address, Promise.resolve(conversation));
+    return { previous: previous.id, current: target };
+  }
+
+  // Points an address at another conversation, keeping the one it leaves, labelled, and its
+  // overrides with the address.
+  async #rebind(
+    address: string,
+    leaving: number,
+    next: number,
+    started: number | null,
+    context: Context,
+  ): Promise<void> {
+    const overrides = await this.#overrides(address, context);
+    const label = await this.#label(address, leaving, context);
+    await this.harness.commit(async (tx) => {
+      Object.assign(await tx.doc(Settings, address, null), overrides);
+      Object.assign(await tx.doc(LabelDoc, leaving as ConversationId), label);
+      const state = await tx.doc(Address, address, null);
+      const left = { conversation: leaving, started: state.started };
+      state.sessions = [
+        left,
+        ...state.sessions.filter(
+          (session) => session.conversation !== next && session.conversation !== leaving,
+        ),
+      ];
+      state.conversation = next;
+      state.started = started;
+    }, context);
+  }
+
+  // A conversation's label; one that ran before labels were kept counts as having run with the
+  // address's access.
+  async #label(address: string, conversation: number, context: Context): Promise<Label> {
+    const stored = await this.harness.snapshot(LabelDoc, conversation as ConversationId, context);
+    if (stored) return stored;
+    const [, access] = this.#access(address, (await this.#overrides(address, context)).access);
+    return {
+      tools: [...access.tools],
+      mcpServers: [...access.mcpServers],
+      maxTurns: access.maxTurns,
+    };
+  }
+
+  async #preview(conversation: number, context: Context): Promise<string> {
+    const found = await this.harness.conversation(conversation as ConversationId, context);
+    const page = await found?.entries({ order: "ascending" }, 20, undefined, context);
+    for (const entry of page?.items ?? [])
+      for (const message of entry.model ?? []) {
+        if (message.role !== "user") continue;
+        const text =
+          typeof message.content === "string"
+            ? message.content
+            : message.content
+                .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                .join(" ");
+        return text.replace(/\s+/g, " ").trim().slice(0, 80);
+      }
+    return "";
   }
 
   async answer(submission: SubmissionId, context: Context): Promise<Answer> {

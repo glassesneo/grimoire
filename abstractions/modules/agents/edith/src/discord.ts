@@ -12,6 +12,11 @@
 // which is held until the answer is done and alone notifies. A code mode call's message lists the
 // script's calls while it runs and is edited once its result is committed. Thinking and scripts
 // are collapsed behind a button. With the trace off, the whole answer is posted once done.
+//
+// /pause holds a channel's conversation before its next step and /resume lets it go on; /stop ends
+// what it is doing. /reset starts a new conversation in the channel and /sessions switches back to
+// an earlier one; either posts a divider whose button switches back, and the trace follows the
+// channel to its new conversation.
 import type { Context } from "@earendil-works/chord/context";
 import {
   ApplicationCommandOptionType,
@@ -44,7 +49,15 @@ import {
   type LiveState,
   type SubmissionId,
 } from "@earendil-works/pi-durable";
-import { describe, followDefault, levels, parseModel, parseThinking, split } from "./commands.ts";
+import {
+  describe,
+  describeSessions,
+  followDefault,
+  levels,
+  parseModel,
+  parseThinking,
+  split,
+} from "./commands.ts";
 import { type Edith, Refused, type Status } from "./core.ts";
 import { completePrefix } from "./paragraphs.ts";
 import {
@@ -280,7 +293,38 @@ const commandsFor = (
       },
     ],
   },
+  simple("pause", "Hold this channel's conversation before its next step"),
+  simple("resume", "Let this channel's paused conversation go on"),
+  simple("stop", "Stop what this channel's conversation is doing and drop input not yet read"),
+  simple("reset", "Start a new conversation in this channel; the current one is kept"),
+  simple("sessions", "Switch this channel back to one of its earlier conversations"),
 ];
+
+// A divider between a channel's conversations, whose button switches back to the one it left.
+const divider = (text: string, back: number) => ({
+  content: text,
+  allowed_mentions: { parse: [] },
+  components: [
+    {
+      type: ComponentType.ActionRow as const,
+      components: [
+        {
+          type: ComponentType.Button as const,
+          style: ButtonStyle.Secondary as const,
+          label: "Switch back",
+          custom_id: `v:${back}`,
+        },
+      ],
+    },
+  ],
+});
+
+// Commands that take no option.
+const simple = (name: string, description: string) => ({
+  type: ApplicationCommandType.ChatInput as const,
+  name,
+  description,
+});
 
 const topicOf = (status: Status) => `EDITH · access: ${status.access} · persona: ${status.persona}`;
 
@@ -297,7 +341,7 @@ export class Discord {
   readonly #delivering = new Set<string>();
   // Channels whose trace is being followed, and its handling of watch values, serialized.
   readonly #traces = new Map<string, Promise<void>>();
-  readonly #watches: WatchHandle<unknown>[] = [];
+  readonly #watches = new Map<string, WatchHandle<unknown>>();
   // The last text each traced message was given, so unchanged renderings are not sent again.
   readonly #rendered = new Map<string, string>();
   // Per running code mode call: its item, once read, and its script's calls as last seen live.
@@ -360,7 +404,7 @@ export class Discord {
   }
 
   async destroy(): Promise<void> {
-    await Promise.allSettled(this.#watches.map((watch) => watch.stop()));
+    await Promise.allSettled([...this.#watches.values()].map((watch) => watch.stop()));
     await this.#gateway.destroy();
   }
 
@@ -386,30 +430,47 @@ export class Discord {
     if (message.content.trim() === "") return;
     // Followed before the input is admitted, so that the trace sees everything it causes.
     await this.#follow(api, channel);
-    await this.#edith.submit(
-      address,
-      {
-        content: message.content,
-        // A message seen again, live or while catching up, is admitted once.
-        requestId: `discord:${message.id}`,
-        entry: {
-          kind: "discord.message",
-          data: { messageId: message.id, author: message.author.username },
+    try {
+      await this.#edith.submit(
+        address,
+        {
+          content: message.content,
+          // A message seen again, live or while catching up, is admitted once.
+          requestId: `discord:${message.id}`,
+          entry: {
+            kind: "discord.message",
+            data: { messageId: message.id, author: message.author.username },
+          },
         },
-      },
-      this.#context,
-      async (tx, submission) => {
+        this.#context,
+        async (tx, submission) => {
+          const state = await tx.doc(State);
+          state.pending[message.id] = { channel, submission };
+          state.lastSeen[channel] = later(message.id, state.lastSeen[channel]);
+        },
+      );
+    } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      // Seen, so that catching up does not admit it later.
+      await this.#edith.harness.commit(async (tx) => {
         const state = await tx.doc(State);
-        state.pending[message.id] = { channel, submission };
         state.lastSeen[channel] = later(message.id, state.lastSeen[channel]);
-      },
-    );
+      }, this.#context);
+      await this.#post(api, channel, `⚠️ not taken: ${error.message}`, {
+        nonce: (index) => `p${message.id}-${index}`,
+        replyTo: message.id,
+      });
+      return;
+    }
     await this.#deliver(api, message.id);
   }
 
   async #interact(api: API, interaction: APIInteraction): Promise<void> {
-    if (interaction.type === InteractionType.MessageComponent)
-      return this.#toggle(api, interaction);
+    if (interaction.type === InteractionType.MessageComponent) {
+      const id = interaction.data.custom_id;
+      if (id.startsWith("x:")) return this.#toggle(api, interaction);
+      return this.#switchFrom(api, interaction);
+    }
     if (interaction.type !== InteractionType.ApplicationCommand) return;
     const data = interaction.data;
     if (data.type !== ApplicationCommandType.ChatInput) return;
@@ -514,6 +575,68 @@ export class Discord {
         await reply(`<#${created.id}> runs with access ${status.access} as ${status.persona}.`);
         return;
       }
+      case "pause":
+        await reply(describe(await this.#edith.pause(address, this.#context)));
+        return;
+      case "resume":
+        await reply(describe(await this.#edith.resume(address, this.#context)));
+        return;
+      case "stop":
+        await api.interactions.defer(interaction.id, interaction.token);
+        await api.interactions.editReply(interaction.application_id, interaction.token, {
+          content: `⏹️ stopped\n${describe(await this.#edith.stop(address, this.#context))}`,
+        });
+        return;
+      case "reset": {
+        await api.interactions.defer(interaction.id, interaction.token);
+        const { previous } = await this.#move(api, channel, () =>
+          this.#edith.reset(address, this.#context),
+        );
+        await api.interactions.editReply(
+          interaction.application_id,
+          interaction.token,
+          divider(
+            "**── New session ──**\nThe previous one is kept; /sessions lists them.",
+            previous,
+          ),
+        );
+        return;
+      }
+      case "sessions": {
+        const sessions = await this.#edith.sessions(address, this.#context);
+        const earlier = sessions.slice(1, 26);
+        await api.interactions.reply(interaction.id, interaction.token, {
+          content: describeSessions(sessions).slice(0, messageLimit),
+          flags: MessageFlags.Ephemeral,
+          allowed_mentions: { parse: [] },
+          ...(earlier.length > 0 && {
+            components: [
+              {
+                type: ComponentType.ActionRow,
+                components: [
+                  {
+                    type: ComponentType.StringSelect,
+                    custom_id: "sessions",
+                    placeholder: "Switch to…",
+                    options: earlier.map((session, index) => ({
+                      label:
+                        `${index + 2}. ${session.allowed ? "" : "🔒 "}${session.preview || "(empty)"}`.slice(
+                          0,
+                          100,
+                        ),
+                      value: String(session.conversation),
+                      ...(session.started !== null && {
+                        description: new Date(session.started).toISOString().slice(0, 16),
+                      }),
+                    })),
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+        return;
+      }
       case "thinking": {
         const parsed = parseThinking(option("level"));
         await reply(
@@ -543,6 +666,87 @@ export class Discord {
       .catch((error: unknown) => console.error("discord topic:", error));
   }
 
+  // Moves a channel to another conversation: once the trace has posted what the stopped one
+  // committed, it follows the channel's new conversation.
+  async #move(
+    api: API,
+    channel: string,
+    move: () => Promise<{ previous: number; current: number }>,
+  ): Promise<{ previous: number; current: number }> {
+    const moved = await move();
+    const left = await this.#conversationOf(moved.previous);
+    const newest = (await left?.entries({}, 1, undefined, this.#context))?.items[0]?.id;
+    if (newest !== undefined) await this.#tracedTo(api, channel, newest);
+    await this.#watches.get(channel)?.stop();
+    this.#watches.delete(channel);
+    this.#traces.delete(channel);
+    this.#streaming.delete(channel);
+    await this.#edith.harness.commit(async (tx) => {
+      const trace = (await tx.doc(State)).trace[channel];
+      if (!trace) return;
+      delete trace.stream;
+      trace.tools = {};
+    }, this.#context);
+    await this.#follow(api, channel);
+    return moved;
+  }
+
+  // Switches a channel to the conversation a divider's button or the sessions menu names.
+  async #switchFrom(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
+    const user = interaction.member?.user ?? interaction.user;
+    const channel = interaction.channel.id;
+    const data = interaction.data;
+    const value =
+      data.component_type === ComponentType.StringSelect
+        ? data.values[0]
+        : /^v:(\d+)$/.exec(data.custom_id)?.[1];
+    if (!user || !this.#options.allowedUsers.includes(user.id) || value === undefined) {
+      await api.interactions.reply(interaction.id, interaction.token, {
+        content: "Not available here.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const address = `discord:${channel}`;
+    const target = Number(value);
+    const known = (await this.#edith.sessions(address, this.#context)).find(
+      (session) => session.conversation === target,
+    );
+    if (!known || known.current || !known.allowed) {
+      await api.interactions.reply(interaction.id, interaction.token, {
+        content: !known
+          ? "Not a session of this channel."
+          : known.current
+            ? "Already the current session."
+            : "That session ran with more than this channel may reach.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await api.interactions.defer(interaction.id, interaction.token);
+    let moved;
+    try {
+      moved = await this.#move(api, channel, () =>
+        this.#edith.switchTo(address, target, this.#context),
+      );
+    } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      await api.interactions.editReply(interaction.application_id, interaction.token, {
+        content: error.message,
+      });
+      return;
+    }
+    const when = known.started === null ? "" : ` from <t:${Math.floor(known.started / 1000)}:f>`;
+    await api.interactions.editReply(
+      interaction.application_id,
+      interaction.token,
+      divider(
+        `**── Switched to the session${when} ──**\n${known.preview || "(empty)"}`,
+        moved.previous,
+      ),
+    );
+  }
+
   async #deliver(api: API, id: string): Promise<void> {
     if (this.#delivering.has(id)) return;
     this.#delivering.add(id);
@@ -569,7 +773,9 @@ export class Discord {
       const text =
         answer.status === "done"
           ? answer.text.slice(streamed?.consumed ?? 0).trim() || (streamed ? "" : "(empty answer)")
-          : `⚠️ unanswered: ${answer.reason}`;
+          : answer.reason.startsWith("aborted")
+            ? "⏹️ stopped"
+            : `⚠️ unanswered: ${answer.reason}`;
       const replied = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id]
         ?.replied;
       if (text !== "")
@@ -630,7 +836,7 @@ export class Discord {
         after = start;
       }
       const watch = await conversation.watch(this.#context, { from: (after + 1) as EntryId });
-      this.#watches.push(watch as WatchHandle<unknown>);
+      this.#watches.set(channel, watch as WatchHandle<unknown>);
       let chain = this.#handle(api, channel, conversation, watch.value);
       watch.start(async (call) => {
         if (call.kind !== "value") return;

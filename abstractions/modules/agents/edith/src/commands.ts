@@ -2,7 +2,7 @@
 // into a client's message limit.
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import type { ModelRef } from "@earendil-works/pi-durable";
-import type { Status } from "./core.ts";
+import type { SessionInfo, Status } from "./core.ts";
 
 export const levels: readonly ModelThinkingLevel[] = [
   "off",
@@ -48,7 +48,20 @@ export function describe(status: Status): string {
     `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null, "persona")})`,
     `tools: ${status.tools.length === 0 ? "(none)" : status.tools.join(", ")}`,
     `mcp servers: ${status.mcpServers.length === 0 ? "(none)" : status.mcpServers.join(", ")}`,
+    ...(status.paused ? ["paused: resume to go on"] : []),
   ].join("\n");
+}
+
+// One line per session, numbered from 1, the current one first.
+export function describeSessions(sessions: readonly SessionInfo[]): string {
+  return sessions
+    .map(
+      (session, index) =>
+        `${index + 1}. ${session.current ? "(current) " : ""}${session.allowed ? "" : "(not allowed) "}${
+          session.started === null ? "" : `${new Date(session.started).toISOString().slice(0, 16)} `
+        }${session.preview || "(empty)"}`,
+    )
+    .join("\n");
 }
 
 // Splits text into chunks of at most `limit` UTF-16 units, preferring line breaks.

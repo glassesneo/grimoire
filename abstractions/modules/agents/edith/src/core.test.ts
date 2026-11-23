@@ -131,7 +131,7 @@ void test("an access lies within another when its tools and servers are among th
   assert.ok(within(access({ maxTurns: 99 }), access()));
 });
 
-void test("a conversation may choose only an access within its namespace's ceiling, and falls back once the ceiling drops it", async () => {
+void test("a conversation may choose only an access within its namespace's ceiling, and falls back once the ceiling drops it, while a session that ran above it takes no more input", async () => {
   const sets = {
     full: access({ tools: ["read", "write"], mcpServers: ["web"] }),
     web: access({ mcpServers: ["web"], maxTurns: 10 }),
@@ -160,7 +160,9 @@ void test("a conversation may choose only an access within its namespace's ceili
   const lowered = await open("ceiling.sqlite", same, options("chat"));
   const status = await lowered.status("discord:1", context);
   assert.deepEqual([status.access, status.overrides.access], ["chat", "web"]);
-  assert.equal(await ask(lowered, "discord:1"), "a:2");
+  // The session already ran with `web`, now above the ceiling, so it takes no more input.
+  await assert.rejects(lowered.ask("discord:1", "hello", context), Refused);
+  assert.equal(await ask(lowered, "discord:2"), "a:1");
   await lowered.close(context);
 });
 
@@ -258,7 +260,7 @@ void test("an access's servers are callable only through code mode, and changed 
   await sandbox.close();
 });
 
-void test("an access's tools are callable only through code mode, by name, beside its servers, and changes reach existing conversations", async () => {
+void test("an access's tools are callable only through code mode, by name, beside its servers, and added tools reach existing conversations", async () => {
   const sandbox = new CodemodeSandbox();
   const web = defineExtension({
     name: "mcp:web",
@@ -288,7 +290,7 @@ void test("an access's tools are callable only through code mode, by name, besid
   const before = await open("own-tools.sqlite", same, {
     ...extra,
     access: {
-      full: access({ tools: ["read", "write"], mcpServers: ["web"] }),
+      full: access({ tools: ["read"], mcpServers: ["web"] }),
       restricted: access({ tools: ["read"] }),
     },
   });
@@ -296,7 +298,7 @@ void test("an access's tools are callable only through code mode, by name, besid
   await ask(before, "discord:1");
   assert.deepEqual(await equipment(before, "cli"), {
     offered: ["codemode"],
-    callable: ["mcp__web__search", "read", "write"],
+    callable: ["mcp__web__search", "read"],
   });
   assert.deepEqual(await equipment(before, "discord:1"), {
     offered: ["codemode"],
@@ -306,12 +308,15 @@ void test("an access's tools are callable only through code mode, by name, besid
 
   const after = await open("own-tools.sqlite", same, {
     ...extra,
-    access: { full: access({ mcpServers: ["web"] }), restricted: access({ tools: ["bash"] }) },
+    access: {
+      full: access({ tools: ["read", "write"], mcpServers: ["web"] }),
+      restricted: access({ tools: ["read", "bash"] }),
+    },
   });
   await ask(after, "cli");
   await ask(after, "discord:1");
-  assert.deepEqual((await equipment(after, "cli")).callable, ["mcp__web__search"]);
-  assert.deepEqual((await equipment(after, "discord:1")).callable, ["bash"]);
+  assert.deepEqual((await equipment(after, "cli")).callable, ["mcp__web__search", "read", "write"]);
+  assert.deepEqual((await equipment(after, "discord:1")).callable, ["bash", "read"]);
   await after.close(context);
   await sandbox.close();
 });
