@@ -14,7 +14,7 @@ export const levels: readonly ModelThinkingLevel[] = [
   "max",
 ];
 
-// `default` clears a conversation's own choice, so that it follows its profile again.
+// `default` clears a conversation's own choice, so that it follows its namespace or persona again.
 export const followDefault = "default";
 
 export type Parsed<T> = { readonly value: T | null } | { readonly error: string };
@@ -40,11 +40,12 @@ export function parseThinking(argument: string): Parsed<ModelThinkingLevel> {
 
 export function describe(status: Status): string {
   const model = `${status.model.provider}/${status.model.modelId}`;
-  const origin = (overridden: boolean) => (overridden ? "set here" : "profile");
+  const origin = (overridden: boolean, otherwise: string) => (overridden ? "set here" : otherwise);
   return [
-    `profile: ${status.profile} (${status.overrides.profile === null ? "default" : "set here"})`,
-    `model: ${model} (${origin(status.overrides.model !== null)})`,
-    `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null)})`,
+    `access: ${status.access} (${origin(status.overrides.access !== null, "default")})`,
+    `persona: ${status.persona} (${origin(status.overrides.persona !== null, "default")})`,
+    `model: ${model} (${origin(status.overrides.model !== null, "persona")})`,
+    `thinking: ${status.thinkingLevel} (${origin(status.overrides.thinkingLevel !== null, "persona")})`,
     `tools: ${status.tools.length === 0 ? "(none)" : status.tools.join(", ")}`,
     `mcp servers: ${status.mcpServers.length === 0 ? "(none)" : status.mcpServers.join(", ")}`,
   ].join("\n");

@@ -260,7 +260,7 @@ SSH reaches every Tart machine under `~/.tart/vms` (`TART_HOME` is not read) by 
 
 ## EDITH's tool user
 
-With `edith.toolUser.loginKey` set, nix-darwin creates the hidden user `edith.toolUser.name` (default `edith`), and EDITH runs the profiles' tools as that user through a pi-env daemon it reaches over ssh to the same host; EDITH itself and its MCP servers stay with the host's user. Before the first switch, create EDITH's login key as the host's user and put its public key in `edith.toolUser.loginKey`:
+With `edith.toolUser.loginKey` set, nix-darwin creates the hidden user `edith.toolUser.name` (default `edith`), and EDITH runs the tools its accesses select as that user through a pi-env daemon it reaches over ssh to the same host; EDITH itself and its MCP servers stay with the host's user. Before the first switch, create EDITH's login key as the host's user and put its public key in `edith.toolUser.loginKey`:
 
 ```sh
 mkdir -m 700 -p ~/.local/state/edith/tools

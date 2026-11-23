@@ -23,15 +23,17 @@ delib.host {
     # `edith dev` only, on a free OpenRouter model.
     edith = {
       enable = true;
-      profiles.restricted = {
+      access.restricted = {
+        tools = [];
+        mcpServers = ["web"];
+        maxTurns = 20;
+      };
+      personas.edith = {
         model = {
           provider = "openrouter";
           modelId = "nvidia/nemotron-3-ultra-550b-a55b:free";
         };
         thinkingLevel = "medium";
-        tools = [];
-        mcpServers = ["web"];
-        maxTurns = 20;
       };
       # `/model ai-mop-responses/<OpenAI model>` switches to AI MOP.
       providers = ["ai-mop-responses"];

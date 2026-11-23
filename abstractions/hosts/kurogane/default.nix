@@ -22,25 +22,29 @@ delib.host {
     edith = {
       enable = true;
       resident.enable = true;
-      # Both profiles grant the same for now; they diverge once tools beyond web search exist.
-      profiles = let
-        profile = {
-          model = {
-            provider = "openai";
-            modelId = "gpt-6.2-sol";
-          };
-          thinkingLevel = "medium";
-          tools = ["read" "write"];
+      # Discord cannot choose `full`, which alone runs commands.
+      access = {
+        full = {
+          tools = ["read" "write" "edit" "bash"];
           mcpServers = ["web"];
           maxTurns = null;
         };
-      in {
-        full = profile;
-        restricted = profile;
+        restricted = {
+          tools = ["read" "write" "edit"];
+          mcpServers = ["web"];
+          maxTurns = null;
+        };
+      };
+      personas.edith = {
+        model = {
+          provider = "openai";
+          modelId = "gpt-6.2-sol";
+        };
+        thinkingLevel = "medium";
       };
       namespaces = {
-        cli = "full";
-        discord = "restricted";
+        cli.access = "full";
+        discord.access = "restricted";
       };
       providers = ["openrouter"];
       toolUser.loginKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKdeGFni0r9owhP5wTpq3HuBsnA6ra/iH+9vEzoVr203 edith-tools@kurogane";

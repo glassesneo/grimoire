@@ -23,9 +23,10 @@ import { itemsOf, liveCalls, resultOf, type Call } from "./trace.ts";
 const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
 const help = [
-  "/status            this conversation's profile, model and thinking level",
-  "/profile <name>    run with a configured profile, or `default` for the configuration's",
-  "/model <p>/<id>    set the model, or `default` to follow the profile",
+  "/status            this conversation's access, persona, model and thinking level",
+  "/access [name]     run with an access `cli` may choose, or `default`; alone, lists them",
+  "/persona [name]    answer as a configured persona, or `default`; alone, lists them",
+  "/model <p>/<id>    set the model, or `default` to follow the persona",
   "/thinking <level>  set the thinking level, or `default`",
   "/exit              leave (also Ctrl-D)",
 ].join("\n");
@@ -169,13 +170,17 @@ export async function dev(args: readonly string[]): Promise<void> {
           ? parsed.error
           : describe(await edith.configure(address, { model: parsed.value }, context)),
       );
-    } else if (command === "/profile") {
-      if (argument === "") console.log(`profiles: ${edith.profiles().join(", ")}`);
+    } else if (command === "/access" || command === "/persona") {
+      const kind = command === "/access" ? "access" : "persona";
+      if (argument === "")
+        console.log(
+          `${kind}: ${(kind === "access" ? edith.accessChoices(address) : edith.personas()).join(", ")}`,
+        );
       else
         console.log(
           describe(
             await edith
-              .configure(address, { profile: argument === "default" ? null : argument }, context)
+              .configure(address, { [kind]: argument === "default" ? null : argument }, context)
               .catch(async (error: unknown) => {
                 console.log(error instanceof Error ? error.message : String(error));
                 return edith.status(address, context);

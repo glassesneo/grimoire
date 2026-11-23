@@ -1,6 +1,6 @@
 // The Discord client: each channel is the conversation `discord:<channel id>`, answering the
-// allowed users only, who set a channel's profile, model and thinking level with slash commands
-// and create channels with a profile of their own. A channel's topic shows its profile.
+// allowed users only, who set a channel's access, persona, model and thinking level with slash
+// commands and create channels with their own. A channel's topic shows its access and persona.
 // Replies are delivered at least once across restarts: the input and its pending reply are
 // admitted in one commit, and the reply is forgotten once it is posted. Discord deduplicates a
 // repeated post by its nonce for a few minutes.
@@ -45,7 +45,7 @@ import {
   type SubmissionId,
 } from "@earendil-works/pi-durable";
 import { describe, followDefault, levels, parseModel, parseThinking, split } from "./commands.ts";
-import type { Edith } from "./core.ts";
+import { type Edith, Refused, type Status } from "./core.ts";
 import { completePrefix } from "./paragraphs.ts";
 import {
   itemAt,
@@ -175,13 +175,16 @@ const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
         expanded: post.expanded ?? false,
       };
 
-// Registered in every guild the bot is in, where they are available at once. Profiles are the
-// configured ones, which a restart registers again.
-const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCommandsJSONBody => [
+// Registered in every guild the bot is in, where they are available at once. The choices are the
+// accesses within Discord's ceiling and the configured personas, which a restart registers again.
+const commandsFor = (
+  accesses: readonly string[],
+  personas: readonly string[],
+): RESTPutAPIApplicationGuildCommandsJSONBody => [
   {
     type: ApplicationCommandType.ChatInput,
     name: "status",
-    description: "Show this channel's model and thinking level",
+    description: "Show this channel's access, persona, model and thinking level",
   },
   {
     type: ApplicationCommandType.ChatInput,
@@ -191,7 +194,7 @@ const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCom
       {
         type: ApplicationCommandOptionType.String,
         name: "model",
-        description: `<provider>/<model id>, or ${followDefault} to follow the profile`,
+        description: `<provider>/<model id>, or ${followDefault} to follow the persona`,
         required: true,
       },
     ],
@@ -218,7 +221,7 @@ const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCom
       {
         type: ApplicationCommandOptionType.String,
         name: "level",
-        description: `A thinking level, or ${followDefault} to follow the profile`,
+        description: `A thinking level, or ${followDefault} to follow the persona`,
         required: true,
         choices: [...levels, followDefault].map((value) => ({ name: value, value })),
       },
@@ -226,22 +229,36 @@ const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCom
   },
   {
     type: ApplicationCommandType.ChatInput,
-    name: "profile",
-    description: "Set this channel's profile",
+    name: "access",
+    description: "Set what this channel's conversation may do",
     options: [
       {
         type: ApplicationCommandOptionType.String,
-        name: "profile",
-        description: `A configured profile, or ${followDefault} to follow the configuration`,
+        name: "access",
+        description: `An access, or ${followDefault} to follow the configuration`,
         required: true,
-        choices: [...profiles, followDefault].map((value) => ({ name: value, value })),
+        choices: [...accesses, followDefault].map((value) => ({ name: value, value })),
+      },
+    ],
+  },
+  {
+    type: ApplicationCommandType.ChatInput,
+    name: "persona",
+    description: "Set who answers in this channel",
+    options: [
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "persona",
+        description: `A persona, or ${followDefault} to follow the configuration`,
+        required: true,
+        choices: [...personas, followDefault].map((value) => ({ name: value, value })),
       },
     ],
   },
   {
     type: ApplicationCommandType.ChatInput,
     name: "new",
-    description: "Create a channel beside this one with a profile of its own",
+    description: "Create a channel beside this one, with its own access and persona",
     options: [
       {
         type: ApplicationCommandOptionType.String,
@@ -251,16 +268,21 @@ const commandsFor = (profiles: readonly string[]): RESTPutAPIApplicationGuildCom
       },
       {
         type: ApplicationCommandOptionType.String,
-        name: "profile",
-        description: "A configured profile",
-        required: true,
-        choices: profiles.map((value) => ({ name: value, value })),
+        name: "access",
+        description: "An access; without one, the configuration's",
+        choices: accesses.map((value) => ({ name: value, value })),
+      },
+      {
+        type: ApplicationCommandOptionType.String,
+        name: "persona",
+        description: "A persona; without one, the configuration's",
+        choices: personas.map((value) => ({ name: value, value })),
       },
     ],
   },
 ];
 
-const topicOf = (profile: string) => `EDITH · profile: ${profile}`;
+const topicOf = (status: Status) => `EDITH · access: ${status.access} · persona: ${status.persona}`;
 
 const later = (a: string, b: string | undefined) =>
   b === undefined || BigInt(a) > BigInt(b) ? a : b;
@@ -326,7 +348,7 @@ export class Discord {
           .bulkOverwriteGuildCommands(
             this.#application,
             data.id,
-            commandsFor(this.#edith.profiles()),
+            commandsFor(this.#edith.accessChoices("discord"), this.#edith.personas()),
           )
           .then(() => undefined),
       );
@@ -435,18 +457,23 @@ export class Discord {
         await reply(`trace: ${off ? "off" : "on"}`);
         return;
       }
-      case "profile": {
-        const value = option("profile");
-        await reply(
-          describe(
-            await this.#edith.configure(
-              address,
-              { profile: value === followDefault ? null : value },
-              this.#context,
-            ),
-          ),
-        );
-        await this.#showProfile(api, channel);
+      case "access":
+      case "persona": {
+        const value = option(data.name);
+        let status;
+        try {
+          status = await this.#edith.configure(
+            address,
+            { [data.name]: value === followDefault ? null : value },
+            this.#context,
+          );
+        } catch (error) {
+          if (!(error instanceof Refused)) throw error;
+          await reply(error.message, MessageFlags.Ephemeral);
+          return;
+        }
+        await reply(describe(status));
+        await this.#showChoices(api, channel);
         return;
       }
       case "new": {
@@ -455,9 +482,14 @@ export class Discord {
           await reply("Channels are created in a server only.", MessageFlags.Ephemeral);
           return;
         }
-        const profile = option("profile");
-        if (!this.#edith.profiles().includes(profile)) {
-          await reply(`No profile named ${profile}.`, MessageFlags.Ephemeral);
+        // Checked before the channel exists, so that a refused choice leaves no channel behind.
+        const chosen = { access: option("access") || null, persona: option("persona") || null };
+        if (
+          (chosen.access !== null &&
+            !this.#edith.accessChoices("discord").includes(chosen.access)) ||
+          (chosen.persona !== null && !this.#edith.personas().includes(chosen.persona))
+        ) {
+          await reply("Not a choice this server offers.", MessageFlags.Ephemeral);
           return;
         }
         // Beside this channel: in its category, if it has one.
@@ -469,7 +501,6 @@ export class Discord {
             name: option("name"),
             type: ChannelType.GuildText,
             ...(parent && { parent_id: parent }),
-            topic: topicOf(profile),
           });
         } catch (error) {
           await reply(
@@ -478,8 +509,9 @@ export class Discord {
           );
           return;
         }
-        await this.#edith.configure(`discord:${created.id}`, { profile }, this.#context);
-        await reply(`<#${created.id}> runs ${profile}.`);
+        const status = await this.#edith.configure(`discord:${created.id}`, chosen, this.#context);
+        await this.#showChoices(api, created.id);
+        await reply(`<#${created.id}> runs with access ${status.access} as ${status.persona}.`);
         return;
       }
       case "thinking": {
@@ -502,12 +534,12 @@ export class Discord {
     }
   }
 
-  // Shows a channel's profile in its topic; Discord allows two topic changes in ten minutes, so a
-  // change it refuses is left for /status to show.
-  async #showProfile(api: API, channel: string): Promise<void> {
+  // Shows a channel's access and persona in its topic; Discord allows two topic changes in ten
+  // minutes, so a change it refuses is left for /status to show.
+  async #showChoices(api: API, channel: string): Promise<void> {
     const status = await this.#edith.status(`discord:${channel}`, this.#context);
     await api.channels
-      .edit(channel, { topic: topicOf(status.profile) })
+      .edit(channel, { topic: topicOf(status) })
       .catch((error: unknown) => console.error("discord topic:", error));
   }
 

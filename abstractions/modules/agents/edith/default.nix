@@ -42,16 +42,16 @@ delib.module ({
   thinkingLevels = ["off" "minimal" "low" "medium" "high" "xhigh" "max"];
   discordToken = "discord-bot-token";
   keyed = lib.filter (name: providers.${name} ? secret) (
-    lib.unique (lib.mapAttrsToList (_: profile: profile.model.provider) cfg.profiles ++ cfg.providers)
+    lib.unique (lib.mapAttrsToList (_: persona: persona.model.provider) cfg.personas ++ cfg.providers)
   );
-  servers = lib.unique (lib.concatMap (profile: profile.mcpServers) (lib.attrValues cfg.profiles));
+  servers = lib.unique (lib.concatMap (access: access.mcpServers) (lib.attrValues cfg.access));
   toolNames = ["read" "write" "edit" "bash"];
   # The tools run as this user, whom EDITH logs in as over ssh to this host.
   toolUser = cfg.toolUser.name;
   toolHome = "/Users/${toolUser}";
   hasToolUser = cfg.toolUser.loginKey != null;
-  # Every field is required, so a profile states each choice it makes.
-  profile = lib.types.submodule {
+  # Every field is required, so an access and a persona state each choice they make.
+  persona = lib.types.submodule {
     options = {
       model = lib.mkOption {
         type = lib.types.submodule {
@@ -60,26 +60,57 @@ delib.module ({
             modelId = lib.mkOption {type = lib.types.nonEmptyStr;};
           };
         };
-        description = "Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand.";
+        description = "Model of the persona's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand.";
       };
       thinkingLevel = lib.mkOption {
         type = lib.types.enum thinkingLevels;
-        description = "Thinking level of the profile's conversations unless one sets its own.";
-      };
-      tools = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum toolNames);
-        description = "pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. Only the configuration changes it.";
-      };
-      mcpServers = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        description = "Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. Only the configuration changes it.";
-      };
-      maxTurns = lib.mkOption {
-        type = lib.types.nullOr lib.types.ints.positive;
-        description = "Tool rounds one run takes at most; `null` sets no limit. Only the configuration changes it.";
+        description = "Thinking level of the persona's conversations unless one sets its own.";
       };
     };
   };
+  access = lib.types.submodule {
+    options = {
+      tools = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum toolNames);
+        description = "pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`.";
+      };
+      mcpServers = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        description = "Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools.";
+      };
+      maxTurns = lib.mkOption {
+        type = lib.types.nullOr lib.types.ints.positive;
+        description = "Tool rounds one run takes at most; `null` sets no limit.";
+      };
+    };
+  };
+  namespace = lib.types.submodule ({config, ...}: {
+    options = {
+      access = lib.mkOption {
+        type = lib.types.str;
+        default = "restricted";
+        description = "Access of the namespace's conversations that choose none.";
+      };
+      ceiling = lib.mkOption {
+        type = lib.types.str;
+        default = config.access;
+        defaultText = lib.literalExpression "access";
+        description = "Greatest access the namespace's conversations may choose: those within it, granting no tool or server it lacks and no more tool rounds.";
+      };
+      persona = lib.mkOption {
+        type = lib.types.str;
+        default = "edith";
+        description = "Persona of the namespace's conversations that choose none.";
+      };
+    };
+  });
+  # Whether access `a` grants nothing beyond `b`, as EDITH compares them.
+  within = a: b:
+    lib.all (tool: lib.elem tool b.tools) a.tools
+    && lib.all (server: lib.elem server b.mcpServers) a.mcpServers
+    && (b.maxTurns == null || (a.maxTurns != null && a.maxTurns <= b.maxTurns));
+  # Clients' commands take `default` to clear a choice.
+  choiceNames = lib.attrNames cfg.access ++ lib.attrNames cfg.personas;
   # AI MOP's providers, from `ai-mop.providerSources`.
   program = pkgs: aiMop:
     import ./package.nix {
@@ -95,17 +126,22 @@ in {
   options = {
     enable = delib.boolOption false;
     resident.enable = delib.boolOption false;
-    profiles = mylib.atomicOption (lib.mkOption {
-      type = lib.types.attrsOf profile;
+    access = mylib.atomicOption (lib.mkOption {
+      type = lib.types.attrsOf access;
       default = {};
-      description = "Profiles by name, which namespaces select; `restricted` serves every namespace that selects none. A higher source replaces the set whole.";
+      description = "What conversations may do, by name; only the configuration defines it, and a conversation chooses one within its namespace's ceiling. `restricted` is the access and ceiling of namespaces not listed. A higher source replaces the set whole.";
     });
-    namespaces = delib.attrsOfOption lib.types.str {} "Profile name by address namespace, such as `cli` or `discord`; a namespace not listed gets `restricted`.";
-    providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models.";
+    personas = mylib.atomicOption (lib.mkOption {
+      type = lib.types.attrsOf persona;
+      default = {};
+      description = "Who answers, by name: the model and thinking level conversations follow unless they set their own. `edith` is the persona of namespaces not listed. A higher source replaces the set whole.";
+    });
+    namespaces = delib.attrsOfOption namespace {} "Access, ceiling and persona by address namespace, such as `cli` or `discord`; a namespace not listed has `restricted` as access and ceiling and `edith` as persona.";
+    providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the personas' models' whose API keys EDITH loads, so that a conversation can switch to their models.";
     toolUser = {
-      name = delib.strOption "edith" "User the profiles' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach.";
+      name = delib.strOption "edith" "User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach.";
       uid = delib.intOption 550 "UID, and GID of its group of the same name, of `edith.toolUser.name`.";
-      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no profile may name tools.";
+      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no access may name tools.";
     };
     discord = {
       enable = delib.boolOption false;
@@ -115,16 +151,24 @@ in {
 
   constraints.ifEnabled = [
     {
-      assertion = cfg.profiles ? restricted;
-      message = "edith.enable = true requires edith.profiles.restricted, the profile of namespaces that select none";
+      assertion = cfg.access ? restricted && cfg.personas ? edith;
+      message = "edith.enable = true requires edith.access.restricted and edith.personas.edith, which serve namespaces not listed";
     }
     {
-      assertion = lib.all (name: cfg.profiles ? ${name}) (lib.attrValues cfg.namespaces);
-      message = "edith.namespaces names a profile that edith.profiles does not declare";
+      assertion = lib.all (namespace: cfg.access ? ${namespace.access} && cfg.access ? ${namespace.ceiling} && cfg.personas ? ${namespace.persona}) (lib.attrValues cfg.namespaces);
+      message = "edith.namespaces names an access or persona that edith.access or edith.personas does not declare";
     }
     {
-      assertion = hasToolUser || lib.all (profile: profile.tools == []) (lib.attrValues cfg.profiles);
-      message = "a profile in edith.profiles names tools, which requires edith.toolUser.loginKey";
+      assertion = lib.all (namespace: !(cfg.access ? ${namespace.access} && cfg.access ? ${namespace.ceiling}) || within cfg.access.${namespace.access} cfg.access.${namespace.ceiling}) (lib.attrValues cfg.namespaces);
+      message = "an edith.namespaces entry's access exceeds its ceiling";
+    }
+    {
+      assertion = !(lib.elem "default" choiceNames);
+      message = "edith.access and edith.personas cannot name one `default`, which clients' commands take to clear a choice";
+    }
+    {
+      assertion = hasToolUser || lib.all (access: access.tools == []) (lib.attrValues cfg.access);
+      message = "an access in edith.access names tools, which requires edith.toolUser.loginKey";
     }
     {
       assertion = !cfg.discord.enable || cfg.resident.enable;
@@ -177,7 +221,7 @@ in {
       inherit socket;
       devDirectory = "${config.xdg.state.directory}/edith-dev";
       providerKeys = lib.listToAttrs (map (name: lib.nameValuePair providers.${name}.variable (secret providers.${name}.secret)) keyed);
-      inherit (cfg) profiles namespaces;
+      inherit (cfg) access personas namespaces;
       mcpServers = config.mcp.selected.edith;
       toolEnvironment =
         if hasToolUser
@@ -246,7 +290,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH cuts a streamed answer for posting only after complete units (paragraphs, a heading with what follows, whole lists, tables and code blocks), never the last one, answers a profile's AI MOP model through AI MOP's endpoint with its key, reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's profile, or `restricted` for an unlisted namespace, unless a conversation chose a configured profile or overrides its model or thinking level, a chosen profile surviving restarts and falling back once the configuration drops it, lets the model reach a profile's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
+      protects = "EDITH cuts a streamed answer for posting only after complete units (paragraphs, a heading with what follows, whole lists, tables and code blocks), never the last one, answers a persona's AI MOP model through AI MOP's endpoint with its key, reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's access and persona, or `restricted` and `edith` for an unlisted namespace, unless a conversation chose a configured persona, an access within its namespace's ceiling as EDITH compares accesses, or overrides its model or thinking level, a chosen one surviving restarts and falling back once the configuration drops it or lowers the ceiling, lets the model reach an access's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
       tsRoots = ["src"];
       build = result:
         pkgs.runCommand "edith-contracts" {} ''

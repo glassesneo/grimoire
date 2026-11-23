@@ -15,7 +15,7 @@ const context = BACKGROUND_CONTEXT;
 const directory = mkdtempSync(join(tmpdir(), "edith-models-"));
 after(() => rmSync(directory, { recursive: true, force: true }));
 
-void test("a profile's AI MOP model is answered through AI MOP's endpoint with its key", async () => {
+void test("a persona's AI MOP model is answered through AI MOP's endpoint with its key", async () => {
   const seen: { path?: string; authorization?: string }[] = [];
   const server = createServer((request, response) => {
     seen.push({ path: request.url, authorization: request.headers.authorization });
@@ -32,18 +32,16 @@ void test("a profile's AI MOP model is answered through AI MOP's endpoint with i
   process.env["AI_MOP_OPENAI_BASE_URL"] = `http://127.0.0.1:${port}/api/v1`;
   process.env["AI_MOP_API_KEY"] = "test-key";
   try {
-    const profile = {
+    const persona = {
       model: { provider: "ai-mop-chat", modelId: "gpt-6-astra" },
       thinkingLevel: "off",
-      tools: [],
-      mcpServers: [],
-      maxTurns: null,
     } as const;
     const edith = await Edith.open(
       await openNodeSqliteStorage(join(directory, "session.sqlite")),
       {
         models: edithModels(new FileCredentialStore(join(directory, "auth.json"))),
-        profiles: { restricted: profile },
+        access: { restricted: { tools: [], mcpServers: [], maxTurns: null } },
+        personas: { edith: persona },
         namespaces: {},
       },
       context,

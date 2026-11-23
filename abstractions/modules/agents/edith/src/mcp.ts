@@ -1,4 +1,4 @@
-// An MCP server's tools as one pi-durable extension, named `mcp:<server>`, so a profile
+// An MCP server's tools as one pi-durable extension, named `mcp:<server>`, so an access
 // enables a server as a whole. The tools are callable only by other tools: under code mode,
 // scripts call them and the model never sees them directly.
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";

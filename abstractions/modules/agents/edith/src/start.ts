@@ -23,12 +23,13 @@ export type Config = {
   readonly devDirectory: string;
   // Files holding provider API keys, by the environment variable pi-ai reads each from.
   readonly providerKeys: Readonly<Record<string, string>>;
-  readonly profiles: Options["profiles"];
+  readonly access: Options["access"];
+  readonly personas: Options["personas"];
   readonly namespaces: Options["namespaces"];
-  // The MCP servers some profile names, by name.
+  // The MCP servers some access names, by name.
   readonly mcpServers: Readonly<Record<string, ServerConfig>>;
   readonly discord: { readonly tokenFile: string; readonly allowedUsers: readonly string[] } | null;
-  // Where the tools run; without it, no profile selects any.
+  // Where the tools run; without it, no access selects any.
   readonly toolEnvironment: ToolEnvironmentConfig | null;
 };
 
@@ -59,7 +60,7 @@ export async function start(
   ].flat())
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 
-  // A server that fails to start is left out, so its profiles run without its tools.
+  // A server that fails to start is left out, so its accesses run without its tools.
   const servers = (
     await Promise.allSettled(
       Object.entries(config.mcpServers).map(([name, server]) =>
@@ -83,7 +84,8 @@ export async function start(
     await openNodeSqliteStorage(paths.storage),
     {
       models: edithModels(new FileCredentialStore(paths.credentials)),
-      profiles: config.profiles,
+      access: config.access,
+      personas: config.personas,
       namespaces: config.namespaces,
       codemode,
       servers: servers.map((server) => server.extension),

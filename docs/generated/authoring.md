@@ -335,22 +335,26 @@ Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstr
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| <code>edith.access</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | What conversations may do, by name; only the configuration defines it, and a conversation chooses one within its namespace's ceiling. `restricted` is the access and ceiling of namespaces not listed. A higher source replaces the set whole. |
+| <code>edith.access.&lt;name&gt;.maxTurns</code> | <code>null or (positive integer, meaning &gt;0)</code> | <code>null</code> | Tool rounds one run takes at most; `null` sets no limit. |
+| <code>edith.access.&lt;name&gt;.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. |
+| <code>edith.access.&lt;name&gt;.tools</code> | <code>list of (one of "read", "write", "edit", "bash")</code> | <code>[ ]</code> | pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. |
 | <code>edith.discord.allowedUsers</code> | <code>list of string matching the pattern [0-9]+</code> | <code>[ ]</code> | Discord user IDs whose messages EDITH answers; it ignores everyone else. |
 | <code>edith.discord.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>edith.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.namespaces</code> | <code>attribute set of string</code> | <code>{ }</code> | Profile name by address namespace, such as `cli` or `discord`; a namespace not listed gets `restricted`. |
-| <code>edith.profiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Profiles by name, which namespaces select; `restricted` serves every namespace that selects none. A higher source replaces the set whole. |
-| <code>edith.profiles.&lt;name&gt;.maxTurns</code> | <code>null or (positive integer, meaning &gt;0)</code> | <code>null</code> | Tool rounds one run takes at most; `null` sets no limit. Only the configuration changes it. |
-| <code>edith.profiles.&lt;name&gt;.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. Only the configuration changes it. |
-| <code>edith.profiles.&lt;name&gt;.model</code> | <code>submodule</code> |  | Model of the profile's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand. |
-| <code>edith.profiles.&lt;name&gt;.model.modelId</code> | <code>non-empty string</code> |  |  |
-| <code>edith.profiles.&lt;name&gt;.model.provider</code> | <code>one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
-| <code>edith.profiles.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the profile's conversations unless one sets its own. |
-| <code>edith.profiles.&lt;name&gt;.tools</code> | <code>list of (one of "read", "write", "edit", "bash")</code> | <code>[ ]</code> | pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. Only the configuration changes it. |
-| <code>edith.providers</code> | <code>list of (one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the profiles' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
+| <code>edith.namespaces</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Access, ceiling and persona by address namespace, such as `cli` or `discord`; a namespace not listed has `restricted` as access and ceiling and `edith` as persona. |
+| <code>edith.namespaces.&lt;name&gt;.access</code> | <code>string</code> | <code>"restricted"</code> | Access of the namespace's conversations that choose none. |
+| <code>edith.namespaces.&lt;name&gt;.ceiling</code> | <code>string</code> | <code>access</code> | Greatest access the namespace's conversations may choose: those within it, granting no tool or server it lacks and no more tool rounds. |
+| <code>edith.namespaces.&lt;name&gt;.persona</code> | <code>string</code> | <code>"edith"</code> | Persona of the namespace's conversations that choose none. |
+| <code>edith.personas</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Who answers, by name: the model and thinking level conversations follow unless they set their own. `edith` is the persona of namespaces not listed. A higher source replaces the set whole. |
+| <code>edith.personas.&lt;name&gt;.model</code> | <code>submodule</code> |  | Model of the persona's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand. |
+| <code>edith.personas.&lt;name&gt;.model.modelId</code> | <code>non-empty string</code> |  |  |
+| <code>edith.personas.&lt;name&gt;.model.provider</code> | <code>one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
+| <code>edith.personas.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the persona's conversations unless one sets its own. |
+| <code>edith.providers</code> | <code>list of (one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the personas' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
 | <code>edith.resident.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no profile may name tools. |
-| <code>edith.toolUser.name</code> | <code>string</code> | <code>"edith"</code> | User the profiles' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach. |
+| <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no access may name tools. |
+| <code>edith.toolUser.name</code> | <code>string</code> | <code>"edith"</code> | User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach. |
 | <code>edith.toolUser.uid</code> | <code>signed integer</code> | <code>550</code> | UID, and GID of its group of the same name, of `edith.toolUser.name`. |
 
 ### <code>elio</code>

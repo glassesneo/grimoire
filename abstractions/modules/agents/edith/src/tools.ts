@@ -1,4 +1,4 @@
-// The tools EDITH brings itself, as one extension a profile selects from by name. They touch
+// The tools EDITH brings itself, as one extension an access selects from by name. They touch
 // files and processes only through the conversation's execution environment, which
 // `toolEnvironment` places with another user, so the model reaches nothing of EDITH's own.
 import { readFileSync, writeFileSync } from "node:fs";
