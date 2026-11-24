@@ -2,7 +2,8 @@ import { connect } from "node:net";
 import { createInterface } from "node:readline";
 import { encode, type Response } from "./protocol.ts";
 
-const usage = "usage: edith ask <message>\n       edith dev [--session <name>]";
+const usage =
+  "usage: edith ask <message>\n       edith dev [--session <name>]\n       edith dev --help";
 const [command, ...words] = process.argv.slice(2);
 
 if (command === "dev") {

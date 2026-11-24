@@ -26,6 +26,15 @@ import { itemsOf, liveCalls, resultOf, type Call } from "./trace.ts";
 
 const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
+
+const devHelp = [
+  usage,
+  "",
+  "Runs EDITH in this process and serves the `cli` address from this terminal, without the socket or Discord.",
+  "Each run is printed as it streams: thinking, text and code mode calls, each with the time since your input.",
+  "You can type while a run answers. Ctrl-C stops the run; pressed again soon after, or with nothing running, it quits.",
+  "Without --session the storage is temporary and removed on exit; a named session is kept and resumed by its name.",
+].join("\n");
 const exitWindow = 2_000;
 const shownWait = 5_000;
 const holdPoll = 500;
@@ -43,6 +52,10 @@ const help = [
 ].join("\n");
 
 export async function dev(args: readonly string[]): Promise<void> {
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
+    console.log(devHelp);
+    return;
+  }
   let session: string | undefined;
   if (args.length === 2 && args[0] === "--session") session = args[1];
   else if (args.length !== 0) throw new UsageError(usage);

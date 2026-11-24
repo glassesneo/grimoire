@@ -285,7 +285,17 @@ const commandsFor = (
   simple("resume", "Let this channel's paused conversation go on"),
   simple("stop", "Stop what this channel's conversation is doing and drop input not yet read"),
   simple("sessions", "Switch this channel back to one of its earlier conversations"),
+  simple("help", "Explain how EDITH works in this channel"),
 ];
+
+const help = [
+  "This channel is one conversation with EDITH, which answers the allowed users.",
+  "- While it works, its thinking, text and code mode calls appear as they stream, and only the end of the answer notifies. `/trace off` posts the whole answer once it is done instead.",
+  "- A message written while it works waits, marked ⏳, until the model reads it.",
+  "- `/pause` holds it before its next step; a message or `/resume` lets it go on, and `/stop` ends what it is doing. The buttons on its messages do the same.",
+  "- `/new` starts a new conversation here, or in a new channel when you name one, and `/sessions` switches back to an earlier one.",
+  "- `/status` shows the channel's access, persona, model and thinking level; `/access`, `/persona`, `/model` and `/thinking` change them.",
+].join("\n");
 
 const simple = (name: string, description: string) => ({
   type: ApplicationCommandType.ChatInput as const,
@@ -500,6 +510,9 @@ export class Discord {
       return found?.type === ApplicationCommandOptionType.String ? found.value : "";
     };
     switch (data.name) {
+      case "help":
+        await reply(help, MessageFlags.Ephemeral);
+        return;
       case "status":
         await reply(describe(await this.#edith.status(address, this.#context)));
         return;
