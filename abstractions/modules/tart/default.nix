@@ -35,13 +35,17 @@ delib.module ({
     ...
   }: let
     tart = lib.getExe cfg.package;
+    jq = lib.getExe pkgs.jq;
     logDirectory = "${config.xdg.cache.directory}/tart";
     # Connects SSH to port $2 of machine $1, starting the machine first if it is
     # not running. `tart ip` answers from the DHCP lease, which outlives the
     # machine, and a booting machine accepts connections before its sshd answers
     # them, so the address counts only once the port greets with `SSH-`. A
-    # machine that had to boot greets about a second before it accepts keys,
-    # so a connection that waited also waits a little after the greeting.
+    # running machine keeps its address after its lease expires, and `tart ip`
+    # then finds none, so the newest lease of the machine's MAC address is
+    # tried, expired or not. A machine that had to boot greets about a second
+    # before it accepts keys, so a connection that waited also waits a little
+    # after the greeting.
     proxy = pkgs.writeShellScript "tart-proxy" ''
       set -eu
       name=$1 port=$2
@@ -51,11 +55,16 @@ delib.module ({
           </dev/null >>${lib.escapeShellArg logDirectory}/"$name".log 2>&1 &
       fi
       deadline=$((SECONDS + 120))
+      # bootpd writes each octet without its leading zero, newest lease first.
+      leased() {
+        mac=$(${jq} -r .macAddress ~/.tart/vms/"$name"/config.json | /usr/bin/sed -E 's/(^|:)0([0-9a-f])/\1\2/g')
+        /usr/bin/awk -F= -v hw="1,$mac" '$1 ~ /ip_address$/ { ip = $2 } $1 ~ /hw_address$/ && $2 == hw { print ip; exit }' /var/db/dhcpd_leases
+      }
       greets() {
         [ "$(/usr/bin/nc -G 2 -w 2 "$1" "$port" </dev/null 2>/dev/null | head -c 4)" = SSH- ]
       }
       waited=false
-      until address=$(${tart} ip "$name" 2>/dev/null) && greets "$address"; do
+      until address=$(${tart} ip "$name" 2>/dev/null || leased) && [ -n "$address" ] && greets "$address"; do
         waited=true
         if [ "$SECONDS" -ge "$deadline" ]; then
           echo "tart: $name did not answer SSH on port $port within 120 s" >&2
