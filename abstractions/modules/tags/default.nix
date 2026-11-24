@@ -5,6 +5,8 @@
   ...
 }: let
   tagsOf = name: config.modules.${name}.meta.tags;
+  # Module names come from metadata alone and enabled tags are read only inside
+  # conditions, so `myconfig` does not depend on itself.
   tagged = lib.filter (name: tagsOf name != []) (builtins.attrNames config.modules);
   knownTags = lib.unique (lib.concatMap tagsOf tagged);
   seatedOnly = name: let

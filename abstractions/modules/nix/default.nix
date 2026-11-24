@@ -13,6 +13,9 @@ delib.module ({
   };
 
   darwin.always = {pkgs, ...}: {
+    # Backport of NixOS/nix#16626 (after 2.35.6): App Management denies root's
+    # chmod on launched .app bundles, which aborted every GC. Drop it once
+    # nixpkgs' Nix includes the fix.
     nix.package = pkgs.nix.appendPatches [./nix-skip-root-chmod-darwin.patch];
 
     nix.settings = {
@@ -41,6 +44,7 @@ delib.module ({
       };
     };
 
+    # launchd discards the jobs' output otherwise.
     launchd.daemons = {
       nix-gc.serviceConfig = {
         StandardOutPath = "/var/log/nix-gc.log";

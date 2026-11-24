@@ -22,6 +22,7 @@ in {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
+      # Upstream's own nixpkgs keeps vicinae.cachix substitutes usable.
       upstreamPackage = packageOption vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
       package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
       sourceFiles = mylib.sourceFiles.option "upstreamPackage";
@@ -42,12 +43,16 @@ in {
     pkgs,
     ...
   }: let
+    # stabilizeApp rejects the browser native-messaging host, which names the
+    # package's store path, so only the bundle and the CLI link are kept. The
+    # equal-length name keeps Mach-O rewrites in place.
     bundled = pkgs.runCommand (builtins.substring 33 (-1) (baseNameOf cfg.package.outPath)) {nativeBuildInputs = [pkgs.perl];} ''
       mkdir "$out"
       cp -a ${cfg.package}/Applications ${cfg.package}/bin "$out/"
       chmod -R u+w "$out"
       find "$out" -type f -exec env SOURCE=${cfg.package} OUT="$out" perl -0777 -pi -e 's/\Q$ENV{SOURCE}\E/$ENV{OUT}/g' {} +
     '';
+    # stabilizeApp re-signs its input, so source replacements come before it.
     package = myconfig.app-identity.stabilizeApp bundled;
     app = "${package}/Applications/Vicinae.app";
   in {

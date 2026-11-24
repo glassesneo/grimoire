@@ -33,6 +33,8 @@ rex.action {
     run = function ()
         local created = rex.session.new_window { layout = shell(), focus = true }
         local view = rex.session.view {}
+        -- The app keeps showing its previous tab until the window is selected.
+        -- A binding's context carries no session, so the view names it.
         if created ~= nil and view ~= nil then
             rex.client.queue("session.select", {
                 session_id = view.session_id,

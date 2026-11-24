@@ -96,6 +96,7 @@ delib.module ({
       history = [inputMode];
     };
 
+    # CFPreferences must own this plist as a real file, not a store link.
     platform.darwin.defaults."jp.sourceforge.inputmethod.aquaskk".settings = {
       user_dictionary_path = cfg.userDictionaryPath;
       keyboard_layout = "com.apple.keylayout.US";
@@ -127,6 +128,7 @@ delib.module ({
         ${pkgs.coreutils}/bin/mkdir -p -- ${lib.escapeShellArg (dirOf cfg.userDictionaryPath)}
       '';
     };
+    # The input method is discovered only after its startup preferences exist.
     applySteps.imprynt.after = ["defaults"];
   };
 

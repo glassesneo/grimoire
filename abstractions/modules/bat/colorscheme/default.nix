@@ -13,6 +13,8 @@
     };
   };
 
+  # bat reads themes only from a compiled cache, which also holds its built-in
+  # assets and records the bat that built it.
   cache = pkgs: theme:
     pkgs.runCommandLocal "bat-cache" {nativeBuildInputs = [pkgs.bat];} ''
       mkdir -p source/themes

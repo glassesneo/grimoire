@@ -9,6 +9,7 @@
   inherit (mylib.anchors.sources ./anchors.json) nix-wrapper-modules;
   wrapperLib = import "${nix-wrapper-modules}/lib" {inherit lib;};
 
+  # Zellij parses KDL v1 only.
   toKdl = content:
     wrapperLib.generators.toKdl (_: {
       version = 1;
@@ -245,6 +246,8 @@ in
     in {
       packages = [pkgs.zellij];
 
+      # On Darwin, Zellij keeps this cache in Library/Caches, not
+      # XDG_CACHE_HOME.
       files = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && permissions != {}) {
         "Library/Caches/org.Zellij-Contributors.Zellij/permissions.kdl" = permissionsFile;
       };

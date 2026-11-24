@@ -112,6 +112,8 @@ in
         UseKeychain = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin true;
       };
 
+      # ssh takes the first value it obtains for a parameter, so `Host *` comes
+      # last.
       files.".ssh/config" = let
         atom = value:
           if lib.isBool value

@@ -67,6 +67,7 @@ in
     myconfig.ifEnabled.kanata = lib.mkMerge (
       lib.mapAttrsToList (name: lib.mkIf (cfg.profile == name)) profiles
       ++ [
+        # Kanata rejects chords without it.
         {settings.concurrent-tap-hold = lib.mkIf (cfg.chords != {}) true;}
       ]
     );

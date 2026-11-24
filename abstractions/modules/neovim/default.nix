@@ -94,11 +94,15 @@ in
       };
     };
 
+    # The nightly overlay's builds are pushed here; the anchor's own lock file
+    # keeps them substitutable.
     darwin.ifEnabled.nix.settings = {
       extra-substituters = ["https://nix-community.cachix.org"];
       extra-trusted-public-keys = ["nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="];
     };
 
+    # Bundle names depend on `myconfig`, so they stay inside `mkMerge`, whose
+    # shape Denix reads before `myconfig` is evaluated.
     bundles.ifEnabled = {pkgs, ...}:
       lib.mkMerge [
         {

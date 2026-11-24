@@ -1,3 +1,5 @@
+// closeViewWindowSize in com.apple.universalaccess is a private key holding an
+// archived NSValue. Prints "changed" after a write.
 #import <AppKit/AppKit.h>
 
 static NSString *const Domain = @"com.apple.universalaccess";

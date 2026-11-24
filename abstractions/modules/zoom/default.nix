@@ -25,6 +25,9 @@ in
       closeViewPanningMode = 2;
     };
 
+    # Hjem defaults cannot declare an archived NSValue. Activation runs as root,
+    # so the size is written as the user in their bootstrap namespace, where
+    # their cfprefsd runs. AXVisualSupportAgent rereads it only on launch.
     darwin.ifEnabled = {pkgs, ...}: let
       user = lib.escapeShellArg myconfig.host.user.name;
       asUser = cmd: ''launchctl asuser "$(id -u -- ${user})" sudo --user=${user} -- ${cmd}'';

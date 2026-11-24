@@ -15,6 +15,7 @@ in
 
     previewTools = pkgs: [pkgs.poppler-utils pkgs.resvg];
 
+    # Subcommands and --version/--help come first, so they reach elio unchanged.
     mkPackage = pkgs: theme: let
       toml = pkgs.formats.toml {};
       flags =

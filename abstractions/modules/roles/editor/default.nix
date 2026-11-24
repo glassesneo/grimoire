@@ -4,6 +4,8 @@
   ...
 }:
 delib.role ({cfg, ...}: let
+  # EDITOR names the program: a session keeps its login value, and a store path
+  # would go stale after a rebuild.
   inherit (cfg.held) package;
 in {
   name = "editor";

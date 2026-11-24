@@ -167,6 +167,8 @@ in
         exclusive = true;
         source = app;
       };
+      # OmniWM rewrites its settings at startup, so they must be a real file,
+      # not a store link.
       applySteps.omniwm = {
         before = ["services"];
         package = pkgs.writeShellApplication {

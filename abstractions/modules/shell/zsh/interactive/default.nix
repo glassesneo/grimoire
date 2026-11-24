@@ -85,6 +85,7 @@ delib.module {
       snippet = "cd ..";
     };
 
+    # Without secondary_theme.zsh, fsh downloads the upstream theme at startup.
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
 }

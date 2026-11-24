@@ -29,6 +29,7 @@ in
 
     constraints.ifEnabled = [(themes.constraint resolved)];
 
+    # fzf reads this file before FZF_DEFAULT_OPTS.
     hjem.ifEnabled = {pkgs, ...}: {
       environment.sessionVariables.FZF_DEFAULT_OPTS_FILE = themes.of resolved pkgs;
     };

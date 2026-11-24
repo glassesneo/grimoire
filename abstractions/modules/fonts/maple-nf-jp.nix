@@ -1,3 +1,6 @@
+# Built from source: the released CJK fonts leave a gap between adjacent kana in
+# a terminal. The scale factor enlarges the CJK outlines within the two-cell
+# advance.
 {
   lib,
   python3,
@@ -33,6 +36,8 @@ stdenvNoCC.mkDerivation {
       ]))
   ];
 
+  # build.py takes the CJK base archive from beside itself instead of
+  # downloading it.
   buildPhase = ''
     runHook preBuild
     export HOME=$TMPDIR

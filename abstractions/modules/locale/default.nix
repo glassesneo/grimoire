@@ -8,6 +8,7 @@ delib.module {
 
   darwin.ifEnabled = {
     environment.variables.LC_ALL = "en_US.UTF-8";
+    # The login window reads the system-wide global domain, not a user's.
     system.defaults.CustomSystemPreferences."/Library/Preferences/.GlobalPreferences".AppleICUForce24HourTime = true;
   };
 

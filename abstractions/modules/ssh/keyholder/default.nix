@@ -92,6 +92,9 @@ delib.module ({
         ForwardAgent = socket;
       });
 
+    # Matches only the GUI's tunnel: Rex's GUI puts its app socket directly
+    # under its ssh directory, its CLI one level deeper. If Rex changes this
+    # layout, Rex sessions lose the agent.
     ssh.matches = lib.listToAttrs (map (host:
       lib.nameValuePair "rex-${host}" {
         criteria = ''originalhost ${host} exec "/bin/ps -o command= -p $PPID | /usr/bin/grep -Eq '/rex/ssh/[0-9a-f]+[.]sock:'"'';

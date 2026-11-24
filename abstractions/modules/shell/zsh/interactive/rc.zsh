@@ -1,5 +1,7 @@
 bindkey -e
 
+# SKK passes Ctrl-J and Ctrl-L through when already in that mode; the shell
+# ignores them.
 ignore-key() {}
 zle -N ignore-key
 for keymap in emacs viins vicmd isearch command; do

@@ -218,6 +218,8 @@ in {
       source = "${cfg.package}/Applications/Ghostty.app";
     };
 
+    # The Hide menu item takes Cmd+H before Ghostty sees it; a zero-width space
+    # as its shortcut disables it.
     platform.darwin.defaults."com.mitchellh.ghostty".settings.NSUserKeyEquivalents."Hide Ghostty" = builtins.fromJSON ''"\u200b"'';
 
     xdg.config.files."ghostty/config.ghostty" = {

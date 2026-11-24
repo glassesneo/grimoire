@@ -29,6 +29,7 @@ in {
     state = readOnly (strOption "${home}/.local/state");
   };
 
+  # Hjem exports a variable only when its directory differs from Hjem's default.
   hjem.ifEnabled = {
     xdg = lib.mapAttrs (kind: _: {directory = cfg.${kind};}) kinds;
     environment.sessionVariables = lib.mapAttrs' (kind: variable: lib.nameValuePair variable cfg.${kind}) kinds;

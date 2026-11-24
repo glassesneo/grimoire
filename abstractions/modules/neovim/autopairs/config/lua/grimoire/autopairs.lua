@@ -22,6 +22,8 @@ local function is_generated(char)
   return false
 end
 
+-- Runs after the returned insert keys, not on a scheduled callback, so later
+-- input cannot race the recording of the closer.
 function M.record(index)
   local pair = pairs_data[index]
   local row, col = at_cursor()

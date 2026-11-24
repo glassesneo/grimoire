@@ -75,6 +75,9 @@ delib.host {
 
     system.defaults.loginwindow.autoLoginUser = "neo";
 
+    # Idle-sleep settings do not prevent lid sleep without an external display.
+    # The flag also prevents manual sleep on battery, and removing this does not
+    # reset it: run `pmset -a disablesleep 0`.
     system.activationScripts.postActivation.text = ''
       /usr/bin/pmset -a disablesleep 1
     '';

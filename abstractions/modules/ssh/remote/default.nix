@@ -22,7 +22,11 @@ delib.module ({myconfig, ...}: {
   myconfig.ifEnabled.secrets.required = ["github-read-token"];
 
   darwin.ifEnabled = {
+    # sshd's StrictModes rejects a store link as authorized_keys; nix-darwin's
+    # AuthorizedKeysCommand reads these instead.
     users.users.${myconfig.host.user.name}.openssh.authorizedKeys.keys = [myconfig.ssh.keys.login.publicKey];
+    # sshd keeps a RemoteForward's socket after the session; without unlinking
+    # it, the next tunnel fails to bind.
     services.openssh.extraConfig = ''
       StreamLocalBindUnlink yes
     '';
@@ -87,7 +91,11 @@ delib.module ({myconfig, ...}: {
       gpg.ssh.program = "${keygen}/bin/forwarded-ssh-keygen";
       core.sshCommand = "${forwardedSsh}/bin/forwarded-ssh";
       ssh.variant = "ssh";
+      # The empty entry drops helpers configured before, such as the system
+      # keychain.
       credential."https://github.com".helper = ["" "${credentialHelper}"];
+      # Rewriting the SSH URL to itself for pushes keeps the HTTPS rewrite from
+      # applying to them.
       url = {
         "https://github.com/".insteadOf = "git@github.com:";
         "git@github.com:".pushInsteadOf = ["https://github.com/" "git@github.com:"];

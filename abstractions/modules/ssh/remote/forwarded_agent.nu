@@ -62,6 +62,9 @@ def targets-github [args: list<string>]: nothing -> bool {
 }
 
 def main [mode: string] {
+  # Arguments arrive as WFA_ARGC and WFA_ARG_<n>: Nushell parses a script's
+  # command-line arguments as literals, so `true` would not reach it as a
+  # string.
   let count = $env.WFA_ARGC? | default '0' | into int
   mut args = 0..<$count | each {|index| $env | get $"WFA_ARG_($index)" }
   for index in 0..<$count { hide-env $"WFA_ARG_($index)" }
