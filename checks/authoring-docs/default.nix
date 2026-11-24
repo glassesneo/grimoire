@@ -5,6 +5,9 @@
 }: let
   inherit (pkgs) lib;
   render = import ../../lib/authoring.nix {inherit lib;};
+  mylib = import ../../lib {inherit lib;};
+  documentedProbe = mylib.documented {description = "Probe.";} (value: value + 1);
+  listed = entries: internal: map (entry: entry.name) (mylib.library {inherit entries internal;});
 
   renderModules = modules: let
     configuration = compose ([
@@ -40,8 +43,18 @@
   modulesPart = lib.last (lib.splitString "\n## Modules\n" example);
   fails = module: !(builtins.tryEval (renderModules [module])).success;
 in {
-  protects = "the committed authoring reference is what the declarations render, and rendering keeps tables, links, defaults and descriptions that option validation cannot check";
-  check = assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
+  protects = "the committed authoring reference is what the declarations render, rendering keeps tables, links, defaults and descriptions that option validation cannot check, and every library function modules use is documented";
+  check = assert documentedProbe 1 == 2;
+  assert listed {
+    x = {
+      f = documentedProbe;
+      g = value: value;
+      data = [1];
+    };
+  } ["x.g"]
+  == ["x.f"];
+  assert !(builtins.tryEval (builtins.deepSeq (listed {x.f = value: value;} []) true)).success;
+  assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
   assert lib.hasInfix "(../../checks/authoring-docs/fixture/a%20space/default.nix)" example;
   assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" modulesPart)) == ["<code>a</code>" "<code>host</code>"];
   assert lib.hasInfix "| [<code>z</code>](../../checks/authoring-docs/fixture/z/default.nix) |  | Last |  |" modulesPart;

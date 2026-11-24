@@ -56,7 +56,7 @@
           ++ modules;
       };
       cfg = evaluation.config;
-      assertions = import ../lib/assertions.nix {inherit lib;};
+      inherit (import ../lib {inherit lib;}) assertions;
       failedAssertions = assertions.failed cfg.assertions;
     in {
       packages = assertions.guard failedAssertions (lib.mapAttrs (_: bundle: bundle.package) (lib.filterAttrs (_: bundle: bundle.publish) cfg.bundles));

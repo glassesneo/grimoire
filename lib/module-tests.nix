@@ -5,7 +5,7 @@
   pkgs,
   system,
 }: let
-  assertions = import ./assertions.nix {inherit lib;};
+  inherit (import ./default.nix {inherit lib;}) assertions;
   defines = case: field: lib.elem field case.defined;
   loaded = names:
     map (item: item.key) (builtins.genericClosure {

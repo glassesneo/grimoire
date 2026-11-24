@@ -10,7 +10,7 @@ The syntax that modules and hosts write is declared as options. A type states wh
 
 A module's `meta.description` states its responsibility in one sentence, assuming familiarity with modules in this repository. It lets readers understand that responsibility without reading the implementation and judge whether a future capability belongs there. It is not an inventory of current settings.
 
-`docs/generated/authoring.md` is generated from those declarations. It lists every module's responsibility, source, and options, and the options that adapters and extensions add, so writing a module or host needs no reading beyond those declarations. The evaluation rules a mechanism applies to existing syntax, and what its maintainers rely on, are contracts that options cannot carry; they stay beside the implementation.
+`docs/generated/authoring.md` is generated from those declarations. It lists every module's responsibility, source, and options, the options that adapters and extensions add, and the `mylib` and `delib` functions that modules call, so writing a module or host needs no reading beyond those declarations. Such a function is documented where it is defined, with `mylib.documented`; one that only mechanisms use is listed in `mylib.internal` instead, and rendering fails on any other. The evaluation rules a mechanism applies to existing syntax, and what its maintainers rely on, are contracts that options cannot carry; they stay beside the implementation.
 
 The absence of a written contract alone does not justify adding one. When a new criterion appears necessary, discuss that specific criterion with the maintainer rather than treating it as an existing requirement.
 

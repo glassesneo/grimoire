@@ -2,19 +2,23 @@
   lib,
   anchorRoot ? null,
 }: let
-  sources = import ./sources.nix {inherit lib;};
+  inherit (import ./documented.nix {inherit lib;}) documented library;
+  sources = import ./sources.nix {inherit lib documented;};
 in {
+  inherit documented library;
   anchors = import ./anchors.nix {
-    inherit lib;
+    inherit lib documented;
     root = anchorRoot;
   };
-  assertions = import ./assertions.nix {inherit lib;};
-  colorschemes = import ./colorschemes.nix {inherit lib;};
-  fragments = import ./fragments.nix {inherit lib;};
-  plist = import ./plist.nix {inherit lib;};
+  assertions = import ./assertions.nix {inherit lib documented;};
+  colorschemes = import ./colorschemes.nix {inherit lib documented;};
+  fragments = import ./fragments.nix {inherit lib documented;};
+  plist = import ./plist.nix {inherit lib documented;};
   inherit sources;
   inherit (sources) accumulatingOption atomicOption;
-  inherit (import ./rices.nix) rice;
-  roles = import ./roles.nix {inherit lib;};
-  schemeThemes = import ./scheme-themes.nix;
+  inherit (import ./rices.nix {inherit documented;}) rice;
+  roles = import ./roles.nix {inherit lib documented;};
+  schemeThemes = import ./scheme-themes.nix {inherit documented;};
+
+  internal = ["anchors.discover" "assertions.guard" "documented" "internal" "library" "roles" "sources.isAccumulating" "sources.isAtomic"];
 }

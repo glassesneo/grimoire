@@ -1,5 +1,6 @@
 {
   lib,
+  documented,
   root ? null,
 }: let
   read = file: let
@@ -63,6 +64,12 @@
   of = file: memo.${toString file} or (anchorsOf file);
 in {
   inherit discover;
-  sources = file: (of file).sources;
-  flakes = file: (of file).flakes;
+  sources = documented {
+    description = "The pins of an npins lock file (format version 8, written by `just anchors update`) by name, each as a source whose `outPath` is the pin's content, fetched during evaluation and checked against its recorded hash. A Git or GitHub pin also carries `rev`, `shortRev`, `lastModified`, `lastModifiedDate` and `narHash`, and a release its tag as `version`, as a flake input of the same revision does. A URL pin is a single file keeping its name, unpacked when npins records `unpack`. Other pin types and Git pins with submodules fail.";
+    arguments.file = "The module's `anchors.json`.";
+  } (file: (of file).sources);
+  flakes = documented {
+    description = "The GitHub pins of an npins lock file by name, each evaluated as a flake with its own lock file, as a flake input of the same revision.";
+    arguments.file = "The module's `anchors.json`.";
+  } (file: (of file).flakes);
 }

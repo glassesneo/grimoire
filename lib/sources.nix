@@ -1,4 +1,7 @@
-{lib}: let
+{
+  lib,
+  documented,
+}: let
   marker = "_grimoireAtomic";
   accumulatingMarker = "_grimoireAccumulating";
 
@@ -99,14 +102,32 @@
   in
     module;
 in {
-  inherit prioritize;
+  prioritize =
+    documented {
+      description = "A module whose definitions below an option tree all carry a source's priority, pushed down along the declared types: below a submodule, an `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own priority, so a higher source replaces only what it defines. Lists, nullable values, other values and options declared with `atomicOption` are replaced whole; options declared with `accumulatingOption` receive no priority. Explicit priorities are kept, `mkIf` and `mkMerge` are descended into, and imported modules receive the same priority.";
+      arguments = {
+        priority = "One of `priorities`.";
+        options = "The option tree the definitions apply to.";
+        module = "A module given as an attribute set, a function or a path.";
+      };
+    }
+    prioritize;
 
-  priorities = {
-    module = 1000;
-    rice = 900;
-    host = 100;
-  };
+  priorities =
+    documented {
+      description = "The priorities of `myconfig` sources, `module` < `rice` < `host`, all above an option default.";
+    } {
+      module = 1000;
+      rice = 900;
+      host = 100;
+    };
 
-  atomicOption = option: option // {${marker} = true;};
-  accumulatingOption = option: option // {${accumulatingMarker} = true;};
+  atomicOption = documented {
+    description = "An option that a higher source replaces as a whole, instead of merging into its structure.";
+    arguments.option = "An option declaration.";
+  } (option: option // {${marker} = true;});
+  accumulatingOption = documented {
+    description = "An option that collects every source's contributions outside the source order: its definitions receive no priority and merge by its type, so a higher source cannot remove a lower one's. Applied to a declaration without a type, it marks an option another module declares, such as an upstream option in a submodule.";
+    arguments.option = "An option declaration, or one without a type.";
+  } (option: option // {${accumulatingMarker} = true;});
 }

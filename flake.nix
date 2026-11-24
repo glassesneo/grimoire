@@ -71,6 +71,13 @@
       };
     in {
       inherit host;
+      library = mylib.library {
+        entries = {
+          inherit mylib;
+          delib.role = mylib.roles.declare denix.lib;
+        };
+        internal = map (path: "mylib.${path}") mylib.internal;
+      };
       # Anchors are named by module directory, as pin names repeat across
       # modules.
       sources =

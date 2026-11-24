@@ -5,6 +5,7 @@
   moduleSystems,
   host ? null,
   sources ? {},
+  library ? [],
 }: let
   rootPrefix = "${toString root}/";
 
@@ -194,6 +195,22 @@
         declared)
     );
 
+  librarySection = entry: let
+    arguments = entry.doc.arguments or {};
+  in
+    lib.concatStringsSep "\n" ([
+        "### ${code entry.name}"
+        ""
+        entry.doc.description
+        ""
+      ]
+      ++ lib.optionals (arguments != {}) ([
+          "| Argument | Meaning |"
+          "| --- | --- |"
+        ]
+        ++ lib.mapAttrsToList (name: text: "| ${code name} | ${escape text} |") arguments
+        ++ [""]));
+
   adapterSection = system: let
     entries = lib.filter (option: lib.all inRepository option.declarations) systemEntries.${system};
   in
@@ -237,4 +254,10 @@ in
     ## Modules
 
     ${enableOnlyTable}
-    ${lib.concatStringsSep "\n" (map moduleSection sectioned.wrong)}''
+    ${lib.concatStringsSep "\n" (map moduleSection sectioned.wrong)}${lib.optionalString (library != []) ''
+
+      ## Library
+
+      Functions and values that modules use, from `mylib` and `delib`.
+
+      ${lib.concatMapStringsSep "\n" librarySection library}''}''

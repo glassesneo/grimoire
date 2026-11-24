@@ -1321,3 +1321,173 @@ Source: [<code>abstractions/modules/shell/zsh/interactive/zabrze/default.nix</co
 | <code>zsh.zabrze.snippets.&lt;name&gt;.snippet</code> | <code>string</code> |  | Text that replaces the trigger. |
 | <code>zsh.zabrze.snippets.&lt;name&gt;.trigger</code> | <code>null or string</code> | <code>null</code> | Word that expands. Exactly one of `trigger` and `trigger-pattern` is set. |
 | <code>zsh.zabrze.snippets.&lt;name&gt;.trigger-pattern</code> | <code>null or string</code> | <code>null</code> | Regular expression matching the word that expands. |
+
+## Library
+
+Functions and values that modules use, from `mylib` and `delib`.
+
+### <code>delib.role</code>
+
+A role: a seat on the host, the module `roles.<name>` with `enable`, whether the host has the seat, and `holder`, one of the candidates that declare `meta.role = "<name>"`. A candidate may define the default holder; a rice or host replaces it. While the seat is enabled, its holder must be enabled. With `seatedOnly`, the seat decides its candidates' enable: the holder is enabled while the seat is, `tags` do not enable candidates, and an enabled candidate that does not hold the seat fails. The role also declares the read-only `candidates` and `held`, the holder's `myconfig`. Every other attribute is the module's own, as in `delib.module`, and the declaration may be a function of its Denix arguments, except `name`, `enable` and `seatedOnly`.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>enable</code> | Whether the host has the seat by default. |
+| <code>name</code> | The role's name. |
+| <code>seatedOnly</code> | Whether the seat decides its candidates' enable. |
+
+### <code>mylib.accumulatingOption</code>
+
+An option that collects every source's contributions outside the source order: its definitions receive no priority and merge by its type, so a higher source cannot remove a lower one's. Applied to a declaration without a type, it marks an option another module declares, such as an upstream option in a submodule.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>option</code> | An option declaration, or one without a type. |
+
+### <code>mylib.anchors.flakes</code>
+
+The GitHub pins of an npins lock file by name, each evaluated as a flake with its own lock file, as a flake input of the same revision.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>file</code> | The module's `anchors.json`. |
+
+### <code>mylib.anchors.sources</code>
+
+The pins of an npins lock file (format version 8, written by `just anchors update`) by name, each as a source whose `outPath` is the pin's content, fetched during evaluation and checked against its recorded hash. A Git or GitHub pin also carries `rev`, `shortRev`, `lastModified`, `lastModifiedDate` and `narHash`, and a release its tag as `version`, as a flake input of the same revision does. A URL pin is a single file keeping its name, unpacked when npins records `unpack`. Other pin types and Git pins with submodules fail.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>file</code> | The module's `anchors.json`. |
+
+### <code>mylib.assertions.failed</code>
+
+The messages of the assertions that do not hold.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>assertions</code> | A module system's `assertions`: a list of `{ assertion, message }`. |
+
+### <code>mylib.atomicOption</code>
+
+An option that a higher source replaces as a whole, instead of merging into its structure.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>option</code> | An option declaration. |
+
+### <code>mylib.colorschemes.ghosttyTheme</code>
+
+A palette as the keys of Ghostty's theme format, which Rex also imports.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>palette</code> | A value of `palette`. |
+
+### <code>mylib.colorschemes.palette</code>
+
+The palette shared by schemes and applications: the terminal roles `background`, `foreground`, `cursor`, `cursorText`, `selectionBackground` and `selectionForeground`, the sixteen ANSI colors under `ansi`, named as `ansiNames` lists them in terminal index order, and the scheme's own vocabulary under `named`, which only scheme-specific mappings read.
+
+### <code>mylib.colorschemes.scheme</code>
+
+A `delib.module` declaration for `colorscheme.<name>`, a candidate of `roles.colorscheme` that is always registered. A scheme has either a `palette` or `variants` with a `default`; with variants, the module's `variant` chooses one. The module's `resolved` is the chosen palette as `{ name, variant, palette }`, and `combinations` every variant resolved by name: `<name>` for the default and `<name>-<variant>` for each variant.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>default</code> | The variant chosen unless the module's `variant` says otherwise. |
+| <code>description</code> | The module's `meta.description`. |
+| <code>name</code> | The scheme's name. |
+| <code>palette</code> | The palette of a scheme without variants. |
+| <code>variants</code> | Palettes by variant name. |
+
+### <code>mylib.fragments.option</code>
+
+An option of named fragments, for a file that several features contribute to. Its owner declares it in its module system and writes `render` of its value into the file. Each fragment has `text` and orders itself against others by name with `after` and `before`; two definitions of one fragment with different text conflict.
+
+### <code>mylib.fragments.render</code>
+
+The fragments' text in dependency order. Fragments without a declared order between them appear in a stable but unspecified order, so a fragment that relies on another's position declares it. A reference to an undefined fragment or a cycle fails.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>fragments</code> | The value of an option declared with `option`. |
+
+### <code>mylib.plist.toPlist</code>
+
+A plist value as an XML plist document; a float is written in its shortest decimal form that parses back to the same value.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>value</code> | A value that `validValue` and `validXml` accept. |
+
+### <code>mylib.plist.validValue</code>
+
+Whether a value is a plist value: a string, boolean, integer, finite float, or a list or dictionary of plist values.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>value</code> | Any Nix value. |
+
+### <code>mylib.plist.validXml</code>
+
+Whether every string and dictionary key in a value is free of XML control characters.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>value</code> | A plist value. |
+
+### <code>mylib.plist.xmlString</code>
+
+Whether a string is free of XML control characters.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>string</code> | A string. |
+
+### <code>mylib.rice</code>
+
+A rice: a named set of `myconfig` choices spanning modules, which a host selects by name with `rice`. Only the selected rice contributes, at the rice priority.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>myconfig</code> | The choices. |
+| <code>name</code> | The name a host selects. |
+
+### <code>mylib.schemeThemes</code>
+
+An application's table of scheme-specific themes, such as official ports. `of` returns the entry for a resolved scheme, or null for a scheme absent from the table, and `constraint` rejects a held scheme absent from it, naming `<name>.colorscheme.enable = false`, which leaves the application's colors unmanaged.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>name</code> | The application's module name. |
+| <code>themes</code> | The table by scheme name; what an entry holds is the application's own. |
+
+### <code>mylib.sources.accumulatingOption</code>
+
+An option that collects every source's contributions outside the source order: its definitions receive no priority and merge by its type, so a higher source cannot remove a lower one's. Applied to a declaration without a type, it marks an option another module declares, such as an upstream option in a submodule.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>option</code> | An option declaration, or one without a type. |
+
+### <code>mylib.sources.atomicOption</code>
+
+An option that a higher source replaces as a whole, instead of merging into its structure.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>option</code> | An option declaration. |
+
+### <code>mylib.sources.priorities</code>
+
+The priorities of `myconfig` sources, `module` < `rice` < `host`, all above an option default.
+
+### <code>mylib.sources.prioritize</code>
+
+A module whose definitions below an option tree all carry a source's priority, pushed down along the declared types: below a submodule, an `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own priority, so a higher source replaces only what it defines. Lists, nullable values, other values and options declared with `atomicOption` are replaced whole; options declared with `accumulatingOption` receive no priority. Explicit priorities are kept, `mkIf` and `mkMerge` are descended into, and imported modules receive the same priority.
+
+| Argument | Meaning |
+| --- | --- |
+| <code>module</code> | A module given as an attribute set, a function or a path. |
+| <code>options</code> | The option tree the definitions apply to. |
+| <code>priority</code> | One of `priorities`. |

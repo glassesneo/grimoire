@@ -1,4 +1,7 @@
-{lib}: rec {
+{
+  lib,
+  documented,
+}: let
   # NaN and the infinities have no plist <real> form; both fail x - x == 0.
   finite = v: v - v == 0.0;
   validValue = v:
@@ -40,9 +43,32 @@
     else if builtins.isAttrs v
     then "<dict>${lib.concatStrings (lib.mapAttrsToList (key: value: "<key>${lib.escapeXML key}</key>${element value}") v)}</dict>"
     else "<string>${lib.escapeXML v}</string>";
-  toPlist = v: ''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    <plist version="1.0">${element v}</plist>
-  '';
+in {
+  validValue =
+    documented {
+      description = "Whether a value is a plist value: a string, boolean, integer, finite float, or a list or dictionary of plist values.";
+      arguments.value = "Any Nix value.";
+    }
+    validValue;
+  validXml =
+    documented {
+      description = "Whether every string and dictionary key in a value is free of XML control characters.";
+      arguments.value = "A plist value.";
+    }
+    validXml;
+  xmlString =
+    documented {
+      description = "Whether a string is free of XML control characters.";
+      arguments.string = "A string.";
+    }
+    xmlString;
+  toPlist =
+    documented {
+      description = "A plist value as an XML plist document; a float is written in its shortest decimal form that parses back to the same value.";
+      arguments.value = "A value that `validValue` and `validXml` accept.";
+    } (v: ''
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">${element v}</plist>
+    '');
 }
