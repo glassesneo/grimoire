@@ -1,36 +1,31 @@
 # Documentation Policy
 
-This file owns what the repository documents, where each kind of statement belongs, and when documentation changes.
+For each statement, identify who needs it and what they are trying to do. Put it where that reader meets the subject. If the reader already has the answer there, leave the statement unwritten. Leave concrete configuration values in code.
 
-## What is documented
+Each statement has one owner; other places point to it. If a needed statement has no owner, propose a place to the maintainer before adding it; a new nested `AGENTS.md` for the directory concerned is one candidate. A statement about the change itself, such as what it could not verify, belongs in the report of the change, not in the repository. If the statement would introduce a new requirement, propose the requirement rather than writing it as settled.
 
-Whether a statement belongs in documentation depends on the reader's task, not on how rarely it changes. Document what is needed to write or change a declaration, or to use or change an adapter, extension, or module, without deriving it from the implementation. Leave concrete configuration values in code. Where each of them belongs follows the responsibilities in `docs/architecture.md`.
+## At the point of use
 
-The syntax that modules and hosts write is declared as options. A type states what a single value may be, so a constraint a type can express is not left to prose. A module's option declarations are code first: their names, types, and defaults state what a value means, and the reference renders them as written. A module option has a description only where those leave its meaning or a constraint unstated, like a comment; write it as the trailing string of the Denix option function. The options that adapters and extensions add are contracts that module and host authors use without reading the mechanism, so each has a description. Defaults are rendered from the declarations without a real host, so a module declares `defaultText` only for a default the reference cannot render faithfully. Internal option descriptions address the mechanism's maintainers.
+- **Running a program or recipe.** Put recipe instructions and argument help on the recipe in `justfile` or `just/*.just`. Put a program's usage in its own help: `--help` output, or the help and descriptions of its commands. If the user needs information when something happens, put it in the message or error at that point, including what the user can do next when there is a remedy.
+- **Writing a declaration.** Express restrictions in option types and constraints. For a module option, add a description only for meaning or conditions its name, type, and default leave unclear; use the trailing string of the Denix option function. Supply `defaultText` only when the reference cannot faithfully show the default. Describe each option an adapter or extension adds for the author who uses it. Internal option descriptions address the mechanism's maintainers.
+- **Finding a module.** Put its responsibility in `meta.description`, including where it ends when the user must finish something by hand, not a list of its current settings.
+- **Calling a library function.** Document a `mylib` or `delib` function that modules call at its definition with `mylib.documented`. The [authoring reference](generated/authoring.md) lists these functions and renders module responsibilities and options from their declarations. Edit the sources and regenerate the reference with `just docs`.
 
-A module's `meta.description` states its responsibility in one sentence, assuming familiarity with modules in this repository. It lets readers understand that responsibility without reading the implementation and judge whether a future capability belongs there. It is not an inventory of current settings.
+## Tests and comments
 
-`docs/generated/authoring.md` is generated from those declarations. It lists every module's responsibility, source, and options, the options that adapters and extensions add, and the `mylib` and `delib` functions that modules call, so writing a module or host needs no reading beyond those declarations. Such a function is documented where it is defined, with `mylib.documented`; one that only mechanisms use is listed in `mylib.internal` instead, and rendering fails on any other. The evaluation rules a mechanism applies to existing syntax, and what its maintainers rely on, are contracts that options cannot carry; they stay beside the implementation.
+Express behavior a user or another component relies on in tests within the repository's [validation boundary](architecture.md#validation-boundary). Name the case for the behavior and state in `protects` what it preserves. Test the result the consumer relies on, not the steps that produce it.
 
-The absence of a written contract alone does not justify adding one. When a new criterion appears necessary, discuss that specific criterion with the maintainer rather than treating it as an existing requirement.
+Use a comment only for something the code beside it cannot show: why a workaround is needed, why an order or evaluation constraint matters, or what fact about an external program the code depends on. A comment can explain why a configuration value was chosen without repeating the value.
 
-## Owners
+## Repository documents
 
-- `README.org` introduces grimoire to third-party readers on GitHub. Working in the repository does not depend on reading it.
-- `docs/architecture.md` describes this repository's composition, concepts, directory responsibilities, and mechanism index. It assumes Nix knowledge and is not a general guide to Denix rewrite.
-- `docs/module-authoring.md` owns the judgments made when designing a module's interface and validating it. It applies the concepts of `docs/architecture.md` without restating their definitions.
-- A mechanism's contract belongs beside its implementation: its contract comment and option descriptions. Its checks exercise that contract.
-- `justfile` and `just/*.just` own recipe documentation and argument help, read through `just --list` and `just --usage`.
-- `docs/generated/` holds generated references. Regenerate `authoring.md` with `just docs`; edit its source declarations, not the generated file.
-- The root `AGENTS.md` owns agent-specific work rules and reading triggers not owned elsewhere. It may summarize the architecture concepts assumed in conversation.
-- A nested `AGENTS.md` owns agent-specific work rules limited to its directory.
+A document holds what applies across features: how the repository fits together and the judgments that apply to every module. A feature's usage, limits and procedures go to the places above.
 
-A contract comment states a mechanism's supported behavior. An implementation comment explains a non-obvious decision beside the code, such as a workaround, ordering constraint, or upstream dependency. It may concern a concrete configuration choice. It does not restate a contract owned elsewhere.
+- [`README.org`](../README.org) introduces grimoire to someone encountering the repository on GitHub.
+- [Architecture](architecture.md) explains how the repository fits together: its concepts, directory responsibilities, and the index of mechanisms, the adapters, extensions, `lib/` files and scripts that modules and hosts are built on.
+- [Module Authoring](module-authoring.md) guides decisions about designing a module's interface and validating it.
+- Root [`AGENTS.md`](../AGENTS.md) owns repository-wide agent work rules and reading triggers not owned elsewhere. An existing nested `AGENTS.md` owns agent rules limited to its directory.
 
-## Updates
+## Keeping statements current
 
-Update a specification and its implementation together when the specified behavior changes. A change to a concrete value does not require documenting that value separately. Generated references follow their source declarations.
-
-Documentation and comments may also be corrected or clarified without changing code. Such edits do not by themselves establish a new contract.
-
-Each statement has one owner; other documents point to that owner. The architecture summary in the root `AGENTS.md` changes with the statements it summarizes. Documents and specifying source files make their scope clear at the beginning. If a proposed statement has no owner, propose one to the maintainer before adding it.
+When behavior changes, update its owner in the same change, including a mechanism's entry in the architecture index. Check existing documents for obsolete statements and pointers; correct the concept summary in root `AGENTS.md` if what it summarizes changed. Describe the current revision only: no migration, fallback or deprecation note is kept, and the history of a change is left to Git. A clarification needs no implementation change when the behavior is unchanged.

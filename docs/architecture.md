@@ -88,7 +88,7 @@ These rules govern repository mechanisms, not feature applications or upstream i
 
 ## Repository mechanisms
 
-Each mechanism is specified at the top of its file and by its option descriptions.
+The index below names each mechanism; its option descriptions, documented functions and tests state its behavior.
 
 - `extensions/hosts.nix`: host attributes (system and sole user), exposed as read-only `myconfig.host` by the host module.
 - `extensions/rices.nix`: rice registration, a host's `rice` selection, and `riceConfig`.
