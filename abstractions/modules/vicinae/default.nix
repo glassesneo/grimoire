@@ -12,23 +12,23 @@ delib.module ({
   inherit (mylib.anchors.flakes ./anchors.json) vicinae;
 in {
   name = "vicinae";
-  tests.fixture = ["defaults" "exclusive" "roles.launcher" "services"];
+  tests.fixture = ["defaults" "exclusive" "roles.launcher" "services" "source-files"];
   meta = {
     description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
     tags = ["gui"];
     role = "launcher";
   };
 
-  options = {pkgs, ...}:
-    with delib; {
-      enable = boolOption false;
-      # Upstream's own nixpkgs keeps vicinae.cachix substitutes usable.
-      upstreamPackage = packageOption vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
-      package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
-      sourceFiles = mylib.sourceFiles.option "upstreamPackage";
-    };
+  options = with delib; {
+    enable = boolOption false;
+    package = packageOption myconfig.source-files.patched.vicinae "Package installed as the app; setting it bypasses `source-files.sources.vicinae`.";
+  };
 
-  myconfig.always.roles.launcher.holder = "vicinae";
+  myconfig.always = {pkgs, ...}: {
+    roles.launcher.holder = "vicinae";
+    # Upstream's own nixpkgs keeps vicinae.cachix substitutes usable.
+    source-files.sources.vicinae.package = vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  };
 
   hjem.always = {pkgs, ...}: {
     options.vicinae.settings = lib.mkOption {

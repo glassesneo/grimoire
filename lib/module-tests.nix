@@ -64,16 +64,7 @@
     then assertions.failed result.config.assertions
     else result.failedAssertions;
 
-  # Forces a derivation only to its output path: deepSeq would descend into its
-  # whole build graph.
-  force = value:
-    if lib.isDerivation value
-    then builtins.seq value.outPath true
-    else if builtins.isAttrs value
-    then lib.all force (builtins.attrValues value)
-    else if builtins.isList value
-    then lib.all force value
-    else builtins.seq value true;
+  inherit (import ./cases.nix {inherit lib;}) force;
 
   run = name: caseName: case: result: let
     has = defines case;

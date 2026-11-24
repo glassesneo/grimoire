@@ -23,6 +23,38 @@ in
       enabled = listOfOption (types.enum knownTags) [] "Tags whose modules are enabled by default.";
     };
 
+    tests.cases = _: let
+      tagged = meta: {
+        meta = meta // {description = "Carry a tag.";};
+        options.enable = delib.boolOption false;
+      };
+    in {
+      tagged-module-enabled = {
+        protects = "a module carrying a selected tag is enabled by default";
+        modules.probe = tagged {tags = ["probe"];};
+        host.myconfig.ifEnabled.tags.enabled = ["probe"];
+        expr = result: result.options.myconfig.probe.enable.value;
+        expected = true;
+      };
+      unselected-tag-leaves-module = {
+        protects = "a module carrying only tags that are not selected keeps its own default";
+        modules.probe = tagged {tags = ["probe"];};
+        expr = result: result.options.myconfig.probe.enable.value;
+        expected = false;
+      };
+      seated-candidate-left-to-its-seat = {
+        protects = "a candidate of a seated-only role is not enabled by its tags, since the seat decides its enable";
+        uses = ["roles.launcher"];
+        modules.probe = tagged {
+          tags = ["probe"];
+          role = "launcher";
+        };
+        host.myconfig.ifEnabled.tags.enabled = ["probe"];
+        expr = result: result.options.myconfig.probe.enable.value;
+        expected = false;
+      };
+    };
+
     myconfig.always = lib.foldl' lib.recursiveUpdate {} (map (name:
       lib.setAttrByPath (lib.splitString "." name ++ ["enable"])
       (lib.mkIf (lib.any (tag: lib.elem tag cfg.enabled) (tagsOf name)) true))

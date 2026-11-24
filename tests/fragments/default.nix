@@ -2,44 +2,53 @@
   inherit (pkgs) lib;
   mylib = import ../../lib {inherit lib;};
 
-  evaluate = modules:
+  render = fragments:
+    mylib.fragments.render
     (lib.evalModules {
-      modules = [{options.fragments = mylib.fragments.option;}] ++ modules;
+      modules = [
+        {options.fragments = mylib.fragments.option;}
+        {inherit fragments;}
+      ];
     }).config.fragments;
 
-  render = modules: mylib.fragments.render (evaluate modules);
-  fails = modules: !(builtins.tryEval (render modules)).success;
-
-  ordered = render [
-    {
-      fragments = {
-        last.text = "last";
-        last.after = ["anchor"];
-        first.text = "first";
-        first.before = ["anchor"];
-        anchor.text = "anchor";
-        free-b.text = "free-b";
-        free-a.text = "free-a";
-      };
-    }
-  ];
-  lines = lib.splitString "\n" ordered;
-  bound = lib.filter (line: lib.elem line ["first" "anchor" "last"]) lines;
+  ordered = lib.splitString "\n" (render {
+    last = {
+      text = "last";
+      after = ["anchor"];
+    };
+    first = {
+      text = "first";
+      before = ["anchor"];
+    };
+    anchor.text = "anchor";
+    free-b.text = "free-b";
+    free-a.text = "free-a";
+  });
 in {
-  check = assert lib.assertMsg (lib.sort lib.lessThan lines == ["anchor" "first" "free-a" "free-b" "last"] && bound == ["first" "anchor" "last"])
-  "Fragments must each appear once and follow declared edges, got:\n${ordered}";
-  assert lib.assertMsg (fails [
-    {
-      fragments.a = {
-        text = "a";
-        after = ["missing"];
+  cases = {
+    each-fragment-once = {
+      protects = "rendering writes every fragment exactly once";
+      expr = lib.sort lib.lessThan ordered;
+      expected = ["anchor" "first" "free-a" "free-b" "last"];
+    };
+    declared-edges-order = {
+      protects = "after and before order the fragments that declare them, whatever the free fragments do";
+      expr = lib.filter (line: lib.elem line ["first" "anchor" "last"]) ordered;
+      expected = ["first" "anchor" "last"];
+    };
+    undefined-reference-fails = {
+      protects = "a fragment ordered against an undefined fragment fails rendering";
+      expr = render {
+        a = {
+          text = "a";
+          after = ["missing"];
+        };
       };
-    }
-  ])
-  "A reference to an undefined fragment must fail";
-  assert lib.assertMsg (fails [
-    {
-      fragments = {
+      fails = true;
+    };
+    cycle-fails = {
+      protects = "a cycle of order declarations fails rendering";
+      expr = render {
         a = {
           text = "a";
           after = ["b"];
@@ -49,10 +58,20 @@ in {
           after = ["a"];
         };
       };
-    }
-  ])
-  "A dependency cycle must fail";
-    pkgs.runCommand "fragments-test" {} ''
-      mkdir "$out"
-    '';
+      fails = true;
+    };
+    conflicting-definitions-fail = {
+      protects = "two definitions of one fragment with different text conflict instead of concatenating";
+      expr =
+        mylib.fragments.render
+        (lib.evalModules {
+          modules = [
+            {options.fragments = mylib.fragments.option;}
+            {fragments.a.text = "one";}
+            {fragments.a.text = "two";}
+          ];
+        }).config.fragments;
+      fails = true;
+    };
+  };
 }

@@ -34,8 +34,11 @@ in
     name = "elio";
     meta.description = "Provide and publish elio, configure its settings and theme, and integrate it with Zsh.";
 
+    myconfig.always = {pkgs, ...}: {
+      source-files.sources.elio.package = pkgs.callPackage "${(mylib.anchors.sources ./anchors.json).elio}/nix/package.nix" {};
+    };
+
     options = {pkgs, ...}: let
-      inherit (mylib.anchors.sources ./anchors.json) elio;
       inherit (lib) types;
       table = types.attrsOf (pkgs.formats.toml {}).type;
       tables = types.attrsOf table;
@@ -47,9 +50,7 @@ in
     in
       with delib; {
         enable = boolOption true;
-        upstreamPackage = packageOption (pkgs.callPackage "${elio}/nix/package.nix" {}) "Package whose source `sourceFiles` patches.";
-        package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed and published; setting it bypasses `sourceFiles`.";
-        sourceFiles = mylib.sourceFiles.option "upstreamPackage";
+        package = packageOption myconfig.source-files.patched.elio "Package installed and published; setting it bypasses `source-files.sources.elio`.";
         settings = lib.mkOption {
           type = tables;
           default = {};
@@ -132,7 +133,7 @@ in
         myconfig.colorscheme.combinations)
       ];
 
-    tests.fixture = ["exclusive" "zsh.interactive"];
+    tests.fixture = ["exclusive" "source-files" "zsh.interactive"];
 
     tests.cases = {pkgs, ...}: {
       bundles = let

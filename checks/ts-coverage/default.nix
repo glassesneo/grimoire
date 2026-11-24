@@ -17,6 +17,7 @@
   uncovered = uncoveredFiles roots files;
   synthetic = uncoveredFiles ["feature"] ["feature/build.ts" "feature/nested/a.tsx" "feature-other/a.js" "new/file.ts"];
 in {
+  protects = "every tracked JS or TS file is type-checked and linted by a module case, or listed as unchecked with a reason";
   check = assert synthetic == ["feature-other/a.js" "new/file.ts"];
     pkgs.runCommand "ts-coverage" {} ''
       ${lib.optionalString (uncovered != []) ''

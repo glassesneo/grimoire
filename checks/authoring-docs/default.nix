@@ -40,6 +40,7 @@
   modulesPart = lib.last (lib.splitString "\n## Modules\n" example);
   fails = module: !(builtins.tryEval (renderModules [module])).success;
 in {
+  protects = "the committed authoring reference is what the declarations render, and rendering keeps tables, links, defaults and descriptions that option validation cannot check";
   check = assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
   assert lib.hasInfix "(../../checks/authoring-docs/fixture/a%20space/default.nix)" example;
   assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" modulesPart)) == ["<code>a</code>" "<code>host</code>"];

@@ -27,16 +27,32 @@
     };
   in
     generated.config.myconfig.fixture.enable;
-  accepts = metadata: (builtins.tryEval (evaluate metadata)).success;
 in {
-  check = assert lib.assertMsg (
-    accepts {meta.description = "Owns the fixture responsibility.";}
-    && !(accepts {})
-    && !(accepts {meta.description = "";})
-    && !(accepts {meta.description = " \t\n\r";})
-    && !(accepts {meta.description = 42;})
-  ) "Generated modules must accept a description and reject a missing or invalid one, even when disabled, while hosts need none";
-    pkgs.runCommand "module-metadata-test" {} ''
-      mkdir "$out"
-    '';
+  cases = {
+    described-module-and-undescribed-host-accepted = {
+      protects = "the metadata extension accepts a disabled module with a description and requires none from hosts";
+      expr = evaluate {meta.description = "Owns the fixture responsibility.";};
+      expected = false;
+    };
+    missing-description-fails = {
+      protects = "the metadata extension rejects a module without a description, even while it is disabled";
+      expr = evaluate {};
+      fails = true;
+    };
+    empty-description-fails = {
+      protects = "the metadata extension rejects an empty module description";
+      expr = evaluate {meta.description = "";};
+      fails = true;
+    };
+    blank-description-fails = {
+      protects = "the metadata extension rejects a module description of whitespace only";
+      expr = evaluate {meta.description = " \t\n\r";};
+      fails = true;
+    };
+    non-string-description-fails = {
+      protects = "the metadata extension rejects a module description that is not a string";
+      expr = evaluate {meta.description = 42;};
+      fails = true;
+    };
+  };
 }

@@ -226,75 +226,143 @@
   hosted = evaluate "fixture" [(host "selected")];
   hostless = evaluate null [(host "selected")];
   withoutRice = evaluate "fixture" [(host null)];
-
-  expected = {
-    riceCleared = null;
-    hostCleared = null;
-    hostRestored = {
-      first = "default";
-      second = "host";
-    };
-    imported = {
-      kept = "module";
-      riceReplaced = "rice";
-      hostReplaced = "host";
-      functionImported = "module";
-      pathImported = "module";
-      reports = ["host" "module" "rice" "upstream"];
-    };
-    scalar = "host";
-    ricePreferred = "rice";
-    list = ["rice" "host"];
-    replacedList = ["host"];
-    reports = ["host" "module" "rice"];
-    reportsByName = {
-      module = "module";
-      rice = "rice";
-      host = "host";
-    };
-    moduleValued.plugins = {
-      module = "module";
-      rice = "rice";
-      host = "host";
-    };
-    forced = "module";
-    conditional = "host";
-    settings = {
-      kept = ["module"];
-      replaced = ["rice"];
-      keys = ["host"];
-    };
-    items = {
-      entry = {
-        first = "rice";
-        second = "host";
-      };
-      function = {
-        first = "module function";
-        second = "host";
+in {
+  cases = {
+    higher-source-replaces-what-it-defines = {
+      protects = "a module defines below the selected rice, which defines below the host, so the highest source defining a scalar or list replaces it whole";
+      expr = lib.getAttrs ["scalar" "ricePreferred" "replacedList"] hosted.values;
+      expected = {
+        scalar = "host";
+        ricePreferred = "rice";
+        replacedList = ["host"];
       };
     };
-    nested.inner = {
-      kept = "module";
-      replaced = "rice";
+    host-extends-rice-list-through-riceConfig = {
+      protects = "a host extends its rice's list by reading it from riceConfig";
+      expr = hosted.values.list;
+      expected = ["rice" "host"];
     };
-    selection = {
-      name = "host";
-      variant = null;
+    forced-module-value-wins = {
+      protects = "a module's mkForce outranks rice and host definitions";
+      expr = hosted.values.forced;
+      expected = "module";
+    };
+    function-sections-and-conditions-keep-priority = {
+      protects = "function sections and mkIf conditions keep their own shape and the module's priority";
+      expr = hosted.values.conditional;
+      expected = "host";
+    };
+    nullable-values-replaced-whole = {
+      protects = "nullable structured values are set and cleared across sources and replaced whole, so nothing of a lower source's value remains";
+      expr = lib.getAttrs ["riceCleared" "hostCleared" "hostRestored"] hosted.values;
+      expected = {
+        riceCleared = null;
+        hostCleared = null;
+        hostRestored = {
+          first = "default";
+          second = "host";
+        };
+      };
+    };
+    imported-definitions-keep-module-priority = {
+      protects = "definitions a module imports into a module-valued submodule, as attribute sets, functions or paths, keep the module's priority, and an upstream option marked as accumulating collects every source's contributions";
+      expr = hosted.values.imported;
+      expected = {
+        kept = "module";
+        riceReplaced = "rice";
+        hostReplaced = "host";
+        functionImported = "module";
+        pathImported = "module";
+        reports = ["host" "module" "rice" "upstream"];
+      };
+    };
+    accumulating-options-collect-every-source = {
+      protects = "options declared with mylib.accumulatingOption collect every source's contributions, so no source removes another's";
+      expr = lib.getAttrs ["reports" "reportsByName"] hosted.values;
+      expected = {
+        reports = ["host" "module" "rice"];
+        reportsByName = {
+          module = "module";
+          rice = "rice";
+          host = "host";
+        };
+      };
+    };
+    function-defined-submodule-adds-other-sources = {
+      protects = "other sources' definitions add to the nested attributes of a module-valued submodule a module defines by a function";
+      expr = hosted.values.moduleValued;
+      expected.plugins = {
+        module = "module";
+        rice = "rice";
+        host = "host";
+      };
+    };
+    typed-settings-merge-per-key = {
+      protects = "priorities follow a format type that stores every value as a list of repetitions, so a higher source replaces only the keys it defines";
+      expr = hosted.values.settings;
+      expected = {
+        kept = ["module"];
+        replaced = ["rice"];
+        keys = ["host"];
+      };
+    };
+    submodules-merge-per-attribute = {
+      protects = "priorities follow submodule types, so a higher source replaces only the attributes it defines, and a function definition of a submodule keeps its arguments";
+      expr = lib.getAttrs ["items" "nested"] hosted.values;
+      expected = {
+        items = {
+          entry = {
+            first = "rice";
+            second = "host";
+          };
+          function = {
+            first = "module function";
+            second = "host";
+          };
+        };
+        nested.inner = {
+          kept = "module";
+          replaced = "rice";
+        };
+      };
+    };
+    atomic-option-replaced-whole = {
+      protects = "a value declared with mylib.atomicOption is replaced whole by a higher source, which does not inherit the lower source's attributes";
+      expr = hosted.values.selection;
+      expected = {
+        name = "host";
+        variant = null;
+      };
+    };
+    definitions-carry-origin-labels = {
+      protects = "module, rice and host definitions carry labels naming their origin";
+      expr = lib.filter (label: lib.elem label hosted.files) ["module probe (myconfig.always)" "rice selected (myconfig)" "host fixture (myconfig.ifEnabled)"];
+      expected = ["module probe (myconfig.always)" "rice selected (myconfig)" "host fixture (myconfig.ifEnabled)"];
+    };
+    no-rice-contributes-without-host = {
+      protects = "an evaluation without a host takes no rice's definitions";
+      expr = {
+        inherit (hostless.values) scalar list;
+        selection = hostless.values.selection.name;
+      };
+      expected = {
+        scalar = "module";
+        list = ["module"];
+        selection = "module";
+      };
+    };
+    unselected-rice-does-not-contribute = {
+      protects = "a rice the host does not select contributes no definition";
+      expr = lib.elem "rice unselected (myconfig)" hosted.files;
+      expected = false;
+    };
+    host-without-rice-builds-on-modules = {
+      protects = "a host without a rice builds on module definitions alone, with an empty riceConfig";
+      expr = {inherit (withoutRice.values) ricePreferred list;};
+      expected = {
+        ricePreferred = "module";
+        list = ["host"];
+      };
     };
   };
-in {
-  check = assert lib.assertMsg (hosted.values == expected)
-  "Sources must merge as module < rice < host along the option types:\n${lib.generators.toPretty {} hosted.values}";
-  assert lib.assertMsg (lib.all (label: lib.elem label hosted.files) ["module probe (myconfig.always)" "rice selected (myconfig)" "host fixture (myconfig.ifEnabled)"])
-  "Rice, module and host definitions must carry their origin labels: ${toString hosted.files}";
-  assert lib.assertMsg (hostless.values.scalar == "module" && hostless.values.list == ["module"] && hostless.values.selection.name == "module")
-  "Without a host, no rice may contribute";
-  assert lib.assertMsg (!(lib.elem "rice unselected (myconfig)" hosted.files))
-  "An unselected rice must not contribute";
-  assert lib.assertMsg (withoutRice.values.ricePreferred == "module" && withoutRice.values.list == ["host"])
-  "A host without a rice must build on modules alone, with an empty riceConfig";
-    pkgs.runCommand "sources-test" {} ''
-      mkdir "$out"
-    '';
 }

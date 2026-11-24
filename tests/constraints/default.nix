@@ -54,16 +54,21 @@
   darwinHosts = lib.filterAttrs (_: host: (lib.systems.elaborate host.system).isDarwin) hosts;
   representative = lib.head (builtins.attrNames darwinHosts ++ builtins.attrNames hosts);
 
-  verify = moduleSystem: hostName: probes (failed moduleSystem hostName hosts.${hostName}.user) == expected;
-
-  hjemResults = [(verify "hjem" representative)];
-  darwinResults = lib.optional (darwinHosts != {}) (verify "darwin" representative);
+  observed = moduleSystem: probes (failed moduleSystem representative hosts.${representative}.user);
 in {
-  check = assert lib.assertMsg (hjemResults != [] && lib.all lib.id hjemResults)
-  "Real Hjem configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
-  assert lib.assertMsg (lib.all lib.id darwinResults)
-  "Real nix-darwin configurations must enforce `always` constraints and enabled modules' `ifEnabled` constraints";
-    pkgs.runCommand "constraint-forwarding-test" {} ''
-      mkdir "$out"
-    '';
+  cases =
+    {
+      hjem-enforces-constraints = {
+        protects = "the real Hjem composition forwards every module's always constraints and enabled modules' ifEnabled constraints to its failed assertions";
+        expr = observed "hjem";
+        inherit expected;
+      };
+    }
+    // lib.optionalAttrs (darwinHosts != {}) {
+      darwin-enforces-constraints = {
+        protects = "the real nix-darwin composition forwards every module's always constraints and enabled modules' ifEnabled constraints to its assertions";
+        expr = observed "darwin";
+        inherit expected;
+      };
+    };
 }

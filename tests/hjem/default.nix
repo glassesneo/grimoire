@@ -46,12 +46,6 @@
     ])
   ];
 
-  blockedOutputs =
-    !(builtins.tryEval failing.manifest).success
-    && !(builtins.tryEval failing.packages).success
-    && !(builtins.tryEval failing.preflight).success
-    && !(builtins.tryEval failing.apply).success;
-
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
   spaced = mkResult [{files."spaced.txt".source = spacedSource;}];
 
@@ -65,7 +59,6 @@
     ];
   };
   allowUnfree = names: {nixpkgs.config.allowUnfreePackages = names;};
-  unfreeEvaluates = modules: (builtins.tryEval (builtins.deepSeq (mkResult modules).packages true)).success;
 
   step = name: status: {
     package = pkgs.writeShellScriptBin "apply" ''
@@ -100,7 +93,7 @@
       };
     }
   ];
-  applyFails = steps: !(builtins.tryEval (mkResult [{applySteps = steps;}]).apply.drvPath).success;
+  applyOf = steps: (mkResult [{applySteps = steps;}]).apply.drvPath;
 
   inherit (result) manifest;
 
@@ -110,65 +103,124 @@
     (throw "Missing fixture file")
     manifest.files;
 
-  textFile = pick "/from-text.txt";
-  stringFile = pick "/from-string.json";
-  drvFile = pick "/from-derivation.json";
   package = builtins.head result.packages;
 
-  manifestFile =
-    pkgs.writeText "hjem-test-manifest.json"
-    (builtins.toJSON manifest);
-in {
-  check = assert lib.assertMsg blockedOutputs "Failed assertions must block manifest, packages, preflight, and apply";
-  assert lib.assertMsg (applyFails {a = step "a" 0 // {after = ["missing"];};}) "A reference to an unregistered step must fail";
-  assert lib.assertMsg (applyFails {
-    a = step "a" 0 // {after = ["b"];};
-    b = step "b" 0 // {after = ["a"];};
-  }) "A cycle of steps must fail";
-  assert lib.assertMsg (!unfreeEvaluates [unfreePackage]) "An unlisted unfree package must fail evaluation";
-  assert lib.assertMsg (!unfreeEvaluates [unfreePackage (allowUnfree ["other"])]) "Listing another name must not allow an unfree package";
-    pkgs.runCommand "hjem-adapter-test" {
-      inherit manifestFile package;
-      inherit (result) preflight;
-      inherit spacedSource;
-      spacedPreflight = spaced.preflight;
-      steppingApply = stepping.apply;
-      steppingPreflight = stepping.preflight;
-      stoppingApply = stopping.apply;
-      orderingApply = ordering.apply;
-
-      textPath = textFile.source;
-      stringPath = stringFile.source;
-      drvPath = drvFile.source;
-
-      nativeBuildInputs = [inputs.hjem.packages.${system}.hjem];
-    } ''
+  script = name: env: text:
+    pkgs.runCommand "hjem-adapter-${name}" env ''
       set -eu
-
-      hjem manifest validate --manifest "$manifestFile"
-
-      for dependency in "$textPath" "$stringPath" "$drvPath" "$package"; do
-        grep -Fxq "$dependency" "$preflight"
-        test -e "$dependency"
-      done
-
-      test "$("$package/bin/fixture-tool")" = "fixture"
-      grep -Fxq "$spacedSource" "$spacedPreflight"
-
-      grep -Fxq "$steppingApply" "$steppingPreflight"
-      export APPLY_LOG="$TMPDIR/stepping.log"
-      "$steppingApply/bin/apply"
-      test "$(sort "$APPLY_LOG")" = "$(printf 'first\nsecond')"
-
-      export APPLY_LOG="$TMPDIR/stopping.log"
-      if "$stoppingApply/bin/apply"; then exit 1; fi
-      test "$(cat "$APPLY_LOG")" = "$(printf 'first\nfailing')"
-
-      export APPLY_LOG="$TMPDIR/ordering.log"
-      "$orderingApply/bin/apply"
-      test "$(grep -vx b "$APPLY_LOG")" = "$(printf 'd\nc\na')"
-
+      ${text}
       mkdir "$out"
-      touch "$out/passed"
     '';
+in {
+  cases = {
+    failed-assertion-blocks-every-output = {
+      protects = "the hjem adapter's assertion guard blocks the manifest, packages, preflight, and apply when any assertion fails, even after a passing one";
+      expr = lib.genAttrs ["manifest" "packages" "preflight" "apply"] (output: (builtins.tryEval failing.${output}).success);
+      expected = {
+        manifest = false;
+        packages = false;
+        preflight = false;
+        apply = false;
+      };
+    };
+    step-ordered-against-unregistered-step-fails = {
+      protects = "an apply step ordered against an unregistered step fails apply";
+      expr = applyOf {a = step "a" 0 // {after = ["missing"];};};
+      fails = true;
+    };
+    step-cycle-fails = {
+      protects = "a cycle of apply step order declarations fails apply";
+      expr = applyOf {
+        a = step "a" 0 // {after = ["b"];};
+        b = step "b" 0 // {after = ["a"];};
+      };
+      fails = true;
+    };
+    unlisted-unfree-package-fails = {
+      protects = "an unfree package fails evaluation unless its name is listed in allowUnfreePackages";
+      expr = (mkResult [unfreePackage]).packages;
+      fails = true;
+    };
+    other-listed-name-keeps-unfree-package-failing = {
+      protects = "listing another name in allowUnfreePackages does not allow an unfree package";
+      expr = (mkResult [unfreePackage (allowUnfree ["other"])]).packages;
+      fails = true;
+    };
+    manifest-validates = {
+      protects = "the manifest the hjem adapter writes passes Hjem's manifest validation";
+      build =
+        script "manifest" {
+          manifestFile = pkgs.writeText "hjem-test-manifest.json" (builtins.toJSON manifest);
+          nativeBuildInputs = [inputs.hjem.packages.${system}.hjem];
+        } ''
+          hjem manifest validate --manifest "$manifestFile"
+        '';
+    };
+    preflight-lists-file-sources-and-packages = {
+      protects = "preflight lists the built source of text, generated string, and generated derivation files and every package";
+      build =
+        script "preflight" {
+          inherit package;
+          inherit (result) preflight;
+          textPath = (pick "/from-text.txt").source;
+          stringPath = (pick "/from-string.json").source;
+          drvPath = (pick "/from-derivation.json").source;
+        } ''
+          for dependency in "$textPath" "$stringPath" "$drvPath" "$package"; do
+            grep -Fxq "$dependency" "$preflight"
+            test -e "$dependency"
+          done
+        '';
+    };
+    package-runs = {
+      protects = "a package declared through the hjem adapter is published as a runnable package";
+      build = script "package" {inherit package;} ''
+        test "$("$package/bin/fixture-tool")" = "fixture"
+      '';
+    };
+    preflight-keeps-spaced-source-whole = {
+      protects = "preflight lists a source path containing spaces as one entry instead of splitting it";
+      build =
+        script "spaced" {
+          inherit spacedSource;
+          spacedPreflight = spaced.preflight;
+        } ''
+          grep -Fxq "$spacedSource" "$spacedPreflight"
+        '';
+    };
+    preflight-lists-apply = {
+      protects = "preflight lists the apply program that runs the registered steps";
+      build =
+        script "apply-preflight" {
+          steppingApply = stepping.apply;
+          steppingPreflight = stepping.preflight;
+        } ''
+          grep -Fxq "$steppingApply" "$steppingPreflight"
+        '';
+    };
+    apply-runs-every-step = {
+      protects = "apply runs every registered step";
+      build = script "apply-steps" {steppingApply = stepping.apply;} ''
+        export APPLY_LOG="$TMPDIR/stepping.log"
+        "$steppingApply/bin/apply"
+        test "$(sort "$APPLY_LOG")" = "$(printf 'first\nsecond')"
+      '';
+    };
+    apply-stops-at-failing-step = {
+      protects = "apply fails and runs no step after a step that fails";
+      build = script "apply-stop" {stoppingApply = stopping.apply;} ''
+        export APPLY_LOG="$TMPDIR/stopping.log"
+        if "$stoppingApply/bin/apply"; then exit 1; fi
+        test "$(cat "$APPLY_LOG")" = "$(printf 'first\nfailing')"
+      '';
+    };
+    apply-follows-declared-order = {
+      protects = "apply runs steps in the order their after and before declarations state, whatever the unrelated steps do";
+      build = script "apply-order" {orderingApply = ordering.apply;} ''
+        export APPLY_LOG="$TMPDIR/ordering.log"
+        "$orderingApply/bin/apply"
+        test "$(grep -vx b "$APPLY_LOG")" = "$(printf 'd\nc\na')"
+      '';
+    };
+  };
 }

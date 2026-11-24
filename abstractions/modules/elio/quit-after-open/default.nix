@@ -13,5 +13,5 @@ in
 
     options.enable = delib.boolOption true;
 
-    myconfig.ifEnabled.elio.sourceFiles = sourceFiles;
+    myconfig.ifEnabled.source-files.sources.elio.files = sourceFiles;
   }

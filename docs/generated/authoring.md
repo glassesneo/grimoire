@@ -366,11 +366,8 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>elio.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>elio.package</code> | <code>package</code> | <code>elio/elio: elio</code> | Package installed and published; setting it bypasses `sourceFiles`. |
+| <code>elio.package</code> | <code>package</code> | <code>elio/elio: elio</code> | Package installed and published; setting it bypasses `source-files.sources.elio`. |
 | <code>elio.settings</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> | Settings written to elio's `config.toml`, by table and key. |
-| <code>elio.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
-| <code>elio.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
-| <code>elio.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
 | <code>elio.theme</code> | <code>submodule</code> | <code>{ }</code> | Tables of elio's `theme.toml`, overriding elio's built-in theme; with every table empty, no file is written. |
 | <code>elio.theme.classes</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.directories</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
@@ -379,7 +376,6 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | <code>elio.theme.focused_entry</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.palette</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
-| <code>elio.upstreamPackage</code> | <code>package</code> | <code>elio/elio: elio</code> | Package whose source `sourceFiles` patches. |
 
 ### <code>exclusive</code>
 
@@ -1102,6 +1098,21 @@ Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions
 | <code>slack.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>slack.package</code> | <code>package</code> | <code>nixpkgs: slack</code> |  |
 
+### <code>source-files</code>
+
+Replace whole files of packages' sources before they are built, checked against the upstream files they were written against.
+
+Source: [<code>abstractions/modules/source-files/default.nix</code>](../../abstractions/modules/source-files/default.nix)
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| <code>source-files.patched</code> | <code>attribute set of package</code> | each of `sources` built with its replaced files, or the package itself without any | read-only |
+| <code>source-files.sources</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Packages whose sources features patch, by name, with the files replaced in each. |
+| <code>source-files.sources.&lt;name&gt;.files</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
+| <code>source-files.sources.&lt;name&gt;.files.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
+| <code>source-files.sources.&lt;name&gt;.files.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
+| <code>source-files.sources.&lt;name&gt;.package</code> | <code>package</code> | <code>null</code> |  |
+
 ### <code>ssh</code>
 
 Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session.
@@ -1192,11 +1203,7 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package installed as the app; setting it bypasses `sourceFiles`. |
-| <code>vicinae.sourceFiles</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `upstreamPackage`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
-| <code>vicinae.sourceFiles.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
-| <code>vicinae.sourceFiles.&lt;name&gt;.upstreamSha256</code> | <code>string matching the pattern [0-9a-f]{64}</code> |  | Hex SHA-256 of the upstream file being replaced; a build whose source holds a different file fails, so upstream changes are merged rather than overwritten. |
-| <code>vicinae.upstreamPackage</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package whose source `sourceFiles` patches. |
+| <code>vicinae.package</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package installed as the app; setting it bypasses `source-files.sources.vicinae`. |
 
 <code>hjem</code> options:
 

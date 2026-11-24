@@ -22,11 +22,25 @@
     root = ../.;
   };
   directoriesOf = root: lib.filterAttrs (name: type: type == "directory" && builtins.pathExists (root + "/${name}/default.nix")) (builtins.readDir root);
+  cases = import ../lib/cases.nix {inherit lib;};
+  checkOf = name: descriptor:
+    if descriptor ? cases
+    then
+      cases.check {
+        inherit pkgs name;
+        inherit (descriptor) cases;
+      }
+    else
+      assert lib.assertMsg (builtins.isString (descriptor.protects or null) && descriptor.protects != "") "${name} must state what it protects";
+        descriptor.check;
   descriptorsOf = root:
-    builtins.mapAttrs (name: _:
-      lib.callPackageWith {
+    builtins.mapAttrs (name: _: let
+      descriptor = lib.callPackageWith {
         inherit inputs denix pkgs system configuration compose moduleTestInfo authoringDocs;
-      } (root + "/${name}/default.nix") {})
+      } (root + "/${name}/default.nix") {};
+    in
+      lib.optionalAttrs (descriptor ? platforms) {inherit (descriptor) platforms;}
+      // {check = checkOf name descriptor;})
     (directoriesOf root);
   moduleChecks = import ../lib/module-tests.nix {inherit lib;} {
     inherit compose pkgs system home;

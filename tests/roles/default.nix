@@ -16,7 +16,6 @@
       inherit name;
       meta = {
         description = "Fixture candidate.";
-        tags = ["gui"];
         inherit role;
       };
       options.enable = delib.boolOption (args.enable or false);
@@ -40,7 +39,6 @@
       inherit rice;
       myconfig.ifEnabled =
         lib.recursiveUpdate {
-          tags.enabled = ["gui"];
           roles.single.enable = true;
           roles.shared.enable = true;
           roles.data.enable = true;
@@ -49,7 +47,6 @@
     };
 
   fixture = [
-    ../../abstractions/modules/tags/default.nix
     (role "single" true)
     (candidate "single-a" "single" {default = true;})
     (candidate "single-b" "single" {})
@@ -85,54 +82,61 @@
     my = result.options.myconfig;
   in {
     enabled = lib.filter (name: my.${name}.enable.value) ["single-a" "single-b" "shared-a" "shared-b"];
-    inherit (result) failedAssertions;
+    failedAssertions = lib.sort lib.lessThan result.failedAssertions;
   };
-
+in {
   cases = {
-    default-holder = {
-      result = evaluate [] {};
+    candidate-default-holds-seat = {
+      protects = "the holder a candidate names by default takes the seat, a seated-only role enables its holder alone, and a role whose candidates keep their own enable leaves them as they are";
+      expr = evaluate [] {};
       expected = {
-        enabled = ["single-a" "shared-a" "shared-b"];
+        enabled = ["single-a" "shared-a"];
         failedAssertions = [];
       };
     };
-    rice-replaces-default = {
-      result = evaluate [] {rice = "picks-b";};
+    rice-replaces-default-holder = {
+      protects = "a rice's holder replaces the holder a candidate names by default";
+      expr = evaluate [] {rice = "picks-b";};
       expected = {
-        enabled = ["single-b" "shared-a" "shared-b"];
+        enabled = ["single-b" "shared-a"];
         failedAssertions = [];
       };
     };
-    host-replaces-default = {
-      result = evaluate [] {myconfig.roles.single.holder = "single-b";};
+    host-replaces-default-holder = {
+      protects = "a host's holder replaces the holder a candidate names by default";
+      expr = evaluate [] {myconfig.roles.single.holder = "single-b";};
       expected = {
-        enabled = ["single-b" "shared-a" "shared-b"];
+        enabled = ["single-b" "shared-a"];
         failedAssertions = [];
       };
     };
-    disabled-seat = {
-      result = evaluate [] {myconfig.roles.single.enable = false;};
+    disabled-seat-enables-no-candidate = {
+      protects = "a disabled seated-only role enables none of its candidates";
+      expr = evaluate [] {myconfig.roles.single.enable = false;};
       expected = {
-        enabled = ["shared-a" "shared-b"];
+        enabled = ["shared-a"];
         failedAssertions = [];
       };
     };
-    candidate-outside-seat = {
-      result = evaluate [] {myconfig.single-b.enable = true;};
+    candidate-enabled-outside-seat-is-rejected = {
+      protects = "a seated-only role rejects a candidate enabled while it does not hold the seat";
+      expr = evaluate [] {myconfig.single-b.enable = true;};
       expected = {
-        enabled = ["single-a" "single-b" "shared-a" "shared-b"];
+        enabled = ["single-a" "single-b" "shared-a"];
         failedAssertions = [''single-b.enable = true requires roles.single.enable = true and roles.single.holder = "single-b"''];
       };
     };
-    holder-disabled = {
-      result = evaluate [] {myconfig.shared-a.enable = false;};
+    disabled-holder-is-rejected = {
+      protects = "a role whose candidates keep their own enable requires its holder enabled, while a candidate without enable can always hold its role";
+      expr = evaluate [] {myconfig.shared-a.enable = false;};
       expected = {
-        enabled = ["single-a" "shared-b"];
+        enabled = ["single-a"];
         failedAssertions = [''roles.shared.holder = "shared-a" requires shared-a.enable = true''];
       };
     };
-    namespace-and-role-names = {
-      result = evaluate [
+    undeclared-roles-are-rejected = {
+      protects = "the roles namespace and meta.role accept only roles declared with delib.role";
+      expr = evaluate [
         ({delib, ...}:
           delib.module {
             name = "roles.plain";
@@ -148,21 +152,12 @@
           })
       ] {};
       expected = {
-        enabled = ["single-a" "shared-a" "shared-b"];
+        enabled = ["single-a" "shared-a"];
         failedAssertions = [
-          ''orphan: meta.role = "missing" names no role declared with delib.role''
           "module roles.plain is in the roles namespace; declare it with delib.role"
+          ''orphan: meta.role = "missing" names no role declared with delib.role''
         ];
       };
     };
   };
-
-  normalize = value: value // {failedAssertions = lib.sort lib.lessThan value.failedAssertions;};
-  failures = lib.filterAttrs (_: case: normalize case.result != normalize case.expected) cases;
-in {
-  check = assert lib.assertMsg (failures == {})
-  "Role cases failed: ${builtins.toJSON (lib.mapAttrs (_: case: case.result) failures)}";
-    pkgs.runCommand "roles-test" {} ''
-      mkdir "$out"
-    '';
 }

@@ -18,6 +18,7 @@
     printf '%s\n' "$2"
   '';
 in {
+  protects = "pulling a candidate refuses untracked files, keeps the last candidate protected when a transfer fails, and prints only the path";
   check =
     pkgs.runCommand "candidate" {
       nativeBuildInputs = [ssh nix nixStore pkgs.git pkgs.nushell];

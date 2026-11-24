@@ -33,6 +33,7 @@
     src = ../..;
   };
 in {
+  protects = "the commit hook keeps pending work out of the snapshot, refuses fixes that would overwrite it, stages fixes, rejects a commit whose checks fail or go unreported, and the push gate builds every check of each sent tree";
   check =
     pkgs.runCommand "commit-hook" {
       nativeBuildInputs = [pkgs.git pkgs.nushell];

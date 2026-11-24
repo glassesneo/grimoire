@@ -17,5 +17,5 @@ in
 
     options.enable = delib.boolOption false;
 
-    myconfig.ifEnabled.vicinae.sourceFiles = sourceFiles;
+    myconfig.ifEnabled.source-files.sources.vicinae.files = sourceFiles;
   }
