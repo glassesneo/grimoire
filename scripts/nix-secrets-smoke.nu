@@ -1,15 +1,7 @@
-# Explicit live macOS compatibility check, not a sandboxed check or host switch.
-# Synthetic input crosses the actual Hjem backend; a separate consumer reads the
-# configured output. Native plutil decodes disk metadata; finally owns cleanup.
-# Wiring, missing keys and ordinary-directory markers are covered by the
-# sandboxed module-nix-secrets check; this script needs actual launchd and mounts.
 use std/assert
 
-# `checked` keeps synthetic plaintext, which commands print, out of errors.
 use ./run.nu checked
 
-# Applies the probe's services step, which starts the probe's dinit instance,
-# and waits until its activation service has started or, when FAILS, failed.
 def apply [probe: path, --fails] {
   let services = $probe | path join services | path expand
   checked ($services | path join bin apply) | ignore
@@ -23,14 +15,12 @@ def apply [probe: path, --fails] {
   error make {msg: $'Activation did not reach ($state)'}
 }
 
-# Links the probe's dinit descriptions where Hjem would place them.
 def describe [probe: path, home: path] {
   mkdir ($home | path join .config)
   ^ln -s ($probe | path join services dinit.d | path expand) ($home | path join .config dinit.d)
 }
 
 def consumer [secret: path, expected: string] {
-  # cat is a separate app process receiving a path, not plaintext in argv/env.
   assert equal (checked /bin/cat $secret) $expected
 }
 
@@ -107,14 +97,12 @@ def main [] {
     consumer $secret dummy-second
     print 'PASS: existing RAM mount is verified and consumer reads updated value'
 
-    # A new dinit instance stands for the next login.
     checked /bin/launchctl bootout $domain | ignore
     unmount $home
     apply $probe
     consumer $secret dummy-second
     print 'PASS: a new dinit instance recreates a fresh verified RAM mount'
   } finally {
-    # apply can fail after bootstrap: inspect actual ownership, not a flag.
     let status = ^/bin/launchctl print $domain | complete
     if $status.exit_code == 0 {
       let paths = $status.stdout | parse --regex '(?m)^\s*path = (?<path>.+)$' | get path

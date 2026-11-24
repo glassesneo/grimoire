@@ -1,6 +1,3 @@
-# Owns the host attributes: system and its sole user.
-# `flake.nix` publishes configurations from these attributes; the host module
-# exposes them to other modules through the read-only view `myconfig.host`.
 {
   delib,
   lib,

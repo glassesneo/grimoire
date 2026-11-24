@@ -25,17 +25,13 @@ delib.module ({
     };
 
   hjem.ifEnabled = {
-    # Only the CLI goes on PATH: the browser's package also provides a `phi`.
     packages = [cfg.cliPackage];
 
-    # The CLI loads its engine from the app bundle, which it finds here.
     files."Applications/Phi.app" = {
       exclusive = true;
       source = "${cfg.package}/Applications/Phi.app";
     };
 
-    # `phi install skill` would link a store path outside any generation. The
-    # skill ships with the app, so it stays paired with the engine it drives.
     skills.phi-browser = "${cfg.package}/Applications/Phi.app/Contents/Resources/phi-browser-skill";
   };
 

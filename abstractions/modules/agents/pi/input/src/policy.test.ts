@@ -29,7 +29,6 @@ const theme = {
     noMatch: (s: string) => s,
   },
 } as EditorTheme;
-// The fixture supplies only the inherited key-matching API used by the editor, not file reloads.
 const bindings = new KeybindingsManager(TUI_KEYBINDINGS, {
   "tui.editor.deleteToLineEnd": [],
   "app.model.cycleForward": [],
@@ -39,7 +38,6 @@ const bindings = new KeybindingsManager(TUI_KEYBINDINGS, {
   "tui.editor.cursorDown": ["down", "ctrl+n"],
 }) as unknown as AppKeybindingsManager;
 
-/** Runs in Pi's loader so the check uses exactly the SDK shipped by the selected package. */
 export default async function contracts(): Promise<void> {
   setKeybindings(bindings);
   const tui = {
@@ -50,9 +48,7 @@ export default async function contracts(): Promise<void> {
   let editor: InputEditor;
   let idle = true;
   let aborted = 0;
-  // Records the overlay the palette shows; done() removes it as Pi would.
   let overlay: { component: any; options: any } | undefined;
-  // Read through a function: assertions about it would otherwise narrow its type.
   const shown = () => overlay;
   const overlayTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
   const ctx = {
@@ -64,7 +60,6 @@ export default async function contracts(): Promise<void> {
     ui: {
       notify() {},
       custom(factory: any, options: any) {
-        // Like Pi, opening custom UI announces a prompt before the component is shown.
         handlers.get("ui_prompt_start")?.({ reason: "ui_prompt", kind: "custom" }, ctx);
         const entry = { component: undefined as any, options };
         entry.component = factory(tui, overlayTheme, bindings, () => {
@@ -88,7 +83,6 @@ export default async function contracts(): Promise<void> {
   editor!.focused = true;
   const e = editor!;
   const submitted: string[] = [];
-  // Exercise Pi's actual interactive command router with inert command implementations.
   const native = {
     defaultEditor: new CustomEditor(tui, theme, bindings),
     editor: e,
@@ -161,7 +155,6 @@ export default async function contracts(): Promise<void> {
   assert.deepEqual(e.getCursor(), cursor);
   assert.equal(overlay, undefined, "running a command closes the palette overlay");
 
-  // The palette floats as a titled box at the top while the prompt keeps showing the draft.
   await palette("cop", false);
   assert.equal(shown()?.options.overlayOptions.anchor, "top-center");
   const box = shown()!.component.render(60) as string[];
@@ -174,7 +167,6 @@ export default async function contracts(): Promise<void> {
   e.handleInput("\x1b");
   assert.equal(overlay, undefined, "cancelling closes the palette overlay");
   assert.equal(e.getText(), draft);
-  // Another dialog taking focus from the overlay closes it; keys then reach the prompt again.
   await palette("cop", false);
   shown()!.component.focused = true;
   shown()!.component.focused = false;
@@ -184,7 +176,6 @@ export default async function contracts(): Promise<void> {
   e.handleInput("\x7f");
   assert.equal(e.getText(), draft);
 
-  // Completion followed by literal arguments still dispatches through the native router.
   await palette("imp", false);
   e.handleInput("\t");
   await tick();
@@ -199,7 +190,6 @@ export default async function contracts(): Promise<void> {
   assert.equal(submitted.at(-1), "/import example.jsonl");
   assert.equal(e.getText(), draft);
 
-  // With no candidates, the palette retains native multiline cursor movement and submission.
   const nativeSubmit = e.onSubmit;
   let literal = "";
   e.onSubmit = (text) => {
@@ -218,7 +208,6 @@ export default async function contracts(): Promise<void> {
   e.onSubmit = nativeSubmit;
   assert.equal(e.getText(), draft);
 
-  // Palette editing/cancellation cannot destroy main-editor paste expansion or undo.
   e.handleInput("\x1b[200~" + "long paste ".repeat(100) + "\x1b[201~");
   const expanded = e.getExpandedText();
   const pasteCursor = e.getCursor();
@@ -232,7 +221,6 @@ export default async function contracts(): Promise<void> {
   e.handleInput("\x1f");
   assert.equal(e.getText(), draft);
 
-  // Completed replacements clear; cancelled selectors and rejected operations keep the draft.
   for (const command of ["new", "clone", "import missing.jsonl", "resume", "fork", "tree"]) {
     e.setText(draft);
     await palette(command);
@@ -256,7 +244,6 @@ export default async function contracts(): Promise<void> {
   e.setText("selected fork prompt");
   assert.equal(e.getText(), "selected fork prompt");
 
-  // Waiting UI takes focus without leaving an invisible palette or armed stop behind.
   idle = false;
   await palette("cop", false);
   emit("tool_call", { toolName: "question" });
@@ -286,7 +273,6 @@ export default async function contracts(): Promise<void> {
   e.handleInput("\x03");
   assert.equal(e.getText(), "");
 
-  // Time and protocol are owned policy; no terminal clock or keyboard is needed here.
   const initial: StopState = idleStop;
   const press = (state: StopState, key: string, now: number, extra = {}) =>
     reduceStop(state, {
@@ -298,7 +284,6 @@ export default async function contracts(): Promise<void> {
       ...extra,
     });
   const settle = (state: StopState, now: number) => reduceStop(state, { type: "settle", now });
-  // Plays key events at the given times, then settles after the last one.
   const play = (key: string, times: number[]) => {
     let state = initial;
     let stopped = false;
@@ -315,16 +300,13 @@ export default async function contracts(): Promise<void> {
     assert.notEqual(press(first.state, key, 1601).effect, "stop");
     assert.notEqual(press(first.state, key === "escape" ? "ctrl+c" : "escape", 110).effect, "stop");
     assert.equal(press(first.state, key, 110, { repeat: true }).effect, "none");
-    // Without repeat reports, a double press stops once quiet follows it.
     assert.ok(play(key, [100, 400]), "a double press stops");
     assert.ok(!play(key, [100, 1700]), "a press after the window starts over");
-    // A held key: macOS initial delay, then auto-repeat; it never stops, even after release.
     const held = [100, 280, 295, 310, 325, 340];
     assert.ok(!play(key, held), "a held key does not stop");
     assert.ok(play(key, [...held, 900, 1100]), "a fresh double press after release stops");
   }
 
-  // A `!` command is stopped by the same confirmation, without an agent run.
   idle = true;
   const user = handlers.get("user_bash")!({ command: "sleep 30", cwd: process.cwd() }, ctx) as any;
   const started = Date.now();

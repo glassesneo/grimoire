@@ -11,7 +11,6 @@ delib.module ({myconfig, ...}: {
 
   options.combinations = delib.readOnly (delib.defaultText (lib.mkOption {
     type = lib.types.attrsOf lib.types.raw;
-    # Schemes are the candidates of `roles.colorscheme`.
     default = lib.mergeAttrsList (map (scheme: delib.getAttrByStrPath myconfig "${scheme}.combinations" {}) myconfig.roles.colorscheme.candidates);
     description = "Every scheme and variant, resolved as `roles.colorscheme.resolved` is, by name: `<scheme>` for a scheme's default and `<scheme>-<variant>` for each variant.";
   }) (lib.literalMD "every registered scheme's `combinations`"));

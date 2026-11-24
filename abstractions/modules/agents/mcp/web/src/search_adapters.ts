@@ -423,7 +423,6 @@ function exaStartDate(freshness: SearchFreshness, nowMs: number): string {
   if (freshness === "day") date.setUTCDate(date.getUTCDate() - 1);
   else if (freshness === "week") date.setUTCDate(date.getUTCDate() - 7);
   else {
-    // setUTCMonth and setUTCFullYear overflow a short target month, so clamp the day first.
     const clock = [
       date.getUTCHours(),
       date.getUTCMinutes(),

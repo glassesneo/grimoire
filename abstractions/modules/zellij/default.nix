@@ -9,7 +9,6 @@
   inherit (mylib.anchors.sources ./anchors.json) nix-wrapper-modules;
   wrapperLib = import "${nix-wrapper-modules}/lib" {inherit lib;};
 
-  # Zellij parses KDL v1 only.
   toKdl = content:
     wrapperLib.generators.toKdl (_: {
       version = 1;
@@ -43,7 +42,6 @@
     ])) (attrs: builtins.length (builtins.attrNames attrs) == 1)
     // {description = "Zellij action";};
 
-  # `shared` binds in every mode, so it comes first.
   modes = ["shared" "normal" "locked" "resize" "pane" "move" "tab" "scroll" "search" "entersearch" "renametab" "renamepane" "session" "tmux" "prompt"];
 
   renderAction = attrs: let
@@ -85,10 +83,6 @@ in
     myconfig,
     ...
   }: let
-    # Zellij's configuration with a theme, or null for none: `config.kdl` as
-    # text, and the directory's other files by their relative path. A theme
-    # the settings name explicitly takes precedence. The host's theme reaches
-    # the settings through `zellij.colorscheme`.
     configText = theme:
       toKdl [
         (renderKeybinds cfg.keybinds)
@@ -170,12 +164,7 @@ in
           "Esc" = [{ScrollToBottom = [];} {SwitchToMode = "Normal";}];
         };
       in {
-        # Super keeps the app's own operations and Alt those on panes, as in
-        # Rex: Shift moves a pane and Ctrl creates one. Super bindings rely on
-        # the terminal reporting Cmd through the kitty keyboard protocol.
         shared = {
-          # NewPane only opens to the right or below; the pane is moved to
-          # open it on the left or above.
           "Ctrl Alt h" = [{NewPane = "Right";} {MovePane = "Left";}];
           "Ctrl Alt j" = [{NewPane = "Down";}];
           "Ctrl Alt k" = [{NewPane = "Down";} {MovePane = "Up";}];
@@ -256,8 +245,6 @@ in
     in {
       packages = [pkgs.zellij];
 
-      # Zellij keeps the cache in the platform's cache directory, which on
-      # Darwin is not XDG_CACHE_HOME.
       files = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && permissions != {}) {
         "Library/Caches/org.Zellij-Contributors.Zellij/permissions.kdl" = permissionsFile;
       };
@@ -265,8 +252,6 @@ in
         "zellij/permissions.kdl" = permissionsFile;
       };
 
-      # The default layout replaces the built-in one, which also serves as the
-      # template of new tabs.
       xdg.config.files =
         {
           "zellij/config.kdl" = {
@@ -281,9 +266,6 @@ in
           }) (files pkgs null);
     };
 
-    # `zellij` carries no theme; `zellij-<combination>` follows each
-    # combination of `colorscheme.combinations` that has a theme, whatever the
-    # host selects.
     bundles.ifEnabled = {pkgs, ...}:
       lib.mkMerge [
         {
@@ -337,8 +319,6 @@ in
         expected = false;
       };
 
-      # Each published configuration is one Zellij accepts; a combination's
-      # selects that scheme's official theme, which it carries.
       bundle-themes = {
         protects = "each published configuration is accepted by Zellij and selects its combination's theme";
         uses = ["colorscheme" "colorscheme.rose-pine"];
@@ -358,9 +338,7 @@ in
             done
             if grep -F '"theme"' plain/config.kdl || test -e plain/themes; then exit 1; fi
             grep -Fx '"theme" "rose-pine"' themed/config.kdl
-            # The port declares the theme under the name the configuration selects.
             grep -Eq '^[[:space:]]*rose-pine \{' themed/themes/rose-pine.kdl
-            # The theme file parses as Zellij configuration.
             cat themed/config.kdl themed/themes/rose-pine.kdl > combined.kdl
             zellij=$themed/bin/zellij
             "$zellij" --config combined.kdl setup --check | grep -F '[CONFIG FILE]: Well defined.'

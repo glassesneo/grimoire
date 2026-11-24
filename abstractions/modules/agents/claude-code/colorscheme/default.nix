@@ -3,8 +3,6 @@
   mylib,
   ...
 }: let
-  # Claude Code has no port; its ANSI themes take the terminal's colors, which
-  # follow the scheme, so the table only states whether a scheme is dark.
   themes = mylib.schemeThemes {
     name = "claude-code";
     themes.rose-pine = "dark-ansi";

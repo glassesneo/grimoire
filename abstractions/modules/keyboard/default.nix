@@ -11,7 +11,7 @@ delib.module {
   hjem.ifEnabled.platform.darwin.defaults = {
     NSGlobalDomain = {
       settings = {
-        AppleKeyboardUIMode = 3; # Full keyboard control
+        AppleKeyboardUIMode = 3;
         ApplePressAndHoldEnabled = false;
         InitialKeyRepeat = 12;
         KeyRepeat = 1;
@@ -26,9 +26,8 @@ delib.module {
     };
     "com.apple.symbolichotkeys" = {
       settings.AppleSymbolicHotKeys = {
-        "32".enabled = false; # Mission Control: Ctrl + Up
-        "34".enabled = false; # Mission Control (slow)
-        # Spotlight search: Cmd + Space, left to whatever claims it.
+        "32".enabled = false;
+        "34".enabled = false;
         "64" = {
           enabled = false;
           value = {

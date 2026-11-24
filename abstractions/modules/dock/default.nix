@@ -17,13 +17,11 @@ delib.module {
       show-recents = false;
       static-only = true;
 
-      # 1 = Disabled, 13 = Lock Screen
       wvous-tl-corner = 1;
       wvous-tr-corner = 1;
       wvous-bl-corner = 1;
       wvous-br-corner = 13;
     };
-    # The Dock caches these keys until it restarts.
     onChange.restartProcesses = ["Dock"];
   };
 }

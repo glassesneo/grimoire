@@ -2,7 +2,6 @@ require("blink.cmp").setup({
   completion = {
     menu = {
       draw = {
-        -- colorful-menu folds label_description into the label.
         columns = { { "kind_icon" }, { "label", gap = 1 } },
         components = {
           label = {

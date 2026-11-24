@@ -1,6 +1,3 @@
-// What a run shows besides its answer, read from a conversation's entries and live document:
-// thinking, text the model writes alongside tool calls, and code mode calls with the tool calls
-// their scripts make. Clients choose how to present it; the renderings here are Markdown.
 import {
   AssistantEntry,
   ToolResultEntry,
@@ -9,7 +6,6 @@ import {
 } from "@earendil-works/pi-durable";
 import type { CodemodeNestedCall, CodemodeToolDetails } from "@earendil-works/pi-durable/codemode";
 
-// A call a script made: as code mode reports it once done, or still pending while it runs.
 export type Call = Omit<CodemodeNestedCall, "id" | "status"> & {
   readonly status: CodemodeNestedCall["status"] | "pending";
 };
@@ -31,8 +27,6 @@ export type Result = {
   readonly calls: readonly Call[];
 };
 
-// The items of an assistant entry, in order. The text of an entry without tool calls is the
-// answer, which is not an item.
 export function itemsOf(entry: EntryRecord): Item[] {
   if (!AssistantEntry.is(entry)) return [];
   const parts = (entry.model ?? []).flatMap((message) =>
@@ -64,7 +58,6 @@ export function itemAt(entry: EntryRecord, part: number): Item | undefined {
   return itemsOf(entry).find((item) => item.part === part);
 }
 
-// Strips the `mcp__<server>__` prefix of an MCP tool's name.
 const shortName = (name: string) => name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, "");
 
 export function resultOf(entry: EntryRecord): Result | undefined {
@@ -85,7 +78,6 @@ export function resultOf(entry: EntryRecord): Result | undefined {
   };
 }
 
-// The calls a running code mode call's script has made so far.
 export function liveCalls(live: LiveState | undefined, callId: string): Call[] {
   return (live?.nestedTools ?? [])
     .filter((slot) => slot.parentCallId === callId)
@@ -95,7 +87,6 @@ export function liveCalls(live: LiveState | undefined, callId: string): Call[] {
       return {
         name: shortName(slot.name),
         args: JSON.stringify(slot.arguments),
-        // A parked call, sleeping or waiting, shows as pending.
         status: slot.status === "done" ? done : slot.status === "running" ? "running" : "pending",
         ...(summary?.durationMs !== undefined && { durationMs: summary.durationMs }),
         ...(summary?.error !== undefined && { error: summary.error }),
@@ -114,7 +105,6 @@ const mark: Record<Call["status"], string> = {
   cancelled: "⊘",
 };
 
-// A code mode call's state: running, held by a pause before it runs, or done.
 export type ToolState = "running" | "paused" | "ok" | "error";
 const stateMark: Record<ToolState, string> = { ...mark, paused: "⏸️" };
 
@@ -124,7 +114,6 @@ function callLine(call: Call): string {
   return `\`${call.name}\` ${clip(call.args.replace(/\s+/g, " "), 80)} ${mark[call.status]}${time}${error}`;
 }
 
-// A tool item's rendering: its state and calls, and when expanded, its script.
 export function renderTool(
   item: Extract<Item, { kind: "tool" }>,
   state: ToolState,
@@ -139,7 +128,6 @@ export function renderTool(
   return `${lines}\n${fence}js\n${clip(item.code, Math.max(room, 0))}\n${fence}`;
 }
 
-// The headings of a thinking summary, its bold lines, or else its first line.
 function headings(text: string): string[] {
   const bold = text
     .split("\n")

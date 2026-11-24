@@ -1,5 +1,3 @@
-# Nix types cannot protect discovery laziness: poison bodies must remain dormant
-# until selected, while names, platform filtering and collisions stay observable.
 {
   pkgs,
   system,

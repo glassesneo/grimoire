@@ -1,15 +1,3 @@
-# Owns the rendering of the kanata module's options into Kanata's
-# configuration language.
-#
-# An expression is a Kanata s-expression written in Nix: a string is an atom,
-# an integer a number, and a list a parenthesized form. Two definitions of one
-# expression with different values conflict instead of merging.
-#
-# `defsrc` lists every key that a layer maps or a chord uses, so no key's
-# position is written by hand. Each layer is rendered in that order, with `_`
-# for the keys it leaves unmapped, and `defaultLayer` comes first, so it is the
-# startup layer and the one that unmapped keys of switched layers fall through
-# to (`delegate-to-first-layer`).
 {lib}: let
   inherit (lib) types;
 
@@ -55,8 +43,6 @@ in {
   }: let
     allLayers = {${defaultLayer} = {};} // layers;
     layerNames = [defaultLayer] ++ lib.remove defaultLayer (builtins.attrNames allLayers);
-    # Chord participants outside defsrc would bypass Kanata when
-    # process-unmapped-keys is off, so the chords would never fire.
     keys = lib.unique (lib.sort lib.lessThan (
       lib.concatMap builtins.attrNames (builtins.attrValues allLayers)
       ++ lib.concatMap (chord: chord.keys) (builtins.attrValues chords)

@@ -1,4 +1,3 @@
-# Loads the dependency in fixtures without test cases of its own.
 {delib, ...}:
 delib.module {
   name = "middle";

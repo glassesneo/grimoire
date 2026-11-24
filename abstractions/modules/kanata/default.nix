@@ -67,22 +67,15 @@ in
     myconfig.ifEnabled.kanata = lib.mkMerge (
       lib.mapAttrsToList (name: lib.mkIf (cfg.profile == name)) profiles
       ++ [
-        # Kanata rejects chords without it.
         {settings.concurrent-tap-hold = lib.mkIf (cfg.chords != {}) true;}
       ]
     );
 
-    # Installs the Karabiner VirtualHID driver Kanata needs on macOS and runs
-    # Kanata through kanata-bar.
     darwin.always.imports = [(mylib.anchors.flakes ./anchors.json).kanata-darwin.darwinModules.default];
 
     darwin.ifEnabled = {
       services.kanata = {
         enable = true;
-        # Kanata 1.12 opens the keyboard only with Input Monitoring and
-        # Accessibility (Device Control and Data Access on macOS 27), granted
-        # by hand on first activation to kanata and to Kanata Bar, which
-        # launches it. A bundle identity keeps kanata's grants across rebuilds.
         package = myconfig.app-identity.mkAppBundle {
           inherit (cfg) package;
           identifier = "com.github.jtroo.kanata";

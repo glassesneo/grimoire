@@ -1,6 +1,3 @@
-# Rex is distributed only to invited beta testers and updates itself with
-# Sparkle, so it is installed by hand at `rex.appPath` and never packaged;
-# this module configures the installed app and runs the CLI bundled with it.
 {
   delib,
   lib,
@@ -53,8 +50,6 @@ in {
 
   myconfig.ifEnabled.rex = {
     font = "maple-nf-jp";
-    # Maple Mono NF JP covers Japanese itself; the empty list also clears a
-    # list stored by an earlier apply.
     fallbackFonts = [];
   };
 
@@ -67,8 +62,6 @@ in {
       fi
       exec ${lib.escapeShellArg cli} "$@"
     '';
-    # Rex does not watch init.lua. Only a running server is reloaded: the
-    # switch must not start one.
     apply = pkgs.writeShellScript "rex-apply" ''
       if [[ ! -x ${lib.escapeShellArg cli} ]]; then
         echo "warning: Rex is not installed at ${cfg.appPath}; install it from the Rex beta invitation. Its configuration is written anyway." >&2
@@ -88,8 +81,6 @@ in {
       source = ./init.lua;
     };
 
-    # Keys and values as Rex writes them for its settings; it reads them at
-    # launch.
     platform.darwin.defaults."com.superlogical.rex".settings =
       {
         SUEnableAutomaticChecks = true;
@@ -100,7 +91,6 @@ in {
         "Workspace.terminalCursorBlinkUsesCustomInterval" = false;
         "Workspace.allowsTerminalNotifications" = true;
         "Workspace.focusFollowsMouse" = true;
-        # Settings > Fade Inactive Panes > Content.
         "Workspace.inactivePaneFadeMode" = "text";
       }
       // lib.optionalAttrs (cfg.font != null && referenceProblems == []) {

@@ -16,7 +16,6 @@ delib.module ({myconfig, ...}: {
         root = ./src;
         fileset = ./src/providers.ts;
       };
-      # The store path changes with every change of the file.
       defaultText = lib.literalExpression "./src/providers.ts";
       description = "Directory holding `providers.ts`, which defines AI MOP's routes as pi-ai providers for agents built on pi-ai, which supply the `@earendil-works/pi-ai` it imports.";
     });

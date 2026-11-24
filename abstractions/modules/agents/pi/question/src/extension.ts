@@ -9,7 +9,6 @@ import {
   type RenderQuestion,
 } from "./render.ts";
 
-// The rule's color follows the outcome; the record's text says it as well.
 function historyStyle(theme: Theme, status: string): HistoryStyle {
   const color =
     status === "submitted"
@@ -20,7 +19,6 @@ function historyStyle(theme: Theme, status: string): HistoryStyle {
   return { rule: (text) => theme.fg(color, text), prompt: (text) => theme.bold(text) };
 }
 
-// Nothing is cached, so a theme change has nothing to invalidate.
 function component(lines: (width: number) => string[]) {
   return { render: lines, invalidate() {} };
 }

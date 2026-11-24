@@ -4,15 +4,9 @@ def flag [args: list<string>, name: string] {
   $args | get (($args | enumerate | where item == $name | get 0.index) + 1)
 }
 
-# nix-fast-build receives the check names through --select, runs CHECK on
-# each, writes its result file and exits nonzero on any failure, as the real
-# tool does. FAST_BUILD_CRASH fails before any result is written, and
-# FAST_BUILD_OMIT leaves a check out of the results, as a wrong selection does.
 def fast-build [args: list<string>, check: closure] {
   let select = flag $args '--select'
   let results = flag $args '--result-file'
-  # Scheduling remains explicit even when Nix disables local builds; the
-  # runner must not change the Nix setting to obtain its own workers.
   assert equal $env.NIX_CONFIG 'max-jobs = 0'
   assert equal $args [fast-build --no-nom --max-jobs '4' --eval-workers '4' --flake 'path:.#checks.test-system' --select $select --result-file $results]
   if ($env.FAST_BUILD_CRASH? | is-not-empty) { exit 1 }
@@ -25,7 +19,6 @@ def fast-build [args: list<string>, check: closure] {
   if ($entries | any {|entry| not $entry.success }) { exit 1 }
 }
 
-# The full gate on a sent tree: the system, the check names, then every check.
 def push [args: list<string>] {
   let marker = open --raw push-marker
   assert ($marker in ["one\n" "two\n"])
@@ -50,13 +43,11 @@ def push [args: list<string>] {
   }
 }
 
-# Runs inside the hook's index snapshot, which is not a Git repository.
 def --wrapped main [...args: string] {
   do --capture-errors {
     let command = $args.0
     $"($command)\n" | save --append $env.NIX_CALLS
     $"($env.PWD)\n" | save --append $env.SNAPSHOTS
-    # The pre-push snapshot is a sent tree; only those trees hold push-marker.
     if ('push-marker' | path exists) { push $args; return }
     match $command {
       fmt => {

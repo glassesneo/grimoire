@@ -27,7 +27,6 @@ after(async () => {
 
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// A model whose every answer the test scripts, and a search tool scripts reach through code mode.
 function setup(
   file: string,
   options: {
@@ -38,10 +37,8 @@ function setup(
   } = {},
 ) {
   const counts = { requests: 0, searches: 0 };
-  // Each request's messages, as JSON.
   const seen: string[] = [];
   const faux = fauxProvider({ provider: "faux", models: [{ id: "a" }] });
-  // Odd requests call the tool; even ones answer with the number of user messages so far.
   faux.setResponses(
     Array.from(
       { length: 50 },
@@ -122,13 +119,11 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   answered.resolve();
   await settle(500);
   assert.deepEqual([counts.searches, await toolResults(edith, "cli")], [0, 0]);
-  // Parked without a deadline, which would expire its resume key and fail the call.
   const parked = (await edith.harness.inspect(context)).tasks.filter(
     (task) => task.state.kind === "sleeping",
   );
   assert.equal(parked.length, 1);
   assert.equal(parked[0]?.state.kind === "sleeping" && parked[0].state.until, undefined);
-  // Held at the call the model's answer asked for, which a client can show on that call.
   const held = await edith.whenHeld("cli", 10, context);
   const conversation = await edith.conversation("cli", context);
   const asking = (await conversation.entries({}, 10, undefined, context)).items.find(
@@ -148,7 +143,6 @@ void test("a paused conversation runs no tool the model asks for until resumed, 
   });
   assert.equal(counts.searches, 1);
 
-  // Paused with nothing under way, input just ends the pause.
   await edith.pause("cli", context);
   assert.equal((await edith.ask("cli", "again", context)).status, "done");
   assert.equal((await edith.status("cli", context)).paused, false);
@@ -198,7 +192,6 @@ void test("a message to a run held before a tool call resumes it without that ca
     answers.map((answer) => answer.status),
     ["done", "done"],
   );
-  // The held call was not run; the next request saw why, then the message.
   const next = seen[1] ?? "";
   assert.ok(next.includes(interjectedNote), next);
   assert.ok(next.indexOf(interjectedNote) < next.indexOf("never mind"), next);
@@ -221,7 +214,6 @@ void test("stopping ends the run and its pause, and withdraws input not yet give
     ["stopped", "stopped"],
   );
   assert.equal(counts.searches, 0);
-  // The model is told the stopped request is not to be taken up again.
   const conversation = await edith.conversation("cli", context);
   const newest = (await conversation.entries({}, 1, undefined, context)).items[0];
   assert.equal(newest?.kind, "edith.stopped");
@@ -241,7 +233,6 @@ void test("a reset starts a new conversation that keeps the address's choices, a
   assert.equal((await edith.status("cli", context)).thinkingLevel, "high");
   const fresh = await edith.ask("cli", "second", context);
   assert.equal(fresh.status === "done" && fresh.text, "done:1");
-  // The session left gets a title from the model, which the list shows once it is written.
   let sessions = await edith.sessions("cli", context);
   for (let tries = 0; tries < 50 && sessions[1]?.preview !== "Searching the web"; tries++) {
     await settle(20);
@@ -283,7 +274,6 @@ void test("a session that ran with more than its namespace's ceiling allows can 
   await before.configure("discord:1", { access: "restricted" }, context);
   await before.close(context);
 
-  // Lowering the ceiling leaves the session's label above it.
   const after_ = await setup("labels.sqlite", configured("restricted")).open();
   await assert.rejects(after_.submit("discord:1", { content: "more" }, context), Refused);
   const { previous } = await after_.reset("discord:1", context);

@@ -1,5 +1,3 @@
-# EDITH's sources with their installed dependencies, run by Node.js with type stripping.
-# `aiMop` is the directory of AI MOP's `providers.ts`, placed at `src/ai-mop/`.
 {
   lib,
   bun2nix,

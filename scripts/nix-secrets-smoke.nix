@@ -1,7 +1,3 @@
-# The live check's probe for the invoking user under a temporary home: the
-# nix-secrets module and the services module it registers activation with,
-# with the app-identity module services uses, composed as the flake composes
-# module test fixtures.
 {
   flake,
   homeDirectory,

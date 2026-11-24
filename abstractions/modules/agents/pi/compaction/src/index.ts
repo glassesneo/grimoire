@@ -45,7 +45,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
     if (ctx.hasUI) ctx.ui.notify(text, "error");
     else console.error(text);
   };
-  // The fallback is persisted so a reloaded session keeps it until the next human input.
   const setBlocked = (value: boolean) => {
     if (blocked === value) return;
     blocked = value;
@@ -60,14 +59,11 @@ export default function registerCompaction(pi: ExtensionAPI): void {
     setBlocked(true);
     output = undefined;
   };
-  // Retirement is persisted, so later human input resumes automatic compaction over the
-  // readable history instead of detecting the same incompatible checkpoint again.
   const retire = (ctx: ExtensionContext, checkpoint: Saved, reason: string): Saved => {
     if (checkpoint?.replayable) pi.appendEntry(retiredType, {});
     fallback(ctx, reason);
     return checkpoint && { ...checkpoint, replayable: false };
   };
-  // Returns the latest checkpoint as it stands after this check.
   const checkModel = (ctx: ExtensionContext, checkpoint: Saved = saved(ctx)): Saved =>
     checkpoint?.replayable && (!ctx.model || checkpoint.checkpoint.identity !== identity(ctx.model))
       ? retire(
@@ -89,9 +85,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
   const record = (ctx: ExtensionContext, replay: ReplayItem[], messages: AgentMessage[]) =>
     checkpointRecord({ identity: identity(ctx.model!), tools: requestTools, replay }, messages);
 
-  // Use Pi's standard prompts and iterative summary updates, not an excerpt of history.
-  // Preflight the actual native prompt before transport; UTF-8 JSON bytes conservatively
-  // budget text plus message framing, while retaining the configured output reserve.
   const standardSummary = async (
     ctx: ExtensionContext,
     messages: AgentMessage[],
@@ -99,8 +92,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
   ) => {
     if (!ctx.model) throw new Error("No model for standard compaction");
     const model = ctx.model;
-    // Pi reduces the summary's output limit to fit, so a model whose output limit spans
-    // its whole window still leaves half of it for input.
     const budget =
       model.contextWindow -
       Math.max(settings(ctx).reserveTokens, Math.min(model.maxTokens, model.contextWindow / 2));
@@ -180,8 +171,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
   pi.on("model_select", (_event, ctx) => {
     checkModel(ctx);
   });
-  // input runs when received, not when queued work is delivered. A human message
-  // received during this work must not re-enable server compaction mid-recovery.
   pi.on("input", (event, ctx) => {
     if (event.source !== "extension" && ctx.isIdle() && !event.streamingBehavior) setBlocked(false);
     checkModel(ctx);
@@ -216,7 +205,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       return { ...payload, input: null };
     }
     let input = payload.input;
-    // The payload holds the effective declarations, including fields Pi's tool metadata omits.
     const declared = declarations({ ...payload, input });
     if (replayTag) {
       const checkpoint = saved(ctx);
@@ -230,11 +218,9 @@ export default function registerCompaction(pi: ExtensionAPI): void {
         return { ...payload, input: null };
       }
       const replaced = checkpoint && splice(input, replayTag, checkpoint.checkpoint.replay);
-      // The context hook already provided the marker; never send it without memory.
       if (!replaced) {
         fallback(ctx, "Checkpoint projection failed; stopping this request.");
         ctx.abort();
-        // Return an invalid input as well: abort is cooperative, and hook exceptions are swallowed by Pi.
         return { ...payload, input: null };
       }
       input = replaced;
@@ -274,16 +260,12 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       };
     }
     if (!observed || event.outcome === "completed") return;
-    // Pi retries after this hook. A transient error says nothing about whether the
-    // saved checkpoint still works; keep it even if Pi exhausts its retry budget.
     if (
       event.message.role === "assistant" &&
       !isContextOverflow(event.message, ctx.model?.contextWindow) &&
       isRetryableAssistantError(event.message)
     )
       return;
-    // A failure does not replace history. Restored history that no longer fits reaches
-    // Pi's own threshold or overflow compaction, which summarizes it in session_before_compact.
     fallback(ctx, "Responses request failed; no checkpoint was adopted.");
   });
   pi.on("session_before_compact", async (event, ctx) => {
@@ -295,8 +277,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
     const checkpoint = checkModel(ctx);
     await checkEndpoint(ctx);
     const preparation = event.preparation;
-    // Use exactly the prefix Pi will replace, including the previous checkpoint
-    // (or native summary) and a split user-message span. The retained tail is not sent twice.
     const prefix: AgentMessage[] = [
       ...(preparation.previousSummary
         ? [
@@ -339,8 +319,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       fallback(ctx, "Responses compaction did not absorb the overflow.");
       return nativeFallback();
     }
-    // The manual request declares no tools, so the checkpoint keeps the work requests'
-    // declarations; the next work request verifies them before any replay.
     const live = checkpoint?.replayable ? checkpoint : undefined;
     if (live && requestTools && live.checkpoint.tools !== requestTools) {
       retire(ctx, live, "Tool declarations changed; restored the original context.");
@@ -377,10 +355,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
                 if (!replaced) throw new Error("Manual checkpoint prefix missing");
                 input = replaced;
               }
-              // The server compacts only an input above the threshold, and /compact
-              // usually runs below the automatic one. 1000 tokens was verified against
-              // the public API to force compaction; a shorter prefix falls back to a
-              // standard summary.
               return compactionPayload(payload, input, manualThreshold);
             },
             onProviderStreamEvent: (data) => collected.observe(data),
@@ -400,8 +374,6 @@ export default function registerCompaction(pi: ExtensionAPI): void {
           timestamp: Date.now(),
         },
       ];
-      // The full raw suffix survives, including calls. Explicit cancellation outputs
-      // close those calls without executing them or inventing successful tool results.
       return {
         compaction: {
           ...record(ctx, replay, recovery),

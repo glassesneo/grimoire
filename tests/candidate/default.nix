@@ -1,5 +1,3 @@
-# Protects the import boundary: untracked files stop the remote snapshot, a
-# failed transfer leaves the last candidate protected, and stdout is just a path.
 {pkgs, ...}: let
   ssh = pkgs.writeShellScriptBin "ssh" ''
     for command; do :; done

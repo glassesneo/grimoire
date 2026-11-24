@@ -12,7 +12,7 @@ delib.module {
     NSGlobalDomain = {
       settings = {
         "com.apple.sound.beep.volume" = 0.0;
-        "com.apple.sound.beep.feedback" = 0; # No sound when changing the volume
+        "com.apple.sound.beep.feedback" = 0;
       };
       onChange.activateSettings = true;
     };

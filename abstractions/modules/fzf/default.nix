@@ -11,7 +11,6 @@ delib.module {
   options.enable = delib.boolOption true;
 
   hjem.ifEnabled = {pkgs, ...}: let
-    # fd applies the global Git ignore file outside repositories too.
     fileCommand = "${lib.getExe pkgs.fd} -H -E .git --type f --strip-cwd-prefix --no-require-git";
   in {
     packages = [pkgs.fzf];
@@ -24,7 +23,6 @@ delib.module {
         "--border=sharp"
         "--no-separator"
         "--no-scrollbar"
-        # SKK input mode switching keys.
         "--bind=ctrl-j:ignore,ctrl-l:ignore"
       ];
       FZF_CTRL_T_OPTS = "--popup=center,80%,50%";

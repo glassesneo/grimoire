@@ -35,19 +35,11 @@ delib.module ({
     mcpConfig = pkgs.writeText "claude-mcp.json" (builtins.toJSON {
       mcpServers = lib.mapAttrs (_: spec: {inherit (spec) command args env;}) resolved;
     });
-    # The wrapper name is claude, so it precedes the package's own binary.
-    # --mcp-config merges with the user's existing configuration. It takes
-    # several values, so the separate form would also consume a prompt.
     wrapper = pkgs.writeShellScriptBin "claude" ''
       exec ${lib.getExe myconfig.agents.packages.claude-code} --mcp-config=${mcpConfig} "$@"
     '';
-    # Development shells put GNU sed first, while the agent writes sed for
-    # the platform it runs on; on Darwin that is BSD sed. Only sed is
-    # exposed, not the other commands bundled with Apple's text_cmds.
     bsdSed = pkgs.linkFarm "agent-bsd-sed" {"bin/sed" = lib.getExe' pkgs.darwin.text_cmds "sed";};
     runtimePath = lib.makeBinPath ([pkgs.python3] ++ lib.optional pkgs.stdenv.hostPlatform.isDarwin bsdSed);
-    # Claude Code sources $CLAUDE_ENV_FILE before each Bash tool command,
-    # after the shell profile, so these tools precede any inherited PATH.
     runtimeTools = pkgs.writeShellScript "claude-code-runtime-tools" ''
       [ -n "''${CLAUDE_ENV_FILE:-}" ] || exit 0
       printf 'export PATH=%s:"$PATH"\n' ${lib.escapeShellArg runtimePath} >> "$CLAUDE_ENV_FILE"
@@ -75,13 +67,9 @@ delib.module ({
         sandbox = {
           enabled = !cfg.unattended;
           autoAllowBashIfSandboxed = true;
-          # nix keeps its evaluation and fetcher caches here as SQLite databases,
-          # and treefmt, run by `nix fmt` and commit hooks, keeps its cache beside them.
           filesystem.allowWrite = ["~/.cache/nix" "~/.cache/treefmt"];
           network = {
-            # nix commands talk to the daemon instead of opening the store themselves.
             allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
-            # Mix listens on a localhost port to coordinate concurrent builds.
             allowLocalBinding = true;
           };
         };
@@ -98,13 +86,11 @@ delib.module ({
         env = {
           DISABLE_AUTOUPDATER = "1";
           ENABLE_TOOL_SEARCH = "true";
-          # Claude Code reads this from the shell, user settings or --settings only.
           CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1";
         };
       }
       // lib.optionalAttrs cfg.unattended {
         disableAutoMode = "disable";
-        # Otherwise the first bypassPermissions session waits for confirmation.
         skipDangerousModePermissionPrompt = true;
       };
 
@@ -122,7 +108,6 @@ delib.module ({
         bindings = [
           {
             context = "Chat";
-            # Ctrl-J and Ctrl-L switch SKK input modes.
             bindings = {
               "ctrl+j" = null;
               "ctrl+l" = null;
@@ -154,7 +139,6 @@ delib.module ({
         claude = lib.findFirst (path: lib.hasSuffix "-claude" (baseNameOf path)) (throw "missing wrapper") result.packages;
         real = lib.getExe result.options.myconfig.agents.packages.value.claude-code;
       in
-        # The real binary is replaced by a stub that records the argv it receives.
         pkgs.runCommand "claude-wrapper" {nativeBuildInputs = [pkgs.jq];} ''
           printf '#!${pkgs.runtimeShell}\nprintf "%%s\\n" "$@"\n' > stub
           chmod +x stub

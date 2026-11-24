@@ -23,7 +23,6 @@ function config(apiKeyFile: string | null = "/key"): WebRetrievalRuntimeConfig {
   return {
     schemaVersion: 2,
     providers: (Object.entries(endpoints) as Array<[keyof typeof endpoints, string]>).map(
-      // id and kind are the same name, which the per-provider union cannot correlate.
       ([id, endpoint]) => ({ id, kind: id, endpoint, apiKeyFile }) as WebRetrievalProviderConfig,
     ),
     routing: {

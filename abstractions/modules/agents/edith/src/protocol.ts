@@ -1,5 +1,3 @@
-// The local socket's protocol: one request and one response per connection, each a line of JSON.
-
 export type Request = { readonly type: "ask"; readonly address: string; readonly content: string };
 
 export type Response =

@@ -4,7 +4,6 @@ delib.role ({
   myconfig,
   ...
 }: let
-  # A candidate provides the shell as `package`.
   inherit (cfg.held) package;
 in {
   name = "login-shell";

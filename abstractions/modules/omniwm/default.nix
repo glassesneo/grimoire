@@ -9,8 +9,6 @@
   defaults = builtins.fromTOML (builtins.readFile "${omniwm}/settings-defaults.toml");
   settingsLib = import "${omniwm}/nix/module/settings.nix" {inherit lib;};
 
-  # A private Kanata -> OmniWM protocol. Physical Shift remains a modifier,
-  # selecting the move action without a second navigation layer.
   navigation = [
     {
       key = "h";
@@ -145,7 +143,6 @@ in
             monitorAssignment.type = "secondary";
           }
         );
-        # No default, digit, floating or fullscreen shortcuts leak through.
         hotkeys = upstream.hotkeys (
           lib.genAttrs (map (hotkey: hotkey.id) defaults.hotkeys) (_: "Unassigned")
           // bindings
@@ -170,7 +167,6 @@ in
         exclusive = true;
         source = app;
       };
-      # OmniWM rewrites settings at startup, so this must not be a store link.
       applySteps.omniwm = {
         before = ["services"];
         package = pkgs.writeShellApplication {

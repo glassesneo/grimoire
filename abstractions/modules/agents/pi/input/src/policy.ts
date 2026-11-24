@@ -1,12 +1,9 @@
 export const stopWindowMs = 1_500;
-// Without key-repeat reports, a second press stops only after this much quiet.
-// Terminal auto-repeat sends the next event sooner, so a held key never stops.
 export const settleMs = 120;
 
 export interface StopState {
   key: string | null;
   at: number;
-  // armed: one press seen; pending: a second press awaits quiet; repeating: a held key.
   phase: "idle" | "armed" | "pending" | "repeating";
 }
 
@@ -14,7 +11,6 @@ export const idleStop: StopState = { key: null, at: 0, phase: "idle" };
 
 export type StopEffect = "none" | "clear-input" | "stop" | "armed" | "pending";
 
-/** Reduces a press of a stop key, or the settle timer that a pending press started. */
 export function reduceStop(
   state: StopState,
   event: {

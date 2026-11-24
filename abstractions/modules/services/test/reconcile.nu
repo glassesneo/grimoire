@@ -1,7 +1,3 @@
-# Runs reconcile.nu across successive generations against a real dinit and the
-# fake launchctl, writing the descriptions itself as Hjem would. Each scene
-# checks one behavior of a run, which its PASS line names. A service appends a line to
-# its mark file whenever it starts.
 use std/assert
 
 use common.nu [eventually lines-of]
@@ -39,13 +35,10 @@ def scripted [name: string, --version: int = 0, --automatic, --rerun]: nothing -
 ' [] $automatic $rerun
 }
 
-# The group dinit starts, which a run starts rather than wakes.
 def group [...members: string]: nothing -> record {
   service internal ($members | each {|member| $"waits-for = ($member)\n" } | str join) [] false false
 }
 
-# Writes the descriptions and a step output. SERVICES maps names to services,
-# dependencies first.
 def generation [name: string, agent: string, services: record]: nothing -> path {
   let descriptions = $env.HOME | path join .config dinit.d
   ls --short-names $descriptions | get name | where {|file| $file not-in ($services | columns) } | each {|file| rm ($descriptions | path join $file) }
@@ -79,7 +72,6 @@ def dinit-pid []: nothing -> string {
   open --raw ($env.FAKE_LAUNCHD | path join test.dinit.pid) | str trim
 }
 
-# Loads the agent as login does, once launchd has removed a previous job.
 def load-agent [] {
   let plist = $env.HOME | path join Library LaunchAgents test.dinit.plist
   eventually 'the agent loads' { (^$env.LAUNCHCTL bootstrap (domain) $plist | complete).exit_code == 0 }
@@ -97,12 +89,10 @@ def is-started [name: string]: nothing -> bool {
   (ctl --quiet is-started $name).exit_code == 0
 }
 
-# Waits until NAMES have started and no service is starting or stopping.
 def settled [...names: string] {
   eventually $"($names | str join ', ') started" {
     ($names | all {|name| is-started $name }) and not ((ctl list).stdout =~ '<<|>>')
   }
-  # A started process may not have written its mark yet.
   sleep 100ms
 }
 
@@ -112,7 +102,6 @@ def main [] {
   $"#!/bin/sh\nexec dinit --user --quiet --services-dir ($home)/.config/dinit.d --socket-path ($env.SOCKET) --log-file ($env.TMPDIR)/dinit.log login\n" | save $env.FAKE_AGENT
   chmod +x $env.FAKE_AGENT
 
-  # A job of the former launchd backend, loaded and running.
   let legacy = $home | path join .local state hjem services
   mkdir $legacy
   [{name: old, label: old.job, domain: gui}] | to json | save ($legacy | path join state.json)
@@ -120,8 +109,6 @@ def main [] {
   touch ($env.FAKE_LAUNCHD | path join old.job.loaded)
   ^sh -c 'nohup /bin/sleep 1000 >/dev/null 2>&1 & echo $!' | str trim | save ($env.FAKE_LAUNCHD | path join old.job.pid)
 
-  # A run that starts dinit starts the automatic services, not the others, and
-  # retires the former backend's jobs.
   mut services: record = {
     a: (process a --automatic)
     b: (process b --automatic)
@@ -138,8 +125,6 @@ def main [] {
   assert (not ($legacy | path exists))
   print 'PASS: a first run starts dinit with the automatic services and retires former jobs'
 
-  # Changed services restart, removed ones are unloaded, added automatic ones
-  # start and restartOnSwitch services rerun; the rest keep running.
   let instance = dinit-pid
   $services = ($services | reject b login | merge {a: (process a --version 1 --automatic), f: (process f --automatic)} | insert login (group a u c f))
   applied (generation g2 v1 $services)
@@ -149,15 +134,12 @@ def main [] {
   assert equal (dinit-pid) $instance
   print 'PASS: a run applies added, changed, removed and restartOnSwitch services'
 
-  # A service dinit cannot reload while started, here because its type
-  # changed, is applied.
   $services = ($services | merge {a: (scripted a --automatic)})
   applied (generation g3 v1 $services)
   settled a c
   assert equal (counts a c) {a: 3, c: 3}
   print 'PASS: a service that cannot be reloaded while started is applied'
 
-  # A manual service that was started restarts when it changes.
   ctl start m | ignore
   settled m
   $services = ($services | merge {m: (process m --version 1)})
@@ -166,8 +148,6 @@ def main [] {
   assert equal (counts m c) {m: 2, c: 4}
   print 'PASS: a started manual service restarts when it changes'
 
-  # A stopped service starts when it becomes automatic, although only its
-  # group's description changes.
   $services = ($services | reject login | insert n (process n) | insert login (group a u c f))
   applied (generation g5 v1 $services)
   settled c
@@ -178,8 +158,6 @@ def main [] {
   assert equal (starts n) 1
   print 'PASS: a service that becomes automatic starts'
 
-  # A dependency and its dependent added together both start; restarting the
-  # dependency restarts its dependent once.
   $services = ($services | reject login | insert dep (process dep --automatic) | insert user (process user --depends [dep] --automatic --rerun) | insert login (group a u c f n user))
   applied (generation g7 v1 $services)
   settled dep user
@@ -190,8 +168,6 @@ def main [] {
   assert equal (counts dep user) {dep: 2, user: 2}
   print 'PASS: dependencies start and restart with their dependents'
 
-  # An instance that launchd started, as at login, runs the descriptions it
-  # found; the next run brings it to the declarations.
   ^$env.LAUNCHCTL bootout $"(domain)/test.dinit"
   load-agent
   settled a u c f n user
@@ -203,14 +179,12 @@ def main [] {
   assert (not (listed f))
   print 'PASS: a run applies the declarations to an instance launchd started'
 
-  # A loaded agent whose dinit has exited is started again.
   ctl shutdown | ignore
   eventually 'dinit exits' { (^kill -0 (dinit-pid) | complete).exit_code != 0 }
   applied (generation g10 v1 $services)
   settled a u c n user
   print 'PASS: a loaded agent whose dinit exited is started'
 
-  # A changed agent restarts dinit, which starts the automatic services once.
   let before = counts c u
   let instance = dinit-pid
   applied (generation g11 v2 $services)
@@ -219,8 +193,6 @@ def main [] {
   assert equal (counts c u) {c: ($before.c + 1), u: ($before.u + 1)}
   print 'PASS: a changed agent restarts dinit'
 
-  # Without a GUI session a run only writes the agent's plist; login loads
-  # it, and the next run keeps that instance.
   ^$env.LAUNCHCTL bootout $"(domain)/test.dinit"
   touch ($env.FAKE_LAUNCHD | path join no-gui)
   let result = apply (generation g12 v3 $services)
@@ -238,7 +210,6 @@ def main [] {
   assert equal (counts u) $before
   print 'PASS: without a GUI session login loads the written agent'
 
-  # A run without its state restarts the loaded agent once.
   rm ($home | path join .local state hjem dinit state.json)
   let instance = dinit-pid
   applied (generation g13b v3 $services)
@@ -246,7 +217,6 @@ def main [] {
   assert not equal (dinit-pid) $instance
   print 'PASS: a run without its state restarts the agent'
 
-  # A failed service does not stop the others, and the next run applies it.
   $services = ($services | merge {g: (process g), u: (process u --version 2 --automatic)})
   let closure = generation g14 v3 $services
   let description = $home | path join .config dinit.d g
@@ -263,7 +233,6 @@ def main [] {
   assert equal (starts u) ($before.u + 1)
   print 'PASS: a failed service is applied by the next run'
 
-  # Without services, the agent is retired with its state.
   let instance = dinit-pid
   applied (generation g16 v3 {})
   assert (not ($home | path join Library LaunchAgents test.dinit.plist | path exists))

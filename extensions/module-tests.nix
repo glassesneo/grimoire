@@ -1,16 +1,3 @@
-# Owns inline tests, their fixtures, declaration ownership, and the
-# conservative reverse fixture closure. tests.cases {pkgs, lib, system, home, oxlintConfig, typescriptCheck} returns named cases,
-# whose fields are the options declared below. Each case states what it
-# protects and has exactly one mode: expected, fails or build. Unknown fields,
-# unknown uses and a missing `protects` are errors when the cases are
-# discovered. Coverage retains all cases.
-# moduleTestInfo takes {pkgs,system,home,oxlintConfig,typescriptCheck,root} and
-# returns a module-name attrset with file, directory, cases, applicableCases,
-# tsRoots, uses, fixture and affectedChecks. Declaration files must be
-# unique; unknown fixture modules are errors. Reverse closure unions the
-# fixture and the uses of all cases, including excluded ones; duplicates, self
-# edges and cycles terminate. Only applicable check names enter
-# affectedChecks. Discovery never generates fixtures or forces check builders.
 {
   lib,
   config,

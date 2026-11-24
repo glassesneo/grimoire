@@ -4,7 +4,6 @@ local function buffer(self)
   return self.bufnr or vim.api.nvim_get_current_buf()
 end
 
--- Keep labels literal through layout transformations; escape only for rendering.
 local function text(provider, hl)
   return {
     init = function (self)

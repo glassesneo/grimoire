@@ -14,16 +14,11 @@ in
     myconfig,
     ...
   }: let
-    # Builds the package from the evaluated settings and a resolved scheme, or
-    # null for none. Upstream assertions and warnings are checked here, as
-    # mnw's own `wrap` does before it calls `uncheckedWrap`.
     mkPackage = pkgs: resolved: let
       base = opt.settings.valueMeta.configuration;
       final =
         if resolved == null
         then base
-        # The theme is part of this module's contribution, so it merges with
-        # the other modules' settings instead of replacing their lists.
         else
           base.extendModules {
             modules = [(mylib.sources.prioritize mylib.sources.priorities.module base.options (themes.of resolved pkgs resolved))];
@@ -54,7 +49,6 @@ in
           description = "Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements.";
         });
         settings = lib.mkOption {
-          # mnw's own option declarations, as its modules evaluate them.
           type = lib.types.submoduleWith {
             specialArgs = {
               inherit pkgs;
@@ -62,14 +56,12 @@ in
             };
             modules = [
               "${mnw}/modules/options.nix"
-              # Every source's assertions and warnings reach mnw beside its own.
               {options = lib.genAttrs ["assertions" "warnings"] (_: mylib.accumulatingOption (lib.mkOption {}));}
             ];
           };
           default = {};
           description = "mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory.";
         };
-        # The host's theme reaches the settings through `neovim.colorscheme`.
         package = packageOption (mkPackage pkgs null);
       };
 
@@ -87,7 +79,6 @@ in
       neovim = neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
       plugins.dev.grimoire = {
         pure = ./config;
-        # Read by the devMode package so Lua edits apply without a rebuild.
         impure = "~/grimoire/abstractions/modules/neovim/config";
       };
     };
@@ -103,17 +94,11 @@ in
       };
     };
 
-    # The nightly overlay pushes its Neovim builds to this cache; they stay
-    # substitutable because the anchor evaluates with its own lock file.
     darwin.ifEnabled.nix.settings = {
       extra-substituters = ["https://nix-community.cachix.org"];
       extra-trusted-public-keys = ["nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="];
     };
 
-    # `neovim` has no theme; `neovim-<combination>` follows each combination of
-    # `colorscheme.combinations` whose scheme has a theme, whatever the host selects.
-    # The bundle names depend on `myconfig`, so they stay inside `mkMerge`,
-    # whose shape Denix can read before `myconfig` is evaluated.
     bundles.ifEnabled = {pkgs, ...}:
       lib.mkMerge [
         {
@@ -130,14 +115,10 @@ in
         (lib.filterAttrs (_: resolved: themes.of resolved != null) myconfig.colorscheme.combinations))
       ];
 
-    # A fixture stands in for a feature module, so the case covers how
-    # contributions reach the package rather than any particular feature.
     tests.fixture = ["roles.editor" "zsh.interactive.zabrze"];
     tests.cases = {pkgs, ...}: let
       hasTheme = package: lib.elem pkgs.vimPlugins.rose-pine package.config.plugins.start;
     in {
-      # The typed settings must build what mnw's own evaluation of the same
-      # definitions builds, which also catches a moved upstream options file.
       upstream-wrap = {
         protects = "the typed settings build the package mnw's own evaluation of the same definitions builds";
         uses = ["colorscheme"];
@@ -170,7 +151,6 @@ in
         protects = "one bundle is published per combination, and a combination's theme adds to the features' plugins";
         uses = ["colorscheme" "colorscheme.rose-pine"];
         moduleSystem = "bundles";
-        # The host's selection does not change which bundles are published.
         host.myconfig.ifEnabled.roles.colorscheme = {
           enable = true;
           holder = "colorscheme.rose-pine";
@@ -180,7 +160,6 @@ in
           names = builtins.attrNames result.packages;
           plain = hasTheme result.packages.neovim;
           themed = hasTheme result.packages.neovim-rose-pine;
-          # The theme adds to the features' plugins.
           kept = result.packages.neovim.config.plugins.start != [] && lib.all (plugin: lib.elem plugin result.packages.neovim-rose-pine.config.plugins.start) result.packages.neovim.config.plugins.start;
         };
         expected = {

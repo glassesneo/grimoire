@@ -1,5 +1,3 @@
-// edith ask <message>: sends one message to the resident service's `cli` conversation and prints
-// the answer. edith dev [--session <name>]: runs EDITH in this process; see `dev.ts`.
 import { connect } from "node:net";
 import { createInterface } from "node:readline";
 import { encode, type Response } from "./protocol.ts";
@@ -25,7 +23,6 @@ if (command !== "ask" || content === "") {
   process.exit(2);
 }
 
-// Empty where EDITH does not run resident.
 const socketPath = process.env["EDITH_SOCKET"];
 if (socketPath === undefined || socketPath === "") {
   console.error("EDITH does not run resident on this host; `edith dev` runs it here");

@@ -1,38 +1,9 @@
-# Render the authoring reference from declarations, without generating a real host.
-#
-# The reference lists the options this repository adds to Denix module and host
-# declarations, the options adapters add to their module systems, and every
-# module, regardless of host enablement and sorted by Denix name, with its
-# responsibility (`meta.description`), tags, source, `myconfig` options and the
-# options it declares in each module system. Modules whose only option is
-# `enable`, or that declare none, share one table; the others get a section. An
-# option is the repository's when all of its declarations are repository files
-# or module and host sections; options that extend an upstream declaration are
-# not listed. Internal options are omitted.
-#
-# Rendering enforces docs/documentation-policy.md where it can: an option of a
-# Denix declaration or of an adapter without a description fails; module options
-# need none. Defaults are rendered from the declarations: the caller selects a
-# host whose values are written as the `myconfig.host` expressions they stand
-# for, `defaultText` replaces a default, a `lazyAttrsOf` default is shown as
-# computed without being forced, a package default shows its name after the
-# source whose files define it, and a default that otherwise contains a package
-# is shown as computed. A default that
-# reads another option renders that option's rendered value. The reference
-# contains no generation timestamp.
 {lib}: {
-  # The Denix configuration whose declarations are rendered.
   configuration,
-  # Repository root, against which sources are linked relatively.
   root,
-  # Nixpkgs given to `myconfig` sections that take `pkgs`.
   pkgs,
-  # Module system name to its evaluated option declarations.
   moduleSystems,
-  # Host selected while evaluating `myconfig` options, or null for none.
   host ? null,
-  # Source name to its store path, such as the flake's inputs, naming where a
-  # package default is defined through its `meta.position`.
   sources ? {},
 }: let
   rootPrefix = "${toString root}/";
@@ -44,7 +15,6 @@
   link = file: "[${code (relative file)}](${url file})";
 
   inRepository = file: lib.hasPrefix rootPrefix file;
-  # Provenance labels: `<module|host> <name> (<system>.<section>)`.
   labelOf = file: builtins.match "(module|host) ([^ ]+) \\(([^.]+)\\.[A-Za-z]+\\)" file;
   owned = option: option.declarations != [] && lib.all (file: inRepository file || labelOf file != null) option.declarations;
 
@@ -52,14 +22,11 @@
     lib.filter (option: !option.internal && option.visible != false && !(lib.elem "_module" option.loc))
     (lib.optionAttrSetToDocList options);
 
-  # A default that renders a package names its version and system.
   hasPackage = value:
     lib.isDerivation value
     || (builtins.isList value && lib.any hasPackage value)
     || (builtins.isAttrs value && lib.any hasPackage (builtins.attrValues value));
 
-  # optionAttrSetToDocList renders `defaultText` or else the value; read the
-  # declaration to render packages and lazy values without forcing them.
   declarationOf = options: loc: let
     option = lib.attrByPath loc null options;
   in
@@ -69,7 +36,6 @@
 
   computed = lib.literalMD "(computed)";
 
-  # The source whose path is the longest prefix of the package's position.
   sourceOf = package: let
     position = package.meta.position or "";
     matches = lib.filter (name: lib.hasPrefix "${toString sources.${name}}/" position) (builtins.attrNames sources);
@@ -111,8 +77,6 @@
       then computed
       else option.default or null
     );
-    # A Markdown default is prose, not an expression. Nix escapes the
-    # placeholder host's interpolations inside strings.
     renderedDefault =
       if default == null
       then ""
@@ -136,9 +100,6 @@
         ++ map (row args) entries)
       + "\n";
 
-  # Denix declarations.
-
-  # `myconfig` options, from the myconfig sections alone.
   myconfigOptions =
     (lib.evalModules {
       modules = [
@@ -153,12 +114,10 @@
     inherit name;
     path = lib.splitString "." name;
   }) (lib.sort (a: b: builtins.stringLength a > builtins.stringLength b) moduleNames);
-  # The module owning an option path is the longest module name prefixing it.
   ownerOf = path: (lib.findFirst (module: lib.lists.hasPrefix module.path path) {name = "";} modulePaths).name;
   myconfigByOwner = lib.groupBy (option: ownerOf (lib.tail option.loc)) myconfigEntries;
   unowned = myconfigByOwner."" or [];
 
-  # Every module system also merges `myconfig`, which is listed per module.
   systemEntries = lib.mapAttrs (_: options: lib.filter (option: owned option && lib.head option.loc != "myconfig") (docs options)) moduleSystems;
   declaredBy = name: system:
     lib.filter (option:
@@ -176,7 +135,6 @@
   ownOf = name: myconfigByOwner.${name} or [];
   declaredOf = name: lib.filterAttrs (_: entries: entries != []) (lib.genAttrs (builtins.attrNames systemEntries) (declaredBy name));
   tagsOf = name: lib.concatMapStringsSep ", " code configuration.config.modules.${name}.meta.tags;
-  # A module whose only option is `enable` is a row of the shared table.
   enableOnly = name: declaredOf name == {} && lib.all (option: option.loc == ["myconfig"] ++ lib.splitString "." name ++ ["enable"]) (ownOf name);
   sectioned = lib.partition enableOnly moduleNames;
 
@@ -246,7 +204,6 @@
         }
         entries}'';
 
-  # Denix declarations.
   declarationSection = kind: title: let
     options = configuration.options.${kind}.type.getSubOptions [kind];
   in ''

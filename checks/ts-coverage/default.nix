@@ -1,5 +1,3 @@
-# Every tracked JS/TS file must lie in an unfiltered module case's declared
-# type/lint roots, or an unchecked directory with an explicit reason.
 {
   pkgs,
   moduleTestInfo,
@@ -17,7 +15,6 @@
       (file: lib.any file.hasExt ["ts" "tsx" "js" "jsx" "mjs" "cjs"])
       root));
   uncovered = uncoveredFiles roots files;
-  # Segment boundaries matter: a sibling with the same prefix is not covered.
   synthetic = uncoveredFiles ["feature"] ["feature/build.ts" "feature/nested/a.tsx" "feature-other/a.js" "new/file.ts"];
 in {
   check = assert synthetic == ["feature-other/a.js" "new/file.ts"];

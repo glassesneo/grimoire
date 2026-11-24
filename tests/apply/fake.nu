@@ -1,6 +1,3 @@
-# Records each call in $env.CALLS. A build prints one path per installable; one
-# whose arguments contain $env.FAIL_ON fails, printing a path first when
-# $env.FAIL_WITH_PATH is set.
 def --wrapped main [command: string, ...args: string] {
   $"($command) ($args | str join ' ')\n" | save --append $env.CALLS
   match [$command ($args | first)] {

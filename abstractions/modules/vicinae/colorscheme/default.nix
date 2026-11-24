@@ -3,7 +3,6 @@
   mylib,
   ...
 }: let
-  # Themes Vicinae bundles.
   themes = mylib.schemeThemes {
     name = "vicinae";
     themes.rose-pine = "rose-pine";
@@ -24,7 +23,6 @@ in
 
     constraints.ifEnabled = [(themes.constraint resolved)];
 
-    # The scheme applies whatever the system appearance.
     hjem.ifEnabled.vicinae.settings.theme = {
       dark.name = theme;
       light.name = theme;

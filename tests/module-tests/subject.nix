@@ -74,7 +74,6 @@ delib.module {
         expr = _: throw "expected";
         fails = true;
       };
-      # Forcing must not descend into a derivation's build graph.
       throws-beside-derivation = {
         expr = _: [pkgs.hello (throw "expected")];
         fails = true;

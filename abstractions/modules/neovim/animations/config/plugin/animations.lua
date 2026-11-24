@@ -25,8 +25,6 @@ local function setup()
   end
 end
 
--- Glimmer wraps existing mappings, including r for redo. Wait until startup
--- mappings are installed rather than depending on plugin-file load order.
 if vim.v.vim_did_enter == 1 then
   setup()
 else

@@ -8,7 +8,6 @@ delib.role ({cfg, ...}: {
   name = "colorscheme";
   meta.description = "Seat the color scheme that applications share.";
 
-  # A candidate is a scheme declared with `mylib.colorschemes.scheme`.
   options.resolved = delib.readOnly (delib.defaultText (lib.mkOption {
     type = lib.types.raw;
     default = cfg.held.resolved;

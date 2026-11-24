@@ -1,13 +1,7 @@
-# Creates and checks the key holder's Secure Enclave identities against
-# ssh.keys. SSH_KEYS holds the declared keys as JSON, by purpose: label,
-# publicKey, expires, and handle, the file ssh reads the key's handle from.
-# SSH_KEY_PROVIDER is the security key provider that lists the identities.
-
 def declared []: nothing -> table {
   $env.SSH_KEYS | from json | transpose purpose key | flatten
 }
 
-# The identities sc_auth lists, with their SSH fingerprints and validity.
 def identities []: nothing -> table {
   ^/usr/sbin/sc_auth list-ctk-identities -t ssh
     | lines
@@ -19,8 +13,6 @@ def fingerprint [public_key: string]: nothing -> string {
   $"($public_key)\n" | ^/usr/bin/ssh-keygen -lf - | split row ' ' | get 1
 }
 
-# Warnings about every declared key that is missing, replaced, invalid,
-# without its handle, or expiring within 30 days.
 def problems []: nothing -> list<string> {
   let present = identities
   declared | each {|key|

@@ -1,42 +1,7 @@
-# Owns the source priorities of `myconfig` definitions and atomic options.
-#
-# `priorities` orders the sources: an option default (1500) < a module < a rice
-# < a host. Authors write no `mkDefault` to obtain this order.
-#
-# `prioritize priority options module` gives every definition that `module`
-# makes below the option tree `options` the priority of its source. The
-# priority is pushed down along the declared types, so a definition from a
-# higher source replaces only the values it defines: below a submodule, an
-# `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own
-# priority. Any other value, including lists, derivations and values of types
-# without such structure, is replaced as a whole. A `nullOr` is replaced as a
-# whole too, so a higher source can set or clear it: the module system filters
-# priorities per option before merging, so a nullable value cannot both merge
-# across sources and let `null` follow their order. An option declared with
-# `atomicOption` stops the descent: a higher source replaces it as a whole.
-#
-# Priorities order choices. An option that collects contributions instead,
-# such as assertions or warnings, is declared with `accumulatingOption` and
-# stays outside that order: its definitions from every source, and from the
-# module that declares it, receive no source priority and merge by its type,
-# so a higher source cannot remove a lower one's contribution. A type that
-# does not merge several definitions rejects them as conflicting. Applied to
-# a declaration without a type, `accumulatingOption` marks an option that
-# another module declares, such as an upstream option in a submodule; the
-# module embedding that upstream declares which of its options accumulate.
-#
-# `mkIf` and `mkMerge` are kept and descended into; a value the author already
-# gave an explicit priority keeps it. Function definitions of a submodule are
-# wrapped and still receive the arguments they request. Modules a definition
-# imports, as attribute sets, functions or paths, receive the same priority.
-# Definitions of undeclared attributes, such as freeform settings, receive the
-# priority as a whole.
 {lib}: let
-  # Internal markers; read only through `isAtomic` and `isAccumulating`.
   marker = "_grimoireAtomic";
   accumulatingMarker = "_grimoireAccumulating";
 
-  # Attributes of a shorthand module that are not configuration.
   moduleAttributes = ["_class" "_file" "key" "disabledModules" "require" "imports" "freeformType"];
 
   typeOf = value: value._type or null;
@@ -48,8 +13,6 @@
   prioritize = priority: let
     wrap = lib.mkOverride priority;
 
-    # Keeps explicit priorities and descends through conditions and merges;
-    # null when the value carries no such property.
     properties = descend: value:
       if typeOf value == "override"
       then value
@@ -70,8 +33,6 @@
       then attributes node value
       else wrap value;
 
-    # Attribute names come from the value alone, so a module's shape never
-    # depends on the option tree it is evaluated against.
     attributes = node:
       lib.mapAttrs (name: value:
         if builtins.isAttrs node && node ? ${name}
@@ -97,8 +58,6 @@
       then property
       else if type.name == "submodule" && (lib.isFunction value || isPlainAttrs value)
       then
-        # With `shorthandOnlyDefinesConfig`, as `types.submodule` sets, an
-        # attribute set definition is configuration only, even `imports`.
         if isPlainAttrs value && type.functor.payload.shorthandOnlyDefinesConfig or false
         then attributes (type.getSubOptions []) value
         else imported (type.getSubOptions []) value
@@ -106,7 +65,6 @@
       then lib.mapAttrs (_: typed elemType) value
       else wrap value;
 
-    # A module given as an attribute set, a function or a path.
     imported = node: value:
       if builtins.isPath value || builtins.isString value
       then {
@@ -115,8 +73,6 @@
       }
       else if lib.isFunction value
       then
-        # A real lambda: the module system loads a functor as an attribute
-        # set. Requested arguments resolve as `lib.modules` resolves them.
         {config, ...} @ args:
           module node (value (args
               // builtins.mapAttrs (name: _: args.${name} or config._module.args.${name}) (lib.functionArgs value)))

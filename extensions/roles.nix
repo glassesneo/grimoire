@@ -1,10 +1,3 @@
-# Owns the metadata of roles: the seat `delib.role` (`lib/roles.nix`) marks on
-# the module `roles.<name>` it declares, and `meta.role`, by which a module
-# becomes a candidate for that seat whatever its enable.
-#
-# A module whose name starts with `roles.` is a role only when `delib.role`
-# declares it, and a module's `meta.role` names a declared role; both are
-# rejected otherwise, as constraints of the module.
 {
   lib,
   config,

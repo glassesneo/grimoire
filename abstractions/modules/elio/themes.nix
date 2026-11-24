@@ -1,8 +1,4 @@
-# elio's theme for a resolved scheme, read by `elio` for its bundles and by
-# `elio.colorscheme` for the host.
 {lib}: let
-  # Any scheme's theme. Surfaces the palette lacks reuse its terminal roles;
-  # ANSI roles follow upstream's terminal-ansi example theme.
   ansiTheme = palette: let
     a = palette.ansi;
   in {
@@ -70,10 +66,6 @@
     };
   };
 
-  # Schemes whose own vocabulary places elio's surfaces more precisely, by
-  # name, layered over the ANSI theme. Rosé Pine has no elio port: neutral
-  # roles follow the uses its palette assigns them, and the accent and code
-  # colors follow its TextMate port, whose buttons and badges are rose.
   namedThemes.rose-pine = c: {
     palette = {
       bg = c.base;

@@ -5,8 +5,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Test the adapter's output and assertion guard at its Hjem input boundary.
-  # Denix assertion forwarding is covered separately against the real composition.
   makeSystem = (import ../../adapters/hjem {inherit inputs;}).moduleSystems.hjem.makeSystem;
   mkResult = modules:
     makeSystem {
@@ -31,9 +29,6 @@
     ])
   ];
 
-  # A passing assertion must not be reported, and later failures must not be
-  # skipped: an implementation that only inspects the first assertion would let
-  # this configuration through.
   failing = mkResult [
     (assertionModule [
       {
@@ -51,19 +46,15 @@
     ])
   ];
 
-  # The guard wraps the whole result, so forcing any output must evaluate it.
-  # `tryEval` reports only whether evaluation was blocked, not the message text.
   blockedOutputs =
     !(builtins.tryEval failing.manifest).success
     && !(builtins.tryEval failing.packages).success
     && !(builtins.tryEval failing.preflight).success
     && !(builtins.tryEval failing.apply).success;
 
-  # Preflight must not split a source path at its spaces.
   spacedSource = "${pkgs.writeTextDir "with space/file.txt" "fixture"}/with space/file.txt";
   spaced = mkResult [{files."spaced.txt".source = spacedSource;}];
 
-  # An unfree package evaluates only when its name is listed.
   unfreePackage = {pkgs, ...}: {
     packages = [
       (pkgs.stdenvNoCC.mkDerivation {
@@ -76,8 +67,6 @@
   allowUnfree = names: {nixpkgs.config.allowUnfreePackages = names;};
   unfreeEvaluates = modules: (builtins.tryEval (builtins.deepSeq (mkResult modules).packages true)).success;
 
-  # Each registered step logs its name; the failing one exits after logging, so
-  # no line may follow it.
   step = name: status: {
     package = pkgs.writeShellScriptBin "apply" ''
       echo ${name} >> "$APPLY_LOG"
@@ -101,7 +90,6 @@
       };
     }
   ];
-  # Only declared edges order steps; `b` is unrelated to the others.
   ordering = mkResult [
     {
       applySteps = {

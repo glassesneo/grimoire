@@ -1,10 +1,3 @@
-# A launchctl with one gui domain for the reconciler test. A loaded job has a
-# `<label>.loaded` file under FAKE_LAUNCHD and, while running, a `<label>.pid`
-# file; running a job runs FAKE_AGENT, whatever its plist holds, as launchd
-# does at load and on kickstart. As launchd, it finishes removing a job after
-# bootout returns: the next calls still see it loaded, without a process, and
-# can neither bootstrap nor kickstart it. The file `no-gui` there removes the gui domain. Calls
-# are appended to `calls`.
 def spawn [pidfile: path] {
   ^sh -c 'nohup "$0" >/dev/null 2>&1 & echo $!' $env.FAKE_AGENT | str trim | save --force $pidfile
 }

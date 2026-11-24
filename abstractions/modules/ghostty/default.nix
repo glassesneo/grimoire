@@ -104,7 +104,6 @@ in {
   myconfig.ifEnabled.ghostty.settings = lib.mkMerge [
     {
       keybind = [
-        # Drops Ghostty's default keybindings before the ones below.
         "clear"
         "cmd+shift+,=reload_config"
         "cmd+c=copy_to_clipboard"
@@ -219,8 +218,6 @@ in {
       source = "${cfg.package}/Applications/Ghostty.app";
     };
 
-    # The Hide menu item takes Cmd+H before Ghostty can pass it to the
-    # program; a zero-width space as its shortcut disables it.
     platform.darwin.defaults."com.mitchellh.ghostty".settings.NSUserKeyEquivalents."Hide Ghostty" = builtins.fromJSON ''"\u200b"'';
 
     xdg.config.files."ghostty/config.ghostty" = {

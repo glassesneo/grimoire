@@ -23,7 +23,6 @@ in
       ...
     }: let
       selected = lib.unique (cfg.names ++ cfg.required);
-      # Each secret path is a link into the RAM disk, dangling once a reboot discards it.
       probe = config.security.nix-secrets.secrets.${builtins.head selected}.path;
       logDir = "${config.xdg.state.directory}/nix-secrets";
     in {
@@ -40,9 +39,6 @@ in
         secrets = lib.genAttrs selected (_: {});
       };
 
-      # Without a GUI login, dinit does not run, so after a reboot nothing
-      # activates secrets until an SSH session starts; a switch activates
-      # them itself.
       ssh.rc.nix-secrets = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && selected != []) {
         text = ''
           if [ ! -e ${lib.escapeShellArg probe} ]; then

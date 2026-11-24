@@ -34,9 +34,6 @@ delib.module ({
     pkgs,
     ...
   }: let
-    # stabilizeApp links bin/alacritty into the bundle, which loops through the
-    # nixpkgs bundle's Contents/MacOS symlink to bin, so the directory is made
-    # real first.
     bundled = pkgs.runCommand cfg.package.name {} ''
       cp -a ${cfg.package} "$out"
       chmod -R u+w "$out"
@@ -47,8 +44,6 @@ delib.module ({
         cp "$out/bin/alacritty" "$macos/"
       fi
     '';
-    # nixpkgs builds Alacritty ad-hoc signed, so its TCC grants would follow
-    # the cdhash and lapse on every rebuild.
     package = myconfig.app-identity.stabilizeApp bundled;
   in {
     packages = [

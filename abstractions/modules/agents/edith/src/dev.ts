@@ -1,8 +1,3 @@
-// edith dev [--session <name>]: EDITH in this process, for trying it out. It serves the `cli`
-// address from a terminal, without the socket or Discord, and prints each run as it streams:
-// thinking, text, code mode calls and their scripts' calls, each block with the time since the
-// input. Input may be typed while a run answers; Ctrl-C stops the run. Without a session the storage is a temporary directory removed on exit; a named session
-// is kept under the configuration's `devDirectory` and resumed by its name.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,11 +26,8 @@ import { itemsOf, liveCalls, resultOf, type Call } from "./trace.ts";
 
 const address = "cli";
 const usage = "usage: edith dev [--session <name>]";
-// How soon a second Ctrl-C leaves.
 const exitWindow = 2_000;
-// How long a finished run waits for the watch to show its answer.
 const shownWait = 5_000;
-// How often a pause is looked at until it holds.
 const holdPoll = 500;
 const help = [
   "/status            this conversation's access, persona, model and thinking level",
@@ -78,13 +70,11 @@ export async function dev(args: readonly string[]): Promise<void> {
   const dim = (text: string) => (tty ? `\x1b[2m${text}\x1b[22m` : text);
   const out = (text: string) => process.stdout.write(text);
 
-  // The current run's clock, and when it first showed thinking and text.
   let current: { at: number; thinking?: number; text?: number } | undefined;
   const since = () => (current ? ((Date.now() - current.at) / 1000).toFixed(2) : "-");
   const stamp = (label: string) => out(`\n${dim(`[+${since()}s]`)} ${label}`);
 
   const reader = new StreamReader();
-  // The newest entry handled, the newest one each waiter waits for, and the calls shown.
   const newest = await (
     await edith.conversation(address, context)
   ).entries({}, 1, undefined, context);
@@ -143,7 +133,6 @@ export async function dev(args: readonly string[]): Promise<void> {
     for (const slot of live?.tools ?? []) showCalls(slot.callId, liveCalls(live, slot.callId));
   };
 
-  // Follows the address's conversation, again after it moves to another one.
   let chain = Promise.resolve();
   const follow = async () => {
     const conversation = await edith.conversation(address, context);
@@ -165,25 +154,21 @@ export async function dev(args: readonly string[]): Promise<void> {
     console.log(`now in conversation ${to.current}`);
   };
 
-  // Waits for the watch to show an entry, or gives up after a while.
   const shown = (entry: number) =>
     entry <= handled ? Promise.resolve() : waiting.wait(entry, shownWait);
 
   const lines = createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
-  // Input piped in may end while a run is still answering.
   let closed = false;
   lines.once("close", () => (closed = true));
   const prompt = () => {
     if (!closed) lines.prompt();
   };
-  // Runs answering, each finishing in the background so that commands can be typed meanwhile.
   const runs = new Set<Promise<void>>();
   const show = (status: Promise<Status>) =>
     status.then(
       (value) => console.log(describe(value)),
       (error: unknown) => console.log(messageOf(error)),
     );
-  // Ctrl-C stops a run; pressed again soon after, or with nothing running, it leaves.
   let interrupted = 0;
   lines.on("SIGINT", () => {
     if (runs.size === 0 || Date.now() - interrupted < exitWindow) return lines.close();
@@ -191,13 +176,11 @@ export async function dev(args: readonly string[]): Promise<void> {
     console.log("\nstopping; Ctrl-C again to leave");
     void show(edith.stop(address, context));
   });
-  // Once a pause holds, shows where, in the run's output.
   const showHold = async () => {
     const held = await edith.whenHeld(address, holdPoll, context);
     if (held && !closed) stamp(describeHold(held));
   };
   const run = async (text: string) => {
-    // An input taken in by a run under way shares that run's clock.
     const clock = current ?? { at: Date.now() };
     current = clock;
     let submission: SubmissionId;

@@ -28,7 +28,6 @@ delib.module {
       number = true;
     };
 
-    # bat splits each line into arguments as a shell would.
     xdg.config.files."bat/config" = let
       option = name: value:
         if value == true

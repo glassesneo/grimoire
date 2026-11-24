@@ -1,12 +1,7 @@
-# Pull a Git flake's source over SSH. Only a successful copy replaces the local
-# GC root, and the resulting path is the only output on stdout.
-
 export def import-candidate [source: string, checkout: string]: nothing -> string {
   if $checkout !~ '^/' {
     error make {msg: "Candidate checkout must be an absolute path"}
   }
-  # SSH joins its command arguments in a remote shell. Quote the one data
-  # argument, and send our script on stdin rather than running checkout code.
   let quoted = "'" + ($checkout | str replace --all "'" "'\"'\"'") + "'"
   let snapshot = '
 set -eu

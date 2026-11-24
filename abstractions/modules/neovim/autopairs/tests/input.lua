@@ -1,7 +1,3 @@
--- Our insert mappings must preserve provenance through editing and undo.
--- Upstream key processing and extmarks are trusted; observe text, not markers.
--- A build cannot detect silently skipped literal input or stale ownership, so
--- exercise the key-input boundary and its resulting buffer text.
 vim.opt.clipboard = ""
 local function keys(input)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(input, true, false, true), "xt", false)
@@ -40,18 +36,15 @@ start()
 keys("i([word])<Esc>")
 line("([word])")
 
--- Dot-repeat copies text, not ownership; its closers remain literal input.
 start("first")
 vim.api.nvim_buf_set_lines(0, 1, -1, false, { "second" })
 keys("A(<Esc>j.li)<Esc>")
 line("second())")
 
--- Existing text can shift a generated closer without making it an old closer.
 start()
 keys("i(<Esc>0i文章<Esc>$i)<Esc>")
 line("文章()")
 
--- Replacing a generated closer by the same character loses its provenance.
 start()
 keys("i(<Esc>")
 vim.api.nvim_buf_set_text(0, 0, 1, 0, 2, { ")" })
@@ -67,7 +60,6 @@ line("()")
 keys("0li)<Esc>")
 line("()")
 
--- An independent buffer's existing closer is never owned by the first buffer.
 start()
 keys("i(<Esc>")
 local generated = vim.api.nvim_get_current_buf()
@@ -78,7 +70,6 @@ vim.api.nvim_set_current_buf(generated)
 keys("0li)<Esc>")
 line("()")
 
--- Reloading a file makes its text existing input, even in the same buffer.
 start()
 vim.api.nvim_buf_set_name(0, vim.fn.tempname())
 keys("i(<Esc>")
@@ -87,7 +78,6 @@ vim.cmd("edit!")
 keys("0li)<Esc>")
 line("())")
 
--- Pair data is replaceable without changing the mechanism or retaining old maps.
 require("grimoire.autopairs").setup({ { open = "<", close = ">" } })
 start()
 keys("i(<word><Esc>")

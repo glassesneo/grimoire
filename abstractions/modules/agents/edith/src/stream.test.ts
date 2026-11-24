@@ -30,7 +30,6 @@ void test("a growing partial yields only what each block gained, and its committ
     ).pieces,
     [],
   );
-  // The entry, read without an attempt, completes the blocks; tool calls are not text.
   assert.deepEqual(
     reader.read([
       { type: "thinking", thinking: "Planning" },

@@ -5,14 +5,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # The real composition must enforce modules' constraints in the Hjem guard
-  # and in nix-darwin's assertions: `always` whatever the module's enable,
-  # `ifEnabled` only while it is enabled. Adapter-only checks cannot detect
-  # missing wiring. Hosts share that wiring, so one real host, a nix-darwin one
-  # where there is one, is evaluated per module system with an enabled and a
-  # disabled probe whose constraints all fail, reading which messages fail;
-  # tests/hjem covers the guard that blocks outputs on them, and each host's
-  # own check covers that its configuration has no failed assertion.
   probe = name: enable: {delib, ...}:
     delib.module {
       inherit name;
@@ -53,8 +45,6 @@
   in
     if moduleSystem == "hjem"
     then result.failedAssertions
-    # nix-darwin refuses its system build on any failed assertion; the
-    # assertions themselves are read instead.
     else map (assertion: assertion.message) (lib.filter (assertion: !assertion.assertion) result.config.assertions);
 
   expected = ["probe-off (always)" "probe-on (always)" "probe-on (ifEnabled)"];

@@ -62,7 +62,6 @@ delib.module ({myconfig, ...}: {
       gpg.ssh.allowedSignersFile = "${pkgs.writeText "allowed-signers" "${myconfig.identity.email} ${myconfig.ssh.keys.signing.publicKey}\n"}";
       push.default = "nothing";
       init.defaultBranch = "main";
-      # git difftool compares by syntax with difftastic.
       diff.tool = "difftastic";
       difftool.difftastic.cmd = "${pkgs.difftastic}/bin/difft \"$LOCAL\" \"$REMOTE\"";
       core.excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
@@ -80,7 +79,6 @@ delib.module ({myconfig, ...}: {
       value = config.git.settings;
     };
 
-    # In diff abbreviations, c is --cached and s is --stat, in typed order.
     zsh.zabrze.snippets = {
       "git status" = {
         trigger = "gs";

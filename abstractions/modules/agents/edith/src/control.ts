@@ -1,12 +1,3 @@
-// Pausing a conversation: while it is paused, no new step starts. What already runs outside EDITH,
-// a model's response or a running tool, ends as it would; a tool call the model asked for waits
-// before it runs, and after a round of tools the next model request waits, until the conversation
-// is resumed or aborted. Both waits are parked tasks, so a pause outlives a restart. Each pause has
-// its own resume signal key, since a key holds one value. The waits have no deadline, which would
-// expire the key; instead a resume signals every live step of the conversation, also one about to
-// park, whose later sleep on a key that already holds the value wakes at once. A message the user
-// writes while the run is held resumes it too, and a tool call held then is not run, so that the
-// model reads the message before it acts.
 import type { Context } from "@earendil-works/chord/context";
 import {
   defineDoc,
@@ -36,28 +27,23 @@ export const PauseDoc = defineDoc<Pause>({
   checkpointWhen: () => true,
 });
 
-// How a pause ended: by a resume, or by a message the user wrote, which the run takes in first.
 type Resume = "resume" | "interject";
 
 const Resumed = defineSignal({
   name: "edith.resumed",
-  // Version 2 tells a message from a resume.
   version: 2,
   schema: { type: "string", enum: ["resume", "interject"] },
   migrate: () => "resume",
 });
 
-// The result of a held call that a message from the user ended, in place of running it.
 export const interjectedNote =
   "Not run: the user paused you before this call and then wrote to you; their message follows. Make the call again only if it is still needed after reading it.";
 
 const resumeKey = (pause: Pause): SignalKey<unknown> => Resumed.key(`pause-${pause.epoch}`);
 
-// What a parked step sleeps on while the conversation is paused.
 const parked = (pause: Pause | undefined) =>
   pause?.paused ? { signals: [resumeKey(pause)] } : undefined;
 
-// Holds a run between a round of tools and its next model request while paused.
 const Hold = defineTask<Record<string, never>, { phase: "hold" }, Record<string, never>>({
   name: "edith.hold",
   version: 1,
@@ -85,7 +71,6 @@ export const controlExtension = defineExtension({
   tasks: [Hold],
   hooks: [
     hook(ToolTask, {
-      // A call a running script makes belongs to that running tool, which ends as it would.
       async beforeTool(call, api, context) {
         if (call.parent) return undefined;
         const pause = await api.snapshot(PauseDoc, api.conversationId, context);
@@ -107,8 +92,6 @@ export const controlExtension = defineExtension({
   ],
 });
 
-// Wakes the conversation's parked steps with the pause's resume key, and gives it to those that
-// may still park.
 export async function wake(
   harness: Harness,
   conversation: ConversationId,
@@ -129,13 +112,10 @@ export async function wake(
   );
 }
 
-// Where a paused conversation holds: before a tool call the model asked for, by its call and the
-// answer that asked for it, or before its next model request.
 export type Held =
   | { readonly kind: "tool"; readonly callId: string; readonly assistant: number }
   | { readonly kind: "request" };
 
-// Where a paused conversation holds; undefined while nothing is held.
 export function heldStep(
   inspection: HarnessInspection,
   conversation: ConversationId,

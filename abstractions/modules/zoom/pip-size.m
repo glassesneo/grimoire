@@ -1,6 +1,3 @@
-// Sets the Picture-in-Picture size of Accessibility Zoom.
-// The size is stored in com.apple.universalaccess as an archived NSValue under
-// closeViewWindowSize, a private key and format. Prints "changed" after a write.
 #import <AppKit/AppKit.h>
 
 static NSString *const Domain = @"com.apple.universalaccess";

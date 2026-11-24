@@ -5,9 +5,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Repository-owned boundary: generated modules must reject missing metadata,
-  # including on disabled features. Nix types validate strings once forced;
-  # this check covers the extension's forcing and its exclusion of hosts.
   evaluate = metadata: let
     configuration = denix.lib.denixConfiguration {
       extraInputs = inputs;

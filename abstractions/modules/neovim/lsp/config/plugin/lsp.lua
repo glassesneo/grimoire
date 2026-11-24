@@ -1,5 +1,3 @@
--- Servers missing from PATH are skipped by vim.lsp.enable, so project shells
--- decide which of these actually start.
 vim.lsp.enable({ "emmylua_ls", "nil_ls" })
 
 vim.api.nvim_create_autocmd("LspAttach", {

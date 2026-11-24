@@ -1,12 +1,3 @@
-# Owns replacing whole files of a package's source before it is built.
-#
-# A module that patches a package declares `option` and builds with `apply`;
-# features contribute replacements keyed by their path relative to the source
-# root. Each replacement names the hash of the upstream file it was written
-# against, and the build fails when the source holds a different file, so an
-# upstream change is merged by hand rather than overwritten. Without
-# replacements `apply` returns the package itself, which keeps its binary
-# cache.
 {lib}: let
   inherit (lib) types;
 in {

@@ -14,11 +14,8 @@ delib.module ({
     secret = "ai-mop-api-key";
     variable = "AI_MOP_API_KEY";
   };
-  # Providers EDITH can use: by the stored secret holding an API key and the variable pi-ai
-  # reads it from, or, with `login`, by a credential placed in EDITH's credentials file.
   providers = {
     openai.login = true;
-    # AI MOP's routes, from `ai-mop.providerSources`, share one key.
     ai-mop-responses = aiMopKey;
     ai-mop-chat = aiMopKey;
     ai-mop-anthropic = aiMopKey;
@@ -46,11 +43,9 @@ delib.module ({
   );
   servers = lib.unique (lib.concatMap (access: access.mcpServers) (lib.attrValues cfg.access));
   toolNames = ["read" "write" "edit" "bash"];
-  # The tools run as this user, whom EDITH logs in as over ssh to this host.
   toolUser = cfg.toolUser.name;
   toolHome = "/Users/${toolUser}";
   hasToolUser = cfg.toolUser.loginKey != null;
-  # Every field is required, so an access and a persona state each choice they make.
   persona = lib.types.submodule {
     options = {
       model = lib.mkOption {
@@ -104,14 +99,11 @@ delib.module ({
       };
     };
   });
-  # Whether access `a` grants nothing beyond `b`, as EDITH compares them.
   within = a: b:
     lib.all (tool: lib.elem tool b.tools) a.tools
     && lib.all (server: lib.elem server b.mcpServers) a.mcpServers
     && (b.maxTurns == null || (a.maxTurns != null && a.maxTurns <= b.maxTurns));
-  # Clients' commands take `default` to clear a choice.
   choiceNames = lib.attrNames cfg.access ++ lib.attrNames cfg.personas;
-  # AI MOP's providers, from `ai-mop.providerSources`.
   program = pkgs: aiMop:
     import ./package.nix {
       inherit lib aiMop;
@@ -192,11 +184,9 @@ in {
         createHome = true;
         isHidden = true;
         shell = "/bin/zsh";
-        # restrict: no forwarding, terminal or ~/.ssh/rc.
         openssh.authorizedKeys.keys = [''from="127.0.0.1,::1",restrict ${cfg.toolUser.loginKey}''];
       };
     };
-    # With Remote Login limited to some users, sshd admits only members of this group.
     system.activationScripts.postActivation.text = ''
       if /usr/sbin/dseditgroup -o read com.apple.access_ssh >/dev/null 2>&1; then
         /usr/sbin/dseditgroup -o edit -a ${lib.escapeShellArg toolUser} -t user com.apple.access_ssh
@@ -216,7 +206,6 @@ in {
     socket = "${stateDirectory}/edith.sock";
     settings = pkgs.writeText "edith.json" (builtins.toJSON {
       storage = "${stateDirectory}/session.sqlite";
-      # A login, such as a copy of Pi's ChatGPT login in its auth.json, is placed here by hand.
       credentials = "${stateDirectory}/auth.json";
       inherit socket;
       devDirectory = "${config.xdg.state.directory}/edith-dev";
@@ -250,7 +239,6 @@ in {
     packages = [client];
     mcp.selections.edith = servers;
 
-    # The tool user could otherwise read whatever of the home is readable by others.
     applySteps.edith-private-home = lib.mkIf hasToolUser {
       package = pkgs.linkFarm "hjem-edith-private-home" {
         "bin/apply" = pkgs.writeShellScript "edith-private-home" "chmod 700 ${lib.escapeShellArg config.directory}";
@@ -259,7 +247,6 @@ in {
     userServices.edith = lib.mkIf cfg.resident.enable {
       command = node pkgs ++ ["${program pkgs myconfig.ai-mop.providerSources}/lib/src/main.ts"];
       environment.EDITH_CONFIG = toString settings;
-      # Keys and the bot token are in place only once activation has run.
       dependsOn = lib.optional (config.userServices ? nix-secrets-activate) "nix-secrets-activate";
       restart = "always";
       logFile = "${config.directory}/Library/Logs/edith.log";
@@ -279,7 +266,6 @@ in {
       build = result:
         typescriptCheck {
           name = "edith";
-          # The sources as the package lays them out, with AI MOP's providers.
           src = pkgs.runCommand "edith-src" {} ''
             cp -r ${./src} "$out"
             chmod -R u+w "$out"

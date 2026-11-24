@@ -1,5 +1,3 @@
-# The selector owns path routing, not dependency derivation. Synthetic roots
-# expose wrong ownership and unsafe under-selection without freezing real modules.
 use std/assert
 use ../../scripts/checks.nu select-checks
 
@@ -50,7 +48,6 @@ def main [] {
   assert equal (select-checks $metadata [{status: M, path: abstractions/modules/a/default.nix}]) [module-a module-b]
   assert equal (select-checks $metadata [{status: M, path: abstractions/modules/a/file} {status: M, path: abstractions/modules/a/child/file}]) [module-a module-b module-child]
   assert equal (select-checks $metadata []) []
-  # A known directory whose check is unavailable must not create an installable.
   let unavailable = $metadata | update directoryChecks [{name: absent, directory: checks/external}]
   assert equal (select-checks $unavailable [{status: M, path: checks/external/a}]) []
 }

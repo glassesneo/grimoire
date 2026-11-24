@@ -1,20 +1,3 @@
-# Owns the constraints that modules declare.
-#
-# A module writes `constraints.always`, checked whatever its enable, and
-# `constraints.ifEnabled`, checked while its `enable` is true. Each entry is an
-# `{ assertion, message }` attribute set, the shape of module systems' own
-# `assertions`, and receives the module's Denix
-# arguments, such as `cfg` and `myconfig`, from the final `myconfig` of the
-# evaluation. Denix reads the number of entries before it has those arguments,
-# so the list's shape must not depend on them; a variable number of problems
-# goes into one entry. Every module system that Denix evaluates enforces them through
-# its own `assertions`, so an invalid combination of choices fails ordinary
-# configuration builds as well as tests. Assertions about one module system's
-# outputs stay in that system's sections.
-#
-# `constraints` is registered as a module system only so that Denix gives its
-# sections the module's arguments; it is never evaluated or published, and
-# `ifDisabled` sections and host sections are rejected.
 {
   delib,
   lib,
@@ -37,8 +20,6 @@
     options,
     ...
   } @ moduleArgs: let
-    # Denix hands entries over as functions of Denix and module arguments;
-    # requested arguments resolve as `lib.modules` resolves them.
     resolve = denixArgs: value:
       if delib.isDenixArgs value
       then resolve denixArgs (value denixArgs)
@@ -79,8 +60,6 @@ in {
     applyConfigForModuleSystem = _: [];
   };
 
-  # Joins only evaluations of a module system that declares `assertions`; a
-  # `myconfig`-only evaluation, such as the authoring reference, has none.
   rawModules.constraints = lib.optionals (config.moduleSystem.name or null != "myconfig") (
     if unsupported != []
     then throw "Constraints support only module `always` and `ifEnabled` sections; found ${lib.concatStringsSep ", " unsupported}."

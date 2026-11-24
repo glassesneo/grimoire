@@ -1,18 +1,8 @@
-# Owns single-definer files.
-#
-# A file declared with `exclusive = true` must be defined from one location; a
-# second module or host defining it fails through the assertions. Locations are
-# the origin labels of `extensions/provenance.nix`; definitions an upstream
-# module makes beside its own declarations, such as defaults, do not count.
-# The covered file sets are Hjem's `files` and `xdg.<kind>.files`, and
-# nix-darwin's `environment.etc`; Hjem and nix-darwin merge `text` definitions
-# silently, so exclusivity counts definition locations instead.
 {
   delib,
   lib,
   ...
 }: let
-  # Extends each file of the sets at `paths` and asserts their exclusivity.
   exclusiveFiles = paths: {config, ...}: let
     fileExtension = {options, ...}: {
       options = {
@@ -68,8 +58,6 @@ in
 
     darwin.always = exclusiveFiles [["environment" "etc"]];
 
-    # Definers are told apart by provenance labels, so each case defines the file
-    # from a different module or host.
     tests.cases = _: let
       owner = set: {
         always = lib.setAttrByPath set {
@@ -79,7 +67,6 @@ in
       };
       hjemFile = ["files" ".owned"];
       etcFile = ["environment" "etc" "owned"];
-      # nix-darwin needs the host's system, which these modules provide.
       darwinCase = case:
         {
           platforms = ["aarch64-darwin"];

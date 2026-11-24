@@ -1,4 +1,3 @@
-# Builds the same immutable configuration for Hjem and the standalone launcher.
 {
   lib,
   pkgs,
@@ -17,11 +16,9 @@
     });
   package = pkgs.writeShellScriptBin "pi" ''
     set -eu
-    # Keep authentication, sessions, trust and caches writable and separate from native Pi.
     agent_dir="''${PI_CODING_AGENT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/grimoire/pi}"
     ${pkgs.coreutils}/bin/mkdir -p -m 700 "$agent_dir"
     agent_dir=$(cd "$agent_dir" && pwd -P)
-    # Check every file before replacing any; links already current are left alone.
     stale=
     for file in settings.json keybindings.json mcp.json; do
       path="$agent_dir/$file"

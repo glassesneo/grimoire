@@ -1,7 +1,3 @@
-// Credentials EDITH keeps in a JSON file, keyed by provider id as Pi's auth.json is, so a
-// copy of that file can seed it. Refreshed OAuth tokens are written back, so a restart does
-// not return to a refresh token the provider has already replaced. Only this process
-// writes the file; writes are serialized per process.
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
 

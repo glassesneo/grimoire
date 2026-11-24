@@ -14,8 +14,6 @@ function View:init(opts)
 end
 
 function View:get_layout()
-  -- Noice's fixed popup widths do not shrink to fit the editor.
-  -- Reserve two border cells and two horizontal padding cells.
   self._opts.size.width = math.max(1, math.min(60, vim.o.columns - 4))
   return NuiView.get_layout(self)
 end

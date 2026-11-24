@@ -5,14 +5,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Repository-owned contract of roles (`lib/roles.nix`, `extensions/roles.nix`
-  # and the exception in `tags`): the holder a candidate names by default is
-  # replaced by a rice or host; a seated-only role enables its holder alone,
-  # whatever the candidates' tags, and rejects an enabled candidate outside the
-  # seat; a role whose candidates keep their own enable only requires the
-  # holder enabled, while a candidate without `enable` can always hold it; and
-  # the roles namespace and `meta.role` accept only roles declared with
-  # `delib.role`.
   role = name: seatedOnly: {delib, ...}:
     delib.role {
       inherit name seatedOnly;

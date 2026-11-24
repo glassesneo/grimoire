@@ -5,8 +5,6 @@
 }: let
   inherit (mylib.anchors.sources ./anchors.json) rose-pine;
 
-  # eza considers theme.yml unstable; the port states the eza release it was
-  # tested against.
   themes = mylib.schemeThemes {
     name = "eza";
     themes.rose-pine = _: "${rose-pine}/dist/rose-pine.yml";
@@ -31,8 +29,6 @@ in
       pkgs,
       ...
     }: {
-      # Without EZA_CONFIG_DIR, eza looks in the platform's configuration
-      # directory, which on Darwin is not XDG_CONFIG_HOME.
       environment.sessionVariables.EZA_CONFIG_DIR = "${config.xdg.config.directory}/eza";
       xdg.config.files."eza/theme.yml" = {
         exclusive = true;

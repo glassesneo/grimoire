@@ -1,4 +1,3 @@
-# Reaches the dependency through one of its fixture modules.
 {delib, ...}:
 delib.module {
   name = "requirer";

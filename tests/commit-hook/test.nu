@@ -41,8 +41,6 @@ def with-repo [hooks: string, action: closure] {
   }
 }
 
-# Real Git objects/ref protocol and fake Nix observe sent tips, deduplication,
-# exit status and unchanged local state without ever contacting a remote.
 def test-push [hooks: string] {
   for mode in [success check-failure archive-failure] {
     let fail = $mode != 'success'
@@ -60,7 +58,6 @@ def test-push [hooks: string] {
       git add push-marker | ignore
       git -c core.hooksPath=/dev/null commit -qm two | ignore
       let two = git rev-parse HEAD | str trim
-      # A blob tag is not a configuration, and the checkout isn't either tip.
       let blob = git rev-parse HEAD:push-marker | str trim
       git checkout -q $one | ignore
       "dirty\n" | save --force sample.nix
@@ -88,7 +85,6 @@ def test-push [hooks: string] {
       } else {
         assert equal (open --raw $env.NIX_CALLS) (if $fail { "eval\neval\nfast-build\n" } else { "eval\neval\nfast-build\neval\neval\nfast-build\n" })
         assert equal (open --raw $env.PUSH_CONTENTS) (if $fail { "two\n" } else { "two\none\n" })
-        # The gate builds every check of each sent tree, not only selected ones.
         let built = ls --short-names $env.CHECK_BUILDS | get name | sort
         assert equal $built (if $fail { [two-formatting two-selected.case] } else { [one-formatting one-selected.case two-formatting two-selected.case] })
         rm --recursive $env.CHECK_BUILDS
@@ -100,7 +96,6 @@ def test-push [hooks: string] {
       rm --force $env.NIX_CALLS
       $"refs/heads/deleted ($zero) refs/heads/deleted ($one)\nrefs/tags/blob ($blob) refs/tags/blob ($zero)\n" | ^($hooks | path join pre-push) origin unused
       assert (not ($env.NIX_CALLS | path exists))
-      # Missing sent objects are errors, not legitimate non-commit tags.
       let missing = 'ffffffffffffffffffffffffffffffffffffffff'
       let invalid = $"refs/heads/missing ($missing) refs/heads/missing ($zero)\n" | ^($hooks | path join pre-push) origin unused | complete
       assert ($invalid.exit_code != 0)
@@ -110,7 +105,6 @@ def test-push [hooks: string] {
 }
 
 def main [hooks: string] {
-  # Fixes that would overwrite pending work are refused before any mutation.
   for pending in [sample.nix hook-new.txt] {
     with-repo $hooks {
       "keep this work\n" | save --force $pending
@@ -128,7 +122,6 @@ def main [hooks: string] {
     }
   }
 
-  # Unrelated pending work stays out of the snapshot and the commit.
   for fail_check in [false true] {
     with-repo $hooks {
       "not part of the commit\n" | save ignored
@@ -170,7 +163,6 @@ def main [hooks: string] {
     }
   }
 
-  # Within-file partial staging keeps the unstaged remainder out of validation.
   with-repo $hooks {
     "staged portion\n" | save --force other.txt
     git add other.txt | ignore
@@ -182,8 +174,6 @@ def main [hooks: string] {
     assert equal (git diff --name-only) "other.txt\n"
   }
 
-  # Temporary-index failure retains worktree fixes, but Git may discard the
-  # hook's staged updates. Do not invent synchronization with the real index.
   for args in [[-am failure] [-m failure sample.nix]] {
     with-repo $hooks {
       let before_head = git rev-parse HEAD
@@ -198,15 +188,12 @@ def main [hooks: string] {
     }
   }
 
-  # Empty selection never invokes a checks build (reference generation still builds).
   with-repo $hooks {
     let result = with-env {ZERO_CHECKS: '1'} { ^git commit -m zero | complete }
     assert equal $result.exit_code 0 ($result.stdout + $result.stderr)
     assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\n"
   }
 
-  # Every selected check is built; a failure in any one of them,
-  # not only the last, rejects the commit and names the failed check.
   for fail_only in ['' second] {
     with-repo $hooks {
       let before_head = git rev-parse HEAD
@@ -223,8 +210,6 @@ def main [hooks: string] {
     }
   }
 
-  # A run that writes no result, or leaves a selected check out of its results,
-  # rejects the commit rather than counting the check as passed.
   for mode in [{FAST_BUILD_CRASH: '1'} {FAST_BUILD_OMIT: second}] {
     with-repo $hooks {
       let before_head = git rev-parse HEAD
@@ -237,7 +222,6 @@ def main [hooks: string] {
     }
   }
 
-  # `git commit -a` commits a temporary index, which the hook must use.
   with-repo $hooks {
     "all edits\n" | save --force other.txt
     let result = with-env {EXPECT_OTHER: "all edits\n"} {
@@ -249,7 +233,6 @@ def main [hooks: string] {
     assert equal (git status --porcelain) ""
   }
 
-  # The initial commit has no HEAD; all staged paths still participate.
   with-repo $hooks {
     git update-ref -d HEAD | ignore
     let result = ^git commit -m initial-with-hook | complete
@@ -257,7 +240,6 @@ def main [hooks: string] {
     assert equal (git show HEAD:sample.nix) "formatted\n"
   }
 
-  # NUL-delimited path handling preserves tabs/newlines through index fixes.
   with-repo $hooks {
     let odd = "odd\tname\n.nix"
     "tracked\n" | save $odd

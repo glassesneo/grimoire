@@ -1,7 +1,3 @@
--- Our * callback changes search state without jumping. Matching itself is
--- trusted; a punctuation-bearing keyword catches accidental regex expansion.
--- Builds cannot detect this Lua callback moving the user or searching for a
--- different word; cursor and search state are the stable observable boundary.
 vim.cmd("enew!")
 vim.opt.iskeyword:append(".")
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { "foo.bar fooxbar foo.bar" })

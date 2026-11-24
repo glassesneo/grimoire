@@ -44,7 +44,6 @@ delib.module {
           export PI_COMPACTION_TEST_OK=$TMPDIR/contracts-passed
           mkdir -p "$HOME" "$PI_CODING_AGENT_DIR"
           ${pi result} --offline --no-session --no-skills --no-context-files --no-prompt-templates --no-themes -e ${./src}/boundary.test.ts --help
-          # Pi reports extension-load failures without a nonzero --help exit status.
           test -f "$PI_COMPACTION_TEST_OK"
           touch "$out"
         '';

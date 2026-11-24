@@ -7,7 +7,6 @@ delib.module {
   options.enable = delib.boolOption true;
 
   hjem.ifEnabled.platform.darwin.defaults = {
-    # Takes effect at the next login.
     "com.apple.spaces".settings.spans-displays = 0;
     NSGlobalDomain = {
       settings.AppleSpacesSwitchOnActivate = true;

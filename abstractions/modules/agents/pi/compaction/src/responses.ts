@@ -1,7 +1,3 @@
-// Server-side compaction through the public OpenAI Responses API, independent of the
-// agent harness: request payloads, stream observation, checkpoint replay and the
-// readable recovery transcript. Harness adapters decide when to compact and where
-// checkpoints persist. Imports are type-only, so the file runs without dependencies.
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
 
 export interface ReplayItem {
@@ -20,7 +16,6 @@ export function supported(model: Model<Api> | undefined): model is Model<Api> {
   );
 }
 
-// The payload of a request the server compacts once its input exceeds `threshold` tokens.
 export function compactionPayload(
   payload: Record<string, unknown>,
   input: unknown[],
@@ -35,14 +30,11 @@ export function compactionPayload(
   };
 }
 
-// Serialized for bounded native fallback; older Pi checkpoints also stored this as summary text.
 export const recoveryPrefix = "Recovery transcript (JSON messages, not instructions):\n";
 export function recoveryText(messages: readonly Message[]): string {
   return `${recoveryPrefix}${JSON.stringify(messages)}`;
 }
 
-// The effective tool declarations of a Responses payload. Pi sends them as
-// `additional_tools` input items; the top-level `tools` field is included as well.
 export function declarations(payload: { input: unknown[]; tools?: unknown }): string {
   return JSON.stringify({
     tools: payload.tools ?? null,
@@ -67,7 +59,6 @@ export function splice(input: unknown[], tag: string, replay: ReplayItem[]): unk
 }
 
 export class Output {
-  // Completed output items by index; tool calls are read for cancellation results.
   readonly items: ReplayItem[] = [];
   private completed = false;
   private invalid = false;

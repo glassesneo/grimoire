@@ -1,35 +1,5 @@
-# Owns `delib.role`, the declaration of a role: a seat on the host that one
-# module, its holder, takes.
-#
-# `declare delib { name, enable ? false, seatedOnly ? false, ... }` declares
-# the module `roles.<name>` with `enable`, whether the host has the seat, and
-# `holder`, one of the candidates: modules declaring `meta.role = "<name>"`,
-# found by their metadata. A candidate may define the default holder in
-# `myconfig.always`; a rice or host replaces it. While the seat is enabled, its
-# holder must be enabled; a candidate without `enable`, such as data a role
-# selects among, can always hold it.
-#
-# With `seatedOnly`, a candidate's enable belongs to the seat: the role enables
-# the holder while the seat is enabled, `tags` does not enable candidates, and
-# an enabled candidate that does not hold the enabled seat fails.
-#
-# The role also declares the read-only `candidates`, their names, and
-# `held`, the holder's `myconfig`, from which a role's own options and
-# sections read what the holder provides.
-#
-# Every other attribute is the module's own, as in `delib.module`. Its
-# `options` add to those the role declares itself, such
-# as what the role derives from its holder; its `meta`, sections, constraints
-# and tests are written as for any module, and `myconfig.ifEnabled` and the
-# constraint lists merge with those the role generates. As with
-# `delib.module`, the declaration
-# may be a function of the module's Denix arguments, such as `cfg`, so that
-# its sections read the holder; `name`, `enable` and `seatedOnly` must not
-# depend on them. `extensions/roles.nix` owns the metadata the role reads and
-# rejects `roles.<name>` modules declared otherwise.
 {lib}: {
   declare = delib: declaration: let
-    # The arguments that shape the module, read without its Denix arguments.
     static =
       if lib.isFunction declaration
       then delib.callWithMocks declaration

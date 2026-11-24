@@ -1,7 +1,3 @@
-# Tart keeps its machines under ~/.tart/vms, and SSH reaches any of them by
-# its name without a declaration of its own: machines come and go, and the
-# configuration says only what to trust, such as the hosts
-# `ssh.keyholder.remoteHosts` lends the person's keys to.
 {
   delib,
   lib,
@@ -36,12 +32,6 @@ delib.module ({
   }: let
     tart = lib.getExe cfg.package;
     logDirectory = "${config.xdg.cache.directory}/tart";
-    # Connects SSH to port $2 of machine $1, starting the machine first if it is
-    # not running. `tart ip` answers from the DHCP lease, which outlives the
-    # machine, and a booting machine accepts connections before its sshd answers
-    # them, so the address counts only once the port greets with `SSH-`. A
-    # machine that had to boot greets about a second before it accepts keys,
-    # so a connection that waited also waits a little after the greeting.
     proxy = pkgs.writeShellScript "tart-proxy" ''
       set -eu
       name=$1 port=$2
@@ -70,7 +60,6 @@ delib.module ({
     nixpkgs.config.allowUnfreePackages = ["tart"];
     packages = [cfg.package];
 
-    # %n is the name as given, before any HostName applies.
     ssh.matches.tart = {
       criteria = ''exec "test -d ~/.tart/vms/'%n'"'';
       parameters.ProxyCommand = "${proxy} %n %p";

@@ -1,5 +1,3 @@
-# Regenerate the authoring reference without changing the Git index.
-# With --root, regenerate it in a plain directory holding a flake instead.
 export def main [--root: path] {
   do --capture-errors {
     let flake = if $root == null {

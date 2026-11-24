@@ -1,6 +1,3 @@
-// An MCP server's tools as one pi-durable extension, named `mcp:<server>`, so an access
-// enables a server as a whole. The tools are callable only by other tools: under code mode,
-// scripts call them and the model never sees them directly.
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
 import {
   createMcpToolName,
@@ -16,7 +13,6 @@ import {
 export type ServerConfig = Pick<McpStdioServerConfig, "command" | "args" | "env">;
 
 export type Server = {
-  // Its namespace groups the server's tools for code mode scripts.
   readonly extension: Extension;
   close(): Promise<void>;
 };
@@ -26,7 +22,6 @@ export function serverExtensionName(server: string): string {
 }
 
 export async function connectServer(name: string, config: ServerConfig): Promise<Server> {
-  // The server gets only its declared environment, not EDITH's provider keys.
   const transport = new StdioTransport({
     command: config.command,
     args: config.args ?? [],

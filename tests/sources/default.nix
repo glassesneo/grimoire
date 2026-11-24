@@ -7,11 +7,6 @@
   inherit (pkgs) lib;
   mylib = import ../../lib {inherit lib;};
 
-  # Repository-owned contract of source priorities and rice selection: a module
-  # defines below the selected rice, which defines below the host; priorities
-  # follow the declared types, so a higher source replaces only what it defines.
-  # Observed through `myconfig` values of a bundles evaluation, the smallest
-  # module system that reports its options.
   nullable = lib.mkOption {
     type = lib.types.nullOr (lib.types.submodule {
       options = lib.genAttrs ["first" "second"] (_:
@@ -54,17 +49,13 @@
             };
           } {};
         } {};
-        # Nullable structured values, set and cleared across sources.
         riceCleared = nullable;
         hostCleared = nullable;
         hostRestored = nullable;
-        # A module-valued submodule, as mnw's settings, whose definitions may import.
         imported = lib.mkOption {
           type = lib.types.submoduleWith {
             modules = [
               {options = lib.genAttrs ["kept" "riceReplaced" "hostReplaced" "functionImported" "pathImported"] (_: strOption "default");}
-              # An upstream option that its own module also defines, marked by
-              # the embedding module as collecting contributions.
               {
                 options.reports = listOfOption str [];
                 config.reports = ["upstream"];
@@ -74,8 +65,6 @@
           };
           default = {};
         };
-        # A module-valued submodule defined by a function, as Neovim's mnw
-        # settings: other sources' definitions add to its nested attributes.
         moduleValued = lib.mkOption {
           type = lib.types.submoduleWith {
             modules = [{options.plugins = attrsOfOption str {};}];
@@ -94,7 +83,6 @@
         riceCleared.first = "module";
         hostCleared.first = "module";
         hostRestored.first = "module";
-        # Imported definitions keep the module's priority.
         imported.imports = [
           {
             kept = "module";
@@ -122,7 +110,6 @@
           first = "module";
           second = "module";
         };
-        # A function definition of a submodule keeps its arguments.
         items.function = {name, ...}: {
           first = "module ${name}";
           second = "module";
@@ -136,7 +123,6 @@
           variant = "module";
         };
       };
-      # Function sections and conditions keep their own shape.
       myconfig.ifEnabled = {lib, ...}: {
         probe.conditional = lib.mkIf true "module";
       };
@@ -190,7 +176,6 @@
         imported.hostReplaced = "host";
         scalar = "host";
         conditional = "host";
-        # Extends the rice's list explicitly; a bare list would replace it.
         list = (riceConfig.probe.list or []) ++ ["host"];
         replacedList = ["host"];
         reports = ["host"];
@@ -200,7 +185,6 @@
         settings.keys = ["host"];
         items.entry.second = "host";
         items.function.second = "host";
-        # Replaces the rice's selection whole: its variant is not inherited.
         selection.name = "host";
       };
     };
@@ -231,13 +215,11 @@
       raw = lib.mapAttrs (_: option: option.value) (removeAttrs options.myconfig.probe ["enable"]);
       sort = lib.sort lib.lessThan;
     in
-      # The order of collected contributions is not part of the contract.
       raw
       // {
         reports = sort raw.reports;
         imported = raw.imported // {reports = sort raw.imported.reports;};
       };
-    # Only the definitions of the winning priority remain, so each source wins one.
     files = lib.concatMap (name: map (definition: definition.file) options.myconfig.probe.${name}.definitionsWithLocations) ["scalar" "ricePreferred" "forced"];
   };
 
@@ -248,7 +230,6 @@
   expected = {
     riceCleared = null;
     hostCleared = null;
-    # A nullable value is replaced whole, so nothing of the module's remains.
     hostRestored = {
       first = "default";
       second = "host";
@@ -265,7 +246,6 @@
     ricePreferred = "rice";
     list = ["rice" "host"];
     replacedList = ["host"];
-    # Collected contributions: no source removes another's.
     reports = ["host" "module" "rice"];
     reportsByName = {
       module = "module";
@@ -279,7 +259,6 @@
     };
     forced = "module";
     conditional = "host";
-    # Ghostty's settings type stores every value as a list of repetitions.
     settings = {
       kept = ["module"];
       replaced = ["rice"];

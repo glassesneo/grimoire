@@ -20,7 +20,5 @@ in
 
     constraints.ifEnabled = [(themes.constraint resolved)];
 
-    # Part of the settings the host's package is built from; bundles add a
-    # combination's theme themselves.
     myconfig.ifEnabled.neovim.settings = {pkgs, ...}: themes.of resolved pkgs resolved;
   })

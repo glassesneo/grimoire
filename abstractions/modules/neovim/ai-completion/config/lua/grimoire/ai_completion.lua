@@ -42,7 +42,6 @@ end
 
 function M.setup()
   local settings = vim.g.grimoire_ai_completion
-  -- Virtualtext's manual trigger bypasses enable_predicates.
   local transform = {
     function (request)
       if not M.allowed() then

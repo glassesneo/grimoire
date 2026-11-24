@@ -1,13 +1,3 @@
-// EDITH's core: one Harness whose conversations clients reach by address. An address is
-// `<namespace>:<name>`, such as `discord:<channel id>` or `cli`. A conversation runs with an
-// access and a persona. An access is what it may do: the tools, MCP servers and turn limit, which
-// only the configuration defines. A persona is who answers: the model and thinking level the
-// conversation follows unless it overrides them. Each is the one a client chose for the
-// address, or else its namespace's; a chosen access must lie within the namespace's ceiling. These
-// choices belong to the address, and outlive its sessions: an address can start a new conversation
-// and switch back to an earlier one, but only to one whose label, the greatest access it ever ran
-// with, lies within the namespace's ceiling, so that nothing a higher access reached is shown where
-// that access is not allowed. A conversation can be paused (see `control.ts`) and stopped.
 import type { Context } from "@earendil-works/chord/context";
 import { contentText, type ModelThinkingLevel, type Models } from "@earendil-works/pi-ai";
 import {
@@ -36,8 +26,6 @@ import { serverExtensionName } from "./mcp.ts";
 import type { ToolName } from "./tools.ts";
 
 export type Access = {
-  // Tools of `Options.tools`, by name, and MCP servers whose tools the conversation's code mode
-  // scripts may call.
   readonly tools: readonly ToolName[];
   readonly mcpServers: readonly string[];
   readonly maxTurns: number | null;
@@ -48,7 +36,6 @@ export type Persona = {
   readonly thinkingLevel: ModelThinkingLevel;
 };
 
-// A namespace's access and persona, and the greatest access its conversations may choose.
 export type Namespace = {
   readonly access: string;
   readonly ceiling: string;
@@ -63,15 +50,12 @@ const fallbackNamespace: Namespace = {
   persona: fallbackPersona,
 };
 
-// What an access grants, as compared; a label is one too.
 type Grant = {
   readonly tools: readonly string[];
   readonly mcpServers: readonly string[];
   readonly maxTurns: number | null;
 };
 
-// Whether an access grants nothing beyond another: its tools and servers are among the other's,
-// and its turn limit is no higher.
 export function within(access: Grant, ceiling: Grant): boolean {
   return (
     access.tools.every((tool) => ceiling.tools.includes(tool)) &&
@@ -80,8 +64,6 @@ export function within(access: Grant, ceiling: Grant): boolean {
   );
 }
 
-// A null field follows the default: the namespace's access or persona, or the persona's model and
-// thinking level; `configure` sets or clears an override.
 export type Overrides = {
   access: string | null;
   persona: string | null;
@@ -91,7 +73,6 @@ export type Overrides = {
 
 const noOverrides: Overrides = { access: null, persona: null, model: null, thinkingLevel: null };
 
-// Overrides with a change's fields applied; a field the change leaves out stays.
 const changed = (overrides: Overrides, change: Partial<Overrides>): Overrides => ({
   ...overrides,
   ...Object.fromEntries(Object.entries(change).filter(([, value]) => value !== undefined)),
@@ -109,21 +90,16 @@ export type Status = {
   readonly paused: boolean;
 };
 
-// A conversation an address has had: the current one first.
 export type SessionInfo = {
   readonly conversation: number;
   readonly current: boolean;
-  // When the address started it, if known.
   readonly started: number | null;
-  // Its title, once it has one, else the start of its first input.
   readonly preview: string;
-  // Whether the address may switch to it.
   readonly allowed: boolean;
 };
 
 export type Answer =
   | { readonly status: "done"; readonly text: string; readonly entry: number }
-  // Stopped, or withdrawn before the model was given it.
   | { readonly status: "stopped" }
   | { readonly status: "unanswered"; readonly reason: string };
 
@@ -131,21 +107,15 @@ export type Options = {
   readonly models: Models;
   readonly access: Readonly<Record<string, Access>> & { readonly restricted: Access };
   readonly personas: Readonly<Record<string, Persona>> & { readonly edith: Persona };
-  // A namespace not listed has `restricted` as its access and ceiling and `edith` as its persona.
   readonly namespaces: Readonly<Record<string, Namespace>>;
-  // The code mode extension, through which alone the model reaches tools.
   readonly codemode?: Extension;
-  // Extensions of the MCP servers that started, from `connectServer`.
   readonly servers?: readonly Extension[];
-  // The extension of the tools accesses select by name, and the environment they run in.
   readonly tools?: Extension;
   readonly env?: HarnessOptions["env"];
   readonly onReport?: (report: Report) => void;
 };
 
-// A title is given once the address leaves the conversation.
 type Started = { conversation: number; started: number | null; title?: string };
-// An address's conversation and its earlier ones, newest first.
 type AddressState = {
   conversation: number | null;
   started: number | null;
@@ -154,7 +124,6 @@ type AddressState = {
 
 const Address = defineDocFamily<AddressState, null>({
   kind: "edith.address",
-  // Version 2 adds `started` and `sessions`.
   version: 2,
   scope: "session",
   family: true,
@@ -167,7 +136,6 @@ const Address = defineDocFamily<AddressState, null>({
   checkpointWhen: () => true,
 });
 
-// An address's overrides.
 const Settings = defineDocFamily<Overrides, null>({
   kind: "edith.settings",
   version: 1,
@@ -179,8 +147,6 @@ const Settings = defineDocFamily<Overrides, null>({
 
 type Label = { tools: string[]; mcpServers: string[]; maxTurns: number | null };
 
-// The greatest access a conversation ran with: every tool and server it was given, and the highest
-// turn limit, `null` for none.
 const LabelDoc = defineDoc<Label>({
   kind: "edith.label",
   version: 1,
@@ -191,8 +157,6 @@ const LabelDoc = defineDoc<Label>({
   checkpointWhen: () => true,
 });
 
-// Written after a stopped run, in a user message, since the model reads instructions there; it
-// says who wrote it, so that the model does not take it for the user's words.
 export const stoppedNote =
   "[Chat client note, not the user's words: the user stopped you while you were working on the request above. Treat that request as closed. Respond to the user's next message, and take the stopped work up again only if that message asks for it.]";
 
@@ -201,7 +165,6 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 const stoppedKind = "edith.stopped";
 const excerptLimit = 6000;
 
-// Asks for a session's title: the excerpt is the conversation as data, the reply the title alone.
 const titlePrompt = (excerpt: string) =>
   [
     "Write a title for the conversation below. It names the conversation in a list the user picks past conversations from.",
@@ -222,11 +185,8 @@ const raise = (label: Label, access: Grant) => {
       : Math.max(label.maxTurns, access.maxTurns);
 };
 
-// Where overrides were kept before they belonged to the address: read once to carry them over.
 const OverridesDoc = defineDoc<Overrides>({
   kind: "edith.overrides",
-  // Version 2 added `profile`; version 3 replaces it with `access` and `persona`, leaving both
-  // to follow the namespace.
   version: 3,
   scope: "conversation",
   history: "latest",
@@ -246,7 +206,6 @@ export function namespaceOf(address: string): string {
 
 type Equipment = {
   readonly extensions: readonly Extension[];
-  // The selected extensions' tools an access leaves out.
   readonly tools: { readonly remove: readonly ToolRegistration[] } | null;
   readonly modelTools: readonly ToolRegistration[] | null;
 };
@@ -257,10 +216,7 @@ export class Edith {
   readonly harness: Harness;
   readonly #options: Options;
   readonly #servers: ReadonlyMap<string, Extension>;
-  // Conversations by address, kept once open; sharing the opening promise also makes
-  // concurrent first messages share one conversation.
   readonly #conversations = new Map<string, Promise<Conversation>>();
-  // Titles being written, which closing waits for.
   readonly #titling = new Set<Promise<void>>();
 
   private constructor(harness: Harness, options: Options) {
@@ -296,7 +252,6 @@ export class Edith {
     return this.#options.namespaces[namespace] ?? fallbackNamespace;
   }
 
-  // The accesses an address may choose: those within its namespace's ceiling.
   accessChoices(address: string): string[] {
     const ceiling = this.#ceiling(address);
     return Object.entries(this.#options.access).flatMap(([name, access]) =>
@@ -304,13 +259,10 @@ export class Edith {
     );
   }
 
-  // The configured personas' names.
   personas(): string[] {
     return Object.keys(this.#options.personas);
   }
 
-  // The access a conversation runs with, by name: its chosen one while the configuration still
-  // has it within the namespace's ceiling, else its namespace's, else `restricted`.
   #access(address: string, chosen: string | null): [string, Access] {
     const allowed = this.accessChoices(address);
     for (const name of [chosen, this.#namespace(namespaceOf(address)).access]) {
@@ -320,8 +272,6 @@ export class Edith {
     return [fallbackAccess, this.#options.access.restricted];
   }
 
-  // The persona a conversation runs with, by name: its chosen one while the configuration still
-  // has it, else its namespace's, else `edith`.
   #persona(address: string, chosen: string | null): [string, Persona] {
     for (const name of [chosen, this.#namespace(namespaceOf(address)).persona]) {
       const persona = name == null ? undefined : this.#options.personas[name];
@@ -330,7 +280,6 @@ export class Edith {
     return [fallbackPersona, this.#options.personas.edith];
   }
 
-  // An address's overrides, or, until it has its own, those its conversation kept.
   async #overrides(address: string, context: Context): Promise<Overrides> {
     const own = await this.harness.snapshot(Settings, address, context);
     if (own) return { ...noOverrides, ...own };
@@ -348,9 +297,6 @@ export class Edith {
     );
   }
 
-  // What an access's conversations run with: nothing callable without tools or servers,
-  // otherwise code mode as the model's only tool and the selected tools and the servers' tools
-  // behind it. A server that did not start is left out.
   #equipment(access: Access): Equipment {
     const codemode = this.#options.codemode;
     const tool = codemode?.tools?.find((candidate) => candidate.name === CODEMODE_TOOL_NAME);
@@ -421,8 +367,6 @@ export class Edith {
     };
   }
 
-  // Refuses a change an address may not make: an access must be one it may choose, and a persona
-  // a configured one.
   check(address: string, change: Partial<Overrides>): void {
     if (change.access != null) {
       if (!(change.access in this.#options.access))
@@ -436,7 +380,6 @@ export class Edith {
       throw new Refused(`no persona named ${change.persona}`);
   }
 
-  // Sets or clears an address's overrides, as `check` allows.
   async configure(address: string, change: Partial<Overrides>, context: Context): Promise<Status> {
     this.check(address, change);
     const current = await this.#overrides(address, context);
@@ -446,9 +389,6 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // Admits an input; `alsoInCommit` writes a client's own state in the same commit. Input to a
-  // paused conversation ends the pause: a run under way takes it in where it holds, and a tool call
-  // held there is not run.
   async submit(
     address: string,
     draft: Omit<InputSubmissionDraft, "type">,
@@ -471,8 +411,6 @@ export class Edith {
           `this session ran with more than ${namespaceOf(address)} may reach; start a new one`,
         );
       raise(label, access);
-      // The configuration can change between runs of the daemon, so the agent is brought to the
-      // effective choices with each input; writing an equal value changes nothing.
       await configure(tx, conversation.id, {
         model: wanted.model,
         thinkingLevel: wanted.thinkingLevel,
@@ -489,7 +427,6 @@ export class Edith {
       await alsoInCommit?.(tx, id);
       return id;
     }, context);
-    // Only once the input is in: a held step woken without it would only park again.
     if (interjects) {
       const pause = await this.harness.snapshot(PauseDoc, conversation.id, context);
       if (pause) await wake(this.harness, conversation.id, pause, "interject", context);
@@ -497,7 +434,6 @@ export class Edith {
     return id;
   }
 
-  // Pauses an address's conversation: no new step starts until it is resumed or stopped.
   async pause(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
     await this.harness.commit(async (tx) => {
@@ -520,7 +456,6 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // Whether a conversation is running or has input waiting.
   #busy(inspection: HarnessInspection, conversation: ConversationId): boolean {
     return (
       inspection.tasks.some(
@@ -534,9 +469,6 @@ export class Edith {
     return (await this.harness.snapshot(PauseDoc, conversation.id, context))?.paused ?? false;
   }
 
-  // Where an address's paused conversation comes to hold, looked at every `interval`: before a
-  // tool call the model asked for, or before its next model request; undefined once it is no
-  // longer paused, or has nothing left to do.
   async whenHeld(address: string, interval: number, context: Context): Promise<Held | undefined> {
     const conversation = await this.conversation(address, context);
     for (;;) {
@@ -549,10 +481,6 @@ export class Edith {
     }
   }
 
-  // Stops what an address's conversation is doing and withdraws the input not yet given to the
-  // model; a pause ends with it. What already happened, such as a file written, stays. The stopped
-  // request stays in the context unanswered, so a note after it tells the model not to take it up
-  // again on its own.
   async stop(address: string, context: Context): Promise<Status> {
     const conversation = await this.conversation(address, context);
     const busy = this.#busy(await this.harness.inspect(context), conversation.id);
@@ -574,7 +502,6 @@ export class Edith {
     return this.status(address, context);
   }
 
-  // The conversations an address has had, the current one first.
   async sessions(address: string, context: Context): Promise<SessionInfo[]> {
     const current = await this.conversation(address, context);
     const state = await this.harness.snapshot(Address, address, context);
@@ -594,8 +521,6 @@ export class Edith {
     );
   }
 
-  // Starts a new conversation at an address, stopping the current one, which stays among its
-  // sessions; `choices` change the address's overrides with it.
   async reset(
     address: string,
     context: Context,
@@ -609,8 +534,6 @@ export class Edith {
     return this.#moveTo(address, created, Date.now(), choices, context);
   }
 
-  // Switches an address back to one of its earlier conversations, stopping the current one, and
-  // returns that conversation's session.
   async switchTo(
     address: string,
     target: number,
@@ -643,8 +566,6 @@ export class Edith {
     return { previous: previous.id, current: next.id };
   }
 
-  // Titles a conversation the address left, in the background, with the address's model; one with
-  // a title, or nothing to title, keeps what it has.
   #titleLater(address: string, conversation: number, context: Context): void {
     const titling = (async () => {
       const state = await this.harness.snapshot(Address, address, context);
@@ -672,7 +593,6 @@ export class Edith {
       .finally(() => this.#titling.delete(titling));
   }
 
-  // The conversation's text, as the title prompt shows it: who said what, up to a length.
   async #excerpt(conversation: number, context: Context): Promise<string> {
     const found = await this.harness.conversation(conversation as ConversationId, context);
     const page = await found?.entries({ order: "ascending" }, 200, undefined, context);
@@ -686,8 +606,6 @@ export class Edith {
     return lines.join("\n").slice(0, excerptLimit);
   }
 
-  // Points an address at another conversation, keeping the one it leaves, labelled, and its
-  // overrides with the address.
   async #rebind(
     address: string,
     leaving: number,
@@ -715,8 +633,6 @@ export class Edith {
     }, context);
   }
 
-  // A conversation's label; one that ran before labels were kept counts as having run with the
-  // address's access.
   async #label(address: string, conversation: number, context: Context): Promise<Label> {
     const stored = await this.harness.snapshot(LabelDoc, conversation as ConversationId, context);
     if (stored) return stored;
@@ -771,5 +687,4 @@ export class Edith {
   }
 }
 
-// A change `configure` refuses, with a message for the user.
 export class Refused extends Error {}

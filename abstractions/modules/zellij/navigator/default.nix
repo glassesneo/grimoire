@@ -4,7 +4,6 @@
   mylib,
   ...
 }: let
-  # Pinned instead of the release URL, which Zellij would fetch at run time.
   inherit (mylib.anchors.sources ./anchors.json) vim-zellij-navigator;
 in
   delib.module {
@@ -14,8 +13,6 @@ in
 
     options.enable = delib.boolOption true;
 
-    # Every call repeats the configuration because the plugin keeps the one
-    # it was first loaded with.
     myconfig.ifEnabled = {
       zellij.keybinds.shared = lib.mapAttrs' (key: direction:
         lib.nameValuePair "Alt ${key}" [
@@ -37,8 +34,6 @@ in
       };
     };
 
-    # Zellij keys the cache by the plugin's path. An attribute name cannot
-    # carry the store path's context; the keybindings keep the dependency.
     hjem.ifEnabled = {
       zellij.pluginPermissions.${builtins.unsafeDiscardStringContext "${vim-zellij-navigator}"} = [
         "WriteToStdin"

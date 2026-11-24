@@ -1,7 +1,5 @@
 require("zellij-nav").setup()
 
--- In a Rex pane outside Zellij, moving past Neovim's edge focuses the adjacent
--- Rex pane through the CLI that Rex puts in every terminal's environment.
 local rex = vim.env.ZELLIJ == nil and vim.env.REX_BIN_DIR ~= nil and vim.env.REX_BIN_DIR .. "/rex" or nil
 
 for key, direction in pairs({ h = "Left", j = "Down", k = "Up", l = "Right" }) do

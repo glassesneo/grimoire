@@ -22,8 +22,6 @@ in {
   options = {pkgs, ...}:
     with delib; {
       enable = boolOption false;
-      # The flake keeps its own nixpkgs, so the dependencies upstream CI pushes
-      # to vicinae.cachix stay substitutable.
       upstreamPackage = packageOption vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default "Package whose source `sourceFiles` patches.";
       package = packageOption (mylib.sourceFiles.apply cfg.upstreamPackage cfg.sourceFiles) "Package installed as the app; setting it bypasses `sourceFiles`.";
       sourceFiles = mylib.sourceFiles.option "upstreamPackage";
@@ -44,17 +42,12 @@ in {
     pkgs,
     ...
   }: let
-    # stabilizeApp rejects the browser native-messaging host, a wrapper outside
-    # the bundle that names the package's own store path. Browser integration is
-    # not configured, so only the bundle and the CLI link are kept, repointed at
-    # this copy; the equal-length name keeps Mach-O rewrites in place.
     bundled = pkgs.runCommand (builtins.substring 33 (-1) (baseNameOf cfg.package.outPath)) {nativeBuildInputs = [pkgs.perl];} ''
       mkdir "$out"
       cp -a ${cfg.package}/Applications ${cfg.package}/bin "$out/"
       chmod -R u+w "$out"
       find "$out" -type f -exec env SOURCE=${cfg.package} OUT="$out" perl -0777 -pi -e 's/\Q$ENV{SOURCE}\E/$ENV{OUT}/g' {} +
     '';
-    # Source replacements go in before signing: stabilizeApp rewrites and re-signs its input's output.
     package = myconfig.app-identity.stabilizeApp bundled;
     app = "${package}/Applications/Vicinae.app";
   in {
@@ -65,9 +58,6 @@ in {
       source = app;
     };
 
-    # The in-bundle CLI execs the server in place, so the server runs as the
-    # signed bundle rather than a wrapper script. TCC attributes it to dinit,
-    # which starts it.
     userServices.vicinae = {
       command = ["${app}/Contents/MacOS/vicinae-cli" "server"];
       environment.VICINAE_OVERRIDES = toString ((pkgs.formats.json {}).generate "vicinae-settings.json" config.vicinae.settings);
@@ -86,7 +76,6 @@ in {
       pop_to_root_on_close = true;
       wrap_navigation = true;
       favicon_service = "twenty";
-      # Qt maps control to the command key on macOS.
       global_shortcuts.toggle = "control+space";
       launcher_window = {
         material = "liquid_glass";

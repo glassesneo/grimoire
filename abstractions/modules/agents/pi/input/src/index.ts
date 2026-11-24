@@ -11,8 +11,6 @@ const keys = JSON.parse(readFileSync(new URL("./keys.json", import.meta.url), "u
 export default function registerInput(pi: ExtensionAPI): void {
   let editor: InputEditor | undefined;
   let context: ExtensionContext | undefined;
-  // A `!` command runs outside the agent, so isIdle() does not cover it. Pi's own local
-  // backend runs it here with an added signal that the confirmed stop can abort.
   let bash: AbortController | undefined;
   pi.on("user_bash", () => ({
     operations: {
@@ -58,13 +56,10 @@ export default function registerInput(pi: ExtensionAPI): void {
     context = ctx;
     editor?.resetStop();
   });
-  // agent_end can precede retries and queued continuations; it is not an idle boundary.
   pi.on("agent_settled", (_event, ctx) => {
     context = ctx;
     editor?.resetStop();
   });
-  // A dialog that takes focus closes the palette through its overlay. ui_prompt_start also
-  // fires for the palette's own overlay, so it cannot close the palette.
   pi.on("ui_prompt_end", () => editor?.resetStop());
   pi.on("tool_call", (event) => {
     if (event.toolName === "question") editor?.closePalette();

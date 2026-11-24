@@ -1,10 +1,3 @@
-# The key holder is the host whose Secure Enclave holds the person's SSH keys
-# (`ssh.keys`). The keys cannot leave it, so every other host reaches them
-# through the remote agent: an ssh-agent of its own, distinct from the
-# system's, that holds the signing key at all times and the GitHub key only
-# while `push-unlock` has unlocked it. Only that agent is forwarded: ordinary
-# sessions forward it with ForwardAgent, and Rex's tunnel, which opens no
-# session, carries it to `ssh.rexAgentSocket` with a RemoteForward.
 {
   delib,
   lib,
@@ -41,7 +34,6 @@ delib.module ({
     keys = myconfig.ssh.keys;
     socket = "${home}/.ssh/remote-agent.sock";
     handle = purpose: "${home}/.ssh/id_grimoire_${purpose}";
-    # Apple's OpenSSH tools are the ones verified with this provider.
     provider = "/usr/lib/ssh-keychain.dylib";
     sshAdd = "/usr/bin/ssh-add";
 
@@ -69,8 +61,6 @@ delib.module ({
       SSH_AUTH_SOCK=${lib.escapeShellArg socket} exec ${sshAdd} -d ${lib.escapeShellArg "${handle "github"}.pub"}
     '';
 
-    # Creates the Secure Enclave identities that are missing and writes the key
-    # handles ssh reads, then checks them against `ssh.keys`.
     sshKeys = pkgs.writeShellScriptBin "ssh-keys" ''
       export SSH_KEYS=${lib.escapeShellArg (builtins.toJSON (lib.mapAttrs (purpose: key: key // {handle = handle purpose;}) keys))}
       export SSH_KEY_PROVIDER=${provider}
@@ -80,8 +70,6 @@ delib.module ({
   in {
     packages = [pushUnlock pushLock sshKeys];
 
-    # A switch reports keys that are missing, replaced or expiring, without
-    # failing: the rest of the configuration does not depend on them.
     applySteps.ssh-keys.package = pkgs.linkFarm "hjem-ssh-keys" {
       "bin/apply" = pkgs.writeShellScript "ssh-keys-apply" "${sshKeys}/bin/ssh-keys check || true";
     };
@@ -104,21 +92,13 @@ delib.module ({
         ForwardAgent = socket;
       });
 
-    # Rex's GUI starts its tunnel as `ssh -N … -L <app socket>:<server socket>`
-    # with an app socket directly under its ssh directory; its CLI's tunnels
-    # put theirs one level deeper. Only the GUI's tunnel carries the agent, so a
-    # short-lived CLI tunnel does not take the remote path from it. Matching
-    # depends on that layout: if Rex changes it, Rex sessions only lose the agent.
     ssh.matches = lib.listToAttrs (map (host:
       lib.nameValuePair "rex-${host}" {
         criteria = ''originalhost ${host} exec "/bin/ps -o command= -p $PPID | /usr/bin/grep -Eq '/rex/ssh/[0-9a-f]+[.]sock:'"'';
-        # The remote hosts share this host's home directory path.
         parameters.RemoteForward = "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket} ${socket}";
       })
     cfg.remoteHosts);
 
-    # Signing goes through the remote agent here too, so one agent signs for
-    # every host.
     git.settings = {
       gpg.ssh.program = "${pkgs.writeShellScript "ssh-keygen-remote-agent" ''
         SSH_AUTH_SOCK=${lib.escapeShellArg socket} exec /usr/bin/ssh-keygen "$@"

@@ -7,9 +7,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Section translation, filtering, and constraint forwarding are repository-owned:
-  # Nix types cannot detect a dropped section, leaked private bundle, or bypassed
-  # guard. Observe published names/packages at genSystem, not adapter internals.
   genBundles = genSystem: extraModules:
     (genSystem {
       moduleSystem = "bundles";
@@ -44,7 +41,6 @@
         package = pkgs.hello;
         publish = true;
       };
-      # Function sections must survive the adapter's prefix transformation too.
       bundles.ifDisabled = {pkgs, ...}: {
         fallback = {
           package = pkgs.zsh;
@@ -55,7 +51,6 @@
 
   enabled = evaluate [feature] [];
   disabled = evaluate [feature] [{myconfig.fixture.enable = false;}];
-  # Use the real bridge: a synthetic forwarder could hide missing wiring.
   assertionResult = assertion:
     genBundles
     (configuration.extendModules {
@@ -81,7 +76,6 @@
       })
   ] [];
 
-  # Force package values: attrNames alone would miss a lazy missing-option error.
   succeeds = result:
     (builtins.tryEval (builtins.deepSeq (lib.mapAttrs (_: package: package.drvPath) result) true)).success;
 in {

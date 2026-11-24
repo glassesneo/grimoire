@@ -1,20 +1,3 @@
-# Owns the declaration of a color scheme: a module that the role
-# `roles.colorscheme` selects among, and the palette type schemes share.
-#
-# `scheme { name, description, palette ? null, variants ? {}, default ? null }`
-# returns a `delib.module` declaration for `colorscheme.<name>`, a candidate of
-# `roles.colorscheme` without `enable`: it is always registered. A scheme has
-# either a `palette` or `variants` with a `default`; with variants, the
-# module's `variant` chooses one, so a rice or host replaces the variant of a
-# scheme whatever scheme holds the seat. `resolved` is the chosen palette as
-# `{ name, variant, palette }`, and `combinations` every variant resolved by
-# name: `<name>` for the default and `<name>-<variant>` for each variant.
-#
-# The palette is the contract between schemes and applications: terminal roles
-# and the sixteen ANSI colors; `named` carries a scheme's own vocabulary, which
-# only scheme-specific mappings read. `ansiNames` lists the sixteen ANSI
-# colors in terminal index order, and `ghosttyTheme palette` maps a palette
-# to the keys of Ghostty's theme format, which Rex also imports.
 {lib}: let
   inherit (lib) types;
 

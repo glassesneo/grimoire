@@ -8,8 +8,6 @@ delib.module {
   name = "casks";
   meta.description = "Expose Homebrew casks, packaged by cask2nix from the official and third-party taps, to modules.";
 
-  # The shared Nixpkgs of the evaluated system, so a cask means the same in
-  # every module system, including bundles, which evaluate without a host.
   options = {pkgs, ...}: let
     shared = inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system};
     inherit (mylib.anchors.sources ./anchors.json) cask2nix brew-api brew-taps-api;

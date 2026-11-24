@@ -28,8 +28,6 @@ delib.module {
 
   myconfig.ifEnabled.neovim.settings = {pkgs, ...}: {
     plugins.start = let
-      # Bundles have no user Nixpkgs allow-list; scope this permission to the
-      # one plugin rather than changing the package set for every feature.
       eyelinerPkgs = import pkgs.path {
         inherit (pkgs.stdenv.hostPlatform) system;
         config.allowUnfreePackages = ["eyeliner.nvim"];

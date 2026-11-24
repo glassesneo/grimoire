@@ -1,25 +1,3 @@
-// The Discord client: each channel is the conversation `discord:<channel id>`, answering the
-// allowed users only, who set a channel's access, persona, model and thinking level with slash
-// commands and create channels with their own. A channel's topic shows its access and persona.
-// Replies are delivered at least once across restarts: the input and its pending reply are
-// admitted in one commit, and the reply is forgotten once it is posted. Discord deduplicates a
-// repeated post by its nonce for a few minutes.
-//
-// Unless a channel turns it off with /trace, a run is posted as it streams: thinking as a card
-// edited while it grows, text in complete units (paragraphs, a heading with what follows it,
-// whole lists, tables and code blocks; see `paragraphs.ts`) gathered for a few seconds into one
-// message, and code mode calls once committed. All of it is silent but the answer's last unit,
-// which is held until the answer is done and alone notifies. A code mode call's message lists the
-// script's calls while it runs and is edited once its result is committed. Thinking and scripts
-// are collapsed behind a button. With the trace off, the whole answer is posted once done.
-//
-// /pause holds a channel's conversation before its next step and /resume lets it go on, as does a
-// message, which the run takes in where it holds; /stop ends what it is doing. /new starts a new
-// conversation in the channel, or in a new channel when named, and /sessions switches back to
-// an earlier one from a menu; either posts a divider, and the trace follows the
-// channel to its new conversation. A running step's message carries pause and stop buttons, and
-// a pause posts where it holds, with resume and stop buttons. An input that waits for the run
-// before it carries ⏳ until the model is given it.
 import type { Context } from "@earendil-works/chord/context";
 import {
   ApplicationCommandOptionType,
@@ -86,25 +64,15 @@ export type DiscordOptions = {
 };
 
 const messageLimit = 2000;
-// Text a collapsible message shows, below Discord's limit for a message's text displays.
 const cardLimit = 3800;
-// How long an answer waits for the trace before it to be posted.
 const traceWait = 30_000;
-// How long complete units gather after a post before the next one, and how often a thinking card
-// is edited at most.
 const gatherWait = 2_500;
 const thinkingEditWait = 1_500;
-// How often a pause is looked at until it holds.
 const holdPoll = 1_000;
-// The reaction on an input that waits for the run before it.
 const waitingMark = "⏳";
-// Channel history fetched per channel when the gateway connects again.
 const catchUpLimit = 100;
 
-// An input's reply, and whether a message already replies to its message.
-// `waiting`: its message carries ⏳ until the input is given to the model.
 type Pending = { channel: string; submission: number; replied?: boolean; waiting?: boolean };
-// A code mode call's message, edited until its result is committed.
 type ToolPost = {
   message: string;
   conversation: number;
@@ -112,9 +80,6 @@ type ToolPost = {
   part: number;
   expanded?: boolean;
 };
-// The streaming generation's posts, by its key (its task and attempt): how much of its text and
-// how many messages are posted, and its thinking card. Kept for an answer once committed, so the
-// answer posts only the rest.
 type Stream = {
   key: string;
   consumed: number;
@@ -122,8 +87,6 @@ type Stream = {
   thinking?: { part: number; message: string };
 };
 type Streamed = Pick<Stream, "consumed" | "sent">;
-// A channel's trace: the newest entry handled, whether it is off, the calls still running, the
-// generation streaming, the last one committed, and what answers already posted, by entry.
 type Trace = {
   after: number;
   off?: boolean;
@@ -139,7 +102,6 @@ type DiscordState = {
 };
 const State = defineDoc<DiscordState>({
   kind: "edith.discord",
-  // Version 2 adds `trace`.
   version: 2,
   scope: "session",
   initial: () => ({ pending: {}, lastSeen: {}, trace: {} }),
@@ -149,10 +111,8 @@ const State = defineDoc<DiscordState>({
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
 
-// A content part of a message, as streamed or committed.
 type StreamPart = { readonly type: string; readonly text?: string; readonly thinking?: string };
 
-// The text of a message's text parts, as an answer joins them.
 const textOf = (content: readonly StreamPart[]) =>
   content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("");
 
@@ -160,11 +120,9 @@ const entryContent = (entry: EntryRecord): readonly StreamPart[] =>
   (entry.model ?? []).flatMap((message) => (message.role === "assistant" ? message.content : []));
 type Toggle = { id: string; expanded: boolean };
 
-// A button's custom ID: the item and the state a press brings its message to.
 const toggleId = (conversation: number, entry: number, part: number, expand: boolean) =>
   `x:${conversation}:${entry}:${part}:${expand ? 1 : 0}`;
 
-// A button's style and label for each control a running step's message offers.
 const controlButtons = (names: readonly ("pause" | "resume" | "stop")[]) =>
   names.map((name) => ({
     type: ComponentType.Button as const,
@@ -173,8 +131,6 @@ const controlButtons = (names: readonly ("pause" | "resume" | "stop")[]) =>
     custom_id: `c:${name}`,
   }));
 
-// A traced message's card: its text, then its expand button and the run's controls its step
-// offers.
 function card(
   text: string,
   toggle?: { id: string; expanded: boolean },
@@ -209,8 +165,6 @@ function card(
 const toolState = (result: { isError: boolean } | undefined): ToolState =>
   result === undefined ? "running" : result.isError ? "error" : "ok";
 
-// The controls a step's card offers in a state: a running step can be paused or stopped, a held
-// one resumed or stopped.
 const controlsOf = (state: ToolState) =>
   state === "running"
     ? (["pause", "stop"] as const)
@@ -218,7 +172,6 @@ const controlsOf = (state: ToolState) =>
       ? (["resume", "stop"] as const)
       : [];
 
-// The button of a tool message, which only a script makes expandable.
 const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
   item.code === undefined
     ? undefined
@@ -227,8 +180,6 @@ const toolToggle = (post: ToolPost, item: ToolItem): Toggle | undefined =>
         expanded: post.expanded ?? false,
       };
 
-// Registered in every guild the bot is in, where they are available at once. The choices are the
-// accesses within Discord's ceiling and the configured personas, which a restart registers again.
 const commandsFor = (
   accesses: readonly string[],
   personas: readonly string[],
@@ -337,14 +288,12 @@ const commandsFor = (
   simple("sessions", "Switch this channel back to one of its earlier conversations"),
 ];
 
-// Commands that take no option.
 const simple = (name: string, description: string) => ({
   type: ApplicationCommandType.ChatInput as const,
   name,
   description,
 });
 
-// A divider between a channel's conversations; /sessions switches between them.
 const divider = (text: string) => ({ content: text, allowed_mentions: { parse: [] } });
 
 const topicOf = (status: Status) => `EDITH · access: ${status.access} · persona: ${status.persona}`;
@@ -358,25 +307,16 @@ export class Discord {
   readonly #context: Context;
   readonly #gateway: WebSocketManager;
   readonly #client: Client;
-  // Replies being delivered by this process, by Discord message id.
   readonly #delivering = new Set<string>();
-  // Channels whose trace is being followed, and its handling of watch values, serialized.
   readonly #traces = new Map<string, Promise<void>>();
   readonly #watches = new Map<string, WatchHandle<unknown>>();
-  // The last text each traced message was given, so unchanged renderings are not sent again.
   readonly #rendered = new Map<string, string>();
-  // Per running code mode call: its item, once read, and its script's calls as last seen live.
   readonly #items = new Map<string, ToolItem>();
   readonly #live = new Map<string, { calls: Call[]; seen: string }>();
-  // Answers waiting for the trace to reach their entry, by channel.
   readonly #waiting = new Map<string, EntryWaiters>();
-  // Per channel: when streamed text was last posted, and the key of the generation last seen
-  // streaming, which the next assistant entry finishes. Per thinking card: when it was edited.
   readonly #lastPost = new Map<string, number>();
   readonly #streaming = new Map<string, string>();
   readonly #thinkingEdited = new Map<string, number>();
-  // Per channel: the message showing where its paused conversation holds.
-  // Per channel: where its paused conversation holds, as shown: a tool call's card, or a message.
   readonly #holds = new Map<
     string,
     | { kind: "card"; callId: string; post: ToolPost }
@@ -405,14 +345,11 @@ export class Discord {
     this.#client.on(GatewayDispatchEvents.InteractionCreate, ({ data, api }) =>
       this.#spawn(this.#interact(api, data)),
     );
-    // Ready follows every new session; events missed while disconnected are not replayed.
     this.#client.on(GatewayDispatchEvents.Ready, ({ data, api }) => {
       console.error(`discord: connected as ${data.user.username}`);
       this.#application = data.application.id;
       this.#spawn(this.#recover(api));
     });
-    // Each guild arrives after Ready, and again when the bot joins one. Overwriting the
-    // whole set leaves exactly these commands, whatever an earlier version registered.
     this.#client.on(GatewayDispatchEvents.GuildCreate, ({ data, api }) => {
       if (this.#application === undefined) return;
       this.#spawn(
@@ -456,7 +393,6 @@ export class Discord {
     const channel = message.channel_id;
     const address = `discord:${channel}`;
     if (message.content.trim() === "") return;
-    // Followed before the input is admitted, so that the trace sees everything it causes.
     await this.#follow(api, channel);
     const paused = await this.#edith.paused(address, this.#context);
     let submission: SubmissionId;
@@ -465,7 +401,6 @@ export class Discord {
         address,
         {
           content: message.content,
-          // A message seen again, live or while catching up, is admitted once.
           requestId: `discord:${message.id}`,
           entry: {
             kind: "discord.message",
@@ -481,7 +416,6 @@ export class Discord {
       );
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
-      // Seen, so that catching up does not admit it later.
       await this.#edith.harness.commit(async (tx) => {
         const state = await tx.doc(State);
         state.lastSeen[channel] = later(message.id, state.lastSeen[channel]);
@@ -497,7 +431,6 @@ export class Discord {
     await this.#deliver(api, message.id);
   }
 
-  // Marks an input that waits for the run before it with ⏳, until the model is given it.
   async #markWaiting(
     api: API,
     channel: string,
@@ -512,7 +445,6 @@ export class Discord {
       const pending = (await tx.doc(State)).pending[id];
       if (pending) pending.waiting = true;
     }, this.#context);
-    // Given to the model meanwhile, before the trace could see the mark.
     if (!(await queued())) await this.#unmarkWaiting(api, channel, id);
   }
 
@@ -529,7 +461,6 @@ export class Discord {
     }, this.#context);
   }
 
-  // Commands and buttons answer the allowed users only.
   async #interact(api: API, interaction: APIInteraction): Promise<void> {
     if (
       interaction.type !== InteractionType.MessageComponent &&
@@ -611,7 +542,6 @@ export class Discord {
         return;
       }
       case "new": {
-        // The choices given; checked before anything starts, so that a refused one changes nothing.
         const chosen = Object.fromEntries(
           (["access", "persona"] as const).flatMap((name) =>
             option(name) === "" ? [] : [[name, option(name)]],
@@ -624,7 +554,6 @@ export class Discord {
           await reply(error.message, MessageFlags.Ephemeral);
           return;
         }
-        // Without a name, here; the choices given replace the channel's.
         if (option("name") === "") {
           await api.interactions.defer(interaction.id, interaction.token);
           await this.#move(api, channel, () => this.#edith.reset(address, this.#context, chosen));
@@ -645,7 +574,6 @@ export class Discord {
           await reply("Channels are created in a server only.", MessageFlags.Ephemeral);
           return;
         }
-        // Beside this channel: in its category, if it has one.
         const here = await api.channels.get(channel);
         const parent = "parent_id" in here ? here.parent_id : null;
         let created;
@@ -731,8 +659,6 @@ export class Discord {
     }
   }
 
-  // Shows a channel's access and persona in its topic; Discord allows two topic changes in ten
-  // minutes, so a change it refuses is left for /status to show.
   async #showChoices(api: API, channel: string): Promise<void> {
     const status = await this.#edith.status(`discord:${channel}`, this.#context);
     await api.channels
@@ -740,8 +666,6 @@ export class Discord {
       .catch((error: unknown) => console.error("discord topic:", error));
   }
 
-  // Once a paused conversation holds, shows where: on the held tool call's card, or else in a
-  // message after what the run has shown so far.
   async #showHold(api: API, channel: string): Promise<void> {
     const held = await this.#edith.whenHeld(`discord:${channel}`, holdPoll, this.#context);
     if (!held) return;
@@ -767,7 +691,6 @@ export class Discord {
     this.#holds.set(channel, { kind: "message", message: message.id, text });
   }
 
-  // Ends what shows a pause: a held card runs again, or its result shows; a message is struck.
   async #endHold(api: API, channel: string, how: string): Promise<void> {
     const hold = this.#holds.get(channel);
     if (!hold) return;
@@ -785,8 +708,6 @@ export class Discord {
       .catch((error: unknown) => console.error("discord hold:", error));
   }
 
-  // Moves a channel to another conversation: once the trace has posted what the stopped one
-  // committed, it follows the channel's new conversation.
   async #move<Moved extends { previous: number }>(
     api: API,
     channel: string,
@@ -810,7 +731,6 @@ export class Discord {
     return moved;
   }
 
-  // The pause, resume and stop buttons of a running step's message and of a pause's marker.
   async #control(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
     const channel = interaction.channel.id;
     const address = `discord:${channel}`;
@@ -831,7 +751,6 @@ export class Discord {
     }
   }
 
-  // Switches a channel to the conversation the sessions menu names.
   async #switchFrom(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
     const channel = interaction.channel.id;
     const data = interaction.data;
@@ -869,7 +788,6 @@ export class Discord {
     try {
       const pending = (await this.#edith.harness.snapshot(State, this.#context))?.pending[id];
       if (!pending) return;
-      // Not while the conversation is paused, which is not typing.
       const typing = setInterval(
         () =>
           void this.#edith
@@ -887,7 +805,6 @@ export class Discord {
       }
       if (answer.status === "done") await this.#tracedTo(api, pending.channel, answer.entry);
       const state = await this.#edith.harness.snapshot(State, this.#context);
-      // What the trace already streamed of the answer is not posted again.
       const streamed =
         answer.status === "done"
           ? state?.trace[pending.channel]?.streamed?.[answer.entry]
@@ -915,8 +832,6 @@ export class Discord {
     }
   }
 
-  // Posts text in chunks and returns the last message's ID. A nonce is at most 25 characters,
-  // and a snowflake has at most 20 digits.
   async #post(
     api: API,
     channel: string,
@@ -941,8 +856,6 @@ export class Discord {
     return last;
   }
 
-  // Starts following a channel's trace once per process. A channel traced for the first time
-  // starts after its newest entry, so earlier history is not posted.
   #follow(api: API, channel: string): Promise<void> {
     const started = this.#traces.get(channel);
     if (started) return started;
@@ -996,7 +909,6 @@ export class Discord {
     return (await this.#edith.harness.snapshot(State, this.#context))?.trace[channel];
   }
 
-  // Handles the entries after the trace's cursor and returns the trace as it committed it.
   async #handleEntries(
     api: API,
     channel: string,
@@ -1010,7 +922,6 @@ export class Discord {
         if (placed) await this.#unmarkWaiting(api, channel, placed);
       }
       const posted: Record<string, ToolPost> = {};
-      // The generation that streamed this entry, if it posted anything.
       const assistant = AssistantEntry.is(entry);
       const stream = assistant ? trace.stream : undefined;
       const finished = assistant ? this.#streaming.get(channel) : undefined;
@@ -1041,7 +952,6 @@ export class Discord {
           };
           this.#items.set(item.callId, item);
         }
-        // Text beside tool calls that streamed only in part posts its rest.
         const rest = text.slice(stream?.consumed ?? 0).trim();
         if (stream && stream.consumed > 0 && !answers && rest !== "")
           await this.#post(api, channel, rest, {
@@ -1060,7 +970,6 @@ export class Discord {
         this.#items.delete(result.callId);
         this.#live.delete(result.callId);
       }
-      // The trace as committed, which the next entry starts from.
       trace = await this.#edith.harness.commit(async (tx) => {
         const current = (await tx.doc(State)).trace[channel];
         if (!current) return trace;
@@ -1081,8 +990,6 @@ export class Discord {
     return trace;
   }
 
-  // Posts what the streaming generation added, and edits running code mode calls whose script
-  // made new calls since they were last seen.
   async #handleLive(
     api: API,
     channel: string,
@@ -1101,8 +1008,6 @@ export class Discord {
     }
   }
 
-  // The streaming generation's thinking card, posted at once and edited at most every few
-  // seconds, and its complete text units once they have gathered for a while.
   async #stream(
     api: API,
     channel: string,
@@ -1154,7 +1059,6 @@ export class Discord {
     const gathered = Date.now() - (this.#lastPost.get(channel) ?? 0) >= gatherWait;
     let replied: string | undefined;
     if (ready !== "" && (gathered || ready.length >= messageLimit)) {
-      // The first message a run posts replies to the input it answers.
       const state = await this.#edith.harness.snapshot(State, this.#context);
       const input = Object.entries(state?.pending ?? {}).find(
         ([, pending]) =>
@@ -1181,7 +1085,6 @@ export class Discord {
     }, this.#context);
   }
 
-  // A thinking card posted while it streamed, edited to its final rendering with its button.
   async #finishThinking(
     api: API,
     channel: string,
@@ -1219,7 +1122,6 @@ export class Discord {
     return entry && itemAt(entry, post.part);
   }
 
-  // A code mode call's item, kept from when it was posted, or read again after a restart.
   async #toolItem(callId: string, post: ToolPost): Promise<ToolItem | undefined> {
     const known = this.#items.get(callId);
     if (known) return known;
@@ -1229,7 +1131,6 @@ export class Discord {
     return item;
   }
 
-  // Posts an item silently and returns its message's ID.
   async #postItem(
     api: API,
     channel: string,
@@ -1281,13 +1182,10 @@ export class Discord {
     this.#rendered.set(post.message, text);
   }
 
-  // Wakes the answers waiting for the trace to reach `entry`.
   #release(channel: string, entry: number): void {
     this.#waiting.get(channel)?.release(entry);
   }
 
-  // Waits until the trace has handled `entry`, so the answer follows what led to it; gives up
-  // after a while rather than holding the answer back.
   async #tracedTo(api: API, channel: string, entry: number): Promise<void> {
     await this.#follow(api, channel).catch(() => {});
     const trace = await this.#trace(channel);
@@ -1297,7 +1195,6 @@ export class Discord {
     await waiting.wait(entry, traceWait);
   }
 
-  // Expands or collapses a traced message, rebuilt from the conversation's entries.
   async #toggle(api: API, interaction: APIMessageComponentInteraction): Promise<void> {
     const match = /^x:(\d+):(\d+):(\d+):([01])$/.exec(interaction.data.custom_id);
     const [id, entry, part] = [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])];

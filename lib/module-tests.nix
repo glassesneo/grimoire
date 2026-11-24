@@ -1,21 +1,12 @@
-# Evaluate applicable inline test cases declared by `extensions/module-tests.nix`.
-# Returns one module-<name> aggregate per module with applicable cases. Evaluation
-# mismatches throw with module/case context; build results are realized as actual
-# dependencies, so a failed builder fails the aggregate.
 {lib}: {
-  # Composes a Denix configuration from abstractions on top of the repository's
-  # adapters and extensions.
   compose,
-  # The configuration's `moduleTestInfo`, computed with the same `home`.
   info,
-  # The fixture user's home directory.
   home,
   pkgs,
   system,
 }: let
   assertions = import ./assertions.nix {inherit lib;};
   defines = case: field: lib.elem field case.defined;
-  # NAMES and their fixture modules, transitively.
   loaded = names:
     map (item: item.key) (builtins.genericClosure {
       startSet = map (key: {inherit key;}) names;
@@ -35,8 +26,6 @@
       }
       attrs);
 
-  # As in `delib.module`, the attributes may be a function of the Denix
-  # arguments; theirs replace the defaults.
   contributor = name: attrs: {delib, ...}: let
     defaults = {
       inherit name;
@@ -51,7 +40,6 @@
 
   generate = name: case: let
     fixtureSystem = case.host.system or system;
-    # The arguments `flake.nix` passes when publishing each module system.
     extraArgs = {
       hjem = {
         system = fixtureSystem;
@@ -76,8 +64,6 @@
     then assertions.failed result.config.assertions
     else result.failedAssertions;
 
-  # Forces a value deeply, but a derivation only to its output path: deepSeq would
-  # descend into its whole build graph.
   force = value:
     if lib.isDerivation value
     then builtins.seq value.outPath true
@@ -87,7 +73,6 @@
     then lib.all force value
     else builtins.seq value true;
 
-  # Returns null when the case passes, otherwise the reason it failed.
   run = name: caseName: case: result: let
     has = defines case;
     fails =
@@ -126,7 +111,6 @@
     );
 
   check = name: cases: let
-    # Generated once per case: `run` and the aggregate's `builds` share them.
     results = lib.mapAttrs (_: generate name) cases;
     failures = lib.filterAttrs (_: reason: reason != null) (lib.mapAttrs (caseName: case: run name caseName case results.${caseName}) cases);
   in

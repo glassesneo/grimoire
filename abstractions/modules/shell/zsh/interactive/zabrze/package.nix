@@ -10,8 +10,6 @@ rustPlatform.buildRustPackage {
   src = zabrze;
   cargoLock.lockFile = "${zabrze}/Cargo.lock";
 
-  # These tests pass EDITOR to `zsh -c`, which the build machine's /etc/zshenv
-  # can override on Darwin.
   checkFlags = [
     "--skip=test_evaluate"
     "--skip=test_legacy_yaml"

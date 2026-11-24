@@ -8,8 +8,6 @@ delib.module {
 
   myconfig.ifEnabled.neovim.settings = {pkgs, ...}: {
     plugins.start = [pkgs.vimPlugins.nvim-lspconfig];
-    # Nix files are edited outside any devShell, so its server travels
-    # with the editor; other language servers come from project shells.
     extraBinPath = [
       pkgs.alejandra
       pkgs.nil

@@ -1,20 +1,9 @@
--- Rex's key bindings and the actions they run. The rex module links this file
--- as ~/.config/rex/init.lua and reloads it on each switch.
---
--- Cmd keeps the app's own operations, Option those on panes, and Ctrl stays
--- with the programs in the terminal. Shift moves what the key acts on, and
--- Ctrl+Option creates panes. Zellij binds the same keys.
-
 local terminal = "com.superlogical.terminal"
 
--- A terminal created without a working directory starts in the home
--- directory; Rex's own new tab action passes the current one, which is kept
--- only for panes within a tab.
 local function shell()
     return rex.layout.block { flavor = terminal .. ".shell" }
 end
 
--- The window holding the block, or the active window without one.
 local function window_of(view, block_id)
     for _, window in ipairs(view.windows or {}) do
         for _, layer in ipairs(window.layers or {}) do
@@ -44,9 +33,6 @@ rex.action {
     run = function ()
         local created = rex.session.new_window { layout = shell(), focus = true }
         local view = rex.session.view {}
-        -- The server makes the window active, but the app keeps showing the
-        -- tab it had; selecting the window brings the app to it. A key
-        -- binding's context carries no session, so the view names it.
         if created ~= nil and view ~= nil then
             rex.client.queue("session.select", {
                 session_id = view.session_id,
@@ -56,8 +42,6 @@ rex.action {
     end
 }
 
--- As Zellij's ToggleFloatingPanes: opens a floating pane when the window has
--- none, and otherwise hides them all, or shows them all when all are hidden.
 rex.action {
     name = "toggle_floating",
     title = "Toggle Floating Panes",
@@ -86,8 +70,6 @@ rex.action {
     end
 }
 
--- Leaves the key to Neovim when it runs in the pane, which moves to the
--- adjacent Rex pane itself once it reaches its own edge.
 rex.action {
     name = "smart_focus",
     title = "Focus Pane (pass through to Neovim)",
@@ -101,10 +83,8 @@ rex.action {
     end
 }
 
--- As Ghostty's reload_config; Rex binds it to Diagnostics.
 rex.bind("shift+cmd+,", "client.config.reload")
 
--- Replaces Settings on cmd+,.
 rex.bind("cmd+,", "client.tab.previous")
 rex.bind("cmd+.", "client.tab.next")
 rex.bind("cmd+t", "new_home_tab")

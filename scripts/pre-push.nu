@@ -1,5 +1,3 @@
-# Validate sent commit trees, not the checkout. Non-commit tags and deletions
-# have no configuration to validate; distinct commits sharing a tree run once.
 use ./run.nu checked
 use ./gate.nu
 
@@ -22,7 +20,6 @@ def main [] {
     for tree in $trees {
       let snapshot = mktemp --directory --tmpdir repository-push.XXXXXX
       let failure = try {
-        # Separate commands ensure archive failure cannot be hidden by tar.
         checked git archive --format=tar --output $"($snapshot).tar" $tree | ignore
         checked tar -xf $"($snapshot).tar" -C $snapshot | ignore
         do {

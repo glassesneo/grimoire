@@ -1,4 +1,3 @@
-# `anchorRoot` is the directory whose anchors `anchors` evaluates once.
 {
   lib,
   anchorRoot ? null,

@@ -1,6 +1,3 @@
-# Check that every committed bun.nix is what `just bun` writes from the bun.lock
-# beside it, so a lock changed with Bun directly fails before a build uses a
-# stale dependency set.
 {
   inputs,
   pkgs,

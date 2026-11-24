@@ -1,8 +1,3 @@
-# Owns real-file deployment declarations and their Hjem apply step.
-# Deployments have independent journals under the user's state directory.
-# Keep an empty deployment at its original root and stateDirectory to retire its
-# files; removing or renaming the deployment itself does not run its old journal.
-# The step delegates file ownership, conflict handling and recovery to imprynt.
 {
   delib,
   inputs,
@@ -21,8 +16,6 @@ delib.module {
     inherit (lib) mkOption types;
     imprynt = inputs.imprynt.lib;
     safeNames = values: lib.all (name: builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" name != null) (lib.attrNames values);
-    # Nix normalizes submodules through substSubModules; attrsOf otherwise
-    # reconstructs its type there without the added name check.
     namedDeployments = elementType:
       types.addCheck (types.attrsOf elementType) safeNames
       // {

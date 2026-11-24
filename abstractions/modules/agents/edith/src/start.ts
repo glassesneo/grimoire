@@ -1,6 +1,3 @@
-// Opens EDITH from the JSON configuration named by EDITH_CONFIG, with what every way of running it
-// shares: provider keys, MCP servers, code mode and the tools' environment. The resident service
-// (`main.ts`) and `edith dev` differ in their storage, their credentials file and their clients.
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Context } from "@earendil-works/chord/context";
@@ -14,22 +11,16 @@ import { connectServer, type Server, type ServerConfig } from "./mcp.ts";
 import { type ToolEnvironmentConfig, toolEnvironment, toolsExtension } from "./tools.ts";
 
 export type Config = {
-  // The resident service's storage, credentials and socket.
   readonly storage: string;
   readonly socket: string;
-  // Stored credentials, such as an OAuth login, by provider id; absent until one is placed there.
   readonly credentials: string;
-  // `edith dev`'s directory: its credentials file and its named sessions.
   readonly devDirectory: string;
-  // Files holding provider API keys, by the environment variable pi-ai reads each from.
   readonly providerKeys: Readonly<Record<string, string>>;
   readonly access: Options["access"];
   readonly personas: Options["personas"];
   readonly namespaces: Options["namespaces"];
-  // The MCP servers some access names, by name.
   readonly mcpServers: Readonly<Record<string, ServerConfig>>;
   readonly discord: { readonly tokenFile: string; readonly allowedUsers: readonly string[] } | null;
-  // Where the tools run; without it, no access selects any.
   readonly toolEnvironment: ToolEnvironmentConfig | null;
 };
 
@@ -60,7 +51,6 @@ export async function start(
   ].flat())
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 
-  // A server that fails to start is left out, so its accesses run without its tools.
   const servers = (
     await Promise.allSettled(
       Object.entries(config.mcpServers).map(([name, server]) =>
@@ -75,7 +65,6 @@ export async function start(
   const sandbox = new CodemodeSandbox();
   const codemode = createCodemodeExtension({
     sandbox,
-    // Scripts get no paid model calls of their own.
     models: false,
   });
   const env = config.toolEnvironment && toolEnvironment(config.toolEnvironment);

@@ -1,18 +1,3 @@
-# Owns the Hjem module system and the contract of its result.
-#
-# `makeSystem` evaluates one user's Hjem configuration and returns the manifest,
-# the packages, `apply`, and a `preflight` derivation that realizes all file,
-# package and apply closures. `apply` runs, with bin/apply, the package of every
-# step registered in `applySteps`, in the order their `after` and `before`
-# declare; a reference to an unregistered step or a cycle fails evaluation. Its `steps` passthru exposes the packages by name for
-# evaluation checks. Assertions block every output except `failedAssertions`,
-# the messages of the failed ones, which module tests read without forcing an
-# output, and `options`, the evaluated option declarations that generated
-# references read.
-#
-# `pkgs` is Nixpkgs for the user's system. `nixpkgs.config.allowUnfreePackages`
-# names the unfree packages it may evaluate; every other unfree package fails
-# evaluation.
 {inputs, ...}: {
   moduleSystems.hjem = {
     flakeOutputs = {
@@ -39,8 +24,6 @@
         ["xdg" "state" "files"]
       ];
 
-      # Mirrors nix-darwin's `nixpkgs.config.allowUnfreePackages`, so a module
-      # allows the unfree packages it uses beside the use.
       unfreePackages = {
         _file = ./default.nix;
         options.nixpkgs.config.allowUnfreePackages = lib.mkOption {
@@ -79,12 +62,6 @@
       evaluation = lib.evalModules {
         class = "hjem";
 
-        # Hjem imports from `pkgs.path`, so `pkgs` must be a special argument;
-        # the list stays lazy, so importing does not force the configuration.
-        # Without unfree names, the shared Nixpkgs serves every evaluation in
-        # the process instead of re-evaluating stdenv in a fresh instance. The
-        # choice reads the configuration, so `path` and the attribute names
-        # come from the shared instance and only values come from the choice.
         specialArgs = {
           pkgs = let
             shared = inputs.nixpkgs.legacyPackages.${system};
@@ -113,7 +90,6 @@
             }
             unfreePackages
             applySteps
-            # standalone applies packages through current-profile; expose it on PATH.
             ({config, ...}: {
               environment.sessionVariables.PATH = lib.mkMerge [
                 (lib.mkBefore ["${config.xdg.state.directory}/hjem/standalone/current-profile/bin"])
@@ -163,7 +139,6 @@
         pkgs.runCommand
         "hjem-preflight"
         {
-          # Structured attrs keep store paths containing spaces, such as app bundles, intact.
           __structuredAttrs = true;
           inherit dependencies;
         }
@@ -174,8 +149,6 @@
           done > "$out"
         '';
 
-      # Hjem's per-user module imports nixpkgs' assertions module, so `assertions`
-      # is already declared in this evaluation.
       failedAssertions = mylib.assertions.failed cfg.assertions;
     in
       lib.mapAttrs (_: mylib.assertions.guard failedAssertions) {

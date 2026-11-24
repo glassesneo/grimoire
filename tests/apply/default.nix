@@ -1,8 +1,3 @@
-# The apply procedure, not Nix or SSH, decides when a layer may proceed. Run it
-# with fake external commands: a failed build stops before any later stage,
-# whether or not the build printed a path, the error names the failed stage, and
-# a successful `all` applies nix-darwin before Hjem, using the same explicit
-# source for both layers when selected.
 {pkgs, ...}: let
   fake = command:
     pkgs.writeShellScriptBin command ''

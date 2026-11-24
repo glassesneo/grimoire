@@ -1,5 +1,3 @@
-# Rosé Pine (main). The named colors are its roles, from rose-pine/palette;
-# the terminal roles follow its Ghostty port (rose-pine/ghostty dist/rose-pine).
 let
   named = {
     base = "#191724";

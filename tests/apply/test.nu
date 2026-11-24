@@ -1,6 +1,5 @@
 use std/assert
 
-# Runs `all` against a remote target and returns its result and the calls made.
 def apply [script: string, environment: record]: nothing -> record {
   let calls = mktemp --tmpdir
   let selection = if "SOURCE" in $environment { $" --flake ($environment.SOURCE)" } else { "" }
@@ -22,7 +21,6 @@ def main [script: string] {
   let calls = $applied.calls
   let order = [darwinConfigurations "/activate" ".preflight" "standalone switch"] | each {|pattern| index-of $calls $pattern }
   assert equal $order ($order | sort)
-  # Each built path reaches the command that uses it.
   let built = $calls | where {|call| $call | str contains ".preflight" } | first | split row ' ' | where {|arg| $arg | str contains '#' } | each {|attr| $"/nix/store/fake-($attr | hash md5)" }
   let activation = $calls | where {|call| $call | str contains "standalone switch" } | first
   assert str contains $activation $"($built.2)/bin/hjem standalone switch"
@@ -42,7 +40,6 @@ def main [script: string] {
     let failed = apply $script {FAIL_ON: ".preflight", FAIL_WITH_PATH: $with_path}
     assert not equal $failed.exit_code 0
     assert str contains $failed.stderr "Hjem build failed"
-    # nix-darwin was activated before Hjem preflight, and nothing after it ran.
     index-of $failed.calls "/activate" | ignore
     assert ($failed.calls | last | str contains ".preflight")
   }

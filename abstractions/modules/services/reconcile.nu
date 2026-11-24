@@ -18,7 +18,6 @@ def --wrapped ctl-ok [manifest: record, ...args: string]: nothing -> bool {
   (ctl $manifest ...$args).exit_code == 0
 }
 
-# Runs CONDITION up to ATTEMPTS times, 100ms apart, until it holds.
 def retry [attempts: int, condition: closure]: nothing -> bool {
   for _ in 0..<$attempts {
     if (do $condition) { return true }
@@ -27,7 +26,6 @@ def retry [attempts: int, condition: closure]: nothing -> bool {
   false
 }
 
-# Writes CONTENT to FILE through a temporary file in the same directory.
 def save-atomic [file: path, content: string] {
   let temporary = $"($file).tmp"
   $content | save --force $temporary
@@ -60,8 +58,6 @@ def retire-agent [manifest: record, home: path, uid: string, launchctl: string] 
   rm --force ($home | path join Library LaunchAgents $"($manifest.label).plist")
 }
 
-# Writes the agent's plist and returns whether dinit was started by this run,
-# or null without a GUI session. APPLIED is the plist the last run left.
 def start-agent [manifest: record, content: string, applied: any, home: path, uid: string, launchctl: string]: nothing -> any {
   let agents = $home | path join Library LaunchAgents
   mkdir $agents ($home | path join Library Logs)
@@ -80,8 +76,6 @@ def start-agent [manifest: record, content: string, applied: any, home: path, ui
     $loaded = false
   }
   if not $loaded {
-    # launchd may still be removing a job it has just booted out; the last
-    # attempt reports the error.
     if not (retry 50 { (execute $launchctl bootstrap $domain $target).exit_code == 0 }) {
       checked $launchctl bootstrap $domain $target | ignore
     }
@@ -94,7 +88,6 @@ def start-agent [manifest: record, content: string, applied: any, home: path, ui
   not ($loaded and $running)
 }
 
-# Unloads NAMES, dependents first, and returns those still loaded.
 def unload [manifest: record, names: list<string>]: nothing -> list<string> {
   mut pending = $names
   loop {
@@ -106,13 +99,9 @@ def unload [manifest: record, names: list<string>]: nothing -> list<string> {
     $pending = $rest
     if not $progress { break }
   }
-  # A service that was never loaded and has no description cannot be found.
   $pending | where {|name| ctl-ok $manifest status $name }
 }
 
-# Requests a start of SERVICE, returning false when dinit refused it. An
-# automatic service is woken, so that it runs for its dependents; nothing is
-# requested when none of them is active.
 def request-start [manifest: record, service: record]: nothing -> bool {
   if $service.automatic {
     let result = ctl $manifest wake --no-wait $service.name
@@ -170,7 +159,6 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
     for service in $desired {
       let rerun = $service.name in $changed or $service.restartOnSwitch
       if $service.name in $failed {
-        # dinit keeps the previous description when a reload fails.
         if $service.name in $before and $service.name not-in $running {
           request-start $manifest $service | ignore
         }
@@ -187,7 +175,6 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
         $starts = ($starts | append $service)
       }
     }
-    # Dependents first, so that a dependency is woken by a started dependent.
     for service in ($starts | reverse) {
       if not (request-start $manifest $service) { $failed = ($failed | append $service.name) }
     }
@@ -208,7 +195,6 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
   let applied = $desired | where {|service| $service.name not-in $failures } | reduce --fold {} {|service, recorded|
     $recorded | insert $service.name {file: $service.file, automatic: $service.automatic}
   }
-  # A removal that failed stays recorded, so the next run removes it again.
   let services = $failures | where {|name| $name not-in $names } | reduce --fold $applied {|name, recorded|
     $recorded | insert $name ($known | get $name)
   }

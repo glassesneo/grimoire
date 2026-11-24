@@ -1,9 +1,5 @@
 use std/assert
 
-# Keep execution checks here: CLI command lookup must return the manifest, and
-# real ciphertext must remain unpublished on missing-key or forged-anchor failure.
-# Evaluation cannot detect these package failures; Hjem owns service lifecycle.
-# Mount inspection is read-only: this sandbox creates no jobs, mounts or images.
 def main [manifest_path: path, environment_path: path, probe: path, package: path] {
   let manifest = open $manifest_path
   let environment = open $environment_path

@@ -1,27 +1,3 @@
-# Owns anchors: dependencies that one module pins in an `anchors.json` beside
-# its declaration, outside the root flake's inputs and lock file. The file is
-# an npins lock file (format version 8), written by npins in lock-file mode
-# through `just anchors update`; a pin's name is its key in that file.
-#
-# `sources file` returns, by pin name, the pin's source: an attribute set whose
-# `outPath` is the pin's content in the store, fetched during evaluation from
-# the URL npins recorded and checked against the recorded hash, which pure
-# evaluation permits. A Git or GitHub pin, branch or release, also carries
-# `rev`, `shortRev`, `lastModified`, `lastModifiedDate` and `narHash`, as a
-# flake input does, and a release pin carries its tag as `version`; its store
-# path equals that of a flake input or `fetchFromGitHub` of the same revision.
-# A URL pin is a single file keeping its name, unpacked when npins records
-# `unpack`. Other pin types, and Git pins with submodules, fail evaluation.
-#
-# `flakes file` returns, by pin name, the flake of a GitHub pin as a flake
-# input of the same revision gives it: Nix evaluates it with its own lock file.
-#
-# `discover directory` returns every `anchors.json` below `directory`, by its
-# directory relative to `directory`.
-#
-# Given `root`, the files below it are read and their flakes evaluated once
-# for every evaluation sharing this value, rather than once per module system
-# evaluation that applies a module.
 {
   lib,
   root ? null,
@@ -62,13 +38,11 @@
         outPath = builtins.fetchurl {
           inherit (pin) url;
           sha256 = pin.hash;
-          # Programs loading the file may read its name.
           name = baseNameOf pin.url;
         };
       }
     else unsupported "has type ${pin.type}";
 
-  # A locked reference, which pure evaluation permits.
   flake = file: name: pin:
     if lib.elem pin.type ["Git" "GitRelease"] && pin.repository.type == "GitHub"
     then builtins.getFlake "github:${pin.repository.owner}/${pin.repository.repo}/${pin.revision}?narHash=${lib.escapeURL pin.hash}"

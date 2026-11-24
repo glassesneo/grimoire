@@ -10,7 +10,6 @@ delib.module ({cfg, ...}: {
 
   options.enable = delib.boolOption true;
 
-  # pay-respects.disrespectful replaces this module's recovery when enabled.
   hjem.ifEnabled = {pkgs, ...}:
     lib.mkIf (!cfg.disrespectful.enable) {
       packages = [pkgs.pay-respects];

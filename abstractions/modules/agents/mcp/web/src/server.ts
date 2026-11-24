@@ -121,7 +121,6 @@ export function serve(
       }
       return;
     }
-    // The envelope guard above excludes every other ID shape.
     if (!isId(id)) return;
     if (params !== undefined && !isRecord(params)) {
       fail(id, -32602, "Invalid params");

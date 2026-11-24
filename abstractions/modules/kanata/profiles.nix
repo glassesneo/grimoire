@@ -1,5 +1,3 @@
-# Keymaps that a host selects with `kanata.profile`, by name. Each is a set
-# of `kanata` option values.
 {
   default = {
     settings = {
@@ -9,17 +7,12 @@
     };
 
     layers.base = {
-      # Taps Escape, holds Control.
       caps = ["tap-hold-press" 70 70 "esc" "lctl"];
-      # Removes Option from Backspace, including Option held through semicolon.
       spc = ["fork" "spc" ["unmod" ["lalt" "ralt"] "bspc"] ["lalt" "ralt"]];
-      # Taps Tab, holds Command.
       rmet = ["tap-hold-press" 200 200 "tab" "rmet"];
-      # Taps with ; and : swapped on a US layout, holds Option.
       ";" = ["tap-hold" 200 200 ["fork" "S-;" ["unmod" ["lsft" "rsft"] ";"] ["lsft" "rsft"]] "lalt"];
     };
 
-    # F with K, L and ; types , . and /.
     chords = let
       punctuation = key: action: {
         keys = ["f" key];

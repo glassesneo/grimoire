@@ -11,7 +11,6 @@ in
     inherit version;
     src = phibrowser-cli;
 
-    # patchShebangs resolves the entry point's `env node` from these.
     buildInputs = [nodejs];
     dontBuild = true;
 

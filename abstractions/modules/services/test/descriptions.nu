@@ -1,11 +1,7 @@
-# Observes what the services of the dinit instance at SOCKET, started on the
-# descriptions a fixture placed, received and did. Services write under $OUT,
-# which reaches their shell unexpanded by dinit.
 use std/assert
 
 use common.nu [eventually lines-of]
 
-# The lines a service wrote to NAME under $OUT.
 def output [name: string]: nothing -> list<string> {
   lines-of ($env.OUT | path join $name)
 }

@@ -26,8 +26,6 @@ delib.module ({cfg, ...}: {
     };
   };
 
-  # Placed for manual installation from System Settings; profiles cannot be
-  # installed non-interactively.
   darwin.ifEnabled = {pkgs, ...}: {
     environment.etc."slack-no-autoupdate.mobileconfig".source = pkgs.writeText "slack-no-autoupdate.mobileconfig" (mylib.plist.toPlist {
       PayloadType = "Configuration";

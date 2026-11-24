@@ -1,37 +1,3 @@
-# Owns Hjem user defaults declarations and their Darwin lowering.
-#
-# `platform.darwin.defaults.<domain>.settings` declares values of a
-# preferences domain of the current user on any host; `NSGlobalDomain` names
-# the global domain. An attribute set declares each of its leaves, the values
-# that are not attribute sets, at its key path: a dictionary is written into,
-# keeping keys that are not declared, and missing dictionaries along the path
-# are created. A list or other value is written whole, and an empty attribute
-# set declares nothing. Each switch writes every declared leaf that differs
-# from the current one, so a value changed elsewhere is overwritten by the next
-# switch; a switch fails before writing when a value along a declared path is
-# not a dictionary. The switch that first declares a leaf records its value at
-# that moment, or its absence; removing the declaration restores that value, or
-# deletes the leaf and the dictionaries the declaration created once they are
-# empty. A leaf whose enclosing value is no longer a dictionary is left as it
-# is. Leaf values may be strings, booleans, integers, finite floats or lists of
-# plist values. XML control characters in strings or keys are rejected, as are
-# empty keys. Domain names must be unique ignoring case.
-#
-# `onChange` acts after a switch that wrote or restored a leaf of the domain,
-# including the switch that restores leaves whose declarations were removed.
-# The step runs after the services step, so a restart reaches the service that
-# switch left running. Restarting a service that is not started does nothing;
-# a restart while the service manager is not running, as without a GUI
-# session, is deferred to a later switch.
-#
-# Declarations are ignored on non-Darwin systems. Invalid declarations fail
-# through the assertions, which guard the Hjem result. Service names are those
-# of the services module's `userServices`, restarted with its
-# `serviceManager.restart`. The apply
-# step is registered even without declarations, so removing the last one still
-# restores its values. The step's `domains` passthru exposes the manifest for
-# evaluation checks. Ownership, restoration and pending actions are implemented
-# by reconciler/reconciler.cr.
 {
   delib,
   mylib,
@@ -49,7 +15,6 @@ delib.module {
   }: let
     inherit (lib) mkOption types;
     inherit (mylib) plist;
-    # launchd starts these again after they exit, so killing one reloads its preferences.
     relaunchedProcesses = ["ControlCenter" "Dock" "Finder" "NotificationCenter" "SystemUIServer" "WindowManager"];
     domain = types.submodule {
       options = {
@@ -79,7 +44,6 @@ delib.module {
     };
     declared = config.platform.darwin.defaults;
     safeDomain = name: builtins.match "[A-Za-z0-9][A-Za-z0-9._-]*" name != null;
-    # Values that are not attribute sets, with the key paths that reach them.
     leaves = path: value:
       if builtins.isAttrs value
       then lib.concatLists (lib.mapAttrsToList (key: leaves (path ++ [key])) value)
@@ -173,8 +137,6 @@ delib.module {
     };
   };
 
-  # Lowering is observed before serialization; lib/plist.nix owns plist syntax.
-  # The reconciler build runs its own specs for runtime transitions.
   tests.fixture = ["services"];
   tests.cases = {pkgs, ...}: let
     inherit (pkgs) lib;
@@ -205,13 +167,11 @@ delib.module {
         };
         NSGlobalDomain.settings.name = "value";
       };
-      # A second location adds keys and actions to the same domain.
       second.hjem.always.platform.darwin.defaults."com.example.app" = {
         settings.other = "x";
         onChange.restartProcesses = ["Dock"];
       };
     };
-    # Declaration errors are constraints, so a rejection names its reason.
     rejects = reason: declarations: {
       protects = "a declaration that cannot be lowered safely is rejected, naming its reason";
       platforms = darwin;
@@ -229,12 +189,10 @@ delib.module {
           app = domains."com.example.app";
           values = lib.listToAttrs (map (leaf: lib.nameValuePair (lib.concatStringsSep "/" leaf.path) leaf.xml) app.values);
         in {
-          # Each leaf is declared at its path; lists are leaves and empty sets declare nothing.
           paths = map (leaf: leaf.path) app.values;
           xml = {
             flag = lib.hasInfix "<true/>" values.flag;
             count = lib.hasInfix "<integer>-1</integer>" values.count;
-            # Floats keep every digit needed to parse back to the declared value.
             ratio = lib.hasInfix "<real>0.30000000000000004</real>" values.ratio;
             tiny = lib.hasInfix "<real>1e-07</real>" values.tiny;
             nested = lib.hasInfix "<string>&lt;value&gt;</string>" values."A&B/nested";
@@ -272,7 +230,6 @@ delib.module {
           globalActions = [];
         };
       };
-      # Declarations are ignored, not rejected, on Linux.
       linux-ignored = {
         protects = "Darwin defaults declarations are ignored on Linux";
         host.system = "x86_64-linux";

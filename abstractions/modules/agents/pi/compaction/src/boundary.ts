@@ -1,4 +1,3 @@
-// Pi's side of Responses compaction: checkpoints and fallback state as Pi session entries.
 import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import {
@@ -12,8 +11,6 @@ type Replay = { identity: string; tools: string; replay: ReplayItem[] };
 type Checkpoint = Replay & ({ version: 1 } | { version: 2; recovery: AgentMessage[] });
 
 export function checkpointRecord(replay: Replay, messages: AgentMessage[]) {
-  // Pi counts summary text as prompt tokens when provider usage is unavailable.
-  // Keep the recovery transcript in details and give each summary its own identity.
   return {
     summary: `OpenAI Responses checkpoint (${randomUUID()})`,
     details: {
@@ -26,9 +23,7 @@ export function checkpointRecord(replay: Replay, messages: AgentMessage[]) {
   };
 }
 
-// A retired checkpoint no longer matches the model or tools; it only restores readable history.
 export const retiredType = "responses-checkpoint-retired";
-// Standard-compaction fallback lasts until the next human input, across session reloads.
 export const fallbackType = "responses-fallback";
 
 export function savedFallback(ctx: ExtensionContext): boolean {
@@ -38,7 +33,6 @@ export function savedFallback(ctx: ExtensionContext): boolean {
   return (entry as { data?: { blocked?: unknown } } | undefined)?.data?.blocked === true;
 }
 
-// Only the latest active compaction owns the projection; never revive an older checkpoint.
 export function saved(ctx: ExtensionContext):
   | {
       entry: CompactionEntry;

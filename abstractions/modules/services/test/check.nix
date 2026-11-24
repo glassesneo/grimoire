@@ -1,5 +1,3 @@
-# Builds when reconcile.nu brings a real dinit and its services through
-# test/reconcile.nu's generations, with launchctl replaced by a fake.
 {
   dinit,
   nushell,
@@ -17,7 +15,6 @@ in
     mkdir -p "$HOME"
     status=0
     nu --no-config-file ${./.}/reconcile.nu || status=$?
-    # A failed scene leaves dinit running.
     "$DINITCTL" --socket-path "$SOCKET" shutdown >/dev/null 2>&1 || true
     [ "$status" = 0 ]
     touch "$out"

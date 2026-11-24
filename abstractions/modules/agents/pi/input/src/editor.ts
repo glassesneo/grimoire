@@ -23,11 +23,9 @@ interface Runtime {
   running: () => boolean;
   abort: () => void;
   notify: (message: string) => void;
-  /** Shows the palette above the conversation; `close` removes it. */
   showPalette: (open: (theme: Theme, close: () => void) => Component) => void;
 }
 
-/** Frames the palette editor as a titled box; its input and focus belong to the editor. */
 class PaletteOverlay implements Component, Focusable {
   #focused = false;
   constructor(
@@ -45,7 +43,6 @@ class PaletteOverlay implements Component, Focusable {
     const lost = this.#focused && !value;
     this.#focused = value;
     this.palette.focused = value;
-    // Another dialog took focus; an unseen palette must not keep capturing commands.
     if (lost) this.blurred();
   }
 
@@ -58,7 +55,6 @@ class PaletteOverlay implements Component, Focusable {
     const inner = Math.max(1, width - 2);
     const title = ` ${this.theme.fg("accent", this.theme.bold("Command palette"))} `;
     const top = `${border("┌─")}${title}${border("─".repeat(Math.max(0, inner - 1 - visibleWidth(title))))}${border("┐")}`;
-    // The editor's first row is its top rule, which the title row replaces.
     const body = this.palette
       .render(inner)
       .slice(1)
@@ -74,7 +70,6 @@ class PaletteOverlay implements Component, Focusable {
   }
 }
 
-/** A separate native editor owns palette input; the main buffer is never a command transport. */
 export class InputEditor extends CustomEditor {
   #keys: InputKeys;
   #bindings: KeybindingsManager;
@@ -94,7 +89,6 @@ export class InputEditor extends CustomEditor {
     this.#palette.onSubmit = (text) => {
       void this.#dispatch(text);
     };
-    // Editor declares focused as an own field. Observe actual focus transfers, not renders.
     let focused = this.focused;
     Object.defineProperty(this, "focused", {
       configurable: true,
@@ -131,7 +125,6 @@ export class InputEditor extends CustomEditor {
     this.#stop = idleStop;
   }
 
-  /** Only completed operations may discard the draft. Before-events can still be cancelled. */
   sessionReplaced(): void {
     this.#command = undefined;
     super.setText("");
@@ -147,13 +140,11 @@ export class InputEditor extends CustomEditor {
   }
 
   override setText(text: string): void {
-    // Native command dispatch clears its transport buffer. That is not our draft.
     if (this.#command !== undefined) return;
     super.setText(text);
   }
 
   override handleInput(data: string): void {
-    // Returning from a cancelled native selector leaves the original buffer intact.
     if (!this.#open) this.#command = undefined;
     if (this.#open) {
       this.#paletteInput(data);
@@ -165,7 +156,6 @@ export class InputEditor extends CustomEditor {
     }
     const stopKey = this.#keys.stop.find((key) => matchesKey(data, key));
     if (stopKey) {
-      // Cancelling native completion is not the first half of an agent stop.
       if (this.isShowingAutocomplete() && this.#bindings.matches(data, "tui.select.cancel")) {
         this.resetStop();
         super.handleInput(data);
@@ -194,7 +184,6 @@ export class InputEditor extends CustomEditor {
       this.#runtime?.notify(
         `Press ${decision.state.key} again within ${stopWindowMs / 1000} seconds to stop.`,
       );
-    // Without repeat reports, a second press stops once no auto-repeat follows it.
     if (decision.effect === "pending")
       this.#settle = setTimeout(
         () => this.#applyStop(reduceStop(this.#stop, { type: "settle", now: Date.now() })),
@@ -222,7 +211,6 @@ export class InputEditor extends CustomEditor {
   #paletteInput(data: string): void {
     if (this.#bindings.matches(data, "tui.select.cancel")) this.closePalette();
     else {
-      // Unlike ordinary editing, palette Enter also dispatches argument completions.
       if (
         this.#bindings.matches(data, "tui.select.confirm") &&
         this.#palette.isShowingAutocomplete()
@@ -239,8 +227,6 @@ export class InputEditor extends CustomEditor {
     const command = text.trim().split(/\s+/)[0]?.slice(1) ?? "";
     this.#command = command;
     try {
-      // Pi assigns this callback as an own data field. Do not shadow it with an accessor.
-      // Its type returns void, but Pi's command dispatch is async; wait for it to settle.
       const submitted: unknown = this.onSubmit?.(text);
       await submitted;
     } catch (error) {
@@ -248,8 +234,6 @@ export class InputEditor extends CustomEditor {
         `Command failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
-      // Native selectors return before the selection completes. Keep their draft guard
-      // until success is observed or input returns to this editor after cancellation.
       if (!["resume", "tree", "fork"].includes(command)) this.#command = undefined;
       this.tui.requestRender();
     }

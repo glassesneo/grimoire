@@ -1,32 +1,9 @@
-# Owns serialized, retryable reconciliation of Hjem-owned user defaults.
-# The journal (state.json) lives under .local/state/hjem/defaults in the
-# configured home. It records each owned leaf by domain and key path with the
-# plist XML of its value before ownership (null when absent), how many of its
-# enclosing dictionaries were present then, the actions of its domain, and the
-# onChange actions not yet completed. An entry of an earlier journal that names
-# a single key is read as the path of that key.
-# A run fails before writing when a value along a declared path is not a
-# dictionary. A leaf's previous value and the actions a run will cause are
-# recorded before any value is written. A leaf is written only when its value
-# differs from the declared one. Removing a declaration restores the recorded
-# value, or deletes the leaf and the enclosing dictionaries that were absent
-# once they are empty, and ends ownership; actions run only when the restore
-# changed the value. A leaf whose enclosing value is no longer a dictionary is
-# left as it is, with a warning. A removed path that encloses or lies within a
-# declared one is restored first, so the declared leaf records the restored
-# value. Pending actions are retried by later runs until they complete; a
-# service restart while the service manager is not running stays pending, and a
-# failed action stops the run with the rest still pending.
-# Crystal's stdlib supplies flock, tempfile, file fsync and same-directory
-# rename. No directory fsync is performed: full power-loss durability is not
-# guaranteed. Preferences and commands are injected; specs substitute fakes.
 require "json"
 require "./preferences"
 
 module HjemDefaults
   ACTIVATE_SETTINGS = "/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings"
 
-  # kind is process (target: name), activateSettings, or service (target: service name).
   record Action, kind : String, target : String do
     include JSON::Serializable
   end
@@ -38,7 +15,6 @@ module HjemDefaults
     property present = 0
     property original : String?
     property actions : Array(Action)
-    # The single key that an earlier journal recorded instead of a path.
     @[JSON::Field(ignore_serialize: true)]
     property key : String? = nil
 
@@ -82,10 +58,7 @@ module HjemDefaults
     Deferred
   end
 
-  # A service restart runs the services module's restart command with the
-  # service name; its option description states the exit codes.
   class Commands
-    # EX_TEMPFAIL: the service manager is not running.
     DEFERRED = 75
 
     def initialize(@restart_service : String)
@@ -103,14 +76,12 @@ module HjemDefaults
     def perform(action : Action) : Outcome
       case action.kind
       when "process"
-        # killall fails when the process is not running; it reads the values when launchd starts it.
         run("/usr/bin/killall", [action.target], quiet: true)
         Outcome::Done
       when "activateSettings"
         raise "activateSettings failed" unless run(ACTIVATE_SETTINGS, ["-u"])
         Outcome::Done
       when "service"
-        # A service that is not started reads the values when it starts.
         case status(@restart_service, [action.target])
         when 0        then Outcome::Done
         when DEFERRED then Outcome::Deferred
@@ -162,7 +133,6 @@ module HjemDefaults
     actions.each { |action| journal.pending << action unless journal.pending.includes?(action) }
   end
 
-  # Ends ownership of a leaf, restoring its recorded value when that changes it.
   def self.release(path : Path, journal : Journal, owned : Owned, prefs)
     if prefs.blocked?(owned.domain, owned.path)
       STDERR.puts "Hjem defaults: not restoring #{owned.describe}: an enclosing value is not a dictionary"

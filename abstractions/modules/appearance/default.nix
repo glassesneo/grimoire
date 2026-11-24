@@ -18,7 +18,7 @@ delib.module {
       settings = {
         IsAnalog = false;
         Show24Hour = true;
-        ShowDate = 1; # Always
+        ShowDate = 1;
         ShowDayOfMonth = true;
         ShowDayOfWeek = true;
         ShowSeconds = false;

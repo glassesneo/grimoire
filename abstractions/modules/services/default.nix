@@ -1,37 +1,3 @@
-# Owns Hjem user-service declarations and their Darwin lowering to a dinit user
-# instance that one LaunchAgent starts.
-#
-# Each `userServices.<name>` lowers to a dinit service description that Hjem
-# places in `$XDG_CONFIG_HOME/dinit.d/<name>`. A command is serialized as
-# quoted arguments with `\`, `"` and `$` escaped, so each element reaches the
-# program as one argument, never as shell text or a variable reference.
-# `environment` becomes an env-file whose values are literal. `memberOf` adds
-# the service to each named group as a waits-for dependency of that group.
-# `login`, the group dinit starts, is not declared: the module writes its
-# description from the services naming it. A service that `login` reaches
-# through waits-for or depends-on dependencies is "automatic": it starts with
-# dinit and after a switch that adds or changes it.
-#
-# A home without services gets no dinit: nothing is placed and the apply step
-# retires an agent a previous generation left.
-#
-# dinit runs from a bundle with a stable code-signing identity, so TCC grants
-# given to it survive rebuilds; TCC attributes the processes it starts to it.
-# One gui-domain LaunchAgent, named by `serviceManager.label`, starts it in the
-# Aqua session that login loads, after /nix/store is mounted. Its control
-# socket is `serviceManager.socket`, the default socket of a user instance
-# without XDG_RUNTIME_DIR, so `dinitctl` reaches it without options.
-#
-# The apply step runs reconcile.nu, whose behavior test/reconcile.nu's scenes state; its
-# output also holds the descriptions in `dinit.d`, and its `services` passthru
-# exposes the lowered declarations, dependencies first, for evaluation checks.
-# `serviceManager.restart` is the command that restarts one service for other
-# steps.
-#
-# Service names must be usable as dinit names and file names. Invalid
-# declarations fail through the assertions, which guard the Hjem result. On
-# non-Darwin systems nothing starts dinit, so declaring a service fails there;
-# the apply step is then a no-op.
 {
   delib,
   mylib,
@@ -124,7 +90,6 @@ delib.module ({myconfig, ...}: {
     namePattern = "[A-Za-z0-9][A-Za-z0-9._-]*";
     safeName = name: builtins.match namePattern name != null;
     safeVariable = name: builtins.match "[A-Za-z_][A-Za-z0-9_]*" name != null;
-    # dinit removes the quotes and backslash escapes, then substitutes variables.
     quote = s: "\"" + lib.replaceStrings ["\\" "\"" "$"] ["\\\\" "\\\"" "$$"] s + "\"";
     restartValue = {
       always = "yes";
@@ -139,7 +104,6 @@ delib.module ({myconfig, ...}: {
         operator = item: map (key: {inherit key;}) (next item.key);
       });
     automatic = lib.genAttrs (closure (membersOf root) (name: lib.filter (dependency: declared ? ${dependency}) (declared.${name}.dependsOn ++ waitsOf.${name}))) (_: true);
-    # The services a restart with --force also restarts.
     dependentsOf = name: lib.remove name (closure [name] (dependency: lib.filter (other: lib.elem dependency declared.${other}.dependsOn) names));
 
     envFile = name: entry: pkgs.writeText "dinit-${name}.env" (lib.concatStrings (lib.mapAttrsToList (key: value: "${key}=${value}\n") entry.environment));
@@ -166,12 +130,10 @@ delib.module ({myconfig, ...}: {
     directory = pkgs.linkFarm "dinit.d" (lib.mapAttrsToList (name: path: {inherit name path;}) descriptions);
 
     relations = ["dependsOn" "waitsFor" "after" "before" "memberOf"];
-    # Whether dinit starts or orders `a` before `b`.
     precedes = a: b:
       lib.elem a (declared.${b}.dependsOn ++ waitsOf.${b} ++ declared.${b}.after)
       || lib.elem b declared.${a}.before;
     sorted = lib.toposort precedes (lib.filter safeName names);
-    # Descriptions are files, and Darwin homes are commonly case-insensitive.
     folded = map lib.toLower names;
     problems = let
       references = name: entry:
@@ -222,14 +184,10 @@ delib.module ({myconfig, ...}: {
         root
       ];
       RunAtLoad = true;
-      # dinit exits with success after `dinitctl shutdown` and stays stopped
-      # until login or a switch starts it.
       KeepAlive.SuccessfulExit = false;
       LimitLoadToSessionType = "Aqua";
       ProcessType = "Interactive";
     };
-    # Dependencies come before their dependents, the order the reconciler
-    # relies on; assertions guard the result when there is a cycle.
     lowered =
       map (name: let
         entry = declared.${name};
@@ -241,8 +199,6 @@ delib.module ({myconfig, ...}: {
         dependents = dependentsOf name;
       })
       (sorted.result or names);
-    # The group dinit starts comes last and is started, not woken. Without
-    # services the list is empty, which retires dinit.
     manifest = pkgs.writeText "hjem-services.json" (builtins.toJSON {
       inherit (manager) label socket;
       inherit dinitctl;
@@ -328,8 +284,6 @@ delib.module ({myconfig, ...}: {
           problems;
       }
       (lib.mkIf active {
-        # The bundle keeps what the agent's plist runs alive and provides
-        # bin/dinit, so only dinitctl comes from the package.
         packages = [
           bundle
           (pkgs.linkFarm "dinitctl" {"bin/dinitctl" = dinitctl;})
@@ -339,10 +293,6 @@ delib.module ({myconfig, ...}: {
     ];
   };
 
-  # Cases observe dinit running what the module produces. dinit-check is not
-  # used: it also checks the host's executables and directories, which a build
-  # cannot see. The reconciler case drives reconcile.nu against a real dinit
-  # and a fake launchctl.
   tests.fixture = ["app-identity"];
   tests.cases = {pkgs, ...}: let
     inherit (pkgs) lib;
@@ -403,8 +353,6 @@ delib.module ({myconfig, ...}: {
           pkgs.runCommand "services-descriptions" {nativeBuildInputs = [pkgs.dinit pkgs.nushell];} ''
             export OUT="$TMPDIR/out" HOME=/nonexistent
             mkdir "$OUT"
-            # dinit cleans up after its services by process group, so it does
-            # not run under the observing process.
             dinit --user --quiet --services-dir ${result.apply.steps.services}/dinit.d --socket-path "$TMPDIR/s" login &
             status=0
             nu --no-config-file ${./test}/descriptions.nu "$TMPDIR/s" || status=$?

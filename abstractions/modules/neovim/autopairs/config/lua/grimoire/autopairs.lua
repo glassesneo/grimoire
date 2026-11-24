@@ -22,9 +22,6 @@ local function is_generated(char)
   return false
 end
 
--- Only direct input records ownership; native dot-repeat replays existing text.
--- Run after the returned insert keys, not on a scheduled callback: later input
--- must never race the recording of the generated closer.
 function M.record(index)
   local pair = pairs_data[index]
   local row, col = at_cursor()

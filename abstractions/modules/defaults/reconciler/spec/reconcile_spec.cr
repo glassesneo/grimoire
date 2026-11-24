@@ -1,29 +1,19 @@
-# Owns journal state-machine checks at the reconciliation boundary.
-# Given generations, edits made elsewhere and injected failures, callers observe
-# recorded previous values, restoration, write-ahead pending actions and their
-# retry or deferral. Preference values and actions are faked; CFPreferences
-# storage, killall and launchd semantics are trusted upstream. The plist
-# document boundary is exercised against CoreFoundation without preferences.
 require "spec"
 require "file_utils"
 require "../reconciler"
 
-# A leaf is its XML document; a dictionary maps keys to nodes.
 alias Node = String | Hash(String, Node)
 
 def tree(**entries) : Node
   entries.to_h.transform_keys(&.to_s).transform_values(&.as(Node)).as(Node)
 end
 
-# Keyed by domain and first key, with the semantics of HjemDefaults::Preferences.
 class FakePreferences
   getter values = {} of Tuple(String, String) => Node
   getter writes = [] of Tuple(String, Array(String), String?)
   getter syncs = [] of String
   property fail_write = false
 
-  # The enclosing nodes from the first key's value down to the leaf's parent,
-  # ending early where one is absent.
   private def chain(domain, path) : Array(Node?)
     nodes = [values[{domain, path.first}]?] of Node?
     path[1..].each_with_index do |key, i|
@@ -114,10 +104,8 @@ class FakeCommands
   end
 end
 
-# Scripts the external commands of the real action runner.
 class ScriptedCommands < HjemDefaults::Commands
   getter calls = [] of Array(String)
-  # Exit codes of the calls starting with each prefix; other calls succeed.
   property codes = {} of Array(String) => Int32
 
   def initialize
@@ -146,7 +134,6 @@ class Fixture
     @home = tmp / "home"
   end
 
-  # Declares single keys of each domain.
   def generation(n, domains)
     paths(n, domains.map { |domain, keys, actions| {domain, keys.transform_keys { |key| [key] }, actions} })
   end
@@ -227,8 +214,6 @@ describe "journal reconciliation" do
       f.commands.performed.should eq([DOCK, DOCK])
       f.journal.keys.should be_empty
 
-      # A value already declared is recorded as its own previous value, so
-      # neither declaring nor removing it changes anything.
       f.prefs.values[{"com.test", "present"}] = "declared"
       same = f.generation(3, [{"com.test", {"present" => "declared"}, [DOCK]}])
       f.apply(same)
@@ -368,7 +353,6 @@ end
 
 describe HjemDefaults::Plist do
   it "round-trips documents of every accepted value type" do
-    # Literal lib/plist.nix toPlist output.
     xml = %(<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>A&amp;B</key><dict><key>nested</key><array><string>&lt;v&gt;</string><false/></array></dict><key>n</key><integer>-1</integer><key>r</key><real>1e-07</real><key>t</key><true/></dict></plist>
@@ -378,7 +362,6 @@ describe HjemDefaults::Plist do
         LibCF.CFEqual(value, again).should eq(1)
       end
     end
-    # The shortest round-trip form of a float parses to the same value as its full digits.
     {"1e-07" => "0.0000001", "0.30000000000000004" => "0.300000000000000044408920985006"}.each do |short, full|
       HjemDefaults::Plist.parse(%(<plist version="1.0"><real>#{short}</real></plist>)) do |a|
         HjemDefaults::Plist.parse(%(<plist version="1.0"><real>#{full}</real></plist>)) do |b|

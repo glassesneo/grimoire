@@ -13,11 +13,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import register from "./index.ts";
 
-// Contract tests at the consumer boundary: real Pi sessions and serialization, with
-// only HTTP replaced. Helper truth tables were removed: they missed lost history,
-// duplicated tool calls and broken recovery despite all their assertions passing.
-// No schema/type/build check observes these repository-owned cross-hook behaviors.
-// Each scenario below owns one materially distinct outcome; no SDK behavior is retested.
 export default async function contracts(): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), "pi-compaction-contract-"));
   const originalFetch = globalThis.fetch;
@@ -84,7 +79,6 @@ export default async function contracts(): Promise<void> {
           });
         events.push({ type: "response.output_item.done", output_index, item });
       }
-      // Empty terminal output is intentional: the completed streamed items own replay.
       events.push({
         type: `response.${terminal}`,
         response: {
@@ -101,7 +95,6 @@ export default async function contracts(): Promise<void> {
         { headers: { "Content-Type": "text/event-stream" } },
       );
     };
-  // Real transports cross clock ticks; keep SDK attempt timestamps ordered in this zero-I/O fixture.
   const prompt = async (s: AgentSession, value: string) => {
     await new Promise((resolve) => setTimeout(resolve, 3));
     await s.prompt(value);
@@ -120,7 +113,6 @@ export default async function contracts(): Promise<void> {
     refreshOnCreate: false,
   });
   const originalProvider = runtime.getProvider("openai")!;
-  // Auth is resolved by the actual runtime, including a rotating synthetic header.
   runtime.registerNativeProvider({
     ...originalProvider,
     auth: {
@@ -236,9 +228,6 @@ export default async function contracts(): Promise<void> {
     return session;
   }
   try {
-    // Given successful work responses, API consumers see the latest raw checkpoint
-    // and exact suffix once, followed by results; restart/auth refresh cannot erase it.
-    // Material: missing or duplicated calls corrupt tool conversations and memory.
     let s = await open();
     script = [response([text("BASE_FACT")])];
     await s.prompt("ORIGINAL_FACT");
@@ -288,8 +277,6 @@ export default async function contracts(): Promise<void> {
     );
     console.log("PASS work replay, tool/results, persistence and auth refresh");
 
-    // Retryable transport errors neither discard the last completed checkpoint
-    // nor cause Pi's usage re-estimate to count its full recovery transcript.
     s = await open(undefined, undefined, 2);
     const stable = [checkpoint("cp_retry_base"), text("RETRY_BASE")];
     const oldHistory = `KEEP_OUT_OF_RETRY ${"x".repeat(160000)}`;
@@ -332,16 +319,11 @@ export default async function contracts(): Promise<void> {
     console.log("PASS transient errors keep checkpoint replay and bounded context estimates");
 
     s = await open(SessionManager.open(file));
-    // Given manual compaction of a split span after a checkpoint, the replacement
-    // includes prior memory and the prefix; its extra generation is never executed
-    // as work and survives restart with explicit cancelled tool results.
     script = [response([call("split")]), response([text("SPLIT_TAIL")])];
-    // The manual prefix is large enough to compact, but below the automatic threshold.
     await s.prompt(`SPLIT_PREFIX ${"filler ".repeat(1500)}`);
     const manualAt = requests.length;
     const runsBefore = toolRuns;
     const manualRaw = [checkpoint("cp_manual"), text("MANUAL_EXTRA"), call("manual")];
-    // Like the public API, the server compacts only an input above compact_threshold.
     const compacting = response([call("manual_before"), ...manualRaw]);
     script = [
       (payload, init) => {
@@ -384,10 +366,6 @@ export default async function contracts(): Promise<void> {
     assert.equal(requests.length, count);
     console.log("PASS manual prefix, raw extra output, cancellation and auth");
 
-    // Given failure, standard summarization receives readable prior memory. The
-    // current work (including already-queued human and extension continuations)
-    // stays standard; only a new idle human input restores automatic mode.
-    // Material: fallback must not silently summarize a placeholder or failed checkpoint.
     s = await open();
     script = [response([checkpoint("cp_recovery"), text("RECOVERY_SUFFIX")])];
     await s.prompt("RECOVER_THIS_FACT");
@@ -425,7 +403,6 @@ export default async function contracts(): Promise<void> {
       await s.followUp("ALREADY_QUEUED_HUMAN");
     };
     const workAt = requests.length;
-    // A custom message starts extension-authored work without masquerading as human input.
     await s.sendCustomMessage(
       { customType: "fixture", content: "Extension continuation", display: false },
       { triggerTurn: true },
@@ -441,11 +418,6 @@ export default async function contracts(): Promise<void> {
     );
     console.log("PASS readable native fallback and human-input restoration");
 
-    // Given incompatible model/provider/tool boundaries or cancelled/failed streams,
-    // no opaque checkpoint is sent to another model and no partial one is adopted.
-    // An incompatible checkpoint stays retired: the next human input resumes
-    // automatic compaction over the readable history instead of detecting it again.
-    // Material: these are distinct safety outcomes, not internal phase assertions.
     s = await open();
     script = [response([checkpoint("cp_boundary"), text("BOUNDARY_SUFFIX")])];
     await s.prompt("BOUNDARY_FACT");
@@ -476,8 +448,6 @@ export default async function contracts(): Promise<void> {
     assert.ok(sent().includes("CANCELLATION_FACT"));
     assert.ok(!last().input.some((item: any) => item.type === "compaction"));
     assert.equal(last().context_management, undefined);
-    // A declaration change that Pi's tool metadata does not show (grammar to function)
-    // happens between the checkpoint and its tool result within one turn.
     let grammarPi: ExtensionAPI;
     const grammarTool = (grammar: boolean): any => ({
       name: "grammar_echo",
@@ -570,8 +540,6 @@ export default async function contracts(): Promise<void> {
     console.log("PASS model/provider boundary and cancellation safety");
     assert.equal(script.length, 0);
 
-    // Recovery failure is not success, and overflow uses Pi's standard recovery
-    // lifecycle rather than cancelling it or silently discarding earlier memory.
     for (const legacy of [false, true]) {
       s = await open();
       const replay = [checkpoint("cp_overflow_base"), text("OVERFLOW_BASE")];
@@ -634,8 +602,6 @@ export default async function contracts(): Promise<void> {
     );
     assert.ok(notices.some((message) => /compaction failed/i.test(message)));
     assert.equal(script.length, 0);
-    // An ordinary failed work request adopts no checkpoint and does not replace
-    // history; the current work stays standard until the next human input.
     script = [response([checkpoint("cp_failed_work")], "failed")];
     await s.prompt("NEW_HUMAN_AFTER_FAILURE");
     assert.equal(
@@ -652,7 +618,6 @@ export default async function contracts(): Promise<void> {
     await s.waitForIdle();
     assert.ok(sent().includes("KEEP_ON_FAILURE"));
     assert.equal(last().context_management, undefined);
-    // Reloading the session is not human input: the fallback survives it.
     s = await open(SessionManager.open(s.sessionManager.getSessionFile()!));
     script = [response([text("CONTINUED_AFTER_RELOAD")])];
     await s.sendCustomMessage(
@@ -668,9 +633,6 @@ export default async function contracts(): Promise<void> {
     assert.equal(script.length, 0, "all scripted requests consumed");
     console.log("PASS native overflow recovery and visible summary failure");
 
-    // Given history spanning multiple provider checkpoints, standard fallback must
-    // consume all readable history through bounded requests, carrying each generated
-    // native summary forward. A warning followed by an oversized request is not recovery.
     s = await open();
     const facts = ["FACT_ALPHA", "FACT_BETA", "FACT_GAMMA"];
     for (const fact of facts) {

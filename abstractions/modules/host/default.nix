@@ -12,7 +12,6 @@ in
 
     options = with delib; {
       name = readOnly (strOption host.name);
-      # The reference evaluates a real system, so it names the source instead.
       system = readOnly (strOption host.system {defaultText = lib.literalMD "the host's `system`";});
       user = readOnly (attrsOption host.user {
         defaultText = lib.literalMD "the host's `user`";
@@ -20,7 +19,6 @@ in
       });
     };
 
-    # Host-less operator commands find the host through `hostname -s`, so the OS names follow the Denix host name.
     darwin.always.networking = {
       hostName = host.name;
       computerName = host.name;

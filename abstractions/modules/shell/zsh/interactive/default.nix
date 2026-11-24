@@ -22,7 +22,6 @@ delib.module {
     fsh = pkgs.zsh-fast-syntax-highlighting;
     fshWorkDir = "${config.xdg.data.directory}/fsh";
     autosuggestions = pkgs.zsh-autosuggestions;
-    # Profiles whose packages' completions compinit finds: Hjem's packages and the installer's nix.
     completionProfiles = [
       "${config.xdg.state.directory}/hjem/standalone/current-profile"
       "/nix/var/nix/profiles/default"
@@ -41,10 +40,6 @@ delib.module {
             fpath+=($profile/share/zsh/site-functions $profile/share/zsh/vendor-completions)
           done
         }
-        # `-C` trusts the dump instead of auditing and rescanning `fpath`, so the
-        # dump is named by the store hashes of what decides its contents: this
-        # file, which carries every fpath entry it adds, and the profiles. A new
-        # name rebuilds it and removes the stale ones.
         () {
           local dump=${lib.escapeShellArg compdumpDir}/zcompdump
           local entry
@@ -78,7 +73,6 @@ delib.module {
           ZSH_AUTOSUGGEST_STRATEGY=(history)
           source ${autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh
         ''
-        # fsh wraps the widgets that exist when it loads, so it stays last.
         ''
           FAST_WORK_DIR="${fshWorkDir}"
           source ${fsh}/share/zsh/plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
@@ -91,7 +85,6 @@ delib.module {
       snippet = "cd ..";
     };
 
-    # Without secondary_theme.zsh, fsh downloads the upstream free theme at startup.
     xdg.data.files."fsh/secondary_theme.zsh".source = "${fsh.src}/share/free_theme.zsh";
   };
 }

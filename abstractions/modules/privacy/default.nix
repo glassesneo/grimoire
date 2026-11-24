@@ -8,7 +8,6 @@ delib.module {
 
   hjem.ifEnabled.platform.darwin.defaults = {
     "com.apple.AdLib".settings.allowApplePersonalizedAdvertising = false;
-    # Image Capture does not open when a device is connected.
     "com.apple.ImageCapture".settings.disableHotPlug = true;
   };
 }

@@ -24,9 +24,6 @@ in {
   }: let
     themeFile = "${config.xdg.config.directory}/rex/themes/${name}";
   in {
-    # Rex keeps imported themes inside its preferences and accepts these
-    # actions only while Remote Control is on, so this runs by hand with the
-    # `rex` that the rex module provides.
     packages = [
       (pkgs.writeShellScriptBin "rex-import-theme" ''
         set -e
@@ -37,7 +34,6 @@ in {
 
     xdg.config.files."rex/themes/${name}" = {
       exclusive = true;
-      # Rex imports Ghostty's theme format.
       text = lib.generators.toKeyValue {
         listsAsDuplicateKeys = true;
         mkKeyValue = lib.generators.mkKeyValueDefault {} " = ";

@@ -7,8 +7,6 @@ require("tiny-inline-diagnostic").setup({
   },
 })
 
--- tiny-inline-diagnostic draws the messages, so the built-in text and signs
--- would only duplicate them.
 vim.diagnostic.config({
   virtual_text = false,
   signs = false,

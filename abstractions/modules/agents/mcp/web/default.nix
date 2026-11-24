@@ -4,7 +4,6 @@
   ...
 }:
 delib.module ({myconfig, ...}: let
-  # Each provider reads its key from the nix-secrets file of that name at call time.
   keys = {
     parallel = "parallel-api-key";
     brave = "brave-api-key";

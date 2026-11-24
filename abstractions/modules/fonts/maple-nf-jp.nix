@@ -1,7 +1,3 @@
-# Maple Mono NF with Japanese glyphs, built from source because the released
-# CJK fonts keep the glyphs at their base size inside the two-cell advance,
-# leaving a visible gap between adjacent kana in a terminal. The scale factor
-# enlarges the CJK outlines within that advance.
 {
   lib,
   python3,
@@ -37,8 +33,6 @@ stdenvNoCC.mkDerivation {
       ]))
   ];
 
-  # build.py takes the CJK base archive from beside itself instead of
-  # downloading it.
   buildPhase = ''
     runHook preBuild
     export HOME=$TMPDIR

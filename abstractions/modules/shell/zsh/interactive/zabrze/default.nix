@@ -1,8 +1,3 @@
-# Owns zabrze's configuration file, to which features contribute snippets.
-#
-# Snippets are keyed by their zabrze `name`. zabrze tries snippets sharing a
-# trigger in file order, so conditional snippets are rendered before
-# unconditional ones; the order is otherwise by name.
 {
   delib,
   lib,

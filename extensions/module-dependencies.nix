@@ -1,16 +1,3 @@
-# Owns the enable dependency of a module on its immediate parent and on the
-# roles it follows.
-#
-# `zsh.interactive` depends on `zsh` when that parent is registered and both
-# declare `enable`. A module that reads a role's seat, such as its holder,
-# declares `meta.follows = [ "<role>" ]` and depends on each `roles.<role>`
-# being enabled. The module's declared default becomes its original condition
-# AND those enable values, and its `defaultText` says so. Explicit overrides
-# are preserved; an enabled module whose parent or followed seat is disabled
-# fails through its constraints (`extensions/module-constraints.nix`) in every
-# module system, as does a followed role that is not declared. Missing parents
-# and modules without `enable` are skipped; more distant ancestors are not
-# searched, and unconditional sections are not gated.
 {
   delib,
   lib,
@@ -27,7 +14,6 @@
       hasParent
       && hasEnable myoptions
       && lib.hasAttrByPath (lib.init parts ++ ["enable"]) myoptions;
-    # The modules whose enable this module's default requires.
     requirements = myoptions:
       lib.optional (participates myoptions) parent
       ++ lib.optionals (hasEnable myoptions) (map (role: "roles.${role}") follows);
@@ -39,7 +25,6 @@
       description = "Roles whose seat this module reads, by name; the module is enabled by default only while each `roles.<name>` is.";
     };
 
-    # Transform option defaults, not values: explicit overrides still reach constraints.
     options.options = lib.mkOption {
       apply = entries:
         map (entry: let
@@ -71,8 +56,6 @@
         entries;
     };
 
-    # Checked whatever the module's enable, so an enabled module under a
-    # disabled parent or seat is rejected.
     config.constraints.always =
       map (role: {
         assertion = config.modules ? "roles.${role}";

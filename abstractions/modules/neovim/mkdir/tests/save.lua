@@ -1,7 +1,3 @@
--- Our save hook owns directory creation and its file-kind guards; normal
--- writing is trusted. Exercise real targets, including an alternate :write.
--- Evaluation cannot catch failed saves or stray URI directories; observe the
--- temporary filesystem at the save-hook boundary instead.
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 vim.cmd.cd(root)

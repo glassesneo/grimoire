@@ -14,9 +14,9 @@ delib.module {
         AppleShowAllExtensions = true;
         AppleShowAllFiles = true;
         CreateDesktop = false;
-        FXDefaultSearchScope = "SCcf"; # Search the current folder
+        FXDefaultSearchScope = "SCcf";
         FXEnableExtensionChangeWarning = false;
-        NewWindowTarget = "PfHm"; # Home directory
+        NewWindowTarget = "PfHm";
         QuitMenuItem = true;
         ShowExternalHardDrivesOnDesktop = true;
         ShowHardDrivesOnDesktop = true;

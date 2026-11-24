@@ -17,7 +17,6 @@ export type SearchIntent = "auto" | "general" | "discovery";
 export type SearchLane = "general" | "discovery";
 export type SearchFreshness = "day" | "week" | "month" | "year";
 export type FetchMode = "relevant" | "full";
-/** Credential-file readiness reasons shared by readiness errors and search eligibility diagnostics. */
 export type CredentialFileReason =
   | "credential-not-configured"
   | "credential-missing"
@@ -29,7 +28,6 @@ export type WebRetrievalReadinessCategory =
   | "configuration-invalid"
   | CredentialFileReason;
 
-/** Only the categories `ProviderError` actually emits; readiness failures use `WebRetrievalReadinessError`. */
 export type ProviderErrorCategory =
   | "credential-remote-auth"
   | "network"
@@ -148,7 +146,6 @@ export interface ProviderErrorDetails {
   status?: number;
 }
 
-/** A bounded provider failure safe to place in diagnostics; it never accepts raw response data. */
 export class ProviderError extends Error implements ProviderErrorDetails {
   readonly provider: WebRetrievalProviderId;
   readonly category: ProviderErrorCategory;
@@ -165,7 +162,6 @@ export class ProviderError extends Error implements ProviderErrorDetails {
   }
 }
 
-/** A path-free Web retrieval readiness failure; its category is the only model-visible detail. */
 export class WebRetrievalReadinessError extends Error {
   readonly category: WebRetrievalReadinessCategory;
   readonly provider?: WebRetrievalProviderId;
@@ -182,7 +178,6 @@ export class WebRetrievalReadinessError extends Error {
   }
 }
 
-/** Classifies a credential read failure using only stable Node error codes. */
 export function credentialReadFailureCategory(
   error: unknown,
 ): "credential-missing" | "credential-unreadable" {

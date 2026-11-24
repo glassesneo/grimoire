@@ -1,4 +1,3 @@
-// Runs EDITH as the resident service: the local socket and, when configured, Discord.
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Discord } from "./discord.ts";
 import { listen } from "./socket.ts";

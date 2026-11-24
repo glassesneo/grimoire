@@ -17,7 +17,6 @@ const context = BACKGROUND_CONTEXT;
 const directory = mkdtempSync(join(tmpdir(), "edith-core-"));
 after(() => rmSync(directory, { recursive: true, force: true }));
 
-// Answers with the model's id and how many user messages the conversation holds.
 function models() {
   const faux = fauxProvider({ provider: "faux", models: [{ id: "a" }, { id: "b" }, { id: "c" }] });
   faux.setResponses(
@@ -52,7 +51,6 @@ const access = (extra: Partial<Access> = {}): Access => ({
   ...extra,
 });
 
-// `cli` runs `full` as `deep`; any other namespace `restricted` as `edith`.
 async function open(
   file: string,
   personas: Options["personas"],
@@ -77,7 +75,6 @@ const ask = async (edith: Edith, address: string) => {
   return answer.status === "done" ? answer.text : "";
 };
 
-// Both personas answer with model `a`.
 const same = { deep: persona("a"), edith: persona("a") };
 
 void test("an address keeps one conversation and addresses do not share one", async () => {
@@ -160,7 +157,6 @@ void test("a conversation may choose only an access within its namespace's ceili
   const lowered = await open("ceiling.sqlite", same, options("chat"));
   const status = await lowered.status("discord:1", context);
   assert.deepEqual([status.access, status.overrides.access], ["chat", "web"]);
-  // The session already ran with `web`, now above the ceiling, so it takes no more input.
   await assert.rejects(lowered.ask("discord:1", "hello", context), Refused);
   assert.equal(await ask(lowered, "discord:2"), "a:1");
   await lowered.close(context);
@@ -185,7 +181,6 @@ void test("after a restart, addresses, history and overrides persist and a chang
   assert.equal(await ask(after, "discord:3"), "a:1");
   await after.close(context);
 
-  // A chosen persona the configuration no longer has falls back to the namespace's.
   const removed = await open("restart.sqlite", { deep: persona("c"), edith: persona("b") });
   assert.equal(await ask(removed, "cli"), "c:1");
   assert.equal((await removed.status("cli", context)).persona, "deep");

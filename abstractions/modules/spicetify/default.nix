@@ -28,8 +28,6 @@ in
       ...
     }: let
       spicePkgs = spicetify-nix.legacyPackages.${pkgs.stdenv.hostPlatform.system};
-      # Spotify downloads updates here and installs them over the patched app;
-      # an immutable empty directory keeps it from doing so.
       noUpdates = pkgs.writeShellScript "spotify-no-updates" ''
         set -eu
         directory="$HOME/Library/Application Support/Spotify/PersistentCache/Update"

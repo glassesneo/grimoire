@@ -36,7 +36,6 @@ void test("list and table blocks separated by blank lines form one unit until ot
 
 void test("blank lines inside a code fence do not end it, and an open fence completes nothing after it", () => {
   const code = "```js\nconst a = 1;\n\nconst b = 2;\n```\n\n";
-  // Cut after the blank line inside the fence, while the code still streams.
   assert.equal(cut("Before.\n\n" + code.slice(0, 26)), "Before.\n\n");
   assert.equal(cut("Before.\n\n" + code + "After the code."), "Before.\n\n" + code);
 });

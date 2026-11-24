@@ -1,16 +1,10 @@
-# Owns harness-independent skill declarations and their Hjem file outputs,
-# including the skills this repository ships as sibling directories.
-# Every skill is linked as <dir>/<name> in every directory of skillDirs;
-# deployment stays with Hjem.
 {
   delib,
   lib,
   ...
 }: let
-  # Each directory is a complete skill package named by its directory.
   ownSkills = ["context-projection-design" "decision-rebase" "idea-kindling" "parallax-bridge"];
 
-  # Paths are compared as written, so only their normal form is accepted.
   component = part: !(lib.elem part ["" "." ".."]);
   relativePath = path: lib.all component (lib.splitString "/" path);
 
@@ -69,8 +63,6 @@ in
       };
     };
 
-    # Wrong paths, enable leaks, or missing exclusivity would deploy a skill to
-    # the wrong place; Hjem's symlink execution remains trusted.
     tests.fixture = ["exclusive"];
     tests.cases = {
       pkgs,
@@ -85,13 +77,9 @@ in
       otherSource = pkgs.writeTextDir "SKILL.md" "# Other synthetic skill";
 
       declare = attrs: {declaration.hjem.always = attrs;};
-      # Cases below compare fixture declarations; the shipped skills are
-      # always declared and would otherwise appear in every result.
       files = result: lib.filter (file: !(lib.elem (baseNameOf file.target) ownSkills)) result.manifest.files;
     in
       {
-        # A harness selects a skill by its frontmatter name; a mismatch with
-        # the deployed directory name deploys a skill no harness selects.
         frontmatter-names-match-directories = {
           protects = "each shipped skill's frontmatter name is its directory name, by which harnesses select it";
           expr = _: lib.filter (name: !(lib.hasInfix "\nname: ${name}\n" (builtins.readFile (./. + "/${name}/SKILL.md")))) ownSkills;

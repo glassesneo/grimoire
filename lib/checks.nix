@@ -1,6 +1,3 @@
-# Descriptor discovery must not force check bodies or derivation metadata.
-# `descriptors` come from `checks/` and `testDescriptors` from `tests/`; a name
-# may appear in only one group.
 {lib}: {
   descriptors,
   testDescriptors ? {},
@@ -20,6 +17,5 @@ in
     directoryNames = builtins.attrNames available;
     testNames = builtins.attrNames availableTests;
     inherit checks;
-    # Sorted, and without duplicates because names do not collide.
     checkNames = builtins.attrNames checks;
   }

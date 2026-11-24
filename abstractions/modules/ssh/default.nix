@@ -21,9 +21,6 @@
       };
     };
   };
-  # The person's keys live in the key holder's Secure Enclave and cannot be
-  # copied; rotating one means creating a new identity there and replacing its
-  # entry here.
   keyOption = description: default:
     lib.mkOption {
       type = key;
@@ -61,8 +58,6 @@ in
     hjem.always.options.ssh = let
       atom = types.oneOf [types.bool types.int types.str];
       parameters = types.attrsOf (types.either atom (types.listOf atom));
-      # A literal name matches only itself, so no two blocks of `hosts` apply to
-      # the same host and their order cannot matter.
       literal = name: builtins.match ''[^*?!,"[:space:]]+'' name != null;
       hostSet =
         types.addCheck (types.attrsOf parameters) (hosts: lib.all literal (lib.attrNames hosts))
@@ -106,8 +101,6 @@ in
       pkgs,
       ...
     }: {
-      # The modules of the key holder and of remote hosts say which key GitHub
-      # sees.
       ssh.hosts."github.com" = {
         HostName = "github.com";
         User = "git";
@@ -119,8 +112,6 @@ in
         UseKeychain = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin true;
       };
 
-      # ssh uses the first value it obtains for a parameter, so `Host *` comes
-      # after every host's block.
       files.".ssh/config" = let
         atom = value:
           if lib.isBool value
@@ -143,9 +134,6 @@ in
         text = mylib.fragments.render config.ssh.rc;
       };
 
-      # A key whose certificate has expired may stop working on the key holder,
-      # which would also lock its holder out of the remote hosts; the warning
-      # leaves a month to rotate it.
       zsh.zshrc.ssh-key-expiry.text = ''
         () {
           zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS
@@ -165,7 +153,6 @@ in
       declare = hosts: {declaration.hjem.always.ssh.hosts = hosts;};
     in
       {
-        # No published host declares a list.
         list-repeats-parameter = {
           protects = "a list value writes its parameter once per element, in order";
           modules = declare {"a.example".IdentityFile = ["~/.ssh/fixture-first" "~/.ssh/fixture-second"];};

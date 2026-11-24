@@ -1,8 +1,3 @@
-# Builds a check that type-checks and lints one TypeScript directory. `types`
-# is a Bun project directory (package.json, bun.lock and the bun.nix that
-# `just bun` writes) whose packages provide the types `src` imports; `src` is
-# checked strictly with Node module resolution and the repository's oxlint
-# configuration, which fails on warnings.
 {
   pkgs,
   bun2nix,

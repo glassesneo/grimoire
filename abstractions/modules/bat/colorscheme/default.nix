@@ -5,7 +5,6 @@
 }: let
   inherit (mylib.anchors.sources ./anchors.json) rose-pine;
 
-  # bat names a theme after its file.
   themes = mylib.schemeThemes {
     name = "bat";
     themes.rose-pine = {
@@ -14,8 +13,6 @@
     };
   };
 
-  # bat reads themes only from its compiled cache, which keeps the built-in
-  # assets beside the theme; the cache records the bat that built it.
   cache = pkgs: theme:
     pkgs.runCommandLocal "bat-cache" {nativeBuildInputs = [pkgs.bat];} ''
       mkdir -p source/themes

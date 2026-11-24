@@ -2,7 +2,6 @@
   inherit (pkgs) lib;
   mylib = import ../../lib {inherit lib;};
 
-  # Fragment definitions go through the option so its merge rules apply.
   evaluate = modules:
     (lib.evalModules {
       modules = [{options.fragments = mylib.fragments.option;}] ++ modules;
@@ -24,7 +23,6 @@
       };
     }
   ];
-  # Only declared edges are part of the contract; the free fragments may appear anywhere.
   lines = lib.splitString "\n" ordered;
   bound = lib.filter (line: lib.elem line ["first" "anchor" "last"]) lines;
 in {

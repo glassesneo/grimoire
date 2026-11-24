@@ -1,10 +1,3 @@
-# List, compare, and update modules' anchors, the npins lock files
-# `anchors.json` that `lib/anchors.nix` reads, through npins in lock-file mode.
-#
-# A file belongs to the module whose directory most closely contains it, read
-# from the flake's check metadata; a module is named by its interface path.
-# `npins` comes from the development shell.
-
 use ./checks.nu select-checks
 
 def metadata []: nothing -> record {
@@ -16,7 +9,6 @@ def within [path: string, directory: string] {
   $path == $directory or ($path | str starts-with $"($directory)/")
 }
 
-# Every anchors.json with its owning module, or only MODULE's.
 export def files [roots: list<record>, paths: list<string>, module?: string]: nothing -> list<record> {
   let owned = $paths | each {|file|
     let owners = $roots | where {|root| within $file $root.directory } | sort-by {|root| $root.directory | str length } --reverse
@@ -33,7 +25,6 @@ export def files [roots: list<record>, paths: list<string>, module?: string]: no
   $selected
 }
 
-# The position a pin records: its release, its short revision, or its URL's file.
 export def position [pin: record]: nothing -> string {
   match $pin.type {
     GitRelease => $pin.version
@@ -43,7 +34,6 @@ export def position [pin: record]: nothing -> string {
   }
 }
 
-# What an update follows.
 def tracks [pin: record]: nothing -> string {
   match $pin.type {
     Git => $"branch ($pin.branch)"
@@ -57,7 +47,6 @@ def pins-of [file: string]: nothing -> record {
   open $file | get pins
 }
 
-# Pins whose recorded position or hash differs between two `pins` records.
 export def changes [module: any, before: record, after: record]: nothing -> list<record> {
   $after | transpose pin new | where {|row| ($before | get -o $row.pin) != $row.new } | each {|row|
     let old = $before | get -o $row.pin
@@ -88,7 +77,6 @@ def main [] {
   help main
 }
 
-# List every module's pins, or MODULE's, from the lock files alone.
 def "main list" [module?: string] {
   let target = resolve $module
   let rows = $target.files | each {|entry|
@@ -102,11 +90,9 @@ def "main list" [module?: string] {
       }
     }
   } | flatten
-  # Frozen pins are rare; the column appears only when one exists.
   if ($rows | any {|row| $row.frozen }) { $rows } else { $rows | reject frozen } | table --index false
 }
 
-# Show the pins of every module, or of MODULE, that an update would move, without writing.
 def "main outdated" [module?: string] {
   let target = resolve $module
   let dir = mktemp --directory --tmpdir anchors.XXXXXX
@@ -123,7 +109,6 @@ def "main outdated" [module?: string] {
   if ($found | is-empty) { print "every pin is current" } else { $found | table --index false }
 }
 
-# Update every pin of every module, of MODULE, or only MODULE's PINS, then name the changed pins and the checks a commit of them selects.
 def "main update" [module?: string, ...pins: string] {
   if ($module | is-empty) and ($pins | is-not-empty) {
     error make --unspanned {msg: "naming pins requires a module"}
@@ -156,7 +141,6 @@ def "main update" [module?: string, ...pins: string] {
     print "Checks a commit of these files selects:"
     $checks | each {|name| print $"  just check ($name)" } | ignore
   }
-  # Selection never reaches hosts from a module, yet hosts build the new pins.
   print $"Host checks build the published configurations: ($target.metadata.hostChecks.name | uniq | str join ', ')"
 }
 

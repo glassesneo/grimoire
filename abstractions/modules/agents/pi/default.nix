@@ -39,12 +39,10 @@ delib.module ({
     "tui.editor.cursorUp" = ["up" "ctrl+p"];
     "tui.editor.cursorDown" = ["down" "ctrl+n"];
     "app.model.cycleForward" = [];
-    # Ctrl-J and Ctrl-L switch SKK input modes.
     "tui.input.newLine" = ["shift+enter"];
     "app.model.select" = [];
     "app.tree.filter.labeledOnly" = [];
   };
-  # Hjem and the bundle write the same settings; only the MCP selection differs.
   build = pkgs: servers:
     import ./package.nix {
       inherit lib pkgs keybindings servers;
@@ -63,7 +61,6 @@ in {
     sdkTypes = readOnly (lib.mkOption {
       type = lib.types.path;
       default = ./types;
-      # The store path changes with every repository change.
       defaultText = lib.literalExpression "./types";
       description = "Bun project whose SDK types match `agents.packages.pi`, for checking Pi features' TypeScript.";
     });
@@ -90,9 +87,6 @@ in {
     });
   };
 
-  # The bundle's writable agent directory defaults to $XDG_STATE_HOME/grimoire/pi, or
-  # ~/.local/state/grimoire/pi; PI_CODING_AGENT_DIR overrides it. Existing unmanaged
-  # configuration is not replaced.
   bundles.ifEnabled = {pkgs, ...}: {
     pi = {
       inherit (build pkgs {}) package;

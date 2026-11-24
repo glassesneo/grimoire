@@ -1,8 +1,3 @@
-# The probe that this module's cases and the live check
-# (scripts/nix-secrets-smoke.nu) activate. `module homeDirectory` is a Hjem
-# module that activates a `dummy` secret under that home with the probe's own
-# dinit agent Label and publishes the wiring it observes as files; `farm pkgs
-# result` links a Hjem result's files by base name and its services step.
 {
   module = homeDirectory: {
     config,
@@ -15,7 +10,6 @@
     security.nix-secrets = {
       enable = lib.mkDefault true;
       installPackage = false;
-      # The probe creates its encrypted input after evaluation.
       checks.missingSecrets.enable = false;
       storage = "${homeDirectory}/storage";
       identityPaths = ["${homeDirectory}/key.txt"];

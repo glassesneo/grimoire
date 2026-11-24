@@ -41,8 +41,6 @@ in
       };
     };
 
-    # The empty declaration remains when disabled, so its next apply removes
-    # the previous files rather than abandoning their journal.
     hjem.always = {
       config,
       pkgs,

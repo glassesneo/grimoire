@@ -6,12 +6,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Keep the runner's repository-owned boundary: successful fixture values and
-  # builds reach one aggregate; invalid modes, missing uses and mismatches fail
-  # evaluation; unknown fields and fixture modules fail discovery. Also cover
-  # transitive fixtures, declaration-only discovery, conservative closure and
-  # coverage normalization: Nix types alone cannot detect those regressions.
-  # Builder failure is exercised externally through failingAggregate below.
   compose = abstractions:
     denix.lib.denixConfiguration {
       extraInputs = inputs;
@@ -25,7 +19,6 @@
         ++ abstractions;
     };
 
-  # A module whose single test case must not hold.
   failing = name: case:
     builtins.toFile "${name}.nix" ''
       {delib, ...}:
@@ -48,7 +41,6 @@
     non-derivation = "{build = _: 1;}";
     build-expr = "{build = _: throw \"not forced\"; expr = _: 1;}";
     build-expected = "{build = _: throw \"not forced\"; expected = 1;}";
-    # Without `uses`, the dependency stays outside the fixture.
     missing-use = "{modules.reader.hjem.always = {config, ...}: {files.reader.text = config.myconfig.dependency.value or (throw \"missing\");}; expr = result: map (file: file.target) result.manifest.files; expected = [];}";
   };
 
@@ -97,9 +89,7 @@
   graph = infoFor graphConfiguration;
   graphChecks = checksFor graphConfiguration (_: throw "fixture generated during graph discovery");
   unknownGraph = infoFor (compose [(graphModule "unknown" ["absent"] [system])]);
-  # An unknown field is a declaration error, rejected when the cases are discovered.
   unknownField = infoFor (compose [(failing "unknown-field" "{expr = _: 1; expected = 1; expectd = 1;}")]);
-  # A case must state what it protects, rejected when the cases are discovered.
   undocumented = infoFor (compose [
     ({delib, ...}:
       delib.module {
@@ -113,8 +103,6 @@
         };
       })
   ]);
-  # A fixture holds the module's fixture modules and the modules a case uses,
-  # with their own fixture modules, transitively.
   fixtureConfiguration = compose [
     ./subject.nix
     ./dependency.nix
@@ -168,8 +156,6 @@
   ];
   failingAggregate = (checksFor failingConfiguration compose).module-build-failure;
 in {
-  # Intentionally not published under flake checks. Build this descriptor field
-  # externally to observe the returned builder failing through its aggregate.
   inherit failingAggregate;
   check = assert !(graphChecks ? module-branch);
   assert graph.c.affectedChecks == ["module-a" "module-b" "module-c" "module-leaf"];

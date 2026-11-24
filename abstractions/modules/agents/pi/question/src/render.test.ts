@@ -3,9 +3,6 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import registerQuestion from "./extension.ts";
 import { renderQuestionHistory, type RenderQuestion, type RenderResponse } from "./render.ts";
 
-// The renderer owns which question/answer information remains readable after submission.
-// Pi validates tool arguments, but cannot validate this repository's projection or layout.
-// Observe information and terminal columns, not complete lines, decoration, or private state.
 export default function verifyQuestionHistory(): void {
   const question: RenderQuestion = {
     id: "destination",
@@ -24,7 +21,6 @@ export default function verifyQuestionHistory(): void {
       width: 80,
     }).join("\n");
 
-  // Given confirmed answers, the collapsed transcript exposes the user's choices and notes.
   for (const response of [
     { kind: "single", value: "mountain", note: "bring boots" },
     { kind: "multi", values: [{ value: "mountain", note: "bring boots" }], writeIn: "River" },
@@ -38,7 +34,6 @@ export default function verifyQuestionHistory(): void {
   assert.ok(render({ kind: "write-in", value: "River" }, false).includes("River"));
   assert.ok(render({ kind: "text", value: "Take the train" }, false).includes("Take the train"));
 
-  // Given any answer state, expanding a choice question exposes every original option and description.
   for (const response of [
     undefined,
     { kind: "single", value: "coast" },
@@ -62,7 +57,6 @@ export default function verifyQuestionHistory(): void {
   assert.match(render(undefined, false, "unavailable"), /unavailable/i);
   assert.match(render(undefined, false, "error"), /fail/i);
 
-  // Given a failed execution, Pi passes the standard error result; its cause stays readable.
   let tool: any;
   registerQuestion({ registerTool: (definition: unknown) => (tool = definition) } as any);
   const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
@@ -77,7 +71,6 @@ export default function verifyQuestionHistory(): void {
   ).join("\n");
   assert.ok(failure.includes("Question id must be unique: q"), failure);
 
-  // Every row of a record carries a rule that sets it apart from model output without color.
   const record = shown(
     {
       content: [],
@@ -91,7 +84,6 @@ export default function verifyQuestionHistory(): void {
   );
   assert.ok(record.length > 0 && record.every((line) => line.startsWith("▎ ")), record.join("\n"));
 
-  // Given multilingual multiline content, resizing preserves its readable information within each row.
   const prompt = "行き先はどこ？🗻";
   const answer = "海岸へ行く👨‍👩‍👧‍👦\ne\u0301と山を選ぶ";
   for (const width of [8, 17, 80]) {
@@ -101,7 +93,6 @@ export default function verifyQuestionHistory(): void {
       expanded: false,
       width,
     });
-    // Rendered rows must not contain line breaks or escape sequences.
     // oxlint-disable-next-line no-control-regex
     assert.ok(lines.every((line) => visibleWidth(line) <= width && !/[\r\n\u001b]/.test(line)));
     const information = lines.join("").replace(/[\s▎]/g, "");

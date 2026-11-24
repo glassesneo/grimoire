@@ -19,11 +19,9 @@ in
     myconfig.ifEnabled.elio.theme = colorschemeTheme myconfig.roles.colorscheme.resolved;
 
     tests.cases = {pkgs, ...}: {
-      # A scheme without named colors for elio takes the ANSI theme.
       ansi-scheme = {
         protects = "a scheme without an elio theme maps to the ANSI theme";
         uses = ["colorscheme"];
-        # Bundles evaluate `myconfig` without the Zsh features elio adds to.
         moduleSystem = "bundles";
         modules."colorscheme.fixture" = mylib.colorschemes.scheme {
           name = "fixture";

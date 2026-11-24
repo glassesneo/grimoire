@@ -1,7 +1,3 @@
-# Owns the stdio MCP server registry and each consumer's selection from it.
-# Registration does not start a server or select it for an agent; each
-# consumer names the servers it wants in `mcp.selections.<consumer>` and reads
-# them from `mcp.selected.<consumer>`.
 {
   delib,
   lib,

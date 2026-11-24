@@ -11,7 +11,6 @@
   };
   replacement = pkgs.writeText "file" "replaced\n";
 
-  # Replacement definitions go through the option so its merge rules apply.
   evaluate = modules:
     (lib.evalModules {
       modules = [{options.files = mylib.sourceFiles.option "package";}] ++ modules;

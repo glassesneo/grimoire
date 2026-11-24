@@ -1,7 +1,3 @@
-# Owns standalone Hjem compatibility and Darwin activation for upstream
-# nix-secrets. Secrets remain upstream options; registration does not imply
-# consumer readiness. The default Darwin package verifies RAM backing before
-# placing plaintext files.
 {
   delib,
   inputs,
@@ -19,7 +15,6 @@ delib.module {
   }: let
     cfg = config.security.nix-secrets;
     lockDir = "${config.xdg.state.directory}/nix-secrets";
-    # Several triggers can start activation together, and upstream activation has no lock.
     activate = pkgs.writeShellScript "nix-secrets-activate" ''
       set -eu
       export HOME=${lib.escapeShellArg config.directory}
@@ -35,7 +30,6 @@ delib.module {
     };
 
     imports = [inputs.nix-secrets.hjemModules.default];
-    # Upstream defines systemd options even when automatic activation is disabled.
     disabledModules = ["${inputs.nix-secrets}/nix/hjem/activate/systemd.nix"];
 
     config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (lib.mkMerge [
@@ -55,35 +49,22 @@ delib.module {
       (lib.mkIf cfg.enable {
         security.nix-secrets = {
           activateScript = activate;
-          # CLI lookup uses this Hjem user's generated manifest regardless of
-          # --flake; override nixEvalCommand to target another configuration.
           nixEvalCommand = lib.mkDefault "${pkgs.coreutils}/bin/cat ${pkgs.writeText "nix-secrets-manifest.json" cfg.manifest}";
           derivationBuildCommand = lib.mkDefault "${pkgs.nix}/bin/nix-store --realise {{input}}";
         };
       })
       (lib.mkIf (cfg.enable && cfg.activate.enable) {
-        # The RAM disk is gone after a reboot; the login group activates
-        # secrets when dinit starts with each GUI login. dinit also restarts
-        # the service when a switch changes its command, so a manifest change
-        # activates twice under a GUI session; the lock serializes the runs.
         userServices.nix-secrets-activate = {
           type = "scripted";
           command = ["${activate}"];
           restart = "never";
           logFile = "${config.directory}/Library/Logs/nix-secrets-activate.log";
         };
-        # Every switch activates the current manifest, also without a GUI
-        # session, where dinit does not run. No step relies on secrets: a
-        # service that reads them depends on the activation service in dinit.
         applySteps.nix-secrets.package = pkgs.linkFarm "hjem-nix-secrets" {"bin/apply" = activate;};
       })
     ]);
   };
 
-  # The cases observe the wiring that no published host varies: disabled and
-  # manual activation, the probe's own job and switch step, the CLI commands,
-  # and the activation script's environment. The build runs the package this
-  # module patches against the probe's manifest without launchd or mounts.
   tests.fixture = ["services"];
   tests.cases = {
     pkgs,
@@ -92,7 +73,6 @@ delib.module {
     ...
   }: let
     probe = import ./probe.nix;
-    # The probe with `settings` added to its Hjem configuration.
     probed = settings: {
       hjem.always.imports = [(probe.module home) {security.nix-secrets = settings;}];
     };
@@ -104,7 +84,6 @@ delib.module {
     jobs = result: result.apply.steps.services.services;
     activates = result: result.apply.steps ? nix-secrets;
     source = result: name: (lib.findFirst (file: lib.hasSuffix "/${name}" file.target) (throw "Missing fixture output ${name}") result.manifest.files).source;
-    # writeText's evaluation-time text avoids reading generated files (IFD).
     json = result: name: builtins.fromJSON (builtins.unsafeDiscardStringContext (source result name).text);
     automatic = extraPackages:
       probed {
@@ -112,8 +91,6 @@ delib.module {
         defaultGroup = 20;
         inherit extraPackages;
       };
-    # The activation job runs the activation script, which sets HOME and PATH
-    # and serializes runs under the state directory's lock.
     scriptWiring = path: result: let
       values = json result "wiring.json";
     in

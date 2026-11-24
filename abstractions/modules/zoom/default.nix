@@ -18,18 +18,13 @@ in
     options.enable = delib.boolOption true;
 
     hjem.ifEnabled.platform.darwin.defaults."com.apple.universalaccess".settings = {
-      closeViewScrollWheelModifiersInt = 1048576; # Specify Command key as the modifier
+      closeViewScrollWheelModifiersInt = 1048576;
       closeViewScrollWheelToggle = true;
       closeViewZoomFollowsFocus = true;
-      closeViewZoomMode = 1; # Picture-in-Picture
-      closeViewPanningMode = 2; # Keep the pointer centered while zoomed in
+      closeViewZoomMode = 1;
+      closeViewPanningMode = 2;
     };
 
-    # The PiP size is an archived NSValue, which Hjem user defaults cannot
-    # declare. Activation runs as root, so the size is written as the user in
-    # the user's bootstrap namespace, where the user's cfprefsd runs.
-    # AXVisualSupportAgent caches the size and only rereads it on launch;
-    # launchd relaunches it after it is terminated.
     darwin.ifEnabled = {pkgs, ...}: let
       user = lib.escapeShellArg myconfig.host.user.name;
       asUser = cmd: ''launchctl asuser "$(id -u -- ${user})" sudo --user=${user} -- ${cmd}'';
@@ -45,8 +40,6 @@ in
     tests.fixture = ["defaults"];
 
     tests.cases = {pkgs, ...}: {
-      # Writing the size needs a user session, so the build only checks that
-      # the program compiles and rejects an invalid size before touching it.
       pip-size = {
         protects = "zoom-pip-size compiles and rejects an invalid size before touching Zoom";
         platforms = lib.platforms.darwin;

@@ -1,11 +1,3 @@
-# Check reference freshness against the flake's rendering of the real declarations. Synthetic modules
-# also check that enable-only modules share a table and other module sections
-# are sorted, source links stay relative and Markdown-safe, declared options
-# and defaultText reach the reference, defaults read the placeholder host as
-# expressions, packages render by source and name, lazy defaults are not forced, module
-# options need no description, and a Denix declaration option without one fails
-# rendering; Nix's option validation cannot detect broken rendered links, table
-# cells or omissions.
 {
   pkgs,
   compose,

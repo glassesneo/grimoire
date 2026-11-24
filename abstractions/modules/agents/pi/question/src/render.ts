@@ -40,18 +40,14 @@ export function choiceText(kind: "single" | "multi", selected: boolean, label: s
   return `${choiceMarker(kind, selected)} ${label}`;
 }
 
-/** Colors the extension applies; the record stays readable without them. */
 export interface HistoryStyle {
-  /** Colors the left rule that sets the record apart from model output. */
   rule: (text: string) => string;
-  /** Emphasizes question prompts. */
   prompt: (text: string) => string;
 }
 
 const plain: HistoryStyle = { rule: (text) => text, prompt: (text) => text };
 const rule = "▎";
 
-// Draws the body one rule and one space narrower, then prefixes every row with the rule.
 function ruled(width: number, style: HistoryStyle, body: (width: number) => string[]): string[] {
   if (width < 3) return body(width);
   return body(width - 2).map((line) => `${style.rule(rule)} ${line}`);
@@ -92,7 +88,6 @@ function optionKind(question: RenderQuestion): "single" | "multi" {
   return question.kind === "multi" ? "multi" : "single";
 }
 
-/** A failed execution has no question details; its message carries the cause. */
 export function renderQuestionFailure(
   message: string,
   width: number,
@@ -105,10 +100,6 @@ export function renderQuestionFailure(
   });
 }
 
-/**
- * History drawn from the question arguments and the confirmed result.
- * The live prompt UI uses the same choice markers. This view has no cursor and no key hints.
- */
 export function renderQuestionHistory(input: {
   questions: readonly RenderQuestion[];
   details: RenderDetails;

@@ -11,16 +11,10 @@ in
     myconfig,
     ...
   }: let
-    # Unset theme tables write nothing.
     theme = lib.filterAttrs (_: table: table != {}) cfg.theme;
 
-    # elio finds its preview tools on PATH: pdfinfo and pdftocairo for PDF,
-    # resvg for SVG.
     previewTools = pkgs: [pkgs.poppler-utils pkgs.resvg];
 
-    # elio with its configuration passed as arguments, leaving the user's files
-    # and environment untouched. Subcommands and --version/--help must come
-    # first, so they reach elio unchanged.
     mkPackage = pkgs: theme: let
       toml = pkgs.formats.toml {};
       flags =
@@ -42,8 +36,6 @@ in
     options = {pkgs, ...}: let
       inherit (mylib.anchors.sources ./anchors.json) elio;
       inherit (lib) types;
-      # A TOML value; tables are declared as attribute sets down to their keys,
-      # so a higher source replaces only the keys it defines.
       table = types.attrsOf (pkgs.formats.toml {}).type;
       tables = types.attrsOf table;
       section = type:
@@ -80,7 +72,6 @@ in
       };
 
     myconfig.ifEnabled.elio.settings = {
-      # Files without a matching rule go to the system opener.
       open.rules = [
         {
           type = "text";
@@ -88,13 +79,11 @@ in
           terminal = true;
         }
       ];
-      # Setting an action replaces its default keys.
       keys = {
         nav_up = ["k" "up" "ctrl+p"];
         nav_down = ["j" "down" "ctrl+n"];
         page_up = ["pageup" "ctrl+u"];
         page_down = ["pagedown" "ctrl+d"];
-        # q leaves the shell where it was; Q takes it to the browsed directory.
         quit = "Q";
         quit_without_cd = "q";
       };
@@ -105,7 +94,6 @@ in
     in {
       packages = [cfg.package] ++ previewTools pkgs;
 
-      # elio's macOS lookup includes ~/.config, so XDG paths apply on every platform.
       xdg.config.files =
         {
           "elio/config.toml" = {
@@ -122,14 +110,11 @@ in
           };
         };
 
-      # Replaces `elio shell install`, which edits the rc file.
       zsh.zshrc.elio.text = ''
         source ${pkgs.runCommand "elio-init.zsh" {} "${lib.getExe cfg.package} shell init zsh > $out"}
       '';
     };
 
-    # `elio` carries no theme; `elio-<combination>` follows each combination of
-    # `colorscheme.combinations`, whatever the host selects.
     bundles.ifEnabled = {pkgs, ...}:
       lib.mkMerge [
         {
@@ -149,7 +134,6 @@ in
     tests.fixture = ["exclusive" "zsh.interactive"];
 
     tests.cases = {pkgs, ...}: {
-      # Stands in for elio and prints the arguments it receives.
       bundles = let
         fake = pkgs.writeShellScriptBin "elio" ''printf '%s\n' "$@"'';
       in {
@@ -164,10 +148,8 @@ in
             pkgs.runCommand "elio-bundles" {} ''
               plain=${lib.getExe packages.elio}
               themed=${lib.getExe packages.elio-rose-pine}
-              # Subcommands and --version reach elio unchanged.
               test "$($themed --version)" = --version
               test "$($themed shell init zsh | head -1)" = shell
-              # A launch receives the configuration; only a combination has a theme.
               $plain /start > plain
               $themed /start > themed
               test "$(head -1 plain)" = --config

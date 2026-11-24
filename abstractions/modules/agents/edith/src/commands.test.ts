@@ -12,7 +12,6 @@ void test("a model argument takes the provider before the first slash and keeps 
 });
 
 void test("split keeps every chunk within the limit and loses no text", () => {
-  // The emoji straddles the third chunk's limit, which must not cut it in half.
   const text = `${"a".repeat(1500)}\n${"b".repeat(1500)}\n${"c".repeat(1999)}😀${"d".repeat(10)}`;
   const chunks = split(text, 2000);
   for (const chunk of chunks) assert.ok(chunk.length <= 2000, String(chunk.length));

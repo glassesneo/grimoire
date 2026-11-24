@@ -1,4 +1,3 @@
-# Reaches the dependency through a module its case uses.
 {delib, ...}:
 delib.module {
   name = "case-user";

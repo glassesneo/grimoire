@@ -16,8 +16,6 @@ in {
 
   options.enable = delib.boolOption true;
 
-  # The keys of Spicetify's color.ini, by the part of Spotify's interface each
-  # colors.
   hjem.ifEnabled.programs.spicetify.customColorScheme = lib.mapAttrs (_: hex) {
     text = palette.foreground;
     subtext = palette.ansi.brightBlack;

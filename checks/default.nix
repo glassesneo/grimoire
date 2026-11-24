@@ -1,11 +1,3 @@
-# Immediate directories of `checks/` and `tests/` return lazy
-# {platforms?, check} descriptors. `outputs` checks that the current system's
-# packages, development shells and formatter evaluate to derivations; for each
-# host of the current system, `host-<name>-hjem` checks that its Hjem
-# configuration has no failed assertion and its manifest and preflight
-# evaluate, and
-# `host-<name>-darwin`, for a nix-darwin host, that its system evaluates. None
-# builds what it evaluates.
 {
   inputs,
   denix,
@@ -40,8 +32,6 @@
     inherit compose pkgs system home;
     info = moduleTestInfo;
   };
-  # Instantiating a derivation evaluates it; depending on the .drv file alone
-  # keeps the check from building it.
   evaluated = name: derivations:
     pkgs.runCommandLocal "${name}-check" {
       derivations = map (derivation: builtins.unsafeDiscardOutputDependency derivation.drvPath) derivations;
@@ -49,14 +39,10 @@
       touch "$out"
     '';
   hostDirectory = name: "abstractions/hosts/${name}";
-  # One check per published configuration, so a host's Hjem and nix-darwin
-  # evaluations run in parallel. nix-darwin fails its own evaluation on a
-  # failed assertion; Hjem reports them in `failedAssertions`.
   hostCheckSets = lib.mapAttrs (name: host:
     assert lib.assertMsg (builtins.pathExists (../. + "/${hostDirectory name}")) "Host ${name} is not declared in ${hostDirectory name}";
       {
         "host-${name}-hjem" = assert lib.assertMsg (host.hjem.failedAssertions == []) "Host ${name} fails Hjem assertions:\n${lib.concatStringsSep "\n" host.hjem.failedAssertions}";
-        # The Hjem CLI reads the manifest as JSON; preflight does not force it.
           builtins.seq (builtins.toJSON host.hjem.manifest) (evaluated "host-${name}-hjem" [host.hjem.preflight]);
       }
       // lib.optionalAttrs (host.darwin != null) {

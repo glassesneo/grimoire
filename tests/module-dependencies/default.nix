@@ -5,11 +5,6 @@
 }: let
   inherit (pkgs) lib;
 
-  # Repository-owned contract: disabling a parent, or a role a module follows,
-  # gates the module's default without masking explicit overrides, and
-  # conflicts, like a followed role no module declares, produce failed
-  # assertions.
-  # Assertion enforcement is tested at the consumer boundary, not here.
   feature = name: enabled: {delib, ...}:
     delib.module {
       inherit name;
