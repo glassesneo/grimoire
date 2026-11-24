@@ -3,6 +3,8 @@
 
   fragmentType = types.submodule {
     options = {
+      # `str` rather than `lines`: two modules defining one fragment differently
+      # is a conflict, not a concatenation.
       text = lib.mkOption {
         type = types.str;
         description = "Text of the fragment.";

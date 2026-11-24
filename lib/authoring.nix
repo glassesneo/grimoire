@@ -27,6 +27,8 @@
     || (builtins.isList value && lib.any hasPackage value)
     || (builtins.isAttrs value && lib.any hasPackage (builtins.attrValues value));
 
+  # optionAttrSetToDocList renders `defaultText` or else the value; the
+  # declaration is read to render packages and lazy values without forcing them.
   declarationOf = options: loc: let
     option = lib.attrByPath loc null options;
   in
@@ -77,6 +79,7 @@
       then computed
       else option.default or null
     );
+    # Nix escapes the placeholder host's interpolations inside strings.
     renderedDefault =
       if default == null
       then ""

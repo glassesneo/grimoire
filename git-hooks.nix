@@ -1,3 +1,5 @@
+# prek runs the commit hook on all files, so it never stashes: the repository
+# hook isolates the index itself.
 {
   pkgs,
   git-hooks,
@@ -5,6 +7,7 @@
   src,
 }: let
   inherit (pkgs) lib;
+  # Only the scripts the hooks run, so editing another script keeps the hooks.
   scripts = lib.fileset.toSource {
     root = ./scripts;
     fileset = lib.fileset.unions [./scripts/commit.nu ./scripts/docs.nu ./scripts/checks.nu ./scripts/pre-push.nu ./scripts/run.nu ./scripts/gate.nu];
@@ -45,6 +48,10 @@
   };
 in {
   inherit directory;
+  # The hooks path names the store directory itself: Claude Code's sandbox moves
+  # aside links into the store that appear in the Git directory during a
+  # session. The GC root lives in the main worktree's ignored `.direnv/`, shared
+  # by every worktree.
   shellHook = ''
     if common_dir="$(${pkgs.git}/bin/git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
       hooks_root="$(dirname "$common_dir")/.direnv/nix-hooks"

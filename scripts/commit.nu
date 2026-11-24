@@ -6,6 +6,7 @@ const empty = "0000000000000000000000000000000000000000"
 export def main [] {
   do --capture-errors {
     cd (^git rev-parse --show-toplevel | str trim)
+    # `git commit <paths>` and `git commit -a` commit a temporary index.
     let index = $env.GIT_INDEX_FILE? | default (^git rev-parse --git-path index | str trim) | path expand
     let before = ^git write-tree | str trim
     let snapshot = mktemp --directory --tmpdir repository-hook.XXXXXX
@@ -13,6 +14,8 @@ export def main [] {
       ^git checkout-index --all --prefix $"($snapshot)/"
       do {
         cd $snapshot
+        # The snapshot's root is new on every commit, so a treefmt cache would
+        # never be reused.
         ^nix fmt --no-update-lock-file -- --no-cache
       }
       docs --root $snapshot
@@ -52,6 +55,7 @@ export def main [] {
       }
       ^git --no-pager diff --cached --stat $before --
 
+      # Git supplies an implicit empty-tree comparison on an unborn branch.
       let changes = ^git diff --cached --name-status -z --no-renames
         | split row (char nul)
         | compact --empty

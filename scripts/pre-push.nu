@@ -20,6 +20,7 @@ def main [] {
     for tree in $trees {
       let snapshot = mktemp --directory --tmpdir repository-push.XXXXXX
       let failure = try {
+        # Separate commands, so an archive failure cannot be hidden by tar.
         checked git archive --format=tar --output $"($snapshot).tar" $tree | ignore
         checked tar -xf $"($snapshot).tar" -C $snapshot | ignore
         do {

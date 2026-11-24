@@ -2,6 +2,8 @@ export def import-candidate [source: string, checkout: string]: nothing -> strin
   if $checkout !~ '^/' {
     error make {msg: "Candidate checkout must be an absolute path"}
   }
+  # SSH joins its command arguments in a remote shell: the one data argument is
+  # quoted, and the script goes on stdin rather than running checkout code.
   let quoted = "'" + ($checkout | str replace --all "'" "'\"'\"'") + "'"
   let snapshot = '
 set -eu

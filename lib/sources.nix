@@ -33,6 +33,8 @@
       then attributes node value
       else wrap value;
 
+    # Attribute names come from the value alone, so a module's shape never
+    # depends on the option tree it is evaluated against.
     attributes = node:
       lib.mapAttrs (name: value:
         if builtins.isAttrs node && node ? ${name}
@@ -58,6 +60,8 @@
       then property
       else if type.name == "submodule" && (lib.isFunction value || isPlainAttrs value)
       then
+        # With `shorthandOnlyDefinesConfig`, as `types.submodule` sets, an
+        # attribute set definition is configuration only, even `imports`.
         if isPlainAttrs value && type.functor.payload.shorthandOnlyDefinesConfig or false
         then attributes (type.getSubOptions []) value
         else imported (type.getSubOptions []) value
@@ -73,6 +77,7 @@
       }
       else if lib.isFunction value
       then
+        # A real lambda: the module system loads a functor as an attribute set.
         {config, ...} @ args:
           module node (value (args
               // builtins.mapAttrs (name: _: args.${name} or config._module.args.${name}) (lib.functionArgs value)))

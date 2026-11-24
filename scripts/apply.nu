@@ -23,6 +23,7 @@ def run-on [stage: string, target: any, command: string] {
   }
 }
 
+# `lines` alone would discard the build's exit code; `str trim` propagates it.
 def realize [stage: string, root: string, flags: list<string>, ...attrs: string]: nothing -> list<string> {
   let paths = step $stage { ^nix build --print-out-paths --out-link $root ...$flags ...$attrs | str trim | lines }
   if ($paths | length) != ($attrs | length) {
@@ -35,6 +36,8 @@ def push [stage: string, target: string, ...paths: string] {
   step $stage { ^nix copy --no-check-sigs --to $'ssh-ng://($target)' ...$paths }
 }
 
+# Keeps the selected candidate alive for the whole switch, even if a new import
+# replaces its persistent root.
 def select-flake [source: string, roots: string]: nothing -> record {
   if ($source | is-empty) {
     return {ref: (flake-root), flags: []}

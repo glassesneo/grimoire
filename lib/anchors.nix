@@ -38,6 +38,7 @@
         outPath = builtins.fetchurl {
           inherit (pin) url;
           sha256 = pin.hash;
+          # Programs loading the file may read its name.
           name = baseNameOf pin.url;
         };
       }

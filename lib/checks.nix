@@ -1,3 +1,4 @@
+# Discovery must not force check bodies or derivation metadata.
 {lib}: {
   descriptors,
   testDescriptors ? {},

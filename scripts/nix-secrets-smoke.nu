@@ -1,5 +1,6 @@
 use std/assert
 
+# Keeps synthetic plaintext, which commands print, out of errors.
 use ./run.nu checked
 
 def apply [probe: path, --fails] {
@@ -21,6 +22,8 @@ def describe [probe: path, home: path] {
 }
 
 def consumer [secret: path, expected: string] {
+  # cat is a separate app process receiving a path, not plaintext in argv or the
+  # environment.
   assert equal (checked /bin/cat $secret) $expected
 }
 
@@ -103,6 +106,8 @@ def main [] {
     consumer $secret dummy-second
     print 'PASS: a new dinit instance recreates a fresh verified RAM mount'
   } finally {
+    # apply can fail after bootstrap, so actual ownership is inspected, not a
+    # flag.
     let status = ^/bin/launchctl print $domain | complete
     if $status.exit_code == 0 {
       let paths = $status.stdout | parse --regex '(?m)^\s*path = (?<path>.+)$' | get path

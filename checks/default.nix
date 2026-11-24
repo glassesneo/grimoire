@@ -32,6 +32,8 @@
     inherit compose pkgs system home;
     info = moduleTestInfo;
   };
+  # Depending on the .drv file alone evaluates the derivation without building
+  # it.
   evaluated = name: derivations:
     pkgs.runCommandLocal "${name}-check" {
       derivations = map (derivation: builtins.unsafeDiscardOutputDependency derivation.drvPath) derivations;
@@ -39,6 +41,8 @@
       touch "$out"
     '';
   hostDirectory = name: "abstractions/hosts/${name}";
+  # One check per configuration, so a host's Hjem and nix-darwin evaluations run
+  # in parallel.
   hostCheckSets = lib.mapAttrs (name: host:
     assert lib.assertMsg (builtins.pathExists (../. + "/${hostDirectory name}")) "Host ${name} is not declared in ${hostDirectory name}";
       {

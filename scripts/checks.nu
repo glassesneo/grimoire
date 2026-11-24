@@ -1,3 +1,5 @@
+# Selects from Nix-owned dependency metadata; module dependencies are never
+# inferred here.
 def within [path: string, directory: string] {
   $path == $directory or ($path | str starts-with $"($directory)/")
 }
@@ -27,6 +29,8 @@ export def select-checks [metadata: record, changes: list<record>] {
   } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
 }
 
+# nix-fast-build records an attribute name that contains `.` inside the quotes
+# Nix uses for that path segment.
 def check-name [attr: string] {
   $attr | str trim --char '"'
 }
@@ -41,9 +45,12 @@ export def build-checks [flake: string, system: string, names: list<string>] {
   let file = mktemp --tmpdir repository-checks.XXXXXX
   try {
     let failure = try {
+      # Bounds build requests independently of Nix's local max-jobs, which may
+      # be zero.
       ^nix-fast-build --no-nom --max-jobs 4 --eval-workers 4 --flake $"($flake)#checks.($system)" --select $select --result-file $file
       null
     } catch {|error| $error }
+    # A run that fails before writing results leaves the file empty.
     let results = try { open --raw $file | from json | get results } catch { [] }
     let failed = $results | where success == false | each {|result| check-name $result.attr } | uniq | sort
     if ($failed | is-not-empty) { error make {msg: $"Failed checks: ($failed | str join ', ')"} }

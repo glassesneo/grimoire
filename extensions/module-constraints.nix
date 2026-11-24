@@ -20,6 +20,8 @@
     options,
     ...
   } @ moduleArgs: let
+    # Denix hands entries over as functions of Denix and module arguments;
+    # requested arguments resolve as `lib.modules` resolves them.
     resolve = denixArgs: value:
       if delib.isDenixArgs value
       then resolve denixArgs (value denixArgs)
@@ -60,6 +62,8 @@ in {
     applyConfigForModuleSystem = _: [];
   };
 
+  # A `myconfig`-only evaluation, such as the authoring reference, declares no
+  # `assertions`.
   rawModules.constraints = lib.optionals (config.moduleSystem.name or null != "myconfig") (
     if unsupported != []
     then throw "Constraints support only module `always` and `ifEnabled` sections; found ${lib.concatStringsSep ", " unsupported}."

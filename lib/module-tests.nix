@@ -64,6 +64,8 @@
     then assertions.failed result.config.assertions
     else result.failedAssertions;
 
+  # Forces a derivation only to its output path: deepSeq would descend into its
+  # whole build graph.
   force = value:
     if lib.isDerivation value
     then builtins.seq value.outPath true

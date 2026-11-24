@@ -14,10 +14,13 @@
     then delib.inheritFunctionArgs entry transformed
     else transformed;
 
+  # Denix keeps an entry's `_file`, but coercion has already set it to
+  # <unknown-file>, so the label replaces it.
   label = kind: name: moduleSystem: section:
     transform (_: module: module // {_file = "${kind} ${name} (${moduleSystem}.${section})";});
 
   prioritize = kind:
+  # Denix also calls entries with mock arguments to read their shape.
     transform (args: mylib.sources.prioritize mylib.sources.priorities.${kind} (args.myoptions or {}));
 
   labelSections = kind: {name, ...}: {

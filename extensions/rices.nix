@@ -17,6 +17,7 @@
 
   myconfigSystem = config.moduleSystems.myconfig;
 
+  # A function module, so the option tree of each evaluation guides priorities.
   riceModule = {options, ...}: {
     _file = "rice ${selected} (myconfig)";
     key = "grimoire.rices.${selected}";

@@ -25,6 +25,8 @@
       description = "Roles whose seat this module reads, by name; the module is enabled by default only while each `roles.<name>` is.";
     };
 
+    # Transforms defaults, not values, so explicit overrides still reach
+    # constraints.
     options.options = lib.mkOption {
       apply = entries:
         map (entry: let

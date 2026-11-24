@@ -48,6 +48,9 @@
 
     hosts = configuration.config.hosts;
 
+    # Defaults read a placeholder host whose values are the `myconfig.host`
+    # expressions they stand for; its system stays real because nix-darwin and
+    # packages are evaluated for it.
     authoringReference = import ./lib/authoring.nix {inherit lib;} (let
       docsSystem = "aarch64-darwin";
       host = "\${myconfig.host.name}";
@@ -68,6 +71,8 @@
       };
     in {
       inherit host;
+      # Anchors are named by module directory, as pin names repeat across
+      # modules.
       sources =
         lib.mapAttrs (_: input: input.outPath) (removeAttrs inputs ["self"])
         // lib.concatMapAttrs (directory: file:
@@ -137,6 +142,8 @@
             enable = true;
             disabled-lints = ["repeated_keys"];
           };
+          # Bun rewrites package.json, and docs/generated is compared with `just
+          # docs` output.
           oxfmt = {
             enable = true;
             includes = ["*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs"];
@@ -146,6 +153,7 @@
             indentation = "  ";
           };
         };
+        # Lint fixes run before alejandra, which formats their rewrites.
         settings.formatter.statix.priority = 1;
         settings.formatter.deadnix.priority = 2;
         settings.formatter.alejandra.priority = 3;
@@ -256,6 +264,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     llm-agents.url = "github:numtide/llm-agents.nix";
+    # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
+    # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.
     bun2nix.follows = "llm-agents/bun2nix";
     git-hooks = {
       url = "github:cachix/git-hooks.nix";

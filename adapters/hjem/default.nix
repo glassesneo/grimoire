@@ -62,6 +62,11 @@
       evaluation = lib.evalModules {
         class = "hjem";
 
+        # Hjem imports from `pkgs.path`, so `pkgs` must be a special argument.
+        # Without unfree names, the shared Nixpkgs serves every evaluation
+        # instead of re-evaluating stdenv in a fresh instance; the choice reads
+        # the configuration, so `path` and attribute names come from the shared
+        # instance.
         specialArgs = {
           pkgs = let
             shared = inputs.nixpkgs.legacyPackages.${system};
@@ -90,6 +95,7 @@
             }
             unfreePackages
             applySteps
+            # standalone applies packages through current-profile.
             ({config, ...}: {
               environment.sessionVariables.PATH = lib.mkMerge [
                 (lib.mkBefore ["${config.xdg.state.directory}/hjem/standalone/current-profile/bin"])
@@ -139,6 +145,8 @@
         pkgs.runCommand
         "hjem-preflight"
         {
+          # Structured attrs keep store paths containing spaces, such as app
+          # bundles, intact.
           __structuredAttrs = true;
           inherit dependencies;
         }
@@ -149,6 +157,8 @@
           done > "$out"
         '';
 
+      # Hjem's per-user module imports nixpkgs' assertions module, which already
+      # declares `assertions`.
       failedAssertions = mylib.assertions.failed cfg.assertions;
     in
       lib.mapAttrs (_: mylib.assertions.guard failedAssertions) {
