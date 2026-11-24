@@ -40,6 +40,8 @@ delib.module ({
     '';
     bsdSed = pkgs.linkFarm "agent-bsd-sed" {"bin/sed" = lib.getExe' pkgs.darwin.text_cmds "sed";};
     runtimePath = lib.makeBinPath ([pkgs.python3] ++ lib.optional pkgs.stdenv.hostPlatform.isDarwin bsdSed);
+    # Claude Code sources $CLAUDE_ENV_FILE before each Bash tool command, after the shell profile,
+    # so these tools precede any inherited PATH.
     runtimeTools = pkgs.writeShellScript "claude-code-runtime-tools" ''
       [ -n "''${CLAUDE_ENV_FILE:-}" ] || exit 0
       printf 'export PATH=%s:"$PATH"\n' ${lib.escapeShellArg runtimePath} >> "$CLAUDE_ENV_FILE"
@@ -67,8 +69,11 @@ delib.module ({
         sandbox = {
           enabled = !cfg.unattended;
           autoAllowBashIfSandboxed = true;
+          # nix keeps its evaluation and fetcher caches here as SQLite databases, and treefmt, run
+          # by `nix fmt` and commit hooks, keeps its cache beside them.
           filesystem.allowWrite = ["~/.cache/nix" "~/.cache/treefmt"];
           network = {
+            # nix commands talk to the daemon instead of opening the store themselves.
             allowUnixSockets = ["/nix/var/nix/daemon-socket/socket"];
             allowLocalBinding = true;
           };
@@ -91,6 +96,7 @@ delib.module ({
       }
       // lib.optionalAttrs cfg.unattended {
         disableAutoMode = "disable";
+        # Otherwise the first bypassPermissions session waits for confirmation.
         skipDangerousModePermissionPrompt = true;
       };
 

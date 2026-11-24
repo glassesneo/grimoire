@@ -239,6 +239,7 @@ in {
     packages = [client];
     mcp.selections.edith = servers;
 
+    # The tool user could otherwise read whatever of the home is readable by others.
     applySteps.edith-private-home = lib.mkIf hasToolUser {
       package = pkgs.linkFarm "hjem-edith-private-home" {
         "bin/apply" = pkgs.writeShellScript "edith-private-home" "chmod 700 ${lib.escapeShellArg config.directory}";

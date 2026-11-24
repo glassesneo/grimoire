@@ -43,6 +43,7 @@ class PaletteOverlay implements Component, Focusable {
     const lost = this.#focused && !value;
     this.#focused = value;
     this.palette.focused = value;
+    // Another dialog took focus; an unseen palette must not keep capturing commands.
     if (lost) this.blurred();
   }
 
@@ -234,6 +235,8 @@ export class InputEditor extends CustomEditor {
         `Command failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
+      // Native selectors return before the selection completes, so the draft guard stays until
+      // success is observed or input returns to this editor after cancellation.
       if (!["resume", "tree", "fork"].includes(command)) this.#command = undefined;
       this.tui.requestRender();
     }

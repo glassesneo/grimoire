@@ -157,6 +157,8 @@ const LabelDoc = defineDoc<Label>({
   checkpointWhen: () => true,
 });
 
+// Written in a user message, since the model reads instructions there; it says who wrote it, so
+// that the model does not take it for the user's words.
 export const stoppedNote =
   "[Chat client note, not the user's words: the user stopped you while you were working on the request above. Treat that request as closed. Respond to the user's next message, and take the stopped work up again only if that message asks for it.]";
 

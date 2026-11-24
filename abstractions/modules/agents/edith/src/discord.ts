@@ -350,6 +350,8 @@ export class Discord {
       this.#application = data.application.id;
       this.#spawn(this.#recover(api));
     });
+    // Each guild arrives after Ready, and again when the bot joins one. Overwriting the whole set
+    // leaves exactly these commands, whatever an earlier version registered.
     this.#client.on(GatewayDispatchEvents.GuildCreate, ({ data, api }) => {
       if (this.#application === undefined) return;
       this.#spawn(
@@ -393,6 +395,7 @@ export class Discord {
     const channel = message.channel_id;
     const address = `discord:${channel}`;
     if (message.content.trim() === "") return;
+    // Followed before the input is admitted, so that the trace sees everything it causes.
     await this.#follow(api, channel);
     const paused = await this.#edith.paused(address, this.#context);
     let submission: SubmissionId;
@@ -416,6 +419,7 @@ export class Discord {
       );
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
+      // Seen, so that catching up does not admit it later.
       await this.#edith.harness.commit(async (tx) => {
         const state = await tx.doc(State);
         state.lastSeen[channel] = later(message.id, state.lastSeen[channel]);
@@ -445,6 +449,7 @@ export class Discord {
       const pending = (await tx.doc(State)).pending[id];
       if (pending) pending.waiting = true;
     }, this.#context);
+    // Given to the model meanwhile, before the trace could see the mark.
     if (!(await queued())) await this.#unmarkWaiting(api, channel, id);
   }
 
@@ -659,6 +664,8 @@ export class Discord {
     }
   }
 
+  // Discord allows two topic changes in ten minutes, so a change it refuses is left for /status to
+  // show.
   async #showChoices(api: API, channel: string): Promise<void> {
     const status = await this.#edith.status(`discord:${channel}`, this.#context);
     await api.channels
@@ -1186,6 +1193,7 @@ export class Discord {
     this.#waiting.get(channel)?.release(entry);
   }
 
+  // Gives up after a while rather than holding the answer back.
   async #tracedTo(api: API, channel: string, entry: number): Promise<void> {
     await this.#follow(api, channel).catch(() => {});
     const trace = await this.#trace(channel);

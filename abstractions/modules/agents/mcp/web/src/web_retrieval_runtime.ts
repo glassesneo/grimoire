@@ -25,6 +25,8 @@ export async function loadWebRetrievalRuntimeConfig(
 }
 
 export async function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  // A caller that already aborted must still observe the original rejection. Other handlers
+  // attached to that promise continue to see it.
   promise.catch(() => {});
   if (signal.aborted) throw signal.reason ?? new Error("aborted");
   return new Promise<T>((resolve, reject) => {

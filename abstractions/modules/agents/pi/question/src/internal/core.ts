@@ -69,6 +69,7 @@ const questionItemSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     prompt: Type.String({ minLength: 1 }),
+    // A plain string enum, as providers without anyOf/const support require.
     kind: Type.Unsafe<QuestionKind>({ type: "string", enum: [...questionKinds] }),
     options: Type.Optional(Type.Array(questionOptionSchema)),
   },

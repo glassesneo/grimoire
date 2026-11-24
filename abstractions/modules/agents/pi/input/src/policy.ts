@@ -1,4 +1,6 @@
 export const stopWindowMs = 1_500;
+// Without key-repeat reports, a second press stops only after this much quiet; terminal auto-repeat
+// sends the next event sooner, so a held key never stops.
 export const settleMs = 120;
 
 export interface StopState {

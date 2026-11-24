@@ -85,6 +85,8 @@ export default function registerCompaction(pi: ExtensionAPI): void {
   const record = (ctx: ExtensionContext, replay: ReplayItem[], messages: AgentMessage[]) =>
     checkpointRecord({ identity: identity(ctx.model!), tools: requestTools, replay }, messages);
 
+  // Preflights the actual native prompt before transport; UTF-8 JSON bytes conservatively budget
+  // text plus message framing, while retaining the configured output reserve.
   const standardSummary = async (
     ctx: ExtensionContext,
     messages: AgentMessage[],
@@ -171,6 +173,8 @@ export default function registerCompaction(pi: ExtensionAPI): void {
   pi.on("model_select", (_event, ctx) => {
     checkModel(ctx);
   });
+  // input runs when received, not when queued work is delivered, so a human message received during
+  // this work must not re-enable server compaction mid-recovery.
   pi.on("input", (event, ctx) => {
     if (event.source !== "extension" && ctx.isIdle() && !event.streamingBehavior) setBlocked(false);
     checkModel(ctx);
@@ -260,12 +264,16 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       };
     }
     if (!observed || event.outcome === "completed") return;
+    // Pi retries after this hook. A transient error says nothing about whether the saved checkpoint
+    // still works, so it is kept even if Pi exhausts its retry budget.
     if (
       event.message.role === "assistant" &&
       !isContextOverflow(event.message, ctx.model?.contextWindow) &&
       isRetryableAssistantError(event.message)
     )
       return;
+    // Restored history that no longer fits reaches Pi's own threshold or overflow compaction, which
+    // summarizes it in session_before_compact.
     fallback(ctx, "Responses request failed; no checkpoint was adopted.");
   });
   pi.on("session_before_compact", async (event, ctx) => {
@@ -319,6 +327,8 @@ export default function registerCompaction(pi: ExtensionAPI): void {
       fallback(ctx, "Responses compaction did not absorb the overflow.");
       return nativeFallback();
     }
+    // The manual request declares no tools, so the checkpoint keeps the work requests'
+    // declarations; the next work request verifies them before any replay.
     const live = checkpoint?.replayable ? checkpoint : undefined;
     if (live && requestTools && live.checkpoint.tools !== requestTools) {
       retire(ctx, live, "Tool declarations changed; restored the original context.");

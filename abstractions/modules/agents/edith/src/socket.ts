@@ -29,6 +29,7 @@ async function serve(edith: Edith, socket: Socket, context: Context): Promise<vo
 }
 
 export function listen(edith: Edith, path: string, context: Context): Server {
+  // A socket left by an earlier process would make listen fail.
   rmSync(path, { force: true });
   const server = createServer({ allowHalfOpen: true }, (socket) => {
     socket.on("error", (error) => console.error("socket client:", error.message));

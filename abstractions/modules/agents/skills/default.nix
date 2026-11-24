@@ -77,6 +77,7 @@ in
       otherSource = pkgs.writeTextDir "SKILL.md" "# Other synthetic skill";
 
       declare = attrs: {declaration.hjem.always = attrs;};
+      # The shipped skills are always declared and would otherwise appear in every result.
       files = result: lib.filter (file: !(lib.elem (baseNameOf file.target) ownSkills)) result.manifest.files;
     in
       {

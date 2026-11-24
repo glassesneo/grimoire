@@ -11,6 +11,7 @@ type Replay = { identity: string; tools: string; replay: ReplayItem[] };
 type Checkpoint = Replay & ({ version: 1 } | { version: 2; recovery: AgentMessage[] });
 
 export function checkpointRecord(replay: Replay, messages: AgentMessage[]) {
+  // Pi counts summary text as prompt tokens when provider usage is unavailable.
   return {
     summary: `OpenAI Responses checkpoint (${randomUUID()})`,
     details: {

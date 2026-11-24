@@ -17,6 +17,7 @@ export const followDefault = "default";
 
 export type Parsed<T> = { readonly value: T | null } | { readonly error: string };
 
+// The provider is the part before the first slash; model ids may contain slashes.
 export function parseModel(argument: string): Parsed<ModelRef> {
   const text = argument.trim();
   if (text === followDefault) return { value: null };
