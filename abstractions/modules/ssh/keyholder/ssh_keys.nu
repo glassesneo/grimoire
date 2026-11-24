@@ -25,7 +25,7 @@ def problems []: nothing -> list<string> {
       (if $identity != null and $identity.fingerprint != (fingerprint $key.publicKey) { $"identity ($key.label) is not the key ssh.keys.($key.purpose) declares" })
       (if $identity != null and $identity.valid != YES { $"identity ($key.label) is no longer valid" })
       (if not ($file | path exists) or $handle_pair != $pair { $"($file) is missing or not the handle of ($key.label); run ssh-keys create" })
-      (if ($key.expires | into datetime) - (date now) < 30day { $"identity ($key.label) expires on ($key.expires); rotate it" })
+      (if ($key.expires | into datetime) - (date now) < 30day { $"identity ($key.label) expires on ($key.expires). Rotate it before then: delete it with sc_auth delete-ctk-identity, run ssh-keys create, replace ssh.keys.($key.purpose) with the new key, switch the remote hosts while the old login key still works, and replace the key on GitHub" })
     ] | compact
   } | flatten
 }

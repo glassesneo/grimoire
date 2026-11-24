@@ -68,7 +68,7 @@ delib.host {
     ];
   };
 
-  darwin.ifEnabled = _: {
+  darwin.ifEnabled = {config, ...}: {
     system.stateVersion = 7;
     ids.gids.nixbld = 350;
     services.openssh.enable = true;
@@ -80,6 +80,11 @@ delib.host {
     # reset it: run `pmset -a disablesleep 0`.
     system.activationScripts.postActivation.text = ''
       /usr/bin/pmset -a disablesleep 1
+      if /usr/bin/fdesetup isactive >/dev/null; then
+        echo "warning: FileVault is on, so automatic login as ${config.system.defaults.loginwindow.autoLoginUser} does not happen" >&2
+      elif [ ! -e /etc/kcpassword ]; then
+        echo "warning: automatic login as ${config.system.defaults.loginwindow.autoLoginUser} has no password registered; set it in System Settings > Users & Groups" >&2
+      fi
     '';
   };
 }
