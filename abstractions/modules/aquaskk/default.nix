@@ -22,7 +22,7 @@ delib.module ({
 
   myconfig.ifEnabled.input-methods.enable = true;
 
-  hjem.always = {
+  hjem.ifEnabled = {
     config,
     pkgs,
     ...
@@ -32,25 +32,6 @@ delib.module ({
       inherit pkgs lib;
       source = app;
     };
-  in {
-    imprynt.deployments.aquaskk = {
-      root = "${config.directory}/Library/Input Methods";
-      trees = lib.optionals cfg.enable [
-        {
-          source = "${trees}/regular";
-          prefix = "AquaSKK.app";
-          mode = 420;
-        }
-        {
-          source = "${trees}/executable";
-          prefix = "AquaSKK.app";
-          mode = 493;
-        }
-      ];
-    };
-  };
-
-  hjem.ifEnabled = {pkgs, ...}: let
     kanaRule = pkgs.runCommand "aquaskk-kana-rule.conf" {nativeBuildInputs = [pkgs.libiconv];} ''
       iconv -f UTF-8 -t EUC-JP ${./kana-rule.conf} > "$out"
     '';
@@ -64,6 +45,22 @@ delib.module ({
       InputSourceKind = "Input Mode";
     };
   in {
+    imprynt.deployments.aquaskk = {
+      root = "${config.directory}/Library/Input Methods";
+      trees = [
+        {
+          source = "${trees}/regular";
+          prefix = "AquaSKK.app";
+          mode = 420;
+        }
+        {
+          source = "${trees}/executable";
+          prefix = "AquaSKK.app";
+          mode = 493;
+        }
+      ];
+    };
+
     files = {
       "Library/Application Support/AquaSKK/keymap.conf" = {
         exclusive = true;
@@ -172,15 +169,6 @@ delib.module ({
             {path:"AquaSKK.app/Contents/MacOS/AquaSKK",mode:493},
             {path:"AquaSKK.app/Contents/Resources/with space",mode:420}
           ]' ${result.apply.steps.imprynt.deployments.aquaskk.manifest}
-          touch "$out"
-        '';
-    };
-    disabling-retains-removal = {
-      protects = "disabling AquaSKK leaves an empty app deployment so its next switch retires the installed files";
-      host.myconfig.ifEnabled.aquaskk.enable = false;
-      build = result:
-        pkgs.runCommand "aquaskk-disabled" {nativeBuildInputs = [pkgs.jq];} ''
-          jq -e '.version == 1 and (.files | length == 0)' ${result.apply.steps.imprynt.deployments.aquaskk.manifest}
           touch "$out"
         '';
     };

@@ -202,11 +202,11 @@
         "zig": "zig"
       },
       "locked": {
-        "lastModified": 1795322808,
-        "narHash": "sha256-+aGAVklvfNMbFnYPop7aLzmOJ5fq8xvRV7roHBxgEGE=",
+        "lastModified": 1795486185,
+        "narHash": "sha256-CeWFo6pPpThtke1alx09KTTFsvaQH8Jb9IfgtjLxDhw=",
         "owner": "glassesneo",
         "repo": "imprynt",
-        "rev": "7b642e7a3dc57ddaf27a047b131bcb0e44bbbafa",
+        "rev": "f4c1a5257bf3f0ec046606fb4ad1a70491001ad9",
         "type": "github"
       },
       "original": {

@@ -41,7 +41,7 @@ in
       };
     };
 
-    hjem.always = {
+    hjem.ifEnabled = {
       config,
       pkgs,
       ...
@@ -51,12 +51,13 @@ in
           if pkgs.stdenv.hostPlatform.isDarwin
           then "${config.directory}/Library/Fonts"
           else "${config.xdg.data.directory}/fonts";
-        trees = lib.optionals cfg.enable (map (package: {
+        trees =
+          map (package: {
             source = "${package}/share/fonts";
             prefix = "imprynt/${lib.getName package}";
             extensions = [".ttf" ".otf" ".ttc" ".otc"];
           })
-          cfg.packages);
+          cfg.packages;
       };
     };
 
@@ -85,15 +86,6 @@ in
         host.system = "aarch64-linux";
         expr = result: result.apply.steps.imprynt.deployments.fonts.root;
         expected = "${home}/.local/share/fonts";
-      };
-      disabling-retains-removal = {
-        protects = "disabling fonts leaves its deployment registered with no files, so a later switch reconciles previous ownership";
-        host.myconfig.ifEnabled.fonts.enable = false;
-        build = result:
-          pkgs.runCommand "fonts-disabled" {nativeBuildInputs = [pkgs.jq];} ''
-            jq -e '.version == 1 and (.files | length == 0)' ${result.apply.steps.imprynt.deployments.fonts.manifest}
-            touch "$out"
-          '';
       };
     };
   })

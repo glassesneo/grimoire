@@ -54,12 +54,6 @@ deployments or Hjem activation. Keep its private state, including a retained
 journal and originals after a recovery error. Correct external conflicts and
 retry the switch rather than deleting state to force another installation.
 
-To retire a deployment, leave an empty entry at its original root and state
-location and apply it before removing the entry. Removing or renaming the entry
-alone abandons its cleanup. Setting `fonts.enable = false` keeps that empty
-entry for the fonts deployment; an ordinary switch then removes its managed
-fonts while leaving manual files alone.
-
 Verify font recognition on `seiran-vm1` with a GUI login as the target user.
 Headless placement can succeed before the user's font service runs. Apply only
 the imprynt step when testing fonts without activating unrelated services or
@@ -88,9 +82,6 @@ Verify Japanese input in a GUI app and a terminal, the custom keys, dictionary
 learning, and recognition after another login. A built app deployment does
 not establish these macOS behaviors.
 
-Disabling `aquaskk.enable` keeps the empty app deployment for retirement on the
-next switch. Apply that disabled declaration before removing or renaming the
-deployment. Retirement leaves the learning dictionary in place.
 
 ## OmniWM deployment
 
