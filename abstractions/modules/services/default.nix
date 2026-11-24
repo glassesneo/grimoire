@@ -22,7 +22,7 @@
 # socket is `serviceManager.socket`, the default socket of a user instance
 # without XDG_RUNTIME_DIR, so `dinitctl` reaches it without options.
 #
-# The apply step runs reconcile.nu, which states the switch-time lifecycle; its
+# The apply step runs reconcile.nu, whose behavior test/reconcile.nu's scenes state; its
 # output also holds the descriptions in `dinit.d`, and its `services` passthru
 # exposes the lowered declarations, dependencies first, for evaluation checks.
 # `serviceManager.restart` is the command that restarts one service for other
@@ -415,7 +415,7 @@ delib.module ({myconfig, ...}: {
           '';
       };
       reconciler = {
-        protects = "each switch brings dinit and its services to the declarations, as reconcile.nu's contract states";
+        protects = "each switch brings dinit and its services to the declarations, in each behavior a scene of test/reconcile.nu names";
         platforms = darwin;
         build = _: pkgs.callPackage ./test/check.nix {};
       };

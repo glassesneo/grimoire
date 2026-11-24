@@ -1,6 +1,6 @@
 # Runs reconcile.nu across successive generations against a real dinit and the
 # fake launchctl, writing the descriptions itself as Hjem would. Each scene
-# shows one statement of reconcile.nu's contract. A service appends a line to
+# checks one behavior of a run, which its PASS line names. A service appends a line to
 # its mark file whenever it starts.
 use std/assert
 

@@ -1,44 +1,3 @@
-# Owns the switch-time lifecycle of the dinit user instance and its services.
-#
-# Arguments: the step's output, holding services.json and agent.plist, and the
-# home. Hjem has already placed the descriptions in the services directory.
-# services.json lists dependencies before their dependents, each with the
-# services that a forced restart of it also restarts, and ends with login.
-# HOME/.local/state/hjem/dinit/state.json records the agent plist the last run
-# left for launchd and, per service, the description and automatic start it
-# last applied. Losing it makes the next run restart a loaded agent once. The
-# step's lock serializes runs.
-#
-# A run:
-# 1. retires the LaunchAgents that the former launchd backend's journal,
-#    .local/state/hjem/services/state.json, names, then that state;
-# 2. without services, boots the agent out when it is loaded, removes its plist
-#    and the state, and stops;
-# 3. creates Library/Logs, where dinit logs, and writes the agent's plist to
-#    Library/LaunchAgents when it differs. Without a GUI session it records
-#    the plist and stops; login loads the agent. Otherwise it boots the agent
-#    out when it is loaded from a plist other than the recorded one,
-#    bootstraps it when it is not loaded, starts it when it is loaded but not
-#    running, and waits for the control socket;
-# 4. when it started dinit, dinit has started the automatic services from the
-#    current descriptions, so the run records them without acting on them;
-# 5. otherwise brings the running instance, however it was started, to the
-#    declarations: it reloads added and changed descriptions, stopping a
-#    service and its dependents first when dinit refuses to reload it while
-#    started; stops and unloads removed services, dependents first; restarts
-#    each started service other than an internal one that changed or declares
-#    restartOnSwitch, together with its dependents, once; and requests a start
-#    of stopped services that were started before the run, or that are
-#    automatic and were added, changed, became automatic or declare
-#    restartOnSwitch. A start that nothing started waits for is not requested.
-#
-# Start and restart requests do not wait, so success does not mean readiness.
-# A failed operation does not stop the others; the failed service is applied
-# again by the next run, a service whose new description cannot be loaded is
-# started with its previous one when it was started, and the run fails at the
-# end.
-
-# Runs an external command and returns its completion record.
 def --wrapped execute [command: string, ...args: string]: nothing -> record {
   run-external $command ...$args | complete
 }
@@ -206,6 +165,7 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
 
     let running = $desired | where {|service| started $manifest $service.name } | get name
     mut restarted = []
+    mut restarts = []
     mut starts = []
     for service in $desired {
       let rerun = $service.name in $changed or $service.restartOnSwitch
@@ -218,6 +178,7 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
         if $rerun and $service.type != "internal" and $service.name not-in $restarted {
           if (ctl-ok $manifest restart --no-wait --force $service.name) {
             $restarted = ($restarted ++ $service.dependents)
+            $restarts = ($restarts | append $service.name)
           } else {
             $failed = ($failed | append $service.name)
           }
@@ -230,6 +191,17 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
     for service in ($starts | reverse) {
       if not (request-start $manifest $service) { $failed = ($failed | append $service.name) }
     }
+    let refused = $failed
+    let started = $starts | get --optional name | default [] | where {|name| $name not-in $refused }
+    let requests = [
+      (if ($restarts | is-not-empty) { $"restart requested for ($restarts | str join ', ')" })
+      (if ($started | is-not-empty) { $"start requested for ($started | str join ', ')" })
+    ] | compact
+    if ($requests | is-not-empty) {
+      print $"Hjem services: ($requests | str join '; '). These requests are not awaited: `dinitctl status <name>` shows whether each came up."
+    }
+  } else {
+    print "Hjem services: dinit started and starts the automatic services itself; `dinitctl list` shows their state."
   }
 
   let failures = $failed
@@ -243,6 +215,6 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
   save-atomic $state_file ({agent: $plist, services: $services} | to json)
 
   if ($failures | is-not-empty) {
-    error make {msg: $"Hjem services: failed to apply ($failures | str join ', ')"}
+    error make {msg: $"Hjem services: failed to apply ($failures | str join ', '). The other services were applied, and the next switch retries these. dinit logs to ~/Library/Logs/dinit.log."}
   }
 }
