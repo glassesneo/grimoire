@@ -1056,7 +1056,7 @@ Source: [<code>abstractions/modules/services/default.nix</code>](../../abstracti
 | <code>serviceManager.label</code> | <code>string matching the pattern [A-Za-z0-9][A-Za-z0-9._-]*</code> | <code>"org.hjem.dinit"</code> | Label of the LaunchAgent that starts dinit; it also names the agent's plist file. |
 | <code>serviceManager.restart</code> | <code>absolute path</code> |  | read-only; Command restarting the service it names when that service is started; it exits 0 when done or not started, and 75 when dinit is not running. |
 | <code>serviceManager.socket</code> | <code>string</code> |  | read-only; Control socket of the dinit instance. |
-| <code>userServices</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Hjem-owned user services run by dinit, by service name. |
+| <code>userServices</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Hjem-owned user services run by dinit, by service name. macOS attributes their processes to dinit, so a permission one needs, such as Accessibility, is granted to dinit (`io.github.davmac314.dinit`). |
 | <code>userServices.&lt;name&gt;.after</code> | <code>list of string</code> | <code>[ ]</code> | Services this one waits for when both are starting, without starting them. |
 | <code>userServices.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Services that wait for this one when both are starting, without starting it. |
 | <code>userServices.&lt;name&gt;.command</code> | <code>null or (list of string)</code> | <code>null</code> | Argv with an absolute executable, required unless `type` is internal; no shell expansion or variable substitution. |

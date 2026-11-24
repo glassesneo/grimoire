@@ -21,7 +21,6 @@ The absence of a written contract alone does not justify adding one. When a new 
 - `docs/module-authoring.md` owns the judgments made when designing a module's interface and validating it. It applies the concepts of `docs/architecture.md` without restating their definitions.
 - A mechanism's contract belongs beside its implementation: its contract comment and option descriptions. Its checks exercise that contract.
 - `justfile` and `just/*.just` own recipe documentation and argument help, read through `just --list` and `just --usage`.
-- `docs/operations.md` owns operational information that does not belong to an individual recipe, including development-shell setup, commit automation, and live verification procedures.
 - `docs/generated/` holds generated references. Regenerate `authoring.md` with `just docs`; edit its source declarations, not the generated file.
 - The root `AGENTS.md` owns agent-specific work rules and reading triggers not owned elsewhere. It may summarize the architecture concepts assumed in conversation.
 - A nested `AGENTS.md` owns agent-specific work rules limited to its directory.

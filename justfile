@@ -35,7 +35,7 @@ docs:
 eval:
   nix flake check --no-build --no-update-lock-file
 
-# Build one flake check for the current system; see docs/operations.md for platform and live-check limits.
+# Build one flake check for the current system.
 [arg('name', help='Check name under checks.<system>, including module-<name> for inline module checks')]
 check name:
   nix build --no-link --no-update-lock-file ".#checks.$(nix eval --impure --raw --expr builtins.currentSystem).\"{{ name }}\""
@@ -43,3 +43,12 @@ check name:
 # Run all current-system checks, including formatting and reference freshness, on the tracked working tree.
 check-full:
   nu --no-config-file scripts/gate.nu
+
+[doc('''
+  Check nix-secrets against this Mac's launchd, dinit and RAM disks, outside the
+  sandbox, with dummy keys and a probe LaunchAgent it removes afterwards. Needs a
+  GUI login session. Run it after changing nix-secrets, its patches, Hjem or the
+  services wiring, after a macOS upgrade, and before first use on a new machine.
+''')]
+nix-secrets-smoke:
+  nu --no-config-file scripts/nix-secrets-smoke.nu

@@ -13,8 +13,7 @@ build $host=`hostname -s`:
 [doc('''
   Apply Hjem files/packages, then reconcile services and user defaults as the
   same target user. Preflight failure leaves the existing home unchanged;
-  activation or reconciliation failure can leave partial changes. See
-  docs/operations.md for service and defaults ownership and retry behavior.
+  activation or reconciliation failure can leave partial changes.
   Hjem uses $USER locally and the SSH user remotely.
   Remote application builds locally, copies closures and flake source over ssh-ng
   without signature checks, then activates over SSH.

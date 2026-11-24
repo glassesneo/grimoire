@@ -69,8 +69,7 @@ A setting affects only the scope that needs it. User preferences are declared in
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
 - `tests/` owns sandboxed tests of repository mechanisms, the composition, and properties spanning the published configurations. `checks/` owns the remaining flake checks, which verify the repository's state rather than a behavior, such as generated files being current. Both are exported through `checks.<system>`; each immediate `tests/<name>/default.nix` and `checks/<name>/default.nix` is discovered automatically, and a name may appear in only one of them. Each returns either `cases`, named cases with `protects` and one of `expected`, `fails` or `build`, run by `lib/cases.nix`, or a `check` with `protects` for the whole, and may declare `platforms`. `checks/default.nix` also generates the checks that the published outputs and each host's published configurations evaluate. The contract of a single module is tested inside that module instead; see Validation boundary.
-- `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`. [Operations](operations.md) covers operational prerequisites and procedures outside individual recipes.
-
+- `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`.
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
 
 A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
@@ -131,7 +130,7 @@ For a program the repository configures, a test stops at what a build can observ
 
 A module's option types, constraints and `tests` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; a constraint runs on every evaluation of a real configuration, a test only as a check. A test under `tests/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's tests.
 
-Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. A host's changes select that host's checks, and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness; see [Operations](operations.md) for snapshot and bypass boundaries.
+Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. A host's changes select that host's checks, and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness.
 
 Mechanism tests use the smallest input boundary they own, without importing unrelated feature modules or extensions. Tests of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
 

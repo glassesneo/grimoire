@@ -247,7 +247,7 @@ delib.module ({myconfig, ...}: {
       userServices = mkOption {
         type = types.attrsOf service;
         default = {};
-        description = "Hjem-owned user services run by dinit, by service name.";
+        description = "Hjem-owned user services run by dinit, by service name. macOS attributes their processes to dinit, so a permission one needs, such as Accessibility, is granted to dinit (`io.github.davmac314.dinit`).";
       };
       serviceManager = {
         label = mkOption {
