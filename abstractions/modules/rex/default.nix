@@ -67,7 +67,13 @@ in {
         echo "warning: Rex is not installed at ${cfg.appPath}; install it from the Rex beta invitation. Its configuration is written anyway." >&2
         exit 0
       fi
-      ${lib.escapeShellArg cli} --autostart=false config reload >/dev/null 2>&1 || true
+      status=0
+      output=$(${lib.escapeShellArg cli} --autostart=false config reload 2>&1) || status=$?
+      case $status in
+        0 | 4) ;;
+        1) printf 'warning: Rex keeps its previous key bindings; init.lua has errors:\n%s\n' "$output" >&2 ;;
+        *) printf 'warning: Rex did not reload init.lua (exit %s):\n%s\n' "$status" "$output" >&2 ;;
+      esac
     '';
   in {
     packages = [rex];
