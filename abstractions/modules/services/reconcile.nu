@@ -36,20 +36,6 @@ def started [manifest: record, name: string]: nothing -> bool {
   ctl-ok $manifest --quiet is-started $name
 }
 
-def retire-launchd [home: path, uid: string, launchctl: string] {
-  let state = $home | path join .local state hjem services
-  let journal = $state | path join state.json
-  if not ($journal | path exists) { return }
-  for entry in (open $journal) {
-    let job = $"($entry.domain)/($uid)/($entry.label)"
-    if (execute $launchctl print $job).exit_code == 0 {
-      checked $launchctl bootout $job | ignore
-    }
-    rm --force ($home | path join Library LaunchAgents $"($entry.label).plist")
-  }
-  rm --recursive --force $state
-}
-
 def retire-agent [manifest: record, home: path, uid: string, launchctl: string] {
   let job = $"gui/($uid)/($manifest.label)"
   if (execute $launchctl print $job).exit_code == 0 {
@@ -117,7 +103,6 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
   let state_file = $home | path join .local state hjem dinit state.json
   mkdir ($state_file | path dirname)
   let state = if ($state_file | path exists) { open $state_file } else { {agent: null, services: {}} }
-  retire-launchd $home $uid $launchctl
   if ($manifest.services | is-empty) {
     retire-agent $manifest $home $uid $launchctl
     rm --force $state_file

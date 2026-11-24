@@ -105,7 +105,6 @@ const State = defineDoc<DiscordState>({
   version: 2,
   scope: "session",
   initial: () => ({ pending: {}, lastSeen: {}, trace: {} }),
-  migrate: (value) => ({ trace: {}, ...(value as Partial<DiscordState>) }) as DiscordState,
   checkpointWhen: () => true,
 });
 

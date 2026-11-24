@@ -102,13 +102,6 @@ def main [] {
   $"#!/bin/sh\nexec dinit --user --quiet --services-dir ($home)/.config/dinit.d --socket-path ($env.SOCKET) --log-file ($env.TMPDIR)/dinit.log login\n" | save $env.FAKE_AGENT
   chmod +x $env.FAKE_AGENT
 
-  let legacy = $home | path join .local state hjem services
-  mkdir $legacy
-  [{name: old, label: old.job, domain: gui}] | to json | save ($legacy | path join state.json)
-  'old' | save ($home | path join Library LaunchAgents old.job.plist)
-  touch ($env.FAKE_LAUNCHD | path join old.job.loaded)
-  ^sh -c 'nohup /bin/sleep 1000 >/dev/null 2>&1 & echo $!' | str trim | save ($env.FAKE_LAUNCHD | path join old.job.pid)
-
   mut services: record = {
     a: (process a --automatic)
     b: (process b --automatic)
@@ -120,10 +113,7 @@ def main [] {
   applied (generation g1 v1 $services)
   settled a b u c
   assert equal (counts a b u c m) {a: 1, b: 1, u: 1, c: 1, m: 0}
-  assert (not ($home | path join Library LaunchAgents old.job.plist | path exists))
-  assert (not ($env.FAKE_LAUNCHD | path join old.job.loaded | path exists))
-  assert (not ($legacy | path exists))
-  print 'PASS: a first run starts dinit with the automatic services and retires former jobs'
+  print 'PASS: a first run starts dinit with the automatic services'
 
   let instance = dinit-pid
   $services = ($services | reject b login | merge {a: (process a --version 1 --automatic), f: (process f --automatic)} | insert login (group a u c f))

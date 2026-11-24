@@ -33,7 +33,6 @@ const Resumed = defineSignal({
   name: "edith.resumed",
   version: 2,
   schema: { type: "string", enum: ["resume", "interject"] },
-  migrate: () => "resume",
 });
 
 export const interjectedNote =

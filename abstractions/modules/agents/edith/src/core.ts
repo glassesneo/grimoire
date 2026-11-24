@@ -128,11 +128,6 @@ const Address = defineDocFamily<AddressState, null>({
   scope: "session",
   family: true,
   initial: () => ({ conversation: null, started: null, sessions: [] }),
-  migrate: (value) => ({
-    started: null,
-    sessions: [],
-    ...(value as { conversation: number | null }),
-  }),
   checkpointWhen: () => true,
 });
 
@@ -186,20 +181,6 @@ const raise = (label: Label, access: Grant) => {
       ? null
       : Math.max(label.maxTurns, access.maxTurns);
 };
-
-const OverridesDoc = defineDoc<Overrides>({
-  kind: "edith.overrides",
-  version: 3,
-  scope: "conversation",
-  history: "latest",
-  fork: "current",
-  initial: () => ({ ...noOverrides }),
-  migrate: (value) => {
-    const { model, thinkingLevel } = value as Partial<Overrides>;
-    return { ...noOverrides, model: model ?? null, thinkingLevel: thinkingLevel ?? null };
-  },
-  checkpointWhen: () => true,
-});
 
 export function namespaceOf(address: string): string {
   const index = address.indexOf(":");
@@ -283,13 +264,7 @@ export class Edith {
   }
 
   async #overrides(address: string, context: Context): Promise<Overrides> {
-    const own = await this.harness.snapshot(Settings, address, context);
-    if (own) return { ...noOverrides, ...own };
-    const conversation = await this.conversation(address, context);
-    return {
-      ...noOverrides,
-      ...(await this.harness.snapshot(OverridesDoc, conversation.id, context)),
-    };
+    return { ...noOverrides, ...(await this.harness.snapshot(Settings, address, context)) };
   }
 
   #ceiling(address: string): Access {
