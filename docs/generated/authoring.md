@@ -227,7 +227,7 @@ Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/m
 
 ### <code>bettertouchtool</code>
 
-Provide BetterTouchTool and own its portable configuration.
+Provide BetterTouchTool and place its portable preset, which is imported by hand through BetterTouchTool's preset import.
 
 Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../abstractions/modules/bettertouchtool/default.nix)<br>Tags: <code>gui</code>
 
@@ -353,7 +353,7 @@ Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstr
 | <code>edith.personas.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the persona's conversations unless one sets its own. |
 | <code>edith.providers</code> | <code>list of (one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the personas' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
 | <code>edith.resident.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no access may name tools. |
+| <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand with `ssh-keygen -t ed25519 -N ''`, which may log in as the tool user from this host only; without it no user is created and no access may name tools. Rotate it by replacing the key files and this value in one switch. |
 | <code>edith.toolUser.name</code> | <code>string</code> | <code>"edith"</code> | User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach. |
 | <code>edith.toolUser.uid</code> | <code>signed integer</code> | <code>550</code> | UID, and GID of its group of the same name, of `edith.toolUser.name`. |
 

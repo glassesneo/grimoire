@@ -133,7 +133,7 @@ in {
     toolUser = {
       name = delib.strOption "edith" "User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach.";
       uid = delib.intOption 550 "UID, and GID of its group of the same name, of `edith.toolUser.name`.";
-      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand, which may log in as the tool user from this host only; without it no user is created and no access may name tools.";
+      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand with `ssh-keygen -t ed25519 -N ''`, which may log in as the tool user from this host only; without it no user is created and no access may name tools. Rotate it by replacing the key files and this value in one switch.";
     };
     discord = {
       enable = delib.boolOption false;

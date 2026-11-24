@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Context } from "@earendil-works/chord/context";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
@@ -50,6 +50,11 @@ export async function start(
     config.toolEnvironment?.knownHostsFile ?? [],
   ].flat())
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const identity = config.toolEnvironment?.identityFile;
+  if (identity !== undefined && !existsSync(identity))
+    throw new Error(
+      `the tool user's login key ${identity} is missing. Create it with \`ssh-keygen -t ed25519 -N '' -f ${identity}\`, set edith.toolUser.loginKey to the contents of ${identity}.pub, and switch.`,
+    );
 
   const servers = (
     await Promise.allSettled(

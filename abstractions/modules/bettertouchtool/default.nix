@@ -7,7 +7,7 @@ delib.module ({
   name = "bettertouchtool";
   tests.fixture = ["defaults" "exclusive"];
   meta = {
-    description = "Provide BetterTouchTool and own its portable configuration.";
+    description = "Provide BetterTouchTool and place its portable preset, which is imported by hand through BetterTouchTool's preset import.";
     tags = ["gui"];
   };
 

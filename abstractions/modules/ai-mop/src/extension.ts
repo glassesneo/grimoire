@@ -94,6 +94,21 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("mop-help", {
+    description: "Explain how to reach AI MOP from this workbench",
+    async handler(_args, ctx) {
+      const text = [
+        "The key comes from AI_MOP_API_KEY, or the file AI_MOP_API_KEY_FILE names.",
+        "Routes: ai-mop-responses and ai-mop-chat (OpenAI), ai-mop-anthropic (Anthropic). Pick one with --provider or /model.",
+        "Use ai-mop-responses for tools with reasoning; the proxy can reject that combination on Chat.",
+        "/mop-models openai lists the server's models; /mop-models anthropic <model-id> shows one model.",
+        "/mop-status shows the selected route and the last request.",
+      ].join("\n");
+      if (ctx.hasUI) ctx.ui.notify(text, "info");
+      else process.stderr.write(text + "\n");
+    },
+  });
+
   let lastRequest: Record<string, unknown> | undefined;
   pi.registerCommand("mop-status", {
     description:
