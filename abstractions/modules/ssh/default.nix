@@ -31,11 +31,11 @@ in
   delib.module ({cfg, ...}: {
     name = "ssh";
     tests.fixture = ["exclusive" "zsh.interactive"];
-    meta.description = "Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session.";
+    meta.description = "Configure the OpenSSH client, declare the person's SSH keys and the commands sshd runs as the user at the start of each session.";
 
     options = with delib; {
       enable = boolOption true;
-      rexAgentSocket = strOption ".ssh/rex-agent.sock" "Path, relative to the user's home on a remote host, where Rex's tunnel from the key holder binds the remote agent; `ssh.keyholder` forwards to it and `ssh.remote` reads it.";
+      rexAgentSocket = strOption ".ssh/rex-agent.sock" "Path, relative to the user's home on a remote host, where Rex's tunnel from the key holder binds the remote agent.";
       keys = {
         login = keyOption "Key that logs in to the person's hosts." {
           label = "grimoire-login";

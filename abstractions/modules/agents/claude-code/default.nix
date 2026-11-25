@@ -15,7 +15,7 @@ delib.module ({
   options = with delib; {
     enable = boolOption true;
     unattended = boolOption false "Run every tool call without permission prompts or the Bash sandbox, and disable auto mode.";
-    mcpServers = listOfOption lib.types.str [] "Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged.";
+    mcpServers = listOfOption lib.types.str [] "Names of registered MCP servers the Claude wrapper passes; an empty selection leaves the original package unchanged.";
   };
 
   hjem.always = {pkgs, ...}: {

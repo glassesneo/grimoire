@@ -35,7 +35,7 @@ delib.module ({cfg, ...}: {
         };
       });
       default = {};
-      description = "Language-owned contributions. A filetype has one owner; disabling this backend ignores all contributions.";
+      description = "Language-owned contributions; disabling this backend ignores all contributions.";
     };
   };
 

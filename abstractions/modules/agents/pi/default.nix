@@ -56,8 +56,8 @@ in {
 
   options = with delib; {
     enable = boolOption true;
-    extensions = mylib.accumulatingOption (listOfOption lib.types.str [] "Absolute paths of the extension entries Pi loads. Features add their entries; the published bundle has only the modules' entries.");
-    mcpServers = listOfOption lib.types.str [] "Names of registered MCP servers Pi starts through Hjem. An unknown name is rejected, and registering a server does not select it. A standalone bundle can use native project MCP configuration.";
+    extensions = mylib.accumulatingOption (listOfOption lib.types.str [] "Absolute paths of the extension entries Pi loads; the published bundle has only the modules' entries.");
+    mcpServers = listOfOption lib.types.str [] "Names of registered MCP servers Pi starts through Hjem.";
     sdkTypes = readOnly (lib.mkOption {
       type = lib.types.path;
       default = ./types;

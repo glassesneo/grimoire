@@ -115,7 +115,7 @@ Options that adapters add to their module systems.
 | [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | Configure the languages and region used by the system and applications. |  |
 | [<code>mcp</code>](../../abstractions/modules/agents/mcp/default.nix) | Declare stdio MCP servers and resolve each agent consumer's selection of them. |  |
-| [<code>neovim</code>](../../abstractions/modules/neovim/default.nix) | Provide and configure neovim |  |
+| [<code>neovim</code>](../../abstractions/modules/neovim/default.nix) | Provide and configure Neovim. |  |
 | [<code>neovim.ai-completion</code>](../../abstractions/modules/neovim/ai-completion/default.nix) | Provide switchable inline AI completions through Minuet. |  |
 | [<code>neovim.animations</code>](../../abstractions/modules/neovim/animations/default.nix) | Animate Neovim edits and movement while preserving existing key semantics. |  |
 | [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | Insert paired delimiters and track generated closers in Neovim. |  |
@@ -182,7 +182,7 @@ Options that adapters add to their module systems.
 | [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
 | [<code>spicetify</code>](../../abstractions/modules/spicetify/default.nix) | Provide Spotify patched by Spicetify with its extensions, and keep Spotify from updating itself. |  |
 | [<code>spicetify.colorscheme</code>](../../abstractions/modules/spicetify/colorscheme/default.nix) | Give Spotify colors from the held color scheme's palette. |  |
-| [<code>ssh</code>](../../abstractions/modules/ssh/default.nix) | Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session. |  |
+| [<code>ssh</code>](../../abstractions/modules/ssh/default.nix) | Configure the OpenSSH client, declare the person's SSH keys and the commands sshd runs as the user at the start of each session. |  |
 | [<code>ssh.keyholder</code>](../../abstractions/modules/ssh/keyholder/default.nix) | Hold the person's SSH keys in this host's Secure Enclave and lend them to the other hosts through a forwarded agent. |  |
 | [<code>ssh.remote</code>](../../abstractions/modules/ssh/remote/default.nix) | Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends. |  |
 | [<code>tags</code>](../../abstractions/modules/tags/default.nix) | Enable by default the modules that carry a tag selected for the host, except candidates whose seat decides their enable. |  |
@@ -282,7 +282,7 @@ Options that other modules define, and options that modules add to other module 
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map. |
+| <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. |
 
 ### <code>git</code>
 
@@ -311,46 +311,11 @@ Options that other modules define, and options that modules add to other module 
 | <code>imprynt.deployments.&lt;name&gt;.trees.*.prefix</code> | <code>string</code> | <code>""</code> | Relative destination prefix; empty places the tree directly below the managed root. |
 | <code>imprynt.deployments.&lt;name&gt;.trees.*.source</code> | <code>absolute path</code> |  | Source directory enumerated during the manifest build. |
 
-### <code>input-methods</code>
-
-<code>hjem</code> options:
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>inputMethods.enabled</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `enabled` list. |
-| <code>inputMethods.history</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `history` list. |
-| <code>inputMethods.selected</code> | <code>list of attribute set of anything</code> | <code>[ ]</code> | HIToolbox input-source entries contributed to the `selected` list. |
-
 ### <code>kanata</code>
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>kanata.layers</code> | <code>attribute set of attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Actions by layer and key name. |
-
-<code>darwin</code> options:
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>services.kanata.configFile</code> | <code>string</code> | <code>"/Users/${myconfig.host.user.name}/.config/kanata/kanata.kbd"</code> | Path to kanata configuration file. |
-| <code>services.kanata.configSource</code> | <code>null or absolute path or string</code> | <code>null</code> | If set, configFile will be symlinked to this path.<br>Use a string for an out-of-store symlink (edits take effect without rebuild):<br>  configSource = "/Users/you/.nix-config/kanata.kbd";<br>Use a path to copy into the nix store (immutable, requires rebuild):<br>  configSource = ./kanata.kbd;<br> |
-| <code>services.kanata.daemon.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable headless kanata launchd service. |
-| <code>services.kanata.daemon.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
-| <code>services.kanata.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata keyboard remapper with Karabiner DriverKit. |
-| <code>services.kanata.kanata-bar.autostart</code> | <code>boolean</code> | <code>true</code> | Whether to create a launchd user agent that starts kanata-bar automatically at login.<br>When false, you can start it manually from /Applications/Nix Apps/.<br> |
-| <code>services.kanata.kanata-bar.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-bar GUI launcher. |
-| <code>services.kanata.kanata-bar.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
-| <code>services.kanata.kanata-bar.icons</code> | <code>attribute set of absolute path</code> | <code>{ }</code> | Map of kanata layer names to icon files (PNG recommended).<br>Use `mkLayerIcons` to generate icons from font glyphs.<br> |
-| <code>services.kanata.kanata-bar.package</code> | <code>package</code> | <code>kanata/kanata-darwin: kanata-bar-app</code> | The kanata-bar .app package. |
-| <code>services.kanata.kanata-bar.settings</code> | <code>TOML value</code> | <code>{ }</code> | Settings merged into kanata-bar config.toml.<br>Auto-propagated defaults: kanata.{path,config,port,extra_args}, kanata_bar.{autostart_kanata,autorestart_kanata,pam_touchid}.<br> |
-| <code>services.kanata.kanata-tray.autostart</code> | <code>boolean</code> | <code>true</code> | Whether to create a launchd user agent that starts kanata-tray automatically at login.<br>When false, the .app bundle is still available in /Applications/Nix Apps/.<br> |
-| <code>services.kanata.kanata-tray.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable kanata-tray GUI launcher. |
-| <code>services.kanata.kanata-tray.extraLaunchdConfig</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra launchd plist keys (e.g. KeepAlive, ThrottleInterval).<br>Shallow-merged (nested keys are replaced, not deep-merged).<br> |
-| <code>services.kanata.kanata-tray.icons</code> | <code>attribute set of absolute path</code> | <code>{ }</code> | Map of kanata layer names to icon files (PNG recommended).<br>Use `mkLayerIcons` to generate icons from font glyphs.<br> |
-| <code>services.kanata.kanata-tray.package</code> | <code>package</code> | <code>kanata-tray</code> | The kanata-tray package. |
-| <code>services.kanata.kanata-tray.settings</code> | <code>TOML value</code> | <code>{ }</code> | Extra settings merged into kanata-tray.toml. |
-| <code>services.kanata.package</code> | <code>package</code> | <code>pkgs.kanata-with-cmd</code> | The kanata package to use. |
-| <code>services.kanata.sudoers</code> | <code>boolean</code> | <code>true</code> | Add NOPASSWD sudoers entry for kanata.<br>Defaults to `true`. Required for clean process termination in tray mode<br>and to avoid the fragile TCC sqlite3 hack in daemon mode.<br> |
-| <code>services.kanata.user</code> | <code>string</code> | <code>"${myconfig.host.user.name}"</code> | Username for sudoers, user agent, and file paths. Defaults to system.primaryUser. |
 
 ### <code>mcp</code>
 
@@ -362,7 +327,7 @@ Options that other modules define, and options that modules add to other module 
 | <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.args</code> | <code>list of string</code> | <code>[ ]</code> |  |
 | <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.command</code> | <code>string</code> |  |  |
 | <code>mcp.selected.&lt;name&gt;.&lt;name&gt;.env</code> | <code>attribute set of string</code> | <code>{ }</code> |  |
-| <code>mcp.selections</code> | <code>attribute set of list of string</code> | <code>{ }</code> | Names of registered servers each consumer selects, by consumer. An unknown name is rejected. |
+| <code>mcp.selections</code> | <code>attribute set of list of string</code> | <code>{ }</code> | Names of registered servers each consumer selects, by consumer. |
 | <code>mcp.servers</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | stdio MCP servers by name. Registering a server does not start it or select it for a consumer. |
 | <code>mcp.servers.&lt;name&gt;.args</code> | <code>list of string</code> | <code>[ ]</code> |  |
 | <code>mcp.servers.&lt;name&gt;.command</code> | <code>string</code> |  |  |
@@ -373,48 +338,14 @@ Options that other modules define, and options that modules add to other module 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | <code>neovim.settings</code> | <code>submodule</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
-| <code>neovim.settings.aliases</code> | <code>list of string</code> | <code>[ ]</code> | Aliases to symlink nvim to. |
-| <code>neovim.settings.appName</code> | <code>null or string</code> | <code>"mnw"</code> | What to set $NVIM_APPNAME to |
-| <code>neovim.settings.appNameMethod</code> | <code>one of "set", "set-default"</code> | <code>"set"</code> | How to set `$NVIM_APPNAME` with `makeWrapper` |
-| <code>neovim.settings.desktopEntry</code> | <code>boolean</code> | <code>true</code> | Whether to enable neovim's desktop entry. |
-| <code>neovim.settings.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable mnw (Minimal Neovim Wrapper). |
-| <code>neovim.settings.extraBinPath</code> | <code>list of package</code> | <code>[ ]</code> | Extra packages to be put in neovim's PATH |
-| <code>neovim.settings.extraBuilderArgs</code> | <code>attribute set of anything</code> | <code>{ }</code> | Extra attributes to pass to mkDerivation.<br> |
-| <code>neovim.settings.extraLuaPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>ps: [ ]</code> | A function which returns a list of extra needed lua packages. |
-| <code>neovim.settings.finalPackage</code> | <code>package</code> |  | read-only; The final package to be consumed by the user |
-| <code>neovim.settings.initLua</code> | <code>strings concatenated with "\n"</code> | <code>""</code> | lua config text to load at startup |
-| <code>neovim.settings.initViml</code> | <code>strings concatenated with "\n"</code> | <code>""</code> | VimL config text to load at startup |
-| <code>neovim.settings.luaFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | lua config files to load at startup |
-| <code>neovim.settings.neovim</code> | <code>package</code> | <code>pkgs.neovim-unwrapped</code> | The neovim package to use. Must be unwrapped |
-| <code>neovim.settings.plugins.dev</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Plugins for use with devMode.<br>You most likely want to put your config here.<br>(automatically loaded)<br> |
-| <code>neovim.settings.plugins.dev.&lt;name&gt;.impure</code> | <code>absolute path</code> |  | The impure absolute paths to the nvim plugin.<br> |
-| <code>neovim.settings.plugins.dev.&lt;name&gt;.pure</code> | <code>path in the Nix store or attribute set with src</code> |  | The pure path to the nvim plugin.<br> |
-| <code>neovim.settings.plugins.opt</code> | <code>list of (path in the Nix store or attribute set with src)</code> | <code>[ ]</code> |  |
-| <code>neovim.settings.plugins.optAttrs</code> | <code>attribute set of (null or path in the Nix store or attribute set with src)</code> | <code>{ }</code> |  |
-| <code>neovim.settings.plugins.start</code> | <code>list of (path in the Nix store or attribute set with src)</code> | <code>[ ]</code> |  |
-| <code>neovim.settings.plugins.startAttrs</code> | <code>attribute set of (null or path in the Nix store or attribute set with src)</code> | <code>{ }</code> |  |
-| <code>neovim.settings.providers.nodeJs.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the Node.js provider. |
-| <code>neovim.settings.providers.nodeJs.neovimClientPackage</code> | <code>package</code> | <code>pkgs.neovim-node-client</code> | The neovim-node-client package to use. |
-| <code>neovim.settings.providers.nodeJs.package</code> | <code>package</code> | <code>pkgs.nodejs</code> | The Node.js package to use. |
-| <code>neovim.settings.providers.perl.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the perl provider. |
-| <code>neovim.settings.providers.perl.extraPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>p: [<br>  p.NeovimExt<br>  p.Appcpanminus<br>]<br></code> | Extra packages to be included in the perl environment.<br><br>Note: you probably want to include NeovimExt and Appcpanminus if you change this from it's default value.<br> |
-| <code>neovim.settings.providers.perl.package</code> | <code>package</code> | <code>pkgs.perl</code> | The perl package to use. |
-| <code>neovim.settings.providers.python3.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the python3 provider. |
-| <code>neovim.settings.providers.python3.extraPackages</code> | <code>function that evaluates to a(n) list of package</code> | <code>p: [ pynvim ]</code> | Extra packages to be included in the python3 environment.<br><br>Note: you probably want to include pynvim if you change this from it's default value.<br> |
-| <code>neovim.settings.providers.python3.package</code> | <code>package</code> | <code>pkgs.python3</code> | The python3 package to use. |
-| <code>neovim.settings.providers.ruby.enable</code> | <code>boolean</code> | <code>false</code> | Whether to enable and configure the ruby provider. |
-| <code>neovim.settings.providers.ruby.env</code> | <code>package</code> | <code>pkgs.bundlerEnv {<br>  name = "neovim-ruby-env";<br>  gemdir = ../ruby_provider;<br>  postBuild = '''<br>    rm $out/bin/{bundle,bundler}<br>  ''';<br>}<br></code> | The ruby bundlerEnv to use. |
-| <code>neovim.settings.providers.ruby.package</code> | <code>package</code> | <code>programs.mnw.providers.ruby.env.ruby</code> | The ruby package to use. |
-| <code>neovim.settings.vimlFiles</code> | <code>list of path in the Nix store</code> | <code>[ ]</code> | VimL config files to load at startup |
-| <code>neovim.settings.wrapperArgs</code> | <code>list of string</code> | <code>[ ]</code> | A list of arguments to be passed to makeWrapper |
 | <code>neovim.snacks</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Snacks setup options contributed by features; the parent installs and configures the shared plugin once. |
-| <code>neovim.snacksDependencies</code> | <code>list of package</code> | <code>[ ]</code> | Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements. |
+| <code>neovim.snacksDependencies</code> | <code>list of package</code> | <code>[ ]</code> | collects every source's definitions; Plugin dependencies requested by Snacks features. |
 
 ### <code>neovim.treesitter</code>
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>neovim.treesitter.registrations</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Language-owned contributions. A filetype has one owner; disabling this backend ignores all contributions. |
+| <code>neovim.treesitter.registrations</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Language-owned contributions; disabling this backend ignores all contributions. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.filetypes</code> | <code>attribute set of string</code> | <code>{ }</code> | Neovim filetype to Tree-sitter parser-name mapping. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.grammars</code> | <code>list of package</code> | <code>[ ]</code> | Parser packages, including any auxiliary parsers needed by this language. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.highlight</code> | <code>boolean</code> | <code>true</code> |  |
@@ -438,13 +369,13 @@ Options that other modules define, and options that modules add to other module 
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>pi.extensions</code> | <code>list of string</code> | <code>[ ]</code> | Absolute paths of the extension entries Pi loads. Features add their entries; the published bundle has only the modules' entries. |
+| <code>pi.extensions</code> | <code>list of string</code> | <code>[ ]</code> | collects every source's definitions; Absolute paths of the extension entries Pi loads; the published bundle has only the modules' entries. |
 
 ### <code>secrets</code>
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
+| <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | collects every source's definitions; Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
 

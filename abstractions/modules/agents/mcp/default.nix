@@ -33,7 +33,7 @@ in
         selections = lib.mkOption {
           type = lib.types.attrsOf (lib.types.listOf lib.types.str);
           default = {};
-          description = "Names of registered servers each consumer selects, by consumer. An unknown name is rejected.";
+          description = "Names of registered servers each consumer selects, by consumer.";
         };
         selected = lib.mkOption {
           type = lib.types.attrsOf (lib.types.attrsOf server);

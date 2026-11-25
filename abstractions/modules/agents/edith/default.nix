@@ -55,7 +55,7 @@ delib.module ({
             modelId = lib.mkOption {type = lib.types.nonEmptyStr;};
           };
         };
-        description = "Model of the persona's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand.";
+        description = "Model of the persona's conversations unless one sets its own.";
       };
       thinkingLevel = lib.mkOption {
         type = lib.types.enum thinkingLevels;
@@ -121,19 +121,19 @@ in {
     access = mylib.atomicOption (lib.mkOption {
       type = lib.types.attrsOf access;
       default = {};
-      description = "What conversations may do, by name; only the configuration defines it, and a conversation chooses one within its namespace's ceiling. `restricted` is the access and ceiling of namespaces not listed. A higher source replaces the set whole.";
+      description = "What conversations may do, by name; only the configuration defines it, and a conversation chooses one within its namespace's ceiling.";
     });
     personas = mylib.atomicOption (lib.mkOption {
       type = lib.types.attrsOf persona;
       default = {};
-      description = "Who answers, by name: the model and thinking level conversations follow unless they set their own. `edith` is the persona of namespaces not listed. A higher source replaces the set whole.";
+      description = "Who answers, by name: the model and thinking level conversations follow unless they set their own.";
     });
     namespaces = delib.attrsOfOption namespace {} "Access, ceiling and persona by address namespace, such as `cli` or `discord`; a namespace not listed has `restricted` as access and ceiling and `edith` as persona.";
     providers = delib.listOfOption (lib.types.enum (builtins.attrNames providers)) [] "Providers besides the personas' models' whose API keys EDITH loads, so that a conversation can switch to their models.";
     toolUser = {
       name = delib.strOption "edith" "User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach.";
       uid = delib.intOption 550 "UID, and GID of its group of the same name, of `edith.toolUser.name`.";
-      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand with `ssh-keygen -t ed25519 -N ''`, which may log in as the tool user from this host only; without it no user is created and no access may name tools. Rotate it by replacing the key files and this value in one switch.";
+      loginKey = delib.allowNull (delib.strOption null) "OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, which may log in as the tool user from this host only; without it no user is created and no access may name tools. Rotate it by replacing the key files and this value in one switch.";
     };
     discord = {
       enable = delib.boolOption false;

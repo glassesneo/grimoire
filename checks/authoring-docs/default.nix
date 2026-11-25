@@ -46,7 +46,7 @@
   interfaces = section "Interfaces";
   fails = module: !(builtins.tryEval (renderModules [module]).reference).success;
 in {
-  protects = "the committed authoring reference is what the declarations render; it lists every module, and of their options only those other modules define, including from modules disabled by default, or that modules add to other module systems; rendering keeps tables, links, defaults and descriptions that option validation cannot check; just options shows every option of a module; and every library function modules use is documented";
+  protects = "the committed authoring reference is what the declarations render; it lists every module, and of their options only those other modules define, including from modules disabled by default, or that modules add to other module systems; options an imported upstream module declares are left to its documentation; rendering marks options a higher source replaces whole or that collect every source's definitions, and keeps tables, links, defaults and descriptions that option validation cannot check; just options shows every option of a module; and every library function modules use is documented";
   check = assert documentedProbe 1 == 2;
   assert listed {
     x = {
@@ -65,6 +65,10 @@ in {
   assert !(lib.hasInfix "<code>a.bare</code>" interfaces);
   assert !(lib.hasInfix "<code>w.enable</code>" interfaces);
   assert lib.hasInfix "| <code>a.setting</code> |" interfaces;
+  assert !(lib.hasInfix "<code>a.upstream</code>" interfaces);
+  assert lib.hasInfix "| <code>a.upstream</code> |" options;
+  assert lib.hasInfix "| a higher source replaces it whole |" options;
+  assert lib.hasInfix "| collects every source's definitions |" options;
   assert lib.hasInfix "| <code>a.bare</code> | <code>string</code> | <code>\"y\"</code> |  |" options;
   assert lib.hasInfix "| <code>a.host</code> | <code>string</code> | <code>\"\${myconfig.host.name}\"</code> |  |" options;
   assert lib.hasInfix "| <code>a.home</code> | <code>string</code> | <code>\"\${myconfig.host.user.homeDirectory}/.a\"</code> |  |" options;

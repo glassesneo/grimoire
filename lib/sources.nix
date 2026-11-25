@@ -102,6 +102,8 @@
   in
     module;
 in {
+  inherit isAtomic isAccumulating;
+
   prioritize =
     documented {
       description = "A module whose definitions below an option tree all carry a source's priority, pushed down along the declared types: below a submodule, an `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own priority, so a higher source replaces only what it defines. Lists, nullable values, other values and options declared with `atomicOption` are replaced whole; options declared with `accumulatingOption` receive no priority. Explicit priorities are kept, `mkIf` and `mkMerge` are descended into, and imported modules receive the same priority.";

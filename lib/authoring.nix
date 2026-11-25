@@ -17,6 +17,10 @@
   link = file: "[${code (relative file)}](${url file})";
 
   inRepository = file: lib.hasPrefix rootPrefix file;
+  optionKinds = import ./sources.nix {
+    inherit lib;
+    documented = _: value: value;
+  };
   labelOf = file: builtins.match "(module|host) ([^ ]+) \\(([^.]+)\\.[A-Za-z]+\\)" file;
   owned = option: option.declarations != [] && lib.all (file: inRepository file || labelOf file != null) option.declarations;
 
@@ -89,7 +93,10 @@
       then escape default.text
       else code (lib.replaceStrings ["\\\${myconfig.host."] ["\${myconfig.host."] default.text);
     description = describe required option;
-    flags = lib.optional (option.readOnly or false) "read-only";
+    flags =
+      lib.optional (option.readOnly or false) "read-only"
+      ++ lib.optional (declaration != null && optionKinds.isAtomic declaration) "a higher source replaces it whole"
+      ++ lib.optional (declaration != null && optionKinds.isAccumulating declaration) "collects every source's definitions";
   in "| ${code (strip option.name)} | ${code option.type} | ${renderedDefault} | ${escape (lib.concatStringsSep "; " (flags ++ lib.optional (description != "") description))} |${
     lib.optionalString withSource " ${lib.concatMapStringsSep "<br>" link option.declarations} |"
   }";
@@ -182,8 +189,18 @@
     !seating && lib.any (label: lib.elemAt label 1 != owner) (definers enabledOptions entry);
   interfaceRoots = map (entry: entry.loc) (lib.filter writtenElsewhere myconfigEntries);
   inInterface = entry: lib.any (root: lib.lists.hasPrefix root entry.loc) interfaceRoots;
-  interfaceOf = name: lib.filter inInterface (ownOf name);
-  interfaceOwners = lib.filter (name: interfaceOf name != [] || declaredOf name != {}) moduleNames;
+  # Options an imported upstream module declares are documented upstream.
+  writtenHere = options: entry: let
+    declaration = declarationOf options entry.loc;
+  in
+    if declaration != null && declaration ? declarationPositions
+    then lib.any (position: inRepository position.file) declaration.declarationPositions
+    else lib.any (file: inRepository file || labelOf file != null) entry.declarations;
+  interfaceOf = name: lib.filter (entry: inInterface entry && writtenHere myconfigOptions entry) (ownOf name);
+  interfaceDeclared = name:
+    lib.filterAttrs (_: entries: entries != [])
+    (lib.mapAttrs (system: lib.filter (writtenHere moduleSystems.${system})) (declaredOf name));
+  interfaceOwners = lib.filter (name: interfaceOf name != [] || interfaceDeclared name != {}) moduleNames;
 
   systemTables = declared:
     lib.concatLists (lib.mapAttrsToList (system: entries: [
@@ -240,7 +257,7 @@
         ""
       ]
       ++ myconfigTable (interfaceOf name)
-      ++ systemTables (declaredOf name)
+      ++ systemTables (interfaceDeclared name)
     );
 
   libraryIndex =

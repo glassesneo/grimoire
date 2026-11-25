@@ -31,7 +31,7 @@ in
   in {
     name = "neovim";
     meta = {
-      description = "Provide and configure neovim";
+      description = "Provide and configure Neovim.";
       role = "editor";
     };
 
@@ -46,7 +46,7 @@ in
         snacksDependencies = mylib.accumulatingOption (lib.mkOption {
           type = lib.types.listOf lib.types.package;
           default = [];
-          description = "Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements.";
+          description = "Plugin dependencies requested by Snacks features.";
         });
         settings = lib.mkOption {
           type = lib.types.submoduleWith {

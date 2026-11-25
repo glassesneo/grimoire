@@ -64,7 +64,7 @@ in {
       settings = lib.mkOption {
         inherit (pkgs.formats.keyValue {listsAsDuplicateKeys = true;}) type;
         default = {};
-        description = "Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map.";
+        description = "Settings written to the Ghostty configuration file; a list repeats its key once per element.";
       };
     };
 
