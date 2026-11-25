@@ -51,11 +51,12 @@
     # Defaults read a placeholder host whose values are the `myconfig.host`
     # expressions they stand for; its system stays real because nix-darwin and
     # packages are evaluated for it.
-    authoringReference = import ./lib/authoring.nix {inherit lib;} (let
+    authoring = import ./lib/authoring.nix {inherit lib;} (let
       docsSystem = "aarch64-darwin";
       host = "\${myconfig.host.name}";
       userName = "\${myconfig.host.user.name}";
       homeDirectory = "\${myconfig.host.user.homeDirectory}";
+      interfaceHost = "interfaces";
       placeholder = configuration.extendModules {
         modules = [
           ({delib, ...}:
@@ -67,10 +68,20 @@
                 inherit homeDirectory;
               };
             })
+          ({delib, ...}:
+            delib.host {
+              name = interfaceHost;
+              system = docsSystem;
+              rice = "default";
+              user = {
+                name = userName;
+                inherit homeDirectory;
+              };
+            })
         ];
       };
     in {
-      inherit host;
+      inherit host interfaceHost;
       library = mylib.library {
         entries = {
           inherit mylib;
@@ -186,7 +197,7 @@
       };
       packageCollisions = builtins.attrNames (builtins.intersectAttrs existingPackages publishedBundles);
 
-      authoringDocs = pkgs.writeText "authoring.md" authoringReference;
+      authoringDocs = pkgs.writeText "authoring.md" authoring.reference;
       checkOutputs = import ./checks {
         inherit inputs denix pkgs system configuration compose authoringDocs;
         formatting = treefmt.config.build.check self;
@@ -241,6 +252,7 @@
     formatter = lib.mapAttrs (_: outputs: outputs.formatter) perSystem;
     checks = lib.mapAttrs (_: outputs: outputs.checks) perSystem;
     lib.checks = lib.mapAttrs (_: outputs: outputs.checkOutputs.metadata) perSystem;
+    lib.moduleOptions = authoring.moduleOptions;
     lib.compose = compose;
 
     inherit darwinConfigurations hjemConfigurations;

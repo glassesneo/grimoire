@@ -31,6 +31,11 @@ fmt:
 docs:
   nu --no-config-file scripts/docs.nu
 
+# Show a module's options, including those it adds to other module systems.
+[arg('module', help='Module name, as listed under Modules in docs/generated/authoring.md')]
+options module:
+  nix eval --raw --no-update-lock-file '.#lib.moduleOptions."{{ module }}"'
+
 # Evaluate flake checks without building or updating the lock file.
 eval:
   nix flake check --no-build --no-update-lock-file

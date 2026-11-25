@@ -39,11 +39,14 @@
         }).options;
     };
   host = "\${myconfig.host.name}";
-  example = renderModules [./fixture/z/default.nix (./fixture + "/a space/default.nix")];
-  modulesPart = lib.last (lib.splitString "\n## Modules\n" example);
-  fails = module: !(builtins.tryEval (renderModules [module])).success;
+  rendered = renderModules [./fixture/z/default.nix ./fixture/w/default.nix (./fixture + "/a space/default.nix")];
+  example = rendered.reference;
+  options = rendered.moduleOptions.a;
+  section = heading: lib.head (lib.splitString "\n## " (lib.last (lib.splitString "\n## ${heading}\n" example)));
+  interfaces = section "Interfaces";
+  fails = module: !(builtins.tryEval (renderModules [module]).reference).success;
 in {
-  protects = "the committed authoring reference is what the declarations render, rendering keeps tables, links, defaults and descriptions that option validation cannot check, and every library function modules use is documented";
+  protects = "the committed authoring reference is what the declarations render; it lists every module, and of their options only those other modules define, including from modules disabled by default, or that modules add to other module systems; rendering keeps tables, links, defaults and descriptions that option validation cannot check; just options shows every option of a module; and every library function modules use is documented";
   check = assert documentedProbe 1 == 2;
   assert listed {
     x = {
@@ -56,16 +59,19 @@ in {
   assert !(builtins.tryEval (builtins.deepSeq (listed {x.f = value: value;} []) true)).success;
   assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
   assert lib.hasInfix "(../../checks/authoring-docs/fixture/a%20space/default.nix)" example;
-  assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" modulesPart)) == ["<code>a</code>" "<code>host</code>"];
-  assert lib.hasInfix "| [<code>z</code>](../../checks/authoring-docs/fixture/z/default.nix) |  | Last |  |" modulesPart;
-  assert lib.hasInfix "| <code>a.value</code> | <code>string</code> | <code>\"x\"</code> | Value of a. |" example;
-  assert lib.hasInfix "| <code>a.bare</code> | <code>string</code> | <code>\"y\"</code> |  |" example;
-  assert lib.hasInfix "| <code>a.host</code> | <code>string</code> | <code>\"\${myconfig.host.name}\"</code> |  |" example;
-  assert lib.hasInfix "| <code>a.home</code> | <code>string</code> | <code>\"\${myconfig.host.user.homeDirectory}/.a\"</code> |  |" example;
-  assert lib.hasInfix "| <code>a.named</code> | <code>string</code> | the host's name |  |" example;
-  assert lib.hasInfix "| <code>a.tool</code> | <code>package</code> | <code>nixpkgs: hello</code> |  |" example;
-  assert lib.hasInfix "| <code>a.lazy</code> | <code>lazy attribute set of string</code> | (computed) |  |" example;
-  assert lib.hasInfix "| <code>a.setting</code> |" example;
+  assert lib.hasInfix "| [<code>z</code>](../../checks/authoring-docs/fixture/z/default.nix) | Last |  |" (section "Modules");
+  assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" interfaces)) == ["<code>a</code>"];
+  assert lib.hasInfix "| <code>a.value</code> | <code>string</code> | <code>\"x\"</code> | Value of a. |" interfaces;
+  assert !(lib.hasInfix "<code>a.bare</code>" interfaces);
+  assert !(lib.hasInfix "<code>w.enable</code>" interfaces);
+  assert lib.hasInfix "| <code>a.setting</code> |" interfaces;
+  assert lib.hasInfix "| <code>a.bare</code> | <code>string</code> | <code>\"y\"</code> |  |" options;
+  assert lib.hasInfix "| <code>a.host</code> | <code>string</code> | <code>\"\${myconfig.host.name}\"</code> |  |" options;
+  assert lib.hasInfix "| <code>a.home</code> | <code>string</code> | <code>\"\${myconfig.host.user.homeDirectory}/.a\"</code> |  |" options;
+  assert lib.hasInfix "| <code>a.named</code> | <code>string</code> | the host's name |  |" options;
+  assert lib.hasInfix "| <code>a.tool</code> | <code>package</code> | <code>nixpkgs: hello</code> |  |" options;
+  assert lib.hasInfix "| <code>a.lazy</code> | <code>lazy attribute set of string</code> | (computed) |  |" options;
+  assert lib.hasInfix "| <code>a.setting</code> |" options;
   assert fails ./fixture/undocumented/default.nix;
     pkgs.runCommand "authoring-docs-current" {} ''
       diff -u ${../../docs/generated/authoring.md} ${authoringDocs}

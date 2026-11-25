@@ -1,6 +1,6 @@
 # Authoring
 
-Generated from module, host and option declarations. Do not edit; run `just docs`.
+Generated from module, host and option declarations. Do not edit; run `just docs`. `just options <module>` shows every option of a module.
 
 ## Declarations
 
@@ -41,7 +41,7 @@ Options this repository adds to Denix declarations.
 
 ## Module systems
 
-Options that adapters add to their module systems. Options that modules add are listed with each module.
+Options that adapters add to their module systems.
 
 ### <code>bundles</code>
 
@@ -64,109 +64,154 @@ Options that adapters add to their module systems. Options that modules add are 
 
 ## Modules
 
-Modules whose only option is `enable`:
+| Module | Responsibility | Tags |
+| --- | --- | --- |
+| [<code>agents</code>](../../abstractions/modules/agents/default.nix) | Provide a shared configuration interface for LLM agents and configure the selected agent packages. |  |
+| [<code>ai-mop</code>](../../abstractions/modules/ai-mop/default.nix) | Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls. |  |
+| [<code>alacritty</code>](../../abstractions/modules/alacritty/default.nix) | Provide Alacritty terminal emulator. | <code>gui</code> |
+| [<code>alacritty.colorscheme</code>](../../abstractions/modules/alacritty/colorscheme/default.nix) | Give Alacritty the colors of the held color scheme. |  |
+| [<code>app-identity</code>](../../abstractions/modules/app-identity/default.nix) | Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds. |  |
+| [<code>appcleaner</code>](../../abstractions/modules/appcleaner/default.nix) | Provide AppCleaner. | <code>gui</code> |
+| [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
+| [<code>aquaskk</code>](../../abstractions/modules/aquaskk/default.nix) | Install AquaSKK and configure its keymap, dictionaries and user preferences. |  |
+| [<code>bat</code>](../../abstractions/modules/bat/default.nix) | Provide and configure bat for file display. |  |
+| [<code>bat.colorscheme</code>](../../abstractions/modules/bat/colorscheme/default.nix) | Give bat the theme of the held color scheme. |  |
+| [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | Provide batman and configure it as Zsh's manual page pager. |  |
+| [<code>bettertouchtool</code>](../../abstractions/modules/bettertouchtool/default.nix) | Provide BetterTouchTool and place its portable preset, which is imported by hand through BetterTouchTool's preset import. | <code>gui</code> |
+| [<code>casks</code>](../../abstractions/modules/casks/default.nix) | Expose Homebrew casks, packaged by cask2nix from the official and third-party taps, to modules. |  |
+| [<code>claude-code</code>](../../abstractions/modules/agents/claude-code/default.nix) | Provide and configure Claude Code. |  |
+| [<code>claude-code.colorscheme</code>](../../abstractions/modules/agents/claude-code/colorscheme/default.nix) | Give Claude Code the theme matching the held color scheme. |  |
+| [<code>colorscheme</code>](../../abstractions/modules/colorscheme/default.nix) | Collect the combinations of every registered color scheme, for features that publish one per combination. |  |
+| [<code>colorscheme.rose-pine</code>](../../abstractions/modules/colorscheme/rose-pine/default.nix) | Register the Rosé Pine color scheme, its main variant. |  |
+| [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | Provide the Cursor Agent CLI. |  |
+| [<code>defaults</code>](../../abstractions/modules/defaults/default.nix) | Declare the current user's preferences and reconcile them with the platform's preferences store. |  |
+| [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | Provide and configure direnv, including its Zsh integration. |  |
+| [<code>dock</code>](../../abstractions/modules/dock/default.nix) | Configure the Dock and the actions of screen hot corners. |  |
+| [<code>edith</code>](../../abstractions/modules/agents/edith/default.nix) | Provide EDITH, an agent on pi-durable whose conversations clients such as Discord reach by address, as a resident service and as `edith dev` for trying it out. |  |
+| [<code>elio</code>](../../abstractions/modules/elio/default.nix) | Provide and publish elio, configure its settings and theme, and integrate it with Zsh. |  |
+| [<code>elio.colorscheme</code>](../../abstractions/modules/elio/colorscheme/default.nix) | Give elio a theme from the held color scheme's palette. |  |
+| [<code>elio.ctrl-np</code>](../../abstractions/modules/elio/ctrl-np/default.nix) | Move through elio's search results and scroll its help with Ctrl-N and Ctrl-P, which elio hard-codes to the arrow keys. |  |
+| [<code>elio.quit-after-open</code>](../../abstractions/modules/elio/quit-after-open/default.nix) | Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully. |  |
+| [<code>exclusive</code>](../../abstractions/modules/exclusive/default.nix) | Reject a second definition of a file that one location must own. |  |
+| [<code>eza</code>](../../abstractions/modules/eza/default.nix) | Provide eza for listing files and directories. |  |
+| [<code>eza.colorscheme</code>](../../abstractions/modules/eza/colorscheme/default.nix) | Give eza the theme of the held color scheme. |  |
+| [<code>fd</code>](../../abstractions/modules/fd/default.nix) | Provide fd for finding files and directories. |  |
+| [<code>files</code>](../../abstractions/modules/files/default.nix) | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
+| [<code>fonts</code>](../../abstractions/modules/fonts/default.nix) | Register font families for applications and install their packages as real files in the user's font directory. |  |
+| [<code>fzf</code>](../../abstractions/modules/fzf/default.nix) | Provide and configure fzf, including its Zsh integration. |  |
+| [<code>fzf.colorscheme</code>](../../abstractions/modules/fzf/colorscheme/default.nix) | Give fzf the colors of the held color scheme. |  |
+| [<code>gh</code>](../../abstractions/modules/gh/default.nix) | Provide the GitHub CLI. |  |
+| [<code>ghostty</code>](../../abstractions/modules/ghostty/default.nix) | Provide Ghostty terminal emulator. | <code>gui</code> |
+| [<code>ghostty.colorscheme</code>](../../abstractions/modules/ghostty/colorscheme/default.nix) | Give Ghostty the colors of the held color scheme's palette. |  |
+| [<code>git</code>](../../abstractions/modules/git/default.nix) | Provide Git and configure the user's Git environment. |  |
+| [<code>git.include</code>](../../abstractions/modules/git/include/default.nix) | Configure Git settings through includes. |  |
+| [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | Provide gomi and integrate it into Zsh. |  |
+| [<code>grok-bot</code>](../../abstractions/modules/grok-bot/default.nix) | Provide the Grok-bot desktop app. | <code>gui</code> |
+| [<code>host</code>](../../abstractions/modules/host/default.nix) | Expose the selected host's information to modules and reflect its identity in OS host names. |  |
+| [<code>identity</code>](../../abstractions/modules/identity/default.nix) | Expose the fixed identity of the person who uses these hosts. |  |
+| [<code>imprynt</code>](../../abstractions/modules/imprynt/default.nix) | Declare real-file deployments and apply them through imprynt. |  |
+| [<code>input-methods</code>](../../abstractions/modules/input-methods/default.nix) | Register user input sources and own the shared HIToolbox input-source preferences. |  |
+| [<code>kanata</code>](../../abstractions/modules/kanata/default.nix) | Remap keyboard input with Kanata, generating its configuration from actions declared per layer and key. |  |
+| [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
+| [<code>locale</code>](../../abstractions/modules/locale/default.nix) | Configure the languages and region used by the system and applications. |  |
+| [<code>mcp</code>](../../abstractions/modules/agents/mcp/default.nix) | Declare stdio MCP servers and resolve each agent consumer's selection of them. |  |
+| [<code>neovim</code>](../../abstractions/modules/neovim/default.nix) | Provide and configure neovim |  |
+| [<code>neovim.ai-completion</code>](../../abstractions/modules/neovim/ai-completion/default.nix) | Provide switchable inline AI completions through Minuet. |  |
+| [<code>neovim.animations</code>](../../abstractions/modules/neovim/animations/default.nix) | Animate Neovim edits and movement while preserving existing key semantics. |  |
+| [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | Insert paired delimiters and track generated closers in Neovim. |  |
+| [<code>neovim.bars</code>](../../abstractions/modules/neovim/bars/default.nix) | Compose Neovim status and buffer displays from placement-independent Heirline components. |  |
+| [<code>neovim.cmdline</code>](../../abstractions/modules/neovim/cmdline/default.nix) | Present Neovim command and search input in a popup without replacing messages or notifications. |  |
+| [<code>neovim.colorscheme</code>](../../abstractions/modules/neovim/colorscheme/default.nix) | Give Neovim the colorscheme plugin of the held color scheme. |  |
+| [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | Provide insert-mode and command-line completion in Neovim. |  |
+| [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | Display diagnostics in Neovim buffers. |  |
+| [<code>neovim.finder</code>](../../abstractions/modules/neovim/finder/default.nix) | Find files, search their contents and browse directories in Neovim with Snacks. |  |
+| [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
+| [<code>neovim.languages</code>](../../abstractions/modules/neovim/languages/default.nix) | Group language-specific Neovim editing support. |  |
+| [<code>neovim.languages.bash</code>](../../abstractions/modules/neovim/languages/bash/default.nix) | Configure Bash editing support in Neovim. |  |
+| [<code>neovim.languages.json</code>](../../abstractions/modules/neovim/languages/json/default.nix) | Configure JSON editing support in Neovim. |  |
+| [<code>neovim.languages.just</code>](../../abstractions/modules/neovim/languages/just/default.nix) | Configure Just editing support in Neovim. |  |
+| [<code>neovim.languages.kdl</code>](../../abstractions/modules/neovim/languages/kdl/default.nix) | Configure KDL editing support in Neovim. |  |
+| [<code>neovim.languages.lua</code>](../../abstractions/modules/neovim/languages/lua/default.nix) | Configure Lua editing support in Neovim. |  |
+| [<code>neovim.languages.markdown</code>](../../abstractions/modules/neovim/languages/markdown/default.nix) | Configure Markdown editing support in Neovim. |  |
+| [<code>neovim.languages.nix</code>](../../abstractions/modules/neovim/languages/nix/default.nix) | Configure Nix editing support in Neovim. |  |
+| [<code>neovim.languages.nushell</code>](../../abstractions/modules/neovim/languages/nushell/default.nix) | Configure Nushell editing support in Neovim. |  |
+| [<code>neovim.languages.objc</code>](../../abstractions/modules/neovim/languages/objc/default.nix) | Configure Objective-C editing support in Neovim. |  |
+| [<code>neovim.languages.qml</code>](../../abstractions/modules/neovim/languages/qml/default.nix) | Configure QML editing support in Neovim. |  |
+| [<code>neovim.languages.rust</code>](../../abstractions/modules/neovim/languages/rust/default.nix) | Configure Rust editing support in Neovim. |  |
+| [<code>neovim.languages.toml</code>](../../abstractions/modules/neovim/languages/toml/default.nix) | Configure TOML editing support in Neovim. |  |
+| [<code>neovim.languages.typescript</code>](../../abstractions/modules/neovim/languages/typescript/default.nix) | Configure TypeScript editing support in Neovim. |  |
+| [<code>neovim.languages.zsh</code>](../../abstractions/modules/neovim/languages/zsh/default.nix) | Configure Zsh editing support in Neovim. |  |
+| [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | Connect Neovim to language servers and format buffers through them. |  |
+| [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | Create missing parent directories when saving ordinary Neovim files. |  |
+| [<code>neovim.motion</code>](../../abstractions/modules/neovim/motion/default.nix) | Provide search and line-movement aids in Neovim. |  |
+| [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
+| [<code>neovim.surround</code>](../../abstractions/modules/neovim/surround/default.nix) | Edit surrounding delimiters through a consistent Neovim command namespace. |  |
+| [<code>neovim.treesitter</code>](../../abstractions/modules/neovim/treesitter/default.nix) | Assemble language-owned Tree-sitter parsers and queries and apply their buffer settings. |  |
+| [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | Browse Neovim undo branches and changes with Snacks. |  |
+| [<code>nh</code>](../../abstractions/modules/nh/default.nix) | Provide nh for package and option searches. |  |
+| [<code>nix</code>](../../abstractions/modules/nix/default.nix) | Configure Nix itself. |  |
+| [<code>nix-secrets</code>](../../abstractions/modules/nix-secrets/default.nix) | Provide nix-secrets to Hjem and activate its secrets on Darwin. |  |
+| [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) | Configure Nixpkgs for the host. |  |
+| [<code>notion</code>](../../abstractions/modules/notion/default.nix) | Provide the Notion desktop app. | <code>gui</code> |
+| [<code>omniwm</code>](../../abstractions/modules/omniwm/default.nix) | Provide OmniWM as a user service, own its writable settings, and integrate its navigation with Kanata. | <code>gui</code> |
+| [<code>omniwm.colorscheme</code>](../../abstractions/modules/omniwm/colorscheme/default.nix) | Color OmniWM's focused-window border with the held color scheme's cursor color. |  |
+| [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | Provide command typo recovery with pay-respects. |  |
+| [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | Replace command typo recovery with a playful response. |  |
+| [<code>phi</code>](../../abstractions/modules/phi/default.nix) | Provide and publish the Phi browser and the CLI and agent skill that drive it. | <code>gui</code> |
+| [<code>pi</code>](../../abstractions/modules/agents/pi/default.nix) | Configure Pi for Hjem and publish a standalone configured Pi. |  |
+| [<code>pi.compaction</code>](../../abstractions/modules/agents/pi/compaction/default.nix) | Compact Pi conversations through the public Responses API. |  |
+| [<code>pi.input</code>](../../abstractions/modules/agents/pi/input/default.nix) | Provide Pi's command palette and stop confirmation. |  |
+| [<code>pi.question</code>](../../abstractions/modules/agents/pi/question/default.nix) | Ask the user for decisions through Pi's question tool. |  |
+| [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | Limit what the system shares and what it opens without being asked. |  |
+| [<code>rex</code>](../../abstractions/modules/rex/default.nix) | Configure the hand-installed Rex terminal multiplexer and provide the CLI it bundles. | <code>gui</code> |
+| [<code>rex.colorscheme</code>](../../abstractions/modules/rex/colorscheme/default.nix) | Generate Rex's dark theme from the held color scheme's palette; Rex selects it only once `rex-import-theme` runs. |  |
+| [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | Provide ripgrep for searching file contents. |  |
+| [<code>roles.colorscheme</code>](../../abstractions/modules/roles/colorscheme/default.nix) | Seat the color scheme that applications share. |  |
+| [<code>roles.editor</code>](../../abstractions/modules/roles/editor/default.nix) | Seat the editor that programs open through `EDITOR`. |  |
+| [<code>roles.launcher</code>](../../abstractions/modules/roles/launcher/default.nix) | Seat the one application launcher a graphical host runs. | <code>gui</code> |
+| [<code>roles.login-shell</code>](../../abstractions/modules/roles/login-shell/default.nix) | Seat the user's login shell and register it with the system. |  |
+| [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | Configure where screenshots are saved and in which format. |  |
+| [<code>secrets</code>](../../abstractions/modules/secrets/default.nix) | Manage the selected encrypted secrets with nix-secrets. |  |
+| [<code>security</code>](../../abstractions/modules/security/default.nix) | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
+| [<code>services</code>](../../abstractions/modules/services/default.nix) | Declare user services and run them under a dinit user instance that the platform's service manager starts. |  |
+| [<code>skills</code>](../../abstractions/modules/agents/skills/default.nix) | Declare harness-independent skills and deploy them for agent use. |  |
+| [<code>skills.ponytail</code>](../../abstractions/modules/agents/skills/ponytail/default.nix) | Deploy the Ponytail skill. |  |
+| [<code>slack</code>](../../abstractions/modules/slack/default.nix) | Provide the Slack desktop app. | <code>gui</code> |
+| [<code>sound</code>](../../abstractions/modules/sound/default.nix) | Configure system sounds and alert feedback. |  |
+| [<code>source-files</code>](../../abstractions/modules/source-files/default.nix) | Replace whole files of packages' sources before they are built, checked against the upstream files they were written against. |  |
+| [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
+| [<code>spicetify</code>](../../abstractions/modules/spicetify/default.nix) | Provide Spotify patched by Spicetify with its extensions, and keep Spotify from updating itself. |  |
+| [<code>spicetify.colorscheme</code>](../../abstractions/modules/spicetify/colorscheme/default.nix) | Give Spotify colors from the held color scheme's palette. |  |
+| [<code>ssh</code>](../../abstractions/modules/ssh/default.nix) | Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session. |  |
+| [<code>ssh.keyholder</code>](../../abstractions/modules/ssh/keyholder/default.nix) | Hold the person's SSH keys in this host's Secure Enclave and lend them to the other hosts through a forwarded agent. |  |
+| [<code>ssh.remote</code>](../../abstractions/modules/ssh/remote/default.nix) | Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends. |  |
+| [<code>tags</code>](../../abstractions/modules/tags/default.nix) | Enable by default the modules that carry a tag selected for the host, except candidates whose seat decides their enable. |  |
+| [<code>tailscale</code>](../../abstractions/modules/tailscale/default.nix) | Join the host to the person's tailnet through Tailscale's daemon, which runs from boot without a login session. |  |
+| [<code>tart</code>](../../abstractions/modules/tart/default.nix) | Provide Tart and reach each of its virtual machines over SSH by name, starting one that is not running. |  |
+| [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
+| [<code>users</code>](../../abstractions/modules/users/default.nix) | Apply the host's declared user information to OS user configuration. |  |
+| [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
+| [<code>vfkit.persistence</code>](../../abstractions/modules/vfkit/persistence/default.nix) | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
+| [<code>vicinae</code>](../../abstractions/modules/vicinae/default.nix) | Provide the Vicinae launcher as a login service with a stable code-signing identity. | <code>gui</code> |
+| [<code>vicinae.colorscheme</code>](../../abstractions/modules/vicinae/colorscheme/default.nix) | Give Vicinae the bundled theme of the held color scheme. |  |
+| [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | Animate the Vicinae launcher window between its compact and expanded states. |  |
+| [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | Animate the Vicinae selection highlight as it moves between list items. |  |
+| [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | Provide the web retrieval MCP server and its backend configuration. |  |
+| [<code>xdg</code>](../../abstractions/modules/xdg/default.nix) | Define the user's XDG base directories and export them to the user's environment. |  |
+| [<code>zellij</code>](../../abstractions/modules/zellij/default.nix) | Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file. |  |
+| [<code>zellij.colorscheme</code>](../../abstractions/modules/zellij/colorscheme/default.nix) | Give Zellij the official theme of the held color scheme. |  |
+| [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
+| [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
+| [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | Provide zoxide and initialize its directory navigation in Zsh. |  |
+| [<code>zsh</code>](../../abstractions/modules/shell/zsh/default.nix) | Enable Zsh and provide the foundation required for its use. |  |
+| [<code>zsh.interactive</code>](../../abstractions/modules/shell/zsh/interactive/default.nix) | Build Zsh's interactive environment. |  |
+| [<code>zsh.interactive.zabrze</code>](../../abstractions/modules/shell/zsh/interactive/zabrze/default.nix) | Provide zabrze, expand the abbreviations features contribute in Zsh, and own its configuration file. |  |
 
-| Module | <code>enable</code> | Responsibility | Tags |
-| --- | --- | --- | --- |
-| [<code>alacritty.colorscheme</code>](../../abstractions/modules/alacritty/colorscheme/default.nix) | <code>myconfig.alacritty.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Alacritty the colors of the held color scheme. |  |
-| [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | <code>true</code> | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
-| [<code>bat.colorscheme</code>](../../abstractions/modules/bat/colorscheme/default.nix) | <code>myconfig.bat.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give bat the theme of the held color scheme. |  |
-| [<code>batman</code>](../../abstractions/modules/bat/batman/default.nix) | <code>true</code> | Provide batman and configure it as Zsh's manual page pager. |  |
-| [<code>claude-code.colorscheme</code>](../../abstractions/modules/agents/claude-code/colorscheme/default.nix) | <code>myconfig.claude-code.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Claude Code the theme matching the held color scheme. |  |
-| [<code>cursor-agent</code>](../../abstractions/modules/agents/cursor-agent/default.nix) | <code>true</code> | Provide the Cursor Agent CLI. |  |
-| [<code>direnv</code>](../../abstractions/modules/direnv/default.nix) | <code>true</code> | Provide and configure direnv, including its Zsh integration. |  |
-| [<code>dock</code>](../../abstractions/modules/dock/default.nix) | <code>true</code> | Configure the Dock and the actions of screen hot corners. |  |
-| [<code>elio.colorscheme</code>](../../abstractions/modules/elio/colorscheme/default.nix) | <code>myconfig.elio.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give elio a theme from the held color scheme's palette. |  |
-| [<code>elio.ctrl-np</code>](../../abstractions/modules/elio/ctrl-np/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Move through elio's search results and scroll its help with Ctrl-N and Ctrl-P, which elio hard-codes to the arrow keys. |  |
-| [<code>elio.quit-after-open</code>](../../abstractions/modules/elio/quit-after-open/default.nix) | <code>myconfig.elio.enable &amp;&amp; true</code> | Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully. |  |
-| [<code>eza</code>](../../abstractions/modules/eza/default.nix) | <code>true</code> | Provide eza for listing files and directories. |  |
-| [<code>eza.colorscheme</code>](../../abstractions/modules/eza/colorscheme/default.nix) | <code>myconfig.eza.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give eza the theme of the held color scheme. |  |
-| [<code>fd</code>](../../abstractions/modules/fd/default.nix) | <code>true</code> | Provide fd for finding files and directories. |  |
-| [<code>files</code>](../../abstractions/modules/files/default.nix) | <code>true</code> | Configure how the Finder and file dialogs present files, and what the Finder writes to other volumes. |  |
-| [<code>fzf</code>](../../abstractions/modules/fzf/default.nix) | <code>true</code> | Provide and configure fzf, including its Zsh integration. |  |
-| [<code>fzf.colorscheme</code>](../../abstractions/modules/fzf/colorscheme/default.nix) | <code>myconfig.fzf.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give fzf the colors of the held color scheme. |  |
-| [<code>gh</code>](../../abstractions/modules/gh/default.nix) | <code>true</code> | Provide the GitHub CLI. |  |
-| [<code>ghostty.colorscheme</code>](../../abstractions/modules/ghostty/colorscheme/default.nix) | <code>myconfig.ghostty.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Ghostty the colors of the held color scheme's palette. |  |
-| [<code>git.include</code>](../../abstractions/modules/git/include/default.nix) | <code>myconfig.git.enable &amp;&amp; true</code> | Configure Git settings through includes. |  |
-| [<code>gomi</code>](../../abstractions/modules/gomi/default.nix) | <code>true</code> | Provide gomi and integrate it into Zsh. |  |
-| [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | <code>true</code> | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
-| [<code>locale</code>](../../abstractions/modules/locale/default.nix) | <code>true</code> | Configure the languages and region used by the system and applications. |  |
-| [<code>neovim.autopairs</code>](../../abstractions/modules/neovim/autopairs/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Insert paired delimiters and track generated closers in Neovim. |  |
-| [<code>neovim.cmdline</code>](../../abstractions/modules/neovim/cmdline/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Present Neovim command and search input in a popup without replacing messages or notifications. |  |
-| [<code>neovim.colorscheme</code>](../../abstractions/modules/neovim/colorscheme/default.nix) | <code>myconfig.neovim.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Neovim the colorscheme plugin of the held color scheme. |  |
-| [<code>neovim.completion</code>](../../abstractions/modules/neovim/completion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide insert-mode and command-line completion in Neovim. |  |
-| [<code>neovim.diagnostic</code>](../../abstractions/modules/neovim/diagnostic/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display diagnostics in Neovim buffers. |  |
-| [<code>neovim.git</code>](../../abstractions/modules/neovim/git/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Display Git changes and expose hunk navigation, previews and blame in Neovim. |  |
-| [<code>neovim.languages</code>](../../abstractions/modules/neovim/languages/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Group language-specific Neovim editing support. |  |
-| [<code>neovim.lsp</code>](../../abstractions/modules/neovim/lsp/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Connect Neovim to language servers and format buffers through them. |  |
-| [<code>neovim.mkdir</code>](../../abstractions/modules/neovim/mkdir/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Create missing parent directories when saving ordinary Neovim files. |  |
-| [<code>neovim.motion</code>](../../abstractions/modules/neovim/motion/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Provide search and line-movement aids in Neovim. |  |
-| [<code>neovim.navigation</code>](../../abstractions/modules/neovim/navigation/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Move focus across Neovim windows and adjacent Zellij or Rex panes. |  |
-| [<code>neovim.surround</code>](../../abstractions/modules/neovim/surround/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Edit surrounding delimiters through a consistent Neovim command namespace. |  |
-| [<code>neovim.undo</code>](../../abstractions/modules/neovim/undo/default.nix) | <code>myconfig.neovim.enable &amp;&amp; true</code> | Browse Neovim undo branches and changes with Snacks. |  |
-| [<code>nh</code>](../../abstractions/modules/nh/default.nix) | <code>true</code> | Provide nh for package and option searches. |  |
-| [<code>nixpkgs</code>](../../abstractions/modules/nixpkgs/default.nix) |  | Configure Nixpkgs for the host. |  |
-| [<code>omniwm.colorscheme</code>](../../abstractions/modules/omniwm/colorscheme/default.nix) | <code>myconfig.omniwm.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Color OmniWM's focused-window border with the held color scheme's cursor color. |  |
-| [<code>pay-respects</code>](../../abstractions/modules/pay-respects/default.nix) | <code>true</code> | Provide command typo recovery with pay-respects. |  |
-| [<code>pay-respects.disrespectful</code>](../../abstractions/modules/pay-respects/disrespectful/default.nix) | <code>myconfig.pay-respects.enable &amp;&amp; true</code> | Replace command typo recovery with a playful response. |  |
-| [<code>pi.compaction</code>](../../abstractions/modules/agents/pi/compaction/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Compact Pi conversations through the public Responses API. |  |
-| [<code>pi.input</code>](../../abstractions/modules/agents/pi/input/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Provide Pi's command palette and stop confirmation. |  |
-| [<code>pi.question</code>](../../abstractions/modules/agents/pi/question/default.nix) | <code>myconfig.pi.enable &amp;&amp; true</code> | Ask the user for decisions through Pi's question tool. |  |
-| [<code>privacy</code>](../../abstractions/modules/privacy/default.nix) | <code>true</code> | Limit what the system shares and what it opens without being asked. |  |
-| [<code>rex.colorscheme</code>](../../abstractions/modules/rex/colorscheme/default.nix) | <code>myconfig.rex.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Generate Rex's dark theme from the held color scheme's palette; Rex selects it only once `rex-import-theme` runs. |  |
-| [<code>ripgrep</code>](../../abstractions/modules/ripgrep/default.nix) | <code>true</code> | Provide ripgrep for searching file contents. |  |
-| [<code>screenshots</code>](../../abstractions/modules/screenshots/default.nix) | <code>true</code> | Configure where screenshots are saved and in which format. |  |
-| [<code>security</code>](../../abstractions/modules/security/default.nix) | <code>true</code> | Configure how a person authenticates to the host: sudo, the login window, and the screen lock. |  |
-| [<code>skills.ponytail</code>](../../abstractions/modules/agents/skills/ponytail/default.nix) | <code>myconfig.skills.enable &amp;&amp; false</code> | Deploy the Ponytail skill. |  |
-| [<code>sound</code>](../../abstractions/modules/sound/default.nix) | <code>true</code> | Configure system sounds and alert feedback. |  |
-| [<code>spaces</code>](../../abstractions/modules/spaces/default.nix) | <code>true</code> | Configure Spaces across displays and how the desktop and its widgets are revealed. |  |
-| [<code>spicetify</code>](../../abstractions/modules/spicetify/default.nix) | <code>false</code> | Provide Spotify patched by Spicetify with its extensions, and keep Spotify from updating itself. |  |
-| [<code>spicetify.colorscheme</code>](../../abstractions/modules/spicetify/colorscheme/default.nix) | <code>myconfig.spicetify.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Spotify colors from the held color scheme's palette. |  |
-| [<code>ssh.remote</code>](../../abstractions/modules/ssh/remote/default.nix) | <code>myconfig.ssh.enable &amp;&amp; false</code> | Let the key holder log in to this host, and sign and push to GitHub here with the keys its forwarded agent lends. |  |
-| [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | <code>true</code> | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
-| [<code>users</code>](../../abstractions/modules/users/default.nix) |  | Apply the host's declared user information to OS user configuration. |  |
-| [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | <code>true</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
-| [<code>vfkit.persistence</code>](../../abstractions/modules/vfkit/persistence/default.nix) | <code>myconfig.vfkit.enable &amp;&amp; false</code> | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
-| [<code>vicinae.colorscheme</code>](../../abstractions/modules/vicinae/colorscheme/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Vicinae the bundled theme of the held color scheme. |  |
-| [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae launcher window between its compact and expanded states. |  |
-| [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | <code>myconfig.vicinae.enable &amp;&amp; false</code> | Animate the Vicinae selection highlight as it moves between list items. |  |
-| [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | <code>false</code> | Provide the web retrieval MCP server and its backend configuration. |  |
-| [<code>zellij.colorscheme</code>](../../abstractions/modules/zellij/colorscheme/default.nix) | <code>myconfig.zellij.enable &amp;&amp; myconfig.roles.colorscheme.enable &amp;&amp; true</code> | Give Zellij the official theme of the held color scheme. |  |
-| [<code>zellij.navigator</code>](../../abstractions/modules/zellij/navigator/default.nix) | <code>myconfig.zellij.enable &amp;&amp; true</code> | Move focus across Zellij panes through vim-zellij-navigator, which leaves the keys to Neovim when it runs in the focused pane. |  |
-| [<code>zoom</code>](../../abstractions/modules/zoom/default.nix) | <code>true</code> | Configure Accessibility Zoom: its mode, how it follows the pointer and focus, and the Picture-in-Picture window. |  |
-| [<code>zoxide</code>](../../abstractions/modules/zoxide/default.nix) | <code>true</code> | Provide zoxide and initialize its directory navigation in Zsh. |  |
+## Interfaces
 
-### <code>agents</code>
-
-Provide a shared configuration interface for LLM agents and configure the selected agent packages.
-
-Source: [<code>abstractions/modules/agents/default.nix</code>](../../abstractions/modules/agents/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>agents.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Agent packages of llm-agents.nix for the evaluation's system, by name. |
-
-### <code>ai-mop</code>
-
-Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls.
-
-Source: [<code>abstractions/modules/ai-mop/default.nix</code>](../../abstractions/modules/ai-mop/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>ai-mop.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>ai-mop.providerSources</code> | <code>absolute path</code> | <code>./src/providers.ts</code> | read-only; Directory holding `providers.ts`, which defines AI MOP's routes as pi-ai providers for agents built on pi-ai, which supply the `@earendil-works/pi-ai` it imports. |
+Options that other modules define, and options that modules add to other module systems, by the module that declares them.
 
 ### <code>alacritty</code>
-
-Provide Alacritty terminal emulator.
-
-Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstractions/modules/alacritty/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>alacritty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>alacritty.package</code> | <code>package</code> | <code>nixpkgs: alacritty</code> |  |
 
 <code>hjem</code> options:
 
@@ -174,50 +219,7 @@ Source: [<code>abstractions/modules/alacritty/default.nix</code>](../../abstract
 | --- | --- | --- | --- |
 | <code>alacritty.settings</code> | <code>TOML value</code> | <code>{ }</code> | Settings written to the alacritty configuration file. |
 
-### <code>app-identity</code>
-
-Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds.
-
-Source: [<code>abstractions/modules/app-identity/default.nix</code>](../../abstractions/modules/app-identity/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>app-identity.mkAppBundle</code> | <code>function that evaluates to a(n) unspecified value</code> | <code>&lt;function, args: {executable?, icon?, identifier, mainProgram?, name?, package?, showInDock?, version?}&gt;</code> | read-only; Wraps a bare executable in a minimal bundle with a stable identifier, so TCC grants survive rebuilds. |
-| <code>app-identity.stabilizeApp</code> | <code>function that evaluates to a(n) unspecified value</code> | <code>&lt;function&gt;</code> | read-only; Signs a package's `.app` bundle under a requirement naming only its bundle identifier, so TCC grants survive rebuilds; Developer ID signed bundles pass through unchanged. |
-
-### <code>appcleaner</code>
-
-Provide AppCleaner.
-
-Source: [<code>abstractions/modules/appcleaner/default.nix</code>](../../abstractions/modules/appcleaner/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>appcleaner.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>appcleaner.package</code> | <code>package</code> | <code>nixpkgs: appcleaner</code> |  |
-
-### <code>aquaskk</code>
-
-Install AquaSKK and configure its keymap, dictionaries and user preferences.
-
-Source: [<code>abstractions/modules/aquaskk/default.nix</code>](../../abstractions/modules/aquaskk/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>aquaskk.directClients</code> | <code>list of string</code> | <code>[ ]</code> | Bundle IDs of applications in which AquaSKK uses direct input instead of Japanese conversion. |
-| <code>aquaskk.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>aquaskk.package</code> | <code>package</code> | <code>casks/cask2nix: aquaskk</code> |  |
-| <code>aquaskk.userDictionaryPath</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share/skk/jisyo"</code> | Writable learning dictionary, which AquaSKK writes and no deployment replaces. |
-
 ### <code>bat</code>
-
-Provide and configure bat for file display.
-
-Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/modules/bat/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>bat.enable</code> | <code>boolean</code> | <code>true</code> |  |
 
 <code>hjem</code> options:
 
@@ -225,39 +227,7 @@ Source: [<code>abstractions/modules/bat/default.nix</code>](../../abstractions/m
 | --- | --- | --- | --- |
 | <code>bat.settings</code> | <code>attribute set of (true or string)</code> | <code>{ }</code> | Command-line options written to bat's configuration file, by long name without `--`; `true` writes an option without a value. |
 
-### <code>bettertouchtool</code>
-
-Provide BetterTouchTool and place its portable preset, which is imported by hand through BetterTouchTool's preset import.
-
-Source: [<code>abstractions/modules/bettertouchtool/default.nix</code>](../../abstractions/modules/bettertouchtool/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>bettertouchtool.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>bettertouchtool.package</code> | <code>package</code> | <code>casks/cask2nix: bettertouchtool</code> |  |
-
-### <code>casks</code>
-
-Expose Homebrew casks, packaged by cask2nix from the official and third-party taps, to modules.
-
-Source: [<code>abstractions/modules/casks/default.nix</code>](../../abstractions/modules/casks/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>casks.packages</code> | <code>lazy attribute set of package</code> | (computed) | read-only; Casks of the official tap, by token. |
-| <code>casks.taps</code> | <code>lazy attribute set of lazy attribute set of lazy attribute set of package</code> | (computed) | read-only; Casks of third-party taps, by tap owner, tap name and token. |
-
 ### <code>claude-code</code>
-
-Provide and configure Claude Code.
-
-Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../../abstractions/modules/agents/claude-code/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>claude-code.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>claude-code.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers the Claude wrapper passes. An unknown name is rejected, and an empty selection leaves the original package unchanged. |
-| <code>claude-code.unattended</code> | <code>boolean</code> | <code>false</code> | Run every tool call without permission prompts or the Bash sandbox, and disable auto mode. |
 
 <code>hjem</code> options:
 
@@ -265,57 +235,7 @@ Source: [<code>abstractions/modules/agents/claude-code/default.nix</code>](../..
 | --- | --- | --- | --- |
 | <code>claude-code.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings written to the user's Claude Code settings file. |
 
-### <code>colorscheme</code>
-
-Collect the combinations of every registered color scheme, for features that publish one per combination.
-
-Source: [<code>abstractions/modules/colorscheme/default.nix</code>](../../abstractions/modules/colorscheme/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>colorscheme.combinations</code> | <code>attribute set of raw value</code> | every registered scheme's `combinations` | read-only; Every scheme and variant, resolved as `roles.colorscheme.resolved` is, by name: `&lt;scheme&gt;` for a scheme's default and `&lt;scheme&gt;-&lt;variant&gt;` for each variant. |
-
-### <code>colorscheme.rose-pine</code>
-
-Register the Rosé Pine color scheme, its main variant.
-
-Source: [<code>abstractions/modules/colorscheme/rose-pine/default.nix</code>](../../abstractions/modules/colorscheme/rose-pine/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>colorscheme.rose-pine.combinations</code> | <code>attribute set of raw value</code> | <code>{<br>  rose-pine = {<br>    name = "rose-pine";<br>    palette = {<br>      ansi = {<br>        black = "#26233a";<br>        blue = "#9ccfd8";<br>        brightBlack = "#6e6a86";<br>        brightBlue = "#9ccfd8";<br>        brightCyan = "#ebbcba";<br>        brightGreen = "#31748f";<br>        brightMagenta = "#c4a7e7";<br>        brightRed = "#eb6f92";<br>        brightWhite = "#e0def4";<br>        brightYellow = "#f6c177";<br>        cyan = "#ebbcba";<br>        green = "#31748f";<br>        magenta = "#c4a7e7";<br>        red = "#eb6f92";<br>        white = "#e0def4";<br>        yellow = "#f6c177";<br>      };<br>      background = "#191724";<br>      cursor = "#e0def4";<br>      cursorText = "#191724";<br>      foreground = "#e0def4";<br>      named = {<br>        base = "#191724";<br>        foam = "#9ccfd8";<br>        gold = "#f6c177";<br>        highlightHigh = "#524f67";<br>        highlightLow = "#21202e";<br>        highlightMed = "#403d52";<br>        iris = "#c4a7e7";<br>        love = "#eb6f92";<br>        muted = "#6e6a86";<br>        overlay = "#26233a";<br>        pine = "#31748f";<br>        rose = "#ebbcba";<br>        subtle = "#908caa";<br>        surface = "#1f1d2e";<br>        text = "#e0def4";<br>      };<br>      selectionBackground = "#403d52";<br>      selectionForeground = "#e0def4";<br>    };<br>    variant = null;<br>  };<br>}</code> | read-only; Every variant resolved like `resolved`, by name: `rose-pine` for the default and `rose-pine-&lt;variant&gt;` for each variant. |
-| <code>colorscheme.rose-pine.palette</code> | <code>submodule</code> | <code>{<br>  ansi = {<br>    black = "#26233a";<br>    blue = "#9ccfd8";<br>    brightBlack = "#6e6a86";<br>    brightBlue = "#9ccfd8";<br>    brightCyan = "#ebbcba";<br>    brightGreen = "#31748f";<br>    brightMagenta = "#c4a7e7";<br>    brightRed = "#eb6f92";<br>    brightWhite = "#e0def4";<br>    brightYellow = "#f6c177";<br>    cyan = "#ebbcba";<br>    green = "#31748f";<br>    magenta = "#c4a7e7";<br>    red = "#eb6f92";<br>    white = "#e0def4";<br>    yellow = "#f6c177";<br>  };<br>  background = "#191724";<br>  cursor = "#e0def4";<br>  cursorText = "#191724";<br>  foreground = "#e0def4";<br>  named = {<br>    base = "#191724";<br>    foam = "#9ccfd8";<br>    gold = "#f6c177";<br>    highlightHigh = "#524f67";<br>    highlightLow = "#21202e";<br>    highlightMed = "#403d52";<br>    iris = "#c4a7e7";<br>    love = "#eb6f92";<br>    muted = "#6e6a86";<br>    overlay = "#26233a";<br>    pine = "#31748f";<br>    rose = "#ebbcba";<br>    subtle = "#908caa";<br>    surface = "#1f1d2e";<br>    text = "#e0def4";<br>  };<br>  selectionBackground = "#403d52";<br>  selectionForeground = "#e0def4";<br>}</code> | read-only; Palette of the scheme. |
-| <code>colorscheme.rose-pine.palette.ansi</code> | <code>submodule</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.black</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.blue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightBlack</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightBlue</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightCyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightGreen</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightMagenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightRed</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightWhite</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.brightYellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.cyan</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.green</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.magenta</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.red</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.white</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.ansi.yellow</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.background</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.cursor</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.cursorText</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.foreground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.named</code> | <code>attribute set of string matching the pattern #[0-9a-fA-F]{6}</code> | <code>{ }</code> | Colors under the names the scheme itself gives them. |
-| <code>colorscheme.rose-pine.palette.selectionBackground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.palette.selectionForeground</code> | <code>string matching the pattern #[0-9a-fA-F]{6}</code> |  |  |
-| <code>colorscheme.rose-pine.resolved</code> | <code>raw value</code> | <code>{<br>  name = "rose-pine";<br>  palette = {<br>    ansi = {<br>      black = "#26233a";<br>      blue = "#9ccfd8";<br>      brightBlack = "#6e6a86";<br>      brightBlue = "#9ccfd8";<br>      brightCyan = "#ebbcba";<br>      brightGreen = "#31748f";<br>      brightMagenta = "#c4a7e7";<br>      brightRed = "#eb6f92";<br>      brightWhite = "#e0def4";<br>      brightYellow = "#f6c177";<br>      cyan = "#ebbcba";<br>      green = "#31748f";<br>      magenta = "#c4a7e7";<br>      red = "#eb6f92";<br>      white = "#e0def4";<br>      yellow = "#f6c177";<br>    };<br>    background = "#191724";<br>    cursor = "#e0def4";<br>    cursorText = "#191724";<br>    foreground = "#e0def4";<br>    named = {<br>      base = "#191724";<br>      foam = "#9ccfd8";<br>      gold = "#f6c177";<br>      highlightHigh = "#524f67";<br>      highlightLow = "#21202e";<br>      highlightMed = "#403d52";<br>      iris = "#c4a7e7";<br>      love = "#eb6f92";<br>      muted = "#6e6a86";<br>      overlay = "#26233a";<br>      pine = "#31748f";<br>      rose = "#ebbcba";<br>      subtle = "#908caa";<br>      surface = "#1f1d2e";<br>      text = "#e0def4";<br>    };<br>    selectionBackground = "#403d52";<br>    selectionForeground = "#e0def4";<br>  };<br>  variant = null;<br>}</code> | read-only; The scheme as `{ name, variant, palette }`, with the chosen variant. |
-
 ### <code>defaults</code>
-
-Declare the current user's preferences and reconcile them with the platform's preferences store.
-
-Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstractions/modules/defaults/default.nix)
 
 <code>hjem</code> options:
 
@@ -327,47 +247,10 @@ Source: [<code>abstractions/modules/defaults/default.nix</code>](../../abstracti
 | <code>platform.darwin.defaults.&lt;name&gt;.onChange.restartServices</code> | <code>list of string</code> | <code>[ ]</code> | Names of `userServices` to restart. |
 | <code>platform.darwin.defaults.&lt;name&gt;.settings</code> | <code>attribute set of anything</code> | <code>{ }</code> | Values of the domain; each leaf of a nested attribute set is declared at its key path, leaving undeclared keys of the dictionaries along it in place, and a list or other value is written whole. |
 
-### <code>edith</code>
-
-Provide EDITH, an agent on pi-durable whose conversations clients such as Discord reach by address, as a resident service and as `edith dev` for trying it out.
-
-Source: [<code>abstractions/modules/agents/edith/default.nix</code>](../../abstractions/modules/agents/edith/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>edith.access</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | What conversations may do, by name; only the configuration defines it, and a conversation chooses one within its namespace's ceiling. `restricted` is the access and ceiling of namespaces not listed. A higher source replaces the set whole. |
-| <code>edith.access.&lt;name&gt;.maxTurns</code> | <code>null or (positive integer, meaning &gt;0)</code> | <code>null</code> | Tool rounds one run takes at most; `null` sets no limit. |
-| <code>edith.access.&lt;name&gt;.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Registered MCP servers whose tools the conversations' code mode scripts may call; with neither tools nor servers, the model gets no tools. |
-| <code>edith.access.&lt;name&gt;.tools</code> | <code>list of (one of "read", "write", "edit", "bash")</code> | <code>[ ]</code> | pi-durable's tools the conversations' code mode scripts may call, by name; they run as `edith.toolUser`. |
-| <code>edith.discord.allowedUsers</code> | <code>list of string matching the pattern [0-9]+</code> | <code>[ ]</code> | Discord user IDs whose messages EDITH answers; it ignores everyone else. |
-| <code>edith.discord.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.namespaces</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Access, ceiling and persona by address namespace, such as `cli` or `discord`; a namespace not listed has `restricted` as access and ceiling and `edith` as persona. |
-| <code>edith.namespaces.&lt;name&gt;.access</code> | <code>string</code> | <code>"restricted"</code> | Access of the namespace's conversations that choose none. |
-| <code>edith.namespaces.&lt;name&gt;.ceiling</code> | <code>string</code> | <code>access</code> | Greatest access the namespace's conversations may choose: those within it, granting no tool or server it lacks and no more tool rounds. |
-| <code>edith.namespaces.&lt;name&gt;.persona</code> | <code>string</code> | <code>"edith"</code> | Persona of the namespace's conversations that choose none. |
-| <code>edith.personas</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Who answers, by name: the model and thinking level conversations follow unless they set their own. `edith` is the persona of namespaces not listed. A higher source replaces the set whole. |
-| <code>edith.personas.&lt;name&gt;.model</code> | <code>submodule</code> |  | Model of the persona's conversations unless one sets its own; an `openai` model authenticates with the login in EDITH's credentials file, `$XDG_STATE_HOME/edith/auth.json`, or `edith dev`'s, `$XDG_STATE_HOME/edith-dev/auth.json`, placed there by hand. |
-| <code>edith.personas.&lt;name&gt;.model.modelId</code> | <code>non-empty string</code> |  |  |
-| <code>edith.personas.&lt;name&gt;.model.provider</code> | <code>one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai"</code> |  |  |
-| <code>edith.personas.&lt;name&gt;.thinkingLevel</code> | <code>one of "off", "minimal", "low", "medium", "high", "xhigh", "max"</code> |  | Thinking level of the persona's conversations unless one sets its own. |
-| <code>edith.providers</code> | <code>list of (one of "ai-mop-anthropic", "ai-mop-chat", "ai-mop-responses", "openai", "opencode", "openrouter", "vercel-ai-gateway", "zai")</code> | <code>[ ]</code> | Providers besides the personas' models' whose API keys EDITH loads, so that a conversation can switch to their models. |
-| <code>edith.resident.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>edith.toolUser.loginKey</code> | <code>null or string</code> | <code>null</code> | OpenSSH public key of EDITH's `$XDG_STATE_HOME/edith/tools/id_ed25519`, created by hand with `ssh-keygen -t ed25519 -N ''`, which may log in as the tool user from this host only; without it no user is created and no access may name tools. Rotate it by replacing the key files and this value in one switch. |
-| <code>edith.toolUser.name</code> | <code>string</code> | <code>"edith"</code> | User the accesses' tools run as, with its home as their working directory; the host's own user and its files stay out of their reach. |
-| <code>edith.toolUser.uid</code> | <code>signed integer</code> | <code>550</code> | UID, and GID of its group of the same name, of `edith.toolUser.name`. |
-
 ### <code>elio</code>
 
-Provide and publish elio, configure its settings and theme, and integrate it with Zsh.
-
-Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/modules/elio/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>elio.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>elio.package</code> | <code>package</code> | <code>elio/elio: elio</code> | Package installed and published; setting it bypasses `source-files.sources.elio`. |
-| <code>elio.settings</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> | Settings written to elio's `config.toml`, by table and key. |
 | <code>elio.theme</code> | <code>submodule</code> | <code>{ }</code> | Tables of elio's `theme.toml`, overriding elio's built-in theme; with every table empty, no file is written. |
 | <code>elio.theme.classes</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
 | <code>elio.theme.directories</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
@@ -378,10 +261,6 @@ Source: [<code>abstractions/modules/elio/default.nix</code>](../../abstractions/
 | <code>elio.theme.preview</code> | <code>attribute set of attribute set of (TOML value)</code> | <code>{ }</code> |  |
 
 ### <code>exclusive</code>
-
-Reject a second definition of a file that one location must own.
-
-Source: [<code>abstractions/modules/exclusive/default.nix</code>](../../abstractions/modules/exclusive/default.nix)
 
 <code>darwin</code> options:
 
@@ -399,46 +278,13 @@ Source: [<code>abstractions/modules/exclusive/default.nix</code>](../../abstract
 | <code>xdg.data.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 | <code>xdg.state.files.&lt;path&gt;.exclusive</code> | <code>boolean</code> | <code>false</code> | Whether a single location must define this file. |
 
-### <code>fonts</code>
-
-Register font families for applications and install their packages as real files in the user's font directory.
-
-Source: [<code>abstractions/modules/fonts/default.nix</code>](../../abstractions/modules/fonts/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>fonts.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>fonts.entries</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Font families by reference name; every registered package is installed while fonts are enabled. |
-| <code>fonts.entries.&lt;name&gt;.family</code> | <code>non-empty string</code> |  |  |
-| <code>fonts.entries.&lt;name&gt;.package</code> | <code>package</code> |  |  |
-| <code>fonts.packages</code> | <code>list of package</code> | the unique packages in `fonts.entries` | read-only |
-
 ### <code>ghostty</code>
 
-Provide Ghostty terminal emulator.
-
-Source: [<code>abstractions/modules/ghostty/default.nix</code>](../../abstractions/modules/ghostty/default.nix)<br>Tags: <code>gui</code>
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>ghostty.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>ghostty.font.codepointMap</code> | <code>list of (submodule)</code> | <code>[ ]</code> |  |
-| <code>ghostty.font.codepointMap.*.font</code> | <code>non-empty string</code> |  | Name in fonts.entries. |
-| <code>ghostty.font.codepointMap.*.ranges</code> | <code>non-empty (list of non-empty string)</code> |  | Ghostty codepoint ranges such as U+0030-U+0039, joined with commas for one mapping. |
-| <code>ghostty.font.fallbacks</code> | <code>list of non-empty string</code> | <code>[ ]</code> | Names in fonts.entries that Ghostty searches in order for characters missing from the primary font. |
-| <code>ghostty.font.primary</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Ghostty's primary font at its own default. |
-| <code>ghostty.package</code> | <code>package</code> | <code>casks/cask2nix: ghostty</code> |  |
 | <code>ghostty.settings</code> | <code>attribute set of (atom (null, bool, int, float or string) or a list of them for duplicate keys)</code> | <code>{ }</code> | Settings written to the Ghostty configuration file; a list repeats its key once per element. Use ghostty.font for font-family and font-codepoint-map. |
 
 ### <code>git</code>
-
-Provide Git and configure the user's Git environment.
-
-Source: [<code>abstractions/modules/git/default.nix</code>](../../abstractions/modules/git/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>git.enable</code> | <code>boolean</code> | <code>true</code> |  |
 
 <code>hjem</code> options:
 
@@ -447,46 +293,7 @@ Source: [<code>abstractions/modules/git/default.nix</code>](../../abstractions/m
 | <code>git.ignore</code> | <code>list of string</code> | <code>[ ]</code> | Patterns of the user's global Git ignore file. |
 | <code>git.settings</code> | <code>attribute set of attribute set of (INI atom (null, bool, int, float or string) or a list of them for duplicate keys or attribute set of (INI atom (null, bool, int, float or string) or a list of them for duplicate keys))</code> | <code>{ }</code> | Settings written to the user's Git configuration file. |
 
-### <code>grok-bot</code>
-
-Provide the Grok-bot desktop app.
-
-Source: [<code>abstractions/modules/grok-bot/default.nix</code>](../../abstractions/modules/grok-bot/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>grok-bot.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>grok-bot.package</code> | <code>package</code> | <code>casks/cask2nix: grok-bot</code> |  |
-
-### <code>host</code>
-
-Expose the selected host's information to modules and reflect its identity in OS host names.
-
-Source: [<code>abstractions/modules/host/default.nix</code>](../../abstractions/modules/host/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>host.name</code> | <code>string</code> | <code>"${myconfig.host.name}"</code> | read-only |
-| <code>host.system</code> | <code>string</code> | the host's `system` | read-only |
-| <code>host.user</code> | <code>attribute set of unspecified value</code> | the host's `user` | read-only; The sole user of the host being built: `name`, `homeDirectory` and `uid`. |
-
-### <code>identity</code>
-
-Expose the fixed identity of the person who uses these hosts.
-
-Source: [<code>abstractions/modules/identity/default.nix</code>](../../abstractions/modules/identity/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>identity.email</code> | <code>string</code> | <code>"glassesneo@protonmail.com"</code> | read-only; Email address of the person. |
-| <code>identity.fullName</code> | <code>string</code> | <code>"Neo Kitani"</code> | read-only; Full name of the person. |
-| <code>identity.handleName</code> | <code>string</code> | <code>"neo"</code> | read-only; Handle name of the person. |
-
 ### <code>imprynt</code>
-
-Declare real-file deployments and apply them through imprynt.
-
-Source: [<code>abstractions/modules/imprynt/default.nix</code>](../../abstractions/modules/imprynt/default.nix)
 
 <code>hjem</code> options:
 
@@ -506,14 +313,6 @@ Source: [<code>abstractions/modules/imprynt/default.nix</code>](../../abstractio
 
 ### <code>input-methods</code>
 
-Register user input sources and own the shared HIToolbox input-source preferences.
-
-Source: [<code>abstractions/modules/input-methods/default.nix</code>](../../abstractions/modules/input-methods/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>input-methods.enable</code> | <code>boolean</code> | <code>false</code> |  |
-
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
@@ -524,27 +323,9 @@ Source: [<code>abstractions/modules/input-methods/default.nix</code>](../../abst
 
 ### <code>kanata</code>
 
-Remap keyboard input with Kanata, generating its configuration from actions declared per layer and key.
-
-Source: [<code>abstractions/modules/kanata/default.nix</code>](../../abstractions/modules/kanata/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>kanata.aliases</code> | <code>attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Actions that expressions reference as `@&lt;name&gt;`. |
-| <code>kanata.chords</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Chords (`defchordsv2`), named by contribution. |
-| <code>kanata.chords.&lt;name&gt;.action</code> | <code>Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> |  |  |
-| <code>kanata.chords.&lt;name&gt;.disabledLayers</code> | <code>list of string</code> | <code>[ ]</code> |  |
-| <code>kanata.chords.&lt;name&gt;.keys</code> | <code>list of string</code> | <code>[ ]</code> | Keys that, pressed together, activate the chord. |
-| <code>kanata.chords.&lt;name&gt;.release</code> | <code>one of "all-released", "first-release"</code> |  | Whether the action is released when every key or the first key is released. |
-| <code>kanata.chords.&lt;name&gt;.timeout</code> | <code>positive integer, meaning &gt;0</code> |  | Milliseconds from the first key within which every key must be pressed. |
-| <code>kanata.configFile</code> | <code>package</code> | the configuration rendered from these options | read-only; Kanata configuration rendered from these options, built only if `kanata --check` accepts it. |
-| <code>kanata.defaultLayer</code> | <code>string</code> | <code>"base"</code> | Layer active at startup. A key another layer leaves unmapped acts as on the layer below it, and finally as on this one; a key this layer leaves unmapped keeps its own function. |
-| <code>kanata.enable</code> | <code>boolean</code> | <code>false</code> |  |
 | <code>kanata.layers</code> | <code>attribute set of attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Actions by layer and key name. |
-| <code>kanata.package</code> | <code>package</code> | <code>nixpkgs: kanata</code> |  |
-| <code>kanata.profile</code> | <code>null or value "default" (singular enum)</code> | <code>null</code> | Keymap from `profiles.nix` whose values this module contributes; `null` contributes none. |
-| <code>kanata.settings</code> | <code>attribute set of (boolean or Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions))</code> | <code>{ }</code> | Entries of `defcfg`; `true` and `false` render as `yes` and `no`. `delegate-to-first-layer` is always enabled. |
-| <code>kanata.virtualKeys</code> | <code>attribute set of Kanata expression (atom string without whitespace, parentheses or quotes; integer; or list of expressions)</code> | <code>{ }</code> | Virtual keys that actions press, release or test by name. |
 
 <code>darwin</code> options:
 
@@ -573,14 +354,6 @@ Source: [<code>abstractions/modules/kanata/default.nix</code>](../../abstraction
 
 ### <code>mcp</code>
 
-Declare stdio MCP servers and resolve each agent consumer's selection of them.
-
-Source: [<code>abstractions/modules/agents/mcp/default.nix</code>](../../abstractions/modules/agents/mcp/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>mcp.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
@@ -597,14 +370,8 @@ Source: [<code>abstractions/modules/agents/mcp/default.nix</code>](../../abstrac
 
 ### <code>neovim</code>
 
-Provide and configure neovim
-
-Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstractions/modules/neovim/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>neovim.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.package</code> | <code>package</code> | <code>neovim/mnw: mnw</code> |  |
 | <code>neovim.settings</code> | <code>submodule</code> | <code>{ }</code> | mnw configuration that builds the Neovim package. Each feature module contributes its plugins and its own Lua runtime directory. |
 | <code>neovim.settings.aliases</code> | <code>list of string</code> | <code>[ ]</code> | Aliases to symlink nvim to. |
 | <code>neovim.settings.appName</code> | <code>null or string</code> | <code>"mnw"</code> | What to set $NVIM_APPNAME to |
@@ -643,270 +410,17 @@ Source: [<code>abstractions/modules/neovim/default.nix</code>](../../abstraction
 | <code>neovim.snacks</code> | <code>attribute set of (JSON value)</code> | <code>{ }</code> | Snacks setup options contributed by features; the parent installs and configures the shared plugin once. |
 | <code>neovim.snacksDependencies</code> | <code>list of package</code> | <code>[ ]</code> | Plugin dependencies requested by Snacks features; the shared Snacks package carries their combined requirements. |
 
-### <code>neovim.ai-completion</code>
-
-Provide switchable inline AI completions through Minuet.
-
-Source: [<code>abstractions/modules/neovim/ai-completion/default.nix</code>](../../abstractions/modules/neovim/ai-completion/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.ai-completion.anthropic.endpoint</code> | <code>string</code> | <code>"https://api.anthropic.iniad.org/api/v1/messages"</code> |  |
-| <code>neovim.ai-completion.anthropic.model</code> | <code>string</code> | <code>"claude-sonnet-5-5"</code> |  |
-| <code>neovim.ai-completion.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-| <code>neovim.ai-completion.endpoint</code> | <code>string</code> | <code>"https://api.openai.iniad.org/api/v1/chat/completions"</code> | Endpoint for the OpenAI-compatible choice. |
-| <code>neovim.ai-completion.model</code> | <code>string</code> | <code>"gpt-6.2-sol"</code> | OpenAI-compatible model used at startup. |
-
-### <code>neovim.animations</code>
-
-Animate Neovim edits and movement while preserving existing key semantics.
-
-Source: [<code>abstractions/modules/neovim/animations/default.nix</code>](../../abstractions/modules/neovim/animations/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.animations.edit.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.animations.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-| <code>neovim.animations.scroll.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
-### <code>neovim.bars</code>
-
-Compose Neovim status and buffer displays from placement-independent Heirline components.
-
-Source: [<code>abstractions/modules/neovim/bars/default.nix</code>](../../abstractions/modules/neovim/bars/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.bars.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-| <code>neovim.bars.modeEnds</code> | <code>submodule</code> | <code>{ }</code> | Literal left and right mode-indicator glyphs, selected together independently of the colorscheme. |
-| <code>neovim.bars.modeEnds.left</code> | <code>string</code> | <code>"█"</code> |  |
-| <code>neovim.bars.modeEnds.right</code> | <code>string</code> | <code>"█"</code> |  |
-
-### <code>neovim.finder</code>
-
-Find files, search their contents and browse directories in Neovim with Snacks.
-
-Source: [<code>abstractions/modules/neovim/finder/default.nix</code>](../../abstractions/modules/neovim/finder/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.finder.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-| <code>neovim.finder.icons</code> | <code>boolean</code> | <code>true</code> | Request nvim-web-devicons for Snacks file icons; other enabled features may also supply an icon provider. |
-
-### <code>neovim.languages.bash</code>
-
-Configure Bash editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/bash/default.nix</code>](../../abstractions/modules/neovim/languages/bash/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.bash.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.bash.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.bash.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.bash.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.json</code>
-
-Configure JSON editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/json/default.nix</code>](../../abstractions/modules/neovim/languages/json/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.json.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.json.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.json.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.json.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.just</code>
-
-Configure Just editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/just/default.nix</code>](../../abstractions/modules/neovim/languages/just/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.just.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.just.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.just.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.just.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.kdl</code>
-
-Configure KDL editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/kdl/default.nix</code>](../../abstractions/modules/neovim/languages/kdl/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.kdl.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.kdl.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.kdl.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.kdl.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.lua</code>
-
-Configure Lua editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/lua/default.nix</code>](../../abstractions/modules/neovim/languages/lua/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.lua.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.lua.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.lua.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.lua.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.markdown</code>
-
-Configure Markdown editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/markdown/default.nix</code>](../../abstractions/modules/neovim/languages/markdown/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.markdown.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.markdown.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.markdown.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.markdown.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.nix</code>
-
-Configure Nix editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/nix/default.nix</code>](../../abstractions/modules/neovim/languages/nix/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.nix.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.nix.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.nix.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.nix.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.nushell</code>
-
-Configure Nushell editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/nushell/default.nix</code>](../../abstractions/modules/neovim/languages/nushell/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.nushell.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.nushell.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.nushell.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.nushell.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.objc</code>
-
-Configure Objective-C editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/objc/default.nix</code>](../../abstractions/modules/neovim/languages/objc/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.objc.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.objc.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.objc.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.objc.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.qml</code>
-
-Configure QML editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/qml/default.nix</code>](../../abstractions/modules/neovim/languages/qml/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.qml.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.qml.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.qml.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.qml.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.rust</code>
-
-Configure Rust editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/rust/default.nix</code>](../../abstractions/modules/neovim/languages/rust/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.rust.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.rust.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.rust.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.rust.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.toml</code>
-
-Configure TOML editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/toml/default.nix</code>](../../abstractions/modules/neovim/languages/toml/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.toml.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.toml.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.toml.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.toml.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.typescript</code>
-
-Configure TypeScript editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/typescript/default.nix</code>](../../abstractions/modules/neovim/languages/typescript/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.typescript.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.typescript.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.typescript.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.typescript.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
-### <code>neovim.languages.zsh</code>
-
-Configure Zsh editing support in Neovim.
-
-Source: [<code>abstractions/modules/neovim/languages/zsh/default.nix</code>](../../abstractions/modules/neovim/languages/zsh/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>neovim.languages.zsh.enable</code> | <code>boolean</code> | <code>myconfig.neovim.languages.enable &amp;&amp; true</code> |  |
-| <code>neovim.languages.zsh.treesitter.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.zsh.treesitter.highlight</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>neovim.languages.zsh.treesitter.indent</code> | <code>boolean</code> | <code>true</code> | Use Tree-sitter indentation when an indent query is available; otherwise retain filetype indentation. |
-
 ### <code>neovim.treesitter</code>
 
-Assemble language-owned Tree-sitter parsers and queries and apply their buffer settings.
-
-Source: [<code>abstractions/modules/neovim/treesitter/default.nix</code>](../../abstractions/modules/neovim/treesitter/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>neovim.treesitter.enable</code> | <code>boolean</code> | <code>myconfig.neovim.enable &amp;&amp; true</code> |  |
-| <code>neovim.treesitter.grammars</code> | <code>lazy attribute set of package</code> | <code>nixpkgs: nvim-treesitter.builtGrammars</code> | read-only; Parser packages with the queries matching this backend's nvim-treesitter; language profiles select from this catalogue. |
 | <code>neovim.treesitter.registrations</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Language-owned contributions. A filetype has one owner; disabling this backend ignores all contributions. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.filetypes</code> | <code>attribute set of string</code> | <code>{ }</code> | Neovim filetype to Tree-sitter parser-name mapping. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.grammars</code> | <code>list of package</code> | <code>[ ]</code> | Parser packages, including any auxiliary parsers needed by this language. |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.highlight</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>neovim.treesitter.registrations.&lt;name&gt;.indent</code> | <code>boolean</code> | <code>true</code> |  |
 
-### <code>nix</code>
-
-Configure Nix itself.
-
-Source: [<code>abstractions/modules/nix/default.nix</code>](../../abstractions/modules/nix/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>nix.maxFree</code> | <code>signed integer</code> | <code>150</code> | GiB of free space at which such a collection stops. |
-| <code>nix.minFree</code> | <code>signed integer</code> | <code>50</code> | GiB of free space below which the daemon collects garbage during builds and copies; it must stay below what the host's disk can keep free, or every addition to the store runs a collection. |
-
 ### <code>nix-secrets</code>
-
-Provide nix-secrets to Hjem and activate its secrets on Darwin.
-
-Source: [<code>abstractions/modules/nix-secrets/default.nix</code>](../../abstractions/modules/nix-secrets/default.nix)
 
 <code>hjem</code> options:
 
@@ -914,140 +428,25 @@ Source: [<code>abstractions/modules/nix-secrets/default.nix</code>](../../abstra
 | --- | --- | --- | --- |
 | <code>security.nix-secrets.activateScript</code> | <code>absolute path</code> |  | read-only; Darwin activation command, serialized with every other trigger that runs it. |
 
-### <code>notion</code>
-
-Provide the Notion desktop app.
-
-Source: [<code>abstractions/modules/notion/default.nix</code>](../../abstractions/modules/notion/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>notion.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>notion.package</code> | <code>package</code> | <code>casks/cask2nix: notion</code> |  |
-
 ### <code>omniwm</code>
 
-Provide OmniWM as a user service, own its writable settings, and integrate its navigation with Kanata.
-
-Source: [<code>abstractions/modules/omniwm/default.nix</code>](../../abstractions/modules/omniwm/default.nix)<br>Tags: <code>gui</code>
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>omniwm.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>omniwm.package</code> | <code>package</code> | <code>omniwm/omniwm: omniwm</code> |  |
 | <code>omniwm.settings</code> | <code>attribute set of (TOML value)</code> | <code>{ }</code> | Settings layered over the pinned OmniWM defaults; hotkeys are merged by id. The switch reapplies them to the writable settings file. |
-
-### <code>phi</code>
-
-Provide and publish the Phi browser and the CLI and agent skill that drive it.
-
-Source: [<code>abstractions/modules/phi/default.nix</code>](../../abstractions/modules/phi/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>phi.cliPackage</code> | <code>package</code> | <code>phi-cli</code> |  |
-| <code>phi.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>phi.package</code> | <code>package</code> | <code>casks/cask2nix: phi</code> |  |
 
 ### <code>pi</code>
 
-Configure Pi for Hjem and publish a standalone configured Pi.
-
-Source: [<code>abstractions/modules/agents/pi/default.nix</code>](../../abstractions/modules/agents/pi/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>pi.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>pi.extensions</code> | <code>list of string</code> | <code>[ ]</code> | Absolute paths of the extension entries Pi loads. Features add their entries; the published bundle has only the modules' entries. |
-| <code>pi.mcpServers</code> | <code>list of string</code> | <code>[ ]</code> | Names of registered MCP servers Pi starts through Hjem. An unknown name is rejected, and registering a server does not select it. A standalone bundle can use native project MCP configuration. |
-| <code>pi.sdkTypes</code> | <code>absolute path</code> | <code>./types</code> | read-only; Bun project whose SDK types match `agents.packages.pi`, for checking Pi features' TypeScript. |
-
-### <code>rex</code>
-
-Configure the hand-installed Rex terminal multiplexer and provide the CLI it bundles.
-
-Source: [<code>abstractions/modules/rex/default.nix</code>](../../abstractions/modules/rex/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>rex.appPath</code> | <code>string</code> | <code>"/Applications/Rex.app"</code> |  |
-| <code>rex.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>rex.fallbackFonts</code> | <code>null or list of non-empty string</code> | <code>null</code> | Names in fonts.entries that Rex searches in order for characters missing from the terminal font; null leaves Rex's stored list unchanged. |
-| <code>rex.font</code> | <code>null or string</code> | <code>null</code> | Name in fonts.entries; null leaves Rex's terminal font as set in the app. |
-| <code>rex.fontSize</code> | <code>null or signed integer or floating point number</code> | <code>null</code> | Terminal font size in points; null leaves Rex's stored size unchanged. |
-| <code>rex.paddingX</code> | <code>null or signed integer</code> | <code>null</code> | Horizontal terminal padding; null leaves Rex's stored value unchanged. |
-| <code>rex.paddingY</code> | <code>null or signed integer</code> | <code>null</code> | Vertical terminal padding; null leaves Rex's stored value unchanged. |
-
-### <code>roles.colorscheme</code>
-
-Seat the color scheme that applications share.
-
-Source: [<code>abstractions/modules/roles/colorscheme/default.nix</code>](../../abstractions/modules/roles/colorscheme/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>roles.colorscheme.candidates</code> | <code>list of string</code> | <code>[<br>  "colorscheme.rose-pine"<br>]</code> | read-only; Modules declaring `meta.role = "colorscheme"`, which can hold the seat. |
-| <code>roles.colorscheme.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>roles.colorscheme.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
-| <code>roles.colorscheme.holder</code> | <code>value "colorscheme.rose-pine" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "colorscheme"`. |
-| <code>roles.colorscheme.resolved</code> | <code>raw value</code> | the holder's `resolved` | read-only; The held scheme as `{ name, variant, palette }`; modules that read it declare `meta.follows = ["colorscheme"]`. |
-
-### <code>roles.editor</code>
-
-Seat the editor that programs open through `EDITOR`.
-
-Source: [<code>abstractions/modules/roles/editor/default.nix</code>](../../abstractions/modules/roles/editor/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>roles.editor.candidates</code> | <code>list of string</code> | <code>[<br>  "neovim"<br>]</code> | read-only; Modules declaring `meta.role = "editor"`, which can hold the seat. |
-| <code>roles.editor.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>roles.editor.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
-| <code>roles.editor.holder</code> | <code>value "neovim" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "editor"`. |
-
-### <code>roles.launcher</code>
-
-Seat the one application launcher a graphical host runs.
-
-Source: [<code>abstractions/modules/roles/launcher/default.nix</code>](../../abstractions/modules/roles/launcher/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>roles.launcher.candidates</code> | <code>list of string</code> | <code>[<br>  "vicinae"<br>]</code> | read-only; Modules declaring `meta.role = "launcher"`, which can hold the seat. |
-| <code>roles.launcher.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>roles.launcher.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
-| <code>roles.launcher.holder</code> | <code>value "vicinae" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "launcher"`. |
-
-### <code>roles.login-shell</code>
-
-Seat the user's login shell and register it with the system.
-
-Source: [<code>abstractions/modules/roles/login-shell/default.nix</code>](../../abstractions/modules/roles/login-shell/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>roles.login-shell.candidates</code> | <code>list of string</code> | <code>[<br>  "zsh"<br>]</code> | read-only; Modules declaring `meta.role = "login-shell"`, which can hold the seat. |
-| <code>roles.login-shell.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>roles.login-shell.held</code> | <code>raw value</code> | the holder's `myconfig` | read-only; The holder's `myconfig`, from which the role reads what the holder provides. |
-| <code>roles.login-shell.holder</code> | <code>value "zsh" (singular enum)</code> |  | Module holding the seat, among those declaring `meta.role = "login-shell"`. |
 
 ### <code>secrets</code>
 
-Manage the selected encrypted secrets with nix-secrets.
-
-Source: [<code>abstractions/modules/secrets/default.nix</code>](../../abstractions/modules/secrets/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>secrets.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>secrets.names</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets, among those stored in this module, that are decrypted for the user. |
 | <code>secrets.required</code> | <code>list of (one of "ai-mop-api-key", "brave-api-key", "brave-free-api-key", "cohere-api-key", "command-code-api-key", "discord-bot-token", "exa-api-key", "github-read-token", "iniad-gitconfig", "mistral-api-key", "opencode-api-key", "openrouter-api-key", "parallel-api-key", "vercel-ai-gateway-api-key", "zai-api-key")</code> | <code>[ ]</code> | Secrets that modules decrypt for the user whatever `names` selects. |
 
 ### <code>services</code>
-
-Declare user services and run them under a dinit user instance that the platform's service manager starts.
-
-Source: [<code>abstractions/modules/services/default.nix</code>](../../abstractions/modules/services/default.nix)
 
 <code>hjem</code> options:
 
@@ -1072,14 +471,6 @@ Source: [<code>abstractions/modules/services/default.nix</code>](../../abstracti
 
 ### <code>skills</code>
 
-Declare harness-independent skills and deploy them for agent use.
-
-Source: [<code>abstractions/modules/agents/skills/default.nix</code>](../../abstractions/modules/agents/skills/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>skills.enable</code> | <code>boolean</code> | <code>true</code> |  |
-
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
@@ -1087,26 +478,10 @@ Source: [<code>abstractions/modules/agents/skills/default.nix</code>](../../abst
 | <code>skillDirs</code> | <code>list of home-relative directory without empty, '.' or '..' components</code> | <code>[ ]</code> | Directories in which every skill is linked under its name; a harness adds the directories it reads. |
 | <code>skills</code> | <code>attribute set of path named by single directory names other than '.' or '..'</code> | <code>{ }</code> | Source directories of complete skill packages, by skill name. |
 
-### <code>slack</code>
-
-Provide the Slack desktop app.
-
-Source: [<code>abstractions/modules/slack/default.nix</code>](../../abstractions/modules/slack/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>slack.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>slack.package</code> | <code>package</code> | <code>nixpkgs: slack</code> |  |
-
 ### <code>source-files</code>
 
-Replace whole files of packages' sources before they are built, checked against the upstream files they were written against.
-
-Source: [<code>abstractions/modules/source-files/default.nix</code>](../../abstractions/modules/source-files/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>source-files.patched</code> | <code>attribute set of package</code> | each of `sources` built with its replaced files, or the package itself without any | read-only |
 | <code>source-files.sources</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Packages whose sources features patch, by name, with the files replaced in each. |
 | <code>source-files.sources.&lt;name&gt;.files</code> | <code>attribute set of (submodule)</code> | <code>{ }</code> | Files of `package`'s source replaced before it is built, keyed by their path relative to the source root. Each path may be replaced by one definition only. |
 | <code>source-files.sources.&lt;name&gt;.files.&lt;name&gt;.source</code> | <code>absolute path</code> |  | File that replaces the upstream one. |
@@ -1114,27 +489,6 @@ Source: [<code>abstractions/modules/source-files/default.nix</code>](../../abstr
 | <code>source-files.sources.&lt;name&gt;.package</code> | <code>package</code> | <code>null</code> |  |
 
 ### <code>ssh</code>
-
-Configure the OpenSSH client, declare the person's SSH keys, and the commands sshd runs as the user at the start of each session.
-
-Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/modules/ssh/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>ssh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>ssh.keys.github</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-github";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBDUocTvx3mH51FDxU0y3vkXvoGNCgqgJaQs7VVxmVnl9uryejdcQkbyFNY2FLGNgamIH4x0QW64C4CXOOHYTob8AAAAEc3NoOg==";<br>}</code> | read-only; Key that authenticates to GitHub, the one remote hosts can use only while it is unlocked. |
-| <code>ssh.keys.github.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
-| <code>ssh.keys.github.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
-| <code>ssh.keys.github.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
-| <code>ssh.keys.login</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-login";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBMV/ehrmAU9vUsqDWE9LKNxxO6pfe6MAwbRPHkgUGqrb/nQ9mhqOPiNhWDG0luLO6J5R7u7A9RFxgIkfCljMshgAAAAEc3NoOg==";<br>}</code> | read-only; Key that logs in to the person's hosts. |
-| <code>ssh.keys.login.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
-| <code>ssh.keys.login.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
-| <code>ssh.keys.login.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
-| <code>ssh.keys.signing</code> | <code>submodule</code> | <code>{<br>  expires = "2027-11-21";<br>  label = "grimoire-signing";<br>  publicKey = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBLYQMPIMWApDrb3ET6bYuN5WLs+c38CNlUV/ecU6X49Sy/G3Oq1krIPXNNFp0diD/9dvgIW9kx+AhEirNOEVPxQAAAAEc3NoOg==";<br>}</code> | read-only; Key that signs commits and tags. |
-| <code>ssh.keys.signing.expires</code> | <code>string matching the pattern [0-9]{4}-[0-9]{2}-[0-9]{2}</code> |  | Date, as YYYY-MM-DD, on which the identity's certificate expires; the key may stop working then. |
-| <code>ssh.keys.signing.label</code> | <code>string matching the pattern [A-Za-z0-9._-]+</code> |  | Label of the key's CryptoTokenKit identity in the key holder's Secure Enclave. |
-| <code>ssh.keys.signing.publicKey</code> | <code>string matching the pattern [a-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?</code> |  | OpenSSH public key. |
-| <code>ssh.rexAgentSocket</code> | <code>string</code> | <code>".ssh/rex-agent.sock"</code> | Path, relative to the user's home on a remote host, where Rex's tunnel from the key holder binds the remote agent; `ssh.keyholder` forwards to it and `ssh.remote` reads it. |
 
 <code>hjem</code> options:
 
@@ -1150,60 +504,7 @@ Source: [<code>abstractions/modules/ssh/default.nix</code>](../../abstractions/m
 | <code>ssh.rc.&lt;name&gt;.before</code> | <code>list of string</code> | <code>[ ]</code> | Fragments that must follow this one. |
 | <code>ssh.rc.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 
-### <code>ssh.keyholder</code>
-
-Hold the person's SSH keys in this host's Secure Enclave and lend them to the other hosts through a forwarded agent.
-
-Source: [<code>abstractions/modules/ssh/keyholder/default.nix</code>](../../abstractions/modules/ssh/keyholder/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>ssh.keyholder.enable</code> | <code>boolean</code> | <code>myconfig.ssh.enable &amp;&amp; false</code> |  |
-| <code>ssh.keyholder.remoteHosts</code> | <code>list of string</code> | <code>[ ]</code> | Hosts, by their literal names in `ssh.hosts`, that log in with the login key and receive the remote agent. |
-| <code>ssh.keyholder.unlockDuration</code> | <code>string</code> | <code>"15m"</code> | How long `push-unlock` without an argument lends the GitHub key, as ssh-add(1) reads a lifetime. |
-
-### <code>tags</code>
-
-Enable by default the modules that carry a tag selected for the host, except candidates whose seat decides their enable.
-
-Source: [<code>abstractions/modules/tags/default.nix</code>](../../abstractions/modules/tags/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>tags.enabled</code> | <code>list of value "gui" (singular enum)</code> | <code>[ ]</code> | Tags whose modules are enabled by default. |
-
-### <code>tailscale</code>
-
-Join the host to the person's tailnet through Tailscale's daemon, which runs from boot without a login session.
-
-Source: [<code>abstractions/modules/tailscale/default.nix</code>](../../abstractions/modules/tailscale/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>tailscale.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>tailscale.tailnet</code> | <code>string</code> | <code>"marten-pierce.ts.net"</code> | read-only; DNS name of the tailnet these hosts join. MagicDNS resolves a joined host as `&lt;host name&gt;.&lt;tailnet&gt;` from any other. |
-
-### <code>tart</code>
-
-Provide Tart and reach each of its virtual machines over SSH by name, starting one that is not running.
-
-Source: [<code>abstractions/modules/tart/default.nix</code>](../../abstractions/modules/tart/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>tart.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>tart.package</code> | <code>package</code> | <code>nixpkgs: tart</code> |  |
-
 ### <code>vicinae</code>
-
-Provide the Vicinae launcher as a login service with a stable code-signing identity.
-
-Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractions/modules/vicinae/default.nix)<br>Tags: <code>gui</code>
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>vicinae.enable</code> | <code>boolean</code> | <code>false</code> |  |
-| <code>vicinae.package</code> | <code>package</code> | <code>vicinae/vicinae: vicinae</code> | Package installed as the app; setting it bypasses `source-files.sources.vicinae`. |
 
 <code>hjem</code> options:
 
@@ -1211,29 +512,10 @@ Source: [<code>abstractions/modules/vicinae/default.nix</code>](../../abstractio
 | --- | --- | --- | --- |
 | <code>vicinae.settings</code> | <code>JSON value</code> | <code>{ }</code> | Settings layered over Vicinae's own settings.json through VICINAE_OVERRIDES; keys set here take precedence over changes made in the app. |
 
-### <code>xdg</code>
-
-Define the user's XDG base directories and export them to the user's environment.
-
-Source: [<code>abstractions/modules/xdg/default.nix</code>](../../abstractions/modules/xdg/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>xdg.cache</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.cache"</code> | read-only |
-| <code>xdg.config</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.config"</code> | read-only |
-| <code>xdg.data</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/share"</code> | read-only |
-| <code>xdg.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>xdg.state</code> | <code>string</code> | <code>"${myconfig.host.user.homeDirectory}/.local/state"</code> | read-only |
-
 ### <code>zellij</code>
 
-Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file.
-
-Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstractions/modules/zellij/default.nix)
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| <code>zellij.enable</code> | <code>boolean</code> | <code>true</code> |  |
 | <code>zellij.keybinds</code> | <code>submodule</code> | <code>{ }</code> | Actions bound by mode and key, replacing Zellij's default keybindings; `shared` binds in every mode, and `null` leaves a key unbound. An action is an attribute set of one action name to its arguments, or to `args` and `children` for an action with a block. |
 | <code>zellij.keybinds.entersearch</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
 | <code>zellij.keybinds.locked</code> | <code>attribute set of (null or (list of Zellij action))</code> | <code>{ }</code> |  |
@@ -1260,15 +542,6 @@ Source: [<code>abstractions/modules/zellij/default.nix</code>](../../abstraction
 
 ### <code>zsh</code>
 
-Enable Zsh and provide the foundation required for its use.
-
-Source: [<code>abstractions/modules/shell/zsh/default.nix</code>](../../abstractions/modules/shell/zsh/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zsh.enable</code> | <code>boolean</code> | <code>true</code> |  |
-| <code>zsh.package</code> | <code>package</code> | <code>nixpkgs: zsh</code> |  |
-
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
@@ -1280,14 +553,6 @@ Source: [<code>abstractions/modules/shell/zsh/default.nix</code>](../../abstract
 
 ### <code>zsh.interactive</code>
 
-Build Zsh's interactive environment.
-
-Source: [<code>abstractions/modules/shell/zsh/interactive/default.nix</code>](../../abstractions/modules/shell/zsh/interactive/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zsh.interactive.enable</code> | <code>boolean</code> | <code>myconfig.zsh.enable &amp;&amp; true</code> |  |
-
 <code>hjem</code> options:
 
 | Option | Type | Default | Description |
@@ -1298,14 +563,6 @@ Source: [<code>abstractions/modules/shell/zsh/interactive/default.nix</code>](..
 | <code>zsh.zshrc.&lt;name&gt;.text</code> | <code>string</code> |  | Text of the fragment. |
 
 ### <code>zsh.interactive.zabrze</code>
-
-Provide zabrze, expand the abbreviations features contribute in Zsh, and own its configuration file.
-
-Source: [<code>abstractions/modules/shell/zsh/interactive/zabrze/default.nix</code>](../../abstractions/modules/shell/zsh/interactive/zabrze/default.nix)
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| <code>zsh.interactive.zabrze.enable</code> | <code>boolean</code> | <code>myconfig.zsh.interactive.enable &amp;&amp; true</code> |  |
 
 <code>hjem</code> options:
 
@@ -1324,170 +581,26 @@ Source: [<code>abstractions/modules/shell/zsh/interactive/zabrze/default.nix</co
 
 ## Library
 
-Functions and values that modules use, from `mylib` and `delib`.
+Functions and values that modules use from `mylib` and `delib`, documented where they are defined.
 
-### <code>delib.role</code>
-
-A role: a seat on the host, the module `roles.<name>` with `enable`, whether the host has the seat, and `holder`, one of the candidates that declare `meta.role = "<name>"`. A candidate may define the default holder; a rice or host replaces it. While the seat is enabled, its holder must be enabled. With `seatedOnly`, the seat decides its candidates' enable: the holder is enabled while the seat is, `tags` do not enable candidates, and an enabled candidate that does not hold the seat fails. The role also declares the read-only `candidates` and `held`, the holder's `myconfig`. Every other attribute is the module's own, as in `delib.module`, and the declaration may be a function of its Denix arguments, except `name`, `enable` and `seatedOnly`.
-
-| Argument | Meaning |
+| Function | Defined in |
 | --- | --- |
-| <code>enable</code> | Whether the host has the seat by default. |
-| <code>name</code> | The role's name. |
-| <code>seatedOnly</code> | Whether the seat decides its candidates' enable. |
-
-### <code>mylib.accumulatingOption</code>
-
-An option that collects every source's contributions outside the source order: its definitions receive no priority and merge by its type, so a higher source cannot remove a lower one's. Applied to a declaration without a type, it marks an option another module declares, such as an upstream option in a submodule.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>option</code> | An option declaration, or one without a type. |
-
-### <code>mylib.anchors.flakes</code>
-
-The GitHub pins of an npins lock file by name, each evaluated as a flake with its own lock file, as a flake input of the same revision.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>file</code> | The module's `anchors.json`. |
-
-### <code>mylib.anchors.sources</code>
-
-The pins of an npins lock file (format version 8, written by `just anchors update`) by name, each as a source whose `outPath` is the pin's content, fetched during evaluation and checked against its recorded hash. A Git or GitHub pin also carries `rev`, `shortRev`, `lastModified`, `lastModifiedDate` and `narHash`, and a release its tag as `version`, as a flake input of the same revision does. A URL pin is a single file keeping its name, unpacked when npins records `unpack`. Other pin types and Git pins with submodules fail.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>file</code> | The module's `anchors.json`. |
-
-### <code>mylib.assertions.failed</code>
-
-The messages of the assertions that do not hold.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>assertions</code> | A module system's `assertions`: a list of `{ assertion, message }`. |
-
-### <code>mylib.atomicOption</code>
-
-An option that a higher source replaces as a whole, instead of merging into its structure.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>option</code> | An option declaration. |
-
-### <code>mylib.colorschemes.ghosttyTheme</code>
-
-A palette as the keys of Ghostty's theme format, which Rex also imports.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>palette</code> | A value of `palette`. |
-
-### <code>mylib.colorschemes.palette</code>
-
-The palette shared by schemes and applications: the terminal roles `background`, `foreground`, `cursor`, `cursorText`, `selectionBackground` and `selectionForeground`, the sixteen ANSI colors under `ansi`, named as `ansiNames` lists them in terminal index order, and the scheme's own vocabulary under `named`, which only scheme-specific mappings read.
-
-### <code>mylib.colorschemes.scheme</code>
-
-A `delib.module` declaration for `colorscheme.<name>`, a candidate of `roles.colorscheme` that is always registered. A scheme has either a `palette` or `variants` with a `default`; with variants, the module's `variant` chooses one. The module's `resolved` is the chosen palette as `{ name, variant, palette }`, and `combinations` every variant resolved by name: `<name>` for the default and `<name>-<variant>` for each variant.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>default</code> | The variant chosen unless the module's `variant` says otherwise. |
-| <code>description</code> | The module's `meta.description`. |
-| <code>name</code> | The scheme's name. |
-| <code>palette</code> | The palette of a scheme without variants. |
-| <code>variants</code> | Palettes by variant name. |
-
-### <code>mylib.fragments.option</code>
-
-An option of named fragments, for a file that several features contribute to. Its owner declares it in its module system and writes `render` of its value into the file. Each fragment has `text` and orders itself against others by name with `after` and `before`; two definitions of one fragment with different text conflict.
-
-### <code>mylib.fragments.render</code>
-
-The fragments' text in dependency order. Fragments without a declared order between them appear in a stable but unspecified order, so a fragment that relies on another's position declares it. A reference to an undefined fragment or a cycle fails.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>fragments</code> | The value of an option declared with `option`. |
-
-### <code>mylib.plist.toPlist</code>
-
-A plist value as an XML plist document; a float is written in its shortest decimal form that parses back to the same value.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>value</code> | A value that `validValue` and `validXml` accept. |
-
-### <code>mylib.plist.validValue</code>
-
-Whether a value is a plist value: a string, boolean, integer, finite float, or a list or dictionary of plist values.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>value</code> | Any Nix value. |
-
-### <code>mylib.plist.validXml</code>
-
-Whether every string and dictionary key in a value is free of XML control characters.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>value</code> | A plist value. |
-
-### <code>mylib.plist.xmlString</code>
-
-Whether a string is free of XML control characters.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>string</code> | A string. |
-
-### <code>mylib.rice</code>
-
-A rice: a named set of `myconfig` choices spanning modules, which a host selects by name with `rice`. Only the selected rice contributes, at the rice priority.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>myconfig</code> | The choices. |
-| <code>name</code> | The name a host selects. |
-
-### <code>mylib.schemeThemes</code>
-
-An application's table of scheme-specific themes, such as official ports. `of` returns the entry for a resolved scheme, or null for a scheme absent from the table, and `constraint` rejects a held scheme absent from it, naming `<name>.colorscheme.enable = false`, which leaves the application's colors unmanaged.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>name</code> | The application's module name. |
-| <code>themes</code> | The table by scheme name; what an entry holds is the application's own. |
-
-### <code>mylib.sources.accumulatingOption</code>
-
-An option that collects every source's contributions outside the source order: its definitions receive no priority and merge by its type, so a higher source cannot remove a lower one's. Applied to a declaration without a type, it marks an option another module declares, such as an upstream option in a submodule.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>option</code> | An option declaration, or one without a type. |
-
-### <code>mylib.sources.atomicOption</code>
-
-An option that a higher source replaces as a whole, instead of merging into its structure.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>option</code> | An option declaration. |
-
-### <code>mylib.sources.priorities</code>
-
-The priorities of `myconfig` sources, `module` < `rice` < `host`, all above an option default.
-
-### <code>mylib.sources.prioritize</code>
-
-A module whose definitions below an option tree all carry a source's priority, pushed down along the declared types: below a submodule, an `attrsOf` or a `lazyAttrsOf`, each option or attribute keeps its own priority, so a higher source replaces only what it defines. Lists, nullable values, other values and options declared with `atomicOption` are replaced whole; options declared with `accumulatingOption` receive no priority. Explicit priorities are kept, `mkIf` and `mkMerge` are descended into, and imported modules receive the same priority.
-
-| Argument | Meaning |
-| --- | --- |
-| <code>module</code> | A module given as an attribute set, a function or a path. |
-| <code>options</code> | The option tree the definitions apply to. |
-| <code>priority</code> | One of `priorities`. |
+| <code>delib.role</code> | [<code>lib/roles.nix</code>](../../lib/roles.nix) |
+| <code>mylib.accumulatingOption</code> | [<code>lib/sources.nix</code>](../../lib/sources.nix) |
+| <code>mylib.anchors.flakes</code> | [<code>lib/anchors.nix</code>](../../lib/anchors.nix) |
+| <code>mylib.anchors.sources</code> | [<code>lib/anchors.nix</code>](../../lib/anchors.nix) |
+| <code>mylib.assertions.failed</code> | [<code>lib/assertions.nix</code>](../../lib/assertions.nix) |
+| <code>mylib.atomicOption</code> | [<code>lib/sources.nix</code>](../../lib/sources.nix) |
+| <code>mylib.colorschemes.ghosttyTheme</code> | [<code>lib/colorschemes.nix</code>](../../lib/colorschemes.nix) |
+| <code>mylib.colorschemes.palette</code> | [<code>lib/colorschemes.nix</code>](../../lib/colorschemes.nix) |
+| <code>mylib.colorschemes.scheme</code> | [<code>lib/colorschemes.nix</code>](../../lib/colorschemes.nix) |
+| <code>mylib.fragments.option</code> | [<code>lib/fragments.nix</code>](../../lib/fragments.nix) |
+| <code>mylib.fragments.render</code> | [<code>lib/fragments.nix</code>](../../lib/fragments.nix) |
+| <code>mylib.plist.toPlist</code> | [<code>lib/plist.nix</code>](../../lib/plist.nix) |
+| <code>mylib.plist.validValue</code> | [<code>lib/plist.nix</code>](../../lib/plist.nix) |
+| <code>mylib.plist.validXml</code> | [<code>lib/plist.nix</code>](../../lib/plist.nix) |
+| <code>mylib.plist.xmlString</code> | [<code>lib/plist.nix</code>](../../lib/plist.nix) |
+| <code>mylib.rice</code> | [<code>lib/rices.nix</code>](../../lib/rices.nix) |
+| <code>mylib.schemeThemes</code> | [<code>lib/scheme-themes.nix</code>](../../lib/scheme-themes.nix) |
+| <code>mylib.sources.priorities</code> | [<code>lib/sources.nix</code>](../../lib/sources.nix) |
+| <code>mylib.sources.prioritize</code> | [<code>lib/sources.nix</code>](../../lib/sources.nix) |

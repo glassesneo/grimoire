@@ -4,7 +4,7 @@ This file describes the architecture of grimoire: its composition, the concepts 
 
 Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
 
-Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, [the authoring reference](generated/authoring.md) for every option that modules and hosts write, and [Module Authoring](module-authoring.md) for the judgments made when designing and validating a module.
+Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, [the authoring reference](generated/authoring.md) for the modules and the options they define for each other, and [Module Authoring](module-authoring.md) for the judgments made when designing and validating a module.
 
 ## Composition
 
@@ -112,7 +112,7 @@ The index below names each mechanism; its option descriptions, documented functi
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
 - `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry for a scheme, and the rejection of a held scheme absent from the table.
 - `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` lists, compares, and updates them.
-- `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, rendered from declarations without generating a host configuration.
+- `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, and the option listing of `just options`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
 - `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, `scripts/pre-push.nu` verifies outgoing tip trees with the full gate of `scripts/gate.nu`.
 

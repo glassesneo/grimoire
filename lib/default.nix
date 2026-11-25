@@ -20,5 +20,5 @@ in {
   roles = import ./roles.nix {inherit lib documented;};
   schemeThemes = import ./scheme-themes.nix {inherit documented;};
 
-  internal = ["anchors.discover" "assertions.guard" "documented" "internal" "library" "roles" "sources.isAccumulating" "sources.isAtomic"];
+  internal = ["anchors.discover" "assertions.guard" "documented" "internal" "library" "roles" "sources.accumulatingOption" "sources.atomicOption" "sources.isAccumulating" "sources.isAtomic"];
 }

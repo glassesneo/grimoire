@@ -20,7 +20,7 @@ This file owns the agent rules no other document covers and summarizes the conce
 
 ## Reading Path
 
-1. Read `docs/generated/authoring.md` before writing a module or host declaration: it lists every module's responsibility, every option that modules and hosts can write, and the library functions they call.
+1. Read `docs/generated/authoring.md` before writing a module or host declaration: it lists every module's responsibility, the options that modules define for other modules, and the library functions they call. `just options <module>` shows every option of a module.
 2. Read `docs/module-authoring.md` before writing or changing a module's options, constraints, or tests.
 3. Read `docs/architecture.md` before adding a module or host, changing how modules relate, or changing `flake.nix`, `adapters/`, `extensions/`, `lib/`, `tests/`, or `checks/`. Follow its links to the contract of the mechanism being changed. Changing a value inside an existing module needs only the concepts above.
 4. Read `docs/documentation-policy.md` before changing documentation, descriptions, or comments, and before completing a change to a repository mechanism or operation.
