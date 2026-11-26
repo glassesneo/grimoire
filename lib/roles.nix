@@ -4,7 +4,7 @@
 }: {
   declare = delib:
     documented {
-      description = "A role: a seat on the host, the module `roles.<name>` with `enable`, whether the host has the seat, and `holder`, one of the candidates that declare `meta.role = \"<name>\"`. A candidate may define the default holder; a rice or host replaces it. While the seat is enabled, its holder must be enabled. With `seatedOnly`, the seat decides its candidates' enable: the holder is enabled while the seat is, `tags` do not enable candidates, and an enabled candidate that does not hold the seat fails. The role also declares the read-only `candidates` and `held`, the holder's `myconfig`. Every other attribute is the module's own, as in `delib.module`, and the declaration may be a function of its Denix arguments, except `name`, `enable` and `seatedOnly`.";
+      description = "The module `roles.<name>` of a role, as docs/architecture.md describes roles: `enable`, `holder`, and the read-only `candidates` and `held`, the holder's `myconfig`. Every other attribute is the module's own, as in `delib.module`, and the declaration may be a function of its Denix arguments, except `name`, `enable` and `seatedOnly`.";
       arguments = {
         name = "The role's name.";
         enable = "Whether the host has the seat by default.";

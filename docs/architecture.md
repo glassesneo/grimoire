@@ -1,10 +1,6 @@
 # Architecture
 
-This file describes the architecture of grimoire: its composition, the concepts used to declare configurations, directory responsibilities, and repository mechanisms. It assumes familiarity with Nix.
-
 Grimoire uses Denix's rewrite branch as its foundation. The notation and behavior described here are those used by this repository, including its adapters and extensions; this is not a general reference for upstream Denix.
-
-Adapters evaluate module systems and apply their results, extensions extend Denix's declarations, and modules abstract capabilities, from an application's installation and settings to capabilities that other modules use. Hosts hold the facts and choices of each machine. See [Documentation Policy](documentation-policy.md) for what is documented where, [the authoring reference](generated/authoring.md) for the modules and the options they define for each other, and [Module Authoring](module-authoring.md) for the judgments made when designing and validating a module.
 
 ## Composition
 
@@ -12,11 +8,11 @@ Adapters evaluate module systems and apply their results, extensions extend Deni
 
 Its inputs are the dependencies of the composition and its mechanisms, and those a module receives with another flake's `nixpkgs` through `follows`. A dependency that one module uses is an anchor of that module instead: pinned in the module's `anchors.json` and read with `mylib.anchors`. It has one owning module; another module that needs it receives it through the owner's options, as `casks.packages` provides casks. A flake anchor keeps the `nixpkgs` its own lock file pins, so a module that needs the dependency built with its own `nixpkgs` uses an entry point taking `pkgs`, such as a package file, a library, or an overlay.
 
-Denix receives every `default.nix` below `abstractions/`. Files in that tree declare independent Denix abstractions; they do not form manual import chains. New files must be Git-tracked before flake evaluation can discover them.
+Denix receives every `default.nix` below `abstractions/`. Files in that tree declare independent Denix abstractions; they do not import each other.
 
 `flake.nix` publishes one nix-darwin configuration per Darwin host and one Hjem configuration per user of each host. Each configuration evaluates independently because each is activated separately.
 
-The same composition publishes `packages.<system>`, merging feature-owned bundles selected for publication into the flake's own packages. A published name that equals an existing package name fails evaluation instead of overriding it.
+The same composition publishes `packages.<system>`, merging feature-owned bundles selected for publication into the flake's own packages.
 
 ## Modules, hosts, and sections
 
@@ -36,7 +32,7 @@ The module systems are `darwin` (nix-darwin), `hjem` (through `adapters/hjem/def
 
 A module's name is its `myconfig` interface path, so choose it for the modules and hosts that reference it. Directory placement serves navigation and may differ from the name.
 
-A module also declares its constraints at the top level: `constraints.always` is checked whatever its `enable`, `constraints.ifEnabled` while it is enabled. Each entry is an `{ assertion, message }` attribute set, or a function of the module's Denix arguments returning one, evaluated against the final `myconfig` and enforced by every module system through its own `assertions`. Assertions about one module system's outputs stay in that system's sections.
+A module also declares its constraints at the top level: `constraints.always` is checked whatever its `enable`, `constraints.ifEnabled` while it is enabled. Each entry is an `{ assertion, message }` attribute set, or a function of the module's Denix arguments returning one, evaluated against the final `myconfig` and enforced by every module system through its own `assertions`.
 
 ## Rices and sources
 
@@ -44,7 +40,7 @@ A rice (`mylib.rice` under `abstractions/rices/`) is a named set of `myconfig` c
 
 `myconfig` definitions are ordered by source: an option default < a module < the selected rice < the host. Authors write no `mkDefault` for this order. A higher source replaces only what it defines, following the declared types: below a submodule or an attribute set of values, each option or attribute keeps its own source, while a list or any other value is replaced whole. An option declared with `mylib.atomicOption` is replaced whole. A definition with an explicit priority keeps it. Sections of the other module systems keep their own merge rules.
 
-The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's. A module that embeds upstream options marks those that collect by applying it to a declaration without a type.
+The order applies to choices. An option that collects contributions, such as assertions or warnings, is declared with `mylib.accumulatingOption`: every source's definitions merge by its type, and a higher source cannot remove a lower one's.
 
 ## Roles
 
@@ -68,13 +64,12 @@ A setting affects only the scope that needs it. User preferences are declared in
 - `adapters/` owns module systems that Denix does not provide: their evaluation, the input schema that makes up the system, and the common contract of their results and application. A capability reaches the result through that contract, such as Hjem's apply steps, and stays in its module.
 - `extensions/` owns extensions of Denix's module and host declarations and of their evaluation rules, such as host attributes and behavior applied to every module or host.
 - `lib/` owns pure Nix helpers passed to abstractions as `mylib`. Helpers define types and transformations; they do not own configuration.
-- `tests/` owns sandboxed tests of repository mechanisms, the composition, and properties spanning the published configurations. `checks/` owns the remaining flake checks, which verify the repository's state rather than a behavior, such as generated files being current. Both are exported through `checks.<system>`; each immediate `tests/<name>/default.nix` and `checks/<name>/default.nix` is discovered automatically, and a name may appear in only one of them. Each returns either `cases`, named cases with `protects` and one of `expected`, `fails` or `build`, run by `lib/cases.nix`, or a `check` with `protects` for the whole, and may declare `platforms`. `checks/default.nix` also generates the checks that the published outputs and each host's published configurations evaluate. The contract of a single module is tested inside that module instead; see Validation boundary.
-- `scripts/`, `justfile`, and `just/` own repository operations. Recipe documentation and argument help are available through `just --list --list-submodules` and `just --usage <recipe>`.
+- `tests/` owns sandboxed tests of repository mechanisms, the composition, and properties spanning the published configurations. `checks/` owns the remaining flake checks, which verify the repository's state rather than a behavior, such as generated files being current. The contract of a single module is tested inside that module instead.
+- `scripts/`, `justfile`, and `just/` own repository operations.
+
 A concern has one owner. Shared outputs have one final writer, and adapters translate values without taking ownership of the feature that produced them.
 
-A translation into a format belongs to the module that owns that format; see [Module Authoring](module-authoring.md#translations).
-
-A module owns its declaration's directory, independently of its dotted interface name. Modules do not import each other's declarations, since Denix discovers every `default.nix`; other files are helpers that declarations read, such as a package or a table. A module reads the helpers of its own directory and of an ancestor module's directory, naming that ancestor in its `tests.fixture` so that incremental selection follows their changes, and no other feature's files. A module's test fixture holds the module and the modules its `tests.fixture` names, transitively, such as the owners of options it defines; a case adds modules it reads from with `uses`. This is a statement about tests, not a dependency between modules: a host loads every module, and a reference to a module that is not enabled fails or reads defaults there as it would anywhere. Shared tools, inputs and common configuration enter through the mechanisms. Incremental selection maps changed paths to the deepest module directory and follows `tests.fixture` and `uses` in reverse. It does not infer arbitrary Nix or file dependencies; only forced missing references are detected by fixture evaluation.
+A module owns its declaration's directory, independently of its dotted interface name. Other files there are helpers that declarations read, such as a package or a table. A module reads the helpers of its own directory and of an ancestor module's directory, naming that ancestor in its `tests.fixture`, and no other feature's files; shared tools, inputs and common configuration enter through the mechanisms. Incremental check selection maps changed paths to the deepest module directory and follows `tests.fixture` and `uses` in reverse; it infers no other dependency, so a module reading another feature's files would not be checked when they change.
 
 Nix owns evaluation and realization. Build recipes call Nix directly without activating the configuration. Repository mechanisms use the language of the layer they own:
 
@@ -95,23 +90,23 @@ The index below names each mechanism; its option descriptions, documented functi
 - `extensions/module-constraints.nix`: modules' constraints, enforced in every module system.
 - `extensions/module-dependencies.nix`: a dotted module's `enable` depends on its immediate parent, and a module's on the roles it follows.
 - `extensions/module-metadata.nix`: required responsibility descriptions and optional classification tags for modules.
-- `extensions/module-tests.nix`: module-owned inline test cases and fixtures, typed as options, declaration locations and the reverse fixture and `uses` closure; `lib/module-tests.nix` evaluates fixtures and aggregates their evaluated values and builds into `checks.<system>.module-<name>`; `lib/typescript-check.nix` builds the `typescriptCheck` that cases receive.
-- `lib/checks.nix` and `checks/default.nix`: descriptor-based discovery of `checks/` and `tests/` that reads platform declarations without forcing check bodies; `lib.checks.<system>` publishes JSON-safe ownership and selection metadata.
+- `extensions/module-tests.nix`: module-owned test cases and fixtures; `lib/module-tests.nix` evaluates them into `checks.<system>.module-<name>`, and `lib/typescript-check.nix` builds the `typescriptCheck` that cases receive.
+- `lib/checks.nix` and `checks/default.nix`: discovery of each immediate `tests/<name>/default.nix` and `checks/<name>/default.nix` as `checks.<system>.<name>`, a name appearing in only one of them. Each returns either `cases`, run by `lib/cases.nix`, each with `protects` and one of `expected`, `fails` or `build`, or a `check` with `protects` for the whole, and may declare `platforms`, which are read without forcing check bodies. `checks/default.nix` also generates the checks that the published outputs and each host's configurations evaluate; `lib.checks.<system>` publishes ownership and selection metadata.
 - `extensions/provenance.nix`: every module and host section is labelled with its origin as the location of its definitions, and `myconfig` definitions receive their source's priority from `lib/sources.nix`.
 - `lib/sources.nix`: source priorities, their descent along option types, and atomic and accumulating options.
 - `lib/roles.nix` and `extensions/roles.nix`: `delib.role`, the seat it declares and its holder; the candidates' `meta.role` and the rejection of undeclared roles.
-- `adapters/hjem/default.nix`: the Hjem module system, the unfree packages its `pkgs` may evaluate, and the apply steps that modules register and the switch runs after Hjem activation, in the order they declare against each other.
-- `adapters/bundles.nix`: the bundles module system, through which a feature declares itself as a standalone package. The feature registers each bundle with its `publish` condition, independently of any host or rice; the adapter publishes only those, without evaluating the others' packages.
+- `adapters/hjem/default.nix`: the Hjem module system and the apply steps the switch runs after Hjem activation.
+- `adapters/bundles.nix`: the bundles module system.
 - `abstractions/modules/services/`: user service declarations, their lowering to dinit descriptions and the LaunchAgent that starts dinit on Darwin, with the switch-time lifecycle in `reconcile.nu`, whose behaviors the scenes of `test/reconcile.nu` name.
 - `abstractions/modules/imprynt/`: real-file deployment declarations and their Hjem apply step, delegating file ownership, conflicts, and recovery to imprynt; `abstractions/modules/fonts/` lowers user font packages into those declarations.
-- `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`. Service restarts go through the services module's `serviceManager.restart`.
-- `abstractions/modules/colorscheme/`: color schemes, each the module `colorscheme.<name>` declared with `mylib.colorschemes.scheme` (`lib/colorschemes.nix`), with or without variants, and the combinations of all of them. `roles.colorscheme` holds the one applications share and resolves it to a palette. Each application owns its mapping from the palette, or a scheme-specific theme, in its `<application>.colorscheme` module, which follows the role and whose `enable` leaves its colors unmanaged. An application with scheme-specific themes fails evaluation when it follows a scheme it has no theme for.
+- `abstractions/modules/defaults/`: user defaults declarations and Darwin lowering, with ownership, restoration and change actions in `reconciler/reconciler.cr`.
+- `abstractions/modules/colorscheme/`: color schemes, each the module `colorscheme.<name>` declared with `mylib.colorschemes.scheme` (`lib/colorschemes.nix`), which `roles.colorscheme` holds. Each application maps the held palette, or a scheme-specific theme from `mylib.schemeThemes` (`lib/scheme-themes.nix`), in its `<application>.colorscheme` module.
 - `abstractions/modules/exclusive/`: files that only one location may define, in Hjem's file sets and nix-darwin's `environment.etc`.
 - `abstractions/modules/nix-secrets/`: standalone compatibility for upstream nix-secrets options and manifest-based Darwin user activation.
 - `lib/plist.nix`: the plist values that defaults accept and their serialization, also used for the services module's LaunchAgent.
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
-- `lib/scheme-themes.nix`: an application's table of scheme-specific themes, the entry for a scheme, and the rejection of a held scheme absent from the table.
 - `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` lists, compares, and updates them.
+- `lib/documented.nix`: `mylib.documented` and the listing of library functions, which rejects an undocumented one.
 - `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, and the option listing of `just options`, rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
 - `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, `scripts/pre-push.nu` verifies outgoing tip trees with the full gate of `scripts/gate.nu`.
@@ -128,10 +123,6 @@ The number of tests does not measure validation; a test that restates its implem
 
 For a program the repository configures, a test stops at what a build can observe: passing a generated file to the program's own validator belongs to the build, while running the program to observe its behavior does not. A program the repository writes is covered by its own tests, which may exercise its runtime behavior.
 
-A module's option types, constraints and `tests` each cover one part of its contract, as [Module Authoring](module-authoring.md#validation) describes; a constraint runs on every evaluation of a real configuration, a test only as a check. A test under `tests/` covers a repository mechanism, the composition, or a property spanning the published configurations, and its cases are written by the same rules as a module's tests.
-
-Commit automation builds selected checks on the final index snapshot, excluding formatting and reference freshness already handled by automatic generation. Infrastructure and unknown code paths select all remaining current-system checks. A host's changes select that host's checks, and designated documentation changes select none. Pre-push and `just check-full` run the full current-system gate, including formatting and reference freshness.
-
-Mechanism tests use the smallest input boundary they own, without importing unrelated feature modules or extensions. Tests of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
+Cases under `tests/` are written by the same rules as [a module's](module-authoring.md#tests). Mechanism tests use the smallest input boundary they own, without importing unrelated feature modules or extensions. Tests of feature wiring receive the real Denix `configuration` from `flake.nix` instead of reconstructing its module list.
 
 Live activation and platform behavior require an explicit operator command; evaluation and derivation builds do not exercise them.
