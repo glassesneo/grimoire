@@ -24,7 +24,26 @@ delib.module ({
       });
     };
 
-  hjem.ifEnabled = {
+  hjem.ifEnabled = {pkgs, ...}: let
+    bundled = "${cfg.package}/Applications/Phi.app/Contents/Resources/phi-browser-skill";
+    # The bundled skill starts its runner with `node`, which this module does not
+    # put on PATH; `phi script` runs the same runner with the CLI's own Node.
+    skill = pkgs.runCommand "phi-browser-skill" {} ''
+      cp -R ${bundled} "$out"
+      chmod -R u+w "$out"
+      rm -r "$out/scripts"
+      ln -s ${bundled}/scripts "$out/scripts"
+      if ! grep -qE 'node [^ ]*/scripts/runner\.mjs' "$out/SKILL.md"; then
+        echo "phi: SKILL.md no longer starts the runner as 'node <dir>/scripts/runner.mjs'; update the rewrite in abstractions/modules/phi/default.nix" >&2
+        exit 1
+      fi
+      grep -rlE --include='*.md' 'node [^ ]*/scripts/runner\.mjs' "$out" | xargs sed -i -E 's#node [^ ]*/scripts/runner\.mjs#phi script#g'
+      if grep -rnE --include='*.md' '\bnode\b.*runner\.mjs' "$out"; then
+        echo "phi: the skill still starts the runner with node in the lines above; extend the rewrite in abstractions/modules/phi/default.nix" >&2
+        exit 1
+      fi
+    '';
+  in {
     packages = [cfg.cliPackage];
 
     files."Applications/Phi.app" = {
@@ -32,7 +51,7 @@ delib.module ({
       source = "${cfg.package}/Applications/Phi.app";
     };
 
-    skills.phi-browser = "${cfg.package}/Applications/Phi.app/Contents/Resources/phi-browser-skill";
+    skills.phi-browser = skill;
   };
 
   bundles.always = {pkgs, ...}: {
