@@ -17,8 +17,6 @@ mod anchors 'just/anchors.just'
   Change a Bun project's dependencies and regenerate its bun.nix.
   Requires bun and bun2nix from the development shell and contacts the npm registry.
   Each operation runs in the manifest's directory and may create ignored node_modules.
-  bun.nix is raw bun2nix output; nix fmt leaves it unchanged. Running Bun directly
-  can leave it stale; the bun-lock check rejects this until just bun sync is run.
   package.json must not use a lifecycle script to regenerate bun.nix.
 ''')]
 mod bun 'just/bun.just'

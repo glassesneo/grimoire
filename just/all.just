@@ -12,10 +12,7 @@ build $host=`hostname -s`:
 [arg('source', long='flake', help='Local candidate store path; defaults to the recipe checkout')]
 [doc('''
   Apply nix-darwin, then Hjem, stopping at the first failure without rollback.
-  Hjem preflight runs after nix-darwin activation: its failure leaves the home
-  unchanged, but the new system is already active. Hjem activation and
-  reconciliation failures can leave partial changes. Layer effects, remote transfer, and user
-  selection are described by just --list darwin and just --list hjem.
+  just --list darwin and just --list hjem describe each layer.
 ''')]
 switch $host=`hostname -s` $target='' $source='':
   use {{ quote(apply) }} *; all $env.host --target $env.target --flake $env.source

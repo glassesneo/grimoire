@@ -13,7 +13,10 @@ in {
     } ''
       ${lib.concatMapStrings (lock: ''
           bun2nix --lock-file ${lock} --output-file expected.nix
-          diff -u ${dirOf lock + "/bun.nix"} expected.nix
+          diff -u ${dirOf lock + "/bun.nix"} expected.nix || {
+            echo "${lib.removePrefix "${toString ../..}/" (toString (dirOf lock))}/bun.nix is not what bun2nix writes from its bun.lock; run just bun sync on its package.json" >&2
+            exit 1
+          }
         '')
         locks}
       touch "$out"

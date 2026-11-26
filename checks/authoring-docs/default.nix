@@ -46,7 +46,7 @@
   interfaces = section "Interfaces";
   fails = module: !(builtins.tryEval (renderModules [module]).reference).success;
 in {
-  protects = "the committed authoring reference is what the declarations render; it lists every module, and of their options only those other modules define, including from modules disabled by default, or that modules add to other module systems; options an imported upstream module declares are left to its documentation; rendering marks options a higher source replaces whole or that collect every source's definitions, and keeps tables, links, defaults and descriptions that option validation cannot check; just options shows every option of a module; and every library function modules use is documented";
+  protects = "the committed authoring reference is what the declarations render: every module, the options modules define for each other but not those upstream modules declare, markers for atomic and accumulating options, and defaults, links and descriptions as written; just options shows all of a module's options; every library function modules use is documented";
   check = assert documentedProbe 1 == 2;
   assert listed {
     x = {

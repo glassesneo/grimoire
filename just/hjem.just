@@ -12,9 +12,7 @@ build $host=`hostname -s`:
 [arg('source', long='flake', help='Local candidate store path; defaults to the recipe checkout')]
 [doc('''
   Apply Hjem files/packages, then reconcile services and user defaults as the
-  same target user. Preflight failure leaves the existing home unchanged;
-  activation or reconciliation failure can leave partial changes.
-  Hjem uses $USER locally and the SSH user remotely.
+  same target user. Hjem uses $USER locally and the SSH user remotely.
   Remote application builds locally, copies closures and flake source over ssh-ng
   without signature checks, then activates over SSH.
 ''')]

@@ -71,7 +71,7 @@ in
       }
       {
         assertion = myconfig.spaces.enable;
-        message = "omniwm.enable requires spaces.enable = true for Displays have separate Spaces";
+        message = "omniwm.enable requires spaces.enable = true for the \"Displays have separate Spaces\" setting";
       }
     ];
 

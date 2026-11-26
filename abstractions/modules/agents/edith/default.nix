@@ -146,14 +146,22 @@ in {
       assertion = cfg.access ? restricted && cfg.personas ? edith;
       message = "edith.enable = true requires edith.access.restricted and edith.personas.edith, which serve namespaces not listed";
     }
-    {
-      assertion = lib.all (namespace: cfg.access ? ${namespace.access} && cfg.access ? ${namespace.ceiling} && cfg.personas ? ${namespace.persona}) (lib.attrValues cfg.namespaces);
-      message = "edith.namespaces names an access or persona that edith.access or edith.personas does not declare";
-    }
-    {
-      assertion = lib.all (namespace: !(cfg.access ? ${namespace.access} && cfg.access ? ${namespace.ceiling}) || within cfg.access.${namespace.access} cfg.access.${namespace.ceiling}) (lib.attrValues cfg.namespaces);
-      message = "an edith.namespaces entry's access exceeds its ceiling";
-    }
+    (let
+      undeclared = lib.concatLists (lib.mapAttrsToList (name: namespace:
+        lib.optional (!(cfg.access ? ${namespace.access})) "edith.namespaces.${name}.access = \"${namespace.access}\""
+        ++ lib.optional (!(cfg.access ? ${namespace.ceiling})) "edith.namespaces.${name}.ceiling = \"${namespace.ceiling}\""
+        ++ lib.optional (!(cfg.personas ? ${namespace.persona})) "edith.namespaces.${name}.persona = \"${namespace.persona}\"")
+      cfg.namespaces);
+    in {
+      assertion = undeclared == [];
+      message = "${lib.concatStringsSep ", " undeclared} names no entry of edith.access or edith.personas";
+    })
+    (let
+      exceeding = lib.mapAttrsToList (name: namespace: "edith.namespaces.${name}.access = \"${namespace.access}\" exceeds its ceiling \"${namespace.ceiling}\"") (lib.filterAttrs (_: namespace: cfg.access ? ${namespace.access} && cfg.access ? ${namespace.ceiling} && !(within cfg.access.${namespace.access} cfg.access.${namespace.ceiling})) cfg.namespaces);
+    in {
+      assertion = exceeding == [];
+      message = lib.concatStringsSep "; " exceeding;
+    })
     {
       assertion = !(lib.elem "default" choiceNames);
       message = "edith.access and edith.personas cannot name one `default`, which clients' commands take to clear a choice";
@@ -277,7 +285,7 @@ in {
         };
     };
     contracts = {
-      protects = "EDITH cuts a streamed answer for posting only after complete units (paragraphs, a heading with what follows, whole lists, tables and code blocks), never the last one, answers a persona's AI MOP model through AI MOP's endpoint with its key, reads what a streamed partial answer adds to each thinking and text block, starting over on a retry, keeps one conversation per address that persists across restarts, applies a namespace's access and persona, or `restricted` and `edith` for an unlisted namespace, unless a conversation chose a configured persona, an access within its namespace's ceiling as EDITH compares accesses, or overrides its model or thinking level, a chosen one surviving restarts and falling back once the configuration drops it or lowers the ceiling, keeps those choices with the address across its sessions, refuses to continue or switch back to a session whose label, the greatest access it ran with, exceeds its namespace's ceiling, holds a paused conversation's next tool call or model request until it is resumed or the user writes, whose message the run takes in where it holds without running a held call, stops a run and withdraws its unread input, starts new sessions at an address and switches back to its earlier ones, titling the ones it leaves, tells the model a stopped request is closed, shows where a pause holds, lets the model reach an access's MCP servers only through code mode, brings existing conversations to changed servers and turn limits, writes refreshed credentials back to its credentials file, parses model arguments, splits answers within a message limit, and reads a run's trace: thinking, text beside tool calls, and code mode calls with their scripts' calls, rendered within a limit and collapsed to headings and call lines";
+      protects = "EDITH's core and clients keep each behavior their src/*.test.ts tests name";
       tsRoots = ["src"];
       build = result:
         pkgs.runCommand "edith-contracts" {} ''

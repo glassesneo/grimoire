@@ -67,7 +67,7 @@ def apply-hjem [host: string, target: any, roots: string, flake: record] {
     step "flake source copy" { ^nix flake archive --no-check-sigs --to $'ssh-ng://($target)' ...$flake.flags $root }
   }
 
-  run-on "Hjem activation" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($apply)/bin/apply"
+  run-on "Hjem activation (a preflight failure leaves the home unchanged; a later one can leave partial changes)" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($apply)/bin/apply"
 }
 
 def apply-darwin [host: string, target: any, roots: string, flake: record] {
@@ -104,6 +104,10 @@ export def all [host: string, --target: string = "", --flake: string = ""] {
   with-roots {|roots|
     let selected = select-flake $flake $roots
     apply-darwin $host $target $roots $selected
-    apply-hjem $host $target $roots $selected
+    try {
+      apply-hjem $host $target $roots $selected
+    } catch {|error|
+      error make {msg: $"($error.msg); nix-darwin is already active"}
+    }
   }
 }

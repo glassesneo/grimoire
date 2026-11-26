@@ -36,7 +36,7 @@ delib.module {
       expected = [];
     };
     extension-loads = {
-      protects = "Responses compaction preserves checkpoints across transient retries without counting recovery history as active context, preserves replay and tool/result boundaries across manual compaction and restart, and recovers visibly through Pi standard summaries without losing prior memory";
+      protects = "the compaction extension keeps each behavior its src tests name, loaded in Pi";
       tsRoots = ["src"];
       build = result:
         pkgs.runCommand "pi-compaction" {} ''
