@@ -190,8 +190,6 @@ Options that adapters add to their module systems.
 | [<code>tart</code>](../../abstractions/modules/tart/default.nix) | Provide Tart and reach each of its virtual machines over SSH by name, starting one that is not running. |  |
 | [<code>trackpad</code>](../../abstractions/modules/trackpad/default.nix) | Configure pointing devices: trackpad clicking and gestures, scrolling, and pointer speed. |  |
 | [<code>users</code>](../../abstractions/modules/users/default.nix) | Apply the host's declared user information to OS user configuration. |  |
-| [<code>vfkit</code>](../../abstractions/modules/vfkit/default.nix) | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
-| [<code>vfkit.persistence</code>](../../abstractions/modules/vfkit/persistence/default.nix) | Provide vfkit for running virtual machines with Apple Virtualization.framework. |  |
 | [<code>vicinae</code>](../../abstractions/modules/vicinae/default.nix) | Provide the Vicinae launcher as a login service with a stable code-signing identity. | <code>gui</code> |
 | [<code>vicinae.colorscheme</code>](../../abstractions/modules/vicinae/colorscheme/default.nix) | Give Vicinae the bundled theme of the held color scheme. |  |
 | [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | Animate the Vicinae launcher window between its compact and expanded states. |  |

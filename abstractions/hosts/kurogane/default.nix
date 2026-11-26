@@ -11,8 +11,6 @@ delib.host {
       enable = true;
       profile = "default";
     };
-    vfkit.enable = true;
-    vfkit.persistence.enable = true;
     tailscale.enable = true;
     ssh.remote.enable = true;
     slack.enable = false;
