@@ -21,6 +21,7 @@ delib.host {
     web.enable = true;
     pi.mcpServers = ["web"];
     claude-code.unattended = true;
+    antigravity-cli.unattended = true;
     edith = {
       enable = true;
       access.restricted = {
