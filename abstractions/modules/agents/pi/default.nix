@@ -128,9 +128,9 @@ in {
     };
     registration-does-not-select-a-server = {
       protects = "registering an MCP server does not add it to Pi until Pi selects its name";
-      uses = ["web"];
+      uses = ["mcp.web"];
       host.myconfig.ifEnabled = {
-        web.enable = true;
+        mcp.web.enable = true;
       };
       build = result:
         pkgs.runCommand "pi-mcp-unselected" {nativeBuildInputs = [pkgs.jq];} ''

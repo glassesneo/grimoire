@@ -116,6 +116,7 @@ Options that adapters add to their module systems.
 | [<code>keyboard</code>](../../abstractions/modules/keyboard/default.nix) | Configure system-wide keyboard behavior: key repeat, text substitutions, function keys, and system shortcuts. |  |
 | [<code>locale</code>](../../abstractions/modules/locale/default.nix) | Configure the languages and region used by the system and applications. |  |
 | [<code>mcp</code>](../../abstractions/modules/agents/mcp/default.nix) | Declare stdio MCP servers and resolve each agent consumer's selection of them. |  |
+| [<code>mcp.web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | Provide the web retrieval MCP server and its backend configuration. |  |
 | [<code>neovim</code>](../../abstractions/modules/neovim/default.nix) | Provide and configure Neovim. |  |
 | [<code>neovim.ai-completion</code>](../../abstractions/modules/neovim/ai-completion/default.nix) | Provide switchable inline AI completions through Minuet. |  |
 | [<code>neovim.animations</code>](../../abstractions/modules/neovim/animations/default.nix) | Animate Neovim edits and movement while preserving existing key semantics. |  |
@@ -195,7 +196,6 @@ Options that adapters add to their module systems.
 | [<code>vicinae.colorscheme</code>](../../abstractions/modules/vicinae/colorscheme/default.nix) | Give Vicinae the bundled theme of the held color scheme. |  |
 | [<code>vicinae.compact-transition</code>](../../abstractions/modules/vicinae/compact-transition/default.nix) | Animate the Vicinae launcher window between its compact and expanded states. |  |
 | [<code>vicinae.selection-highlight</code>](../../abstractions/modules/vicinae/selection-highlight/default.nix) | Animate the Vicinae selection highlight as it moves between list items. |  |
-| [<code>web</code>](../../abstractions/modules/agents/mcp/web/default.nix) | Provide the web retrieval MCP server and its backend configuration. |  |
 | [<code>xdg</code>](../../abstractions/modules/xdg/default.nix) | Define the user's XDG base directories and export them to the user's environment. |  |
 | [<code>zellij</code>](../../abstractions/modules/zellij/default.nix) | Provide, configure and publish the Zellij terminal multiplexer, and own its configuration file. |  |
 | [<code>zellij.colorscheme</code>](../../abstractions/modules/zellij/colorscheme/default.nix) | Give Zellij the official theme of the held color scheme. |  |

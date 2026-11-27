@@ -3,9 +3,13 @@
   lib,
   ...
 }:
-delib.module ({cfg, ...}: {
+delib.module ({
+  cfg,
+  myconfig,
+  ...
+}: {
   name = "neovim.ai-completion";
-  tests.fixture = ["neovim"];
+  tests.fixture = ["neovim" "secrets"];
   meta.description = "Provide switchable inline AI completions through Minuet.";
 
   options = with delib; {
@@ -15,6 +19,15 @@ delib.module ({cfg, ...}: {
     anthropic.model = strOption "claude-sonnet-5-5";
     anthropic.endpoint = strOption "https://api.anthropic.iniad.org/api/v1/messages";
   };
+
+  constraints.ifEnabled = [
+    {
+      assertion = myconfig.secrets.enable;
+      message = "neovim.ai-completion.enable = true requires secrets.enable = true to decrypt ai-mop-api-key";
+    }
+  ];
+
+  myconfig.ifEnabled.secrets.required = ["ai-mop-api-key"];
 
   myconfig.ifEnabled.neovim.settings = {pkgs, ...}: {
     plugins.start = [pkgs.vimPlugins.minuet-ai-nvim];

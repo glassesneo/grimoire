@@ -70,7 +70,7 @@ delib.module ({myconfig, ...}: let
     };
   };
 in {
-  name = "web";
+  name = "mcp.web";
   tests.fixture = ["exclusive" "mcp" "secrets"];
   meta.description = "Provide the web retrieval MCP server and its backend configuration.";
 
@@ -79,7 +79,7 @@ in {
   constraints.ifEnabled = [
     {
       assertion = myconfig.secrets.enable;
-      message = "web requires secrets.enable = true to decrypt its provider keys";
+      message = "mcp.web.enable = true requires secrets.enable = true to decrypt its provider keys";
     }
   ];
 
@@ -109,8 +109,8 @@ in {
     ...
   }: {
     keys-come-from-nix-secrets = {
-      protects = "each provider reads the nix-secrets key of its own name, which enabling web decrypts";
-      host.myconfig.ifEnabled.web.enable = true;
+      protects = "each provider reads the nix-secrets key of its own name, which enabling mcp.web decrypts";
+      host.myconfig.ifEnabled.mcp.web.enable = true;
       build = result: let
         path = name: result.options.security.nix-secrets.secrets.value.${name}.path;
         expected = {

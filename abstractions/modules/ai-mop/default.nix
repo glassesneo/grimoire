@@ -5,7 +5,7 @@
 }:
 delib.module ({myconfig, ...}: {
   name = "ai-mop";
-  tests.fixture = ["agents" "nix-secrets"];
+  tests.fixture = ["agents" "nix-secrets" "secrets"];
   meta.description = "Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls.";
 
   options = {
@@ -20,6 +20,15 @@ delib.module ({myconfig, ...}: {
       description = "Directory holding `providers.ts`, which defines AI MOP's routes as pi-ai providers for agents built on pi-ai, which supply the `@earendil-works/pi-ai` it imports.";
     });
   };
+
+  constraints.ifEnabled = [
+    {
+      assertion = myconfig.secrets.enable;
+      message = "ai-mop.enable = true requires secrets.enable = true to decrypt ai-mop-api-key";
+    }
+  ];
+
+  myconfig.ifEnabled.secrets.required = ["ai-mop-api-key"];
 
   hjem.always = {config, ...}: let
     secrets = config.security.nix-secrets.secrets;

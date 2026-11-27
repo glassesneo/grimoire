@@ -69,20 +69,15 @@ delib.host {
       enable = true;
       remoteHosts = ["kurogane" "seiran-vm1"];
     };
-    web.enable = true;
+    mcp.web.enable = true;
     pi.mcpServers = ["web"];
     secrets.names = [
-      "ai-mop-api-key"
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
       "opencode-api-key"
       "mistral-api-key"
       "zai-api-key"
       "cohere-api-key"
-      "brave-api-key"
-      "brave-free-api-key"
-      "parallel-api-key"
-      "exa-api-key"
       "command-code-api-key"
     ];
   };

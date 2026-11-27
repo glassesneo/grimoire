@@ -15,7 +15,7 @@ delib.host {
     ssh.remote.enable = true;
     slack.enable = false;
     notion.enable = false;
-    web.enable = true;
+    mcp.web.enable = true;
     pi.mcpServers = ["web"];
     edith = {
       enable = true;
@@ -51,17 +51,12 @@ delib.host {
       };
     };
     secrets.names = [
-      "ai-mop-api-key"
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
       "opencode-api-key"
       "mistral-api-key"
       "zai-api-key"
       "cohere-api-key"
-      "brave-api-key"
-      "brave-free-api-key"
-      "parallel-api-key"
-      "exa-api-key"
       "command-code-api-key"
     ];
   };

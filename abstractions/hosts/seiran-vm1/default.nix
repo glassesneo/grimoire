@@ -18,7 +18,7 @@ delib.host {
       minFree = 5;
       maxFree = 15;
     };
-    web.enable = true;
+    mcp.web.enable = true;
     pi.mcpServers = ["web"];
     claude-code.unattended = true;
     antigravity-cli.unattended = true;
@@ -39,17 +39,12 @@ delib.host {
       providers = ["ai-mop-responses"];
     };
     secrets.names = [
-      "ai-mop-api-key"
       "vercel-ai-gateway-api-key"
       "openrouter-api-key"
       "opencode-api-key"
       "mistral-api-key"
       "zai-api-key"
       "cohere-api-key"
-      "brave-api-key"
-      "brave-free-api-key"
-      "parallel-api-key"
-      "exa-api-key"
       "command-code-api-key"
     ];
   };
