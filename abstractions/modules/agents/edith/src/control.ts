@@ -77,7 +77,7 @@ export const controlExtension = defineExtension({
         if (sleep) return { sleep };
         if (!pause || pause.epoch === 0) return undefined;
         const woke = await api.readSignal(Resumed, `pause-${pause.epoch}`, context);
-        return woke && "value" in woke && woke.value === "interject"
+        return woke?.kind === "value" && woke.value === "interject"
           ? { block: interjectedNote }
           : undefined;
       },

@@ -396,7 +396,7 @@ export class Edith {
         modelTools: equipment.modelTools,
         maxTurns: access.maxTurns,
       });
-      const id = await conversation.submit(tx, {
+      const id = await conversation.admit(tx, {
         ...draft,
         ...steer,
         type: "input",

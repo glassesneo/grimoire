@@ -70,6 +70,7 @@ Options that adapters add to their module systems.
 | [<code>ai-mop</code>](../../abstractions/modules/ai-mop/default.nix) | Provide an isolated Pi workbench for trying INIAD AI MOP models and tool calls. |  |
 | [<code>alacritty</code>](../../abstractions/modules/alacritty/default.nix) | Provide Alacritty terminal emulator. | <code>gui</code> |
 | [<code>alacritty.colorscheme</code>](../../abstractions/modules/alacritty/colorscheme/default.nix) | Give Alacritty the colors of the held color scheme. |  |
+| [<code>antigravity-cli</code>](../../abstractions/modules/agents/antigravity-cli/default.nix) | Provide the Google Antigravity CLI. |  |
 | [<code>app-identity</code>](../../abstractions/modules/app-identity/default.nix) | Expose nix-mac-app-identity helpers that give Nix-built macOS programs a code-signing identity surviving rebuilds. |  |
 | [<code>appcleaner</code>](../../abstractions/modules/appcleaner/default.nix) | Provide AppCleaner. | <code>gui</code> |
 | [<code>appearance</code>](../../abstractions/modules/appearance/default.nix) | Configure the system's visual appearance: color scheme, menu bar, and menu bar clock. |  |
