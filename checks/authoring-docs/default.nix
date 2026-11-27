@@ -1,7 +1,7 @@
 {
   pkgs,
   compose,
-  authoringDocs,
+  authoring,
 }: let
   inherit (pkgs) lib;
   render = import ../../lib/authoring.nix {inherit lib;};
@@ -41,12 +41,16 @@
   host = "\${myconfig.host.name}";
   rendered = renderModules [./fixture/z/default.nix ./fixture/w/default.nix (./fixture + "/a space/default.nix")];
   example = rendered.reference;
+  inherit (rendered) modules;
   options = rendered.moduleOptions.a;
-  section = heading: lib.head (lib.splitString "\n## " (lib.last (lib.splitString "\n## ${heading}\n" example)));
-  interfaces = section "Interfaces";
   fails = module: !(builtins.tryEval (renderModules [module]).reference).success;
+  evaluated =
+    builtins.deepSeq {
+      inherit (authoring) modules reference moduleOptions;
+    }
+    true;
 in {
-  protects = "the committed authoring reference is what the declarations render: every module, the options modules define for each other but not those upstream modules declare, markers for atomic and accumulating options, and defaults, links and descriptions as written; just options shows all of a module's options; every library function modules use is documented";
+  protects = "live authoring queries (`just modules`, `just reference`, `just options`) render cleanly from declarations: every repository declaration and adapter option has a description, every library function modules use is documented, and markers, defaults and paths render as written";
   check = assert documentedProbe 1 == 2;
   assert listed {
     x = {
@@ -57,15 +61,9 @@ in {
   } ["x.g"]
   == ["x.f"];
   assert !(builtins.tryEval (builtins.deepSeq (listed {x.f = value: value;} []) true)).success;
-  assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" example;
-  assert lib.hasInfix "(../../checks/authoring-docs/fixture/a%20space/default.nix)" example;
-  assert lib.hasInfix "| [<code>z</code>](../../checks/authoring-docs/fixture/z/default.nix) | Last |  |" (section "Modules");
-  assert map (lib.removePrefix "### ") (builtins.filter (lib.hasPrefix "### ") (lib.splitString "\n" interfaces)) == ["<code>a</code>"];
-  assert lib.hasInfix "| <code>a.value</code> | <code>string</code> | <code>\"x\"</code> | Value of a. |" interfaces;
-  assert !(lib.hasInfix "<code>a.bare</code>" interfaces);
-  assert !(lib.hasInfix "<code>w.enable</code>" interfaces);
-  assert lib.hasInfix "| <code>a.setting</code> |" interfaces;
-  assert !(lib.hasInfix "<code>a.upstream</code>" interfaces);
+  assert lib.hasInfix "A &#124; B<br>&lt;detail&gt;" modules;
+  assert lib.hasInfix "| <code>a</code> | <code>checks/authoring-docs/fixture/a space/default.nix</code> |" modules;
+  assert lib.hasInfix "| <code>z</code> | <code>checks/authoring-docs/fixture/z/default.nix</code> | Last |  |" modules;
   assert lib.hasInfix "| <code>a.upstream</code> |" options;
   assert lib.hasInfix "| a higher source replaces it whole |" options;
   assert lib.hasInfix "| collects every source's definitions |" options;
@@ -76,9 +74,10 @@ in {
   assert lib.hasInfix "| <code>a.tool</code> | <code>package</code> | <code>nixpkgs: hello</code> |  |" options;
   assert lib.hasInfix "| <code>a.lazy</code> | <code>lazy attribute set of string</code> | (computed) |  |" options;
   assert lib.hasInfix "| <code>a.setting</code> |" options;
+  assert lib.hasInfix "## Declarations" example;
   assert fails ./fixture/undocumented/default.nix;
-    pkgs.runCommand "authoring-docs-current" {} ''
-      diff -u ${../../docs/generated/authoring.md} ${authoringDocs}
+  assert evaluated;
+    pkgs.runCommandLocal "authoring-docs-check" {} ''
       touch "$out"
     '';
 }

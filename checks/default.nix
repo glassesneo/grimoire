@@ -5,7 +5,7 @@
   system,
   configuration,
   compose,
-  authoringDocs,
+  authoring,
   formatting,
   outputs,
   hosts,
@@ -36,7 +36,7 @@
   descriptorsOf = root:
     builtins.mapAttrs (name: _: let
       descriptor = lib.callPackageWith {
-        inherit inputs denix pkgs system configuration compose moduleTestInfo authoringDocs;
+        inherit inputs denix pkgs system configuration compose moduleTestInfo authoring;
       } (root + "/${name}/default.nix") {};
     in
       lib.optionalAttrs (descriptor ? platforms) {inherit (descriptor) platforms;}

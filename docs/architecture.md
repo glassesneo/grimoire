@@ -107,7 +107,7 @@ The index below names each mechanism; its option descriptions, documented functi
 - `lib/fragments.nix`: named fragments ordered by dependency, for a file that several features contribute to.
 - `lib/anchors.nix`: dependencies a module pins in its `anchors.json`, an npins lock file, read as sources or evaluated as flakes from their own lock files; `scripts/anchors.nu` lists, compares, and updates them.
 - `lib/documented.nix`: `mylib.documented` and the listing of library functions, which rejects an undocumented one.
-- `lib/authoring.nix`: the authoring reference, `docs/generated/authoring.md`, and the option listing of `just options`, rendered from declarations without generating a host configuration.
+- `lib/authoring.nix`: live authoring queries (`just modules`, `just reference`, and `just options`), rendered from declarations without generating a host configuration.
 - `scripts/bun.nu`: npm dependencies of a Bun project pinned for Nix in a `bun.nix` generated from its `bun.lock`, kept current by `checks/bun-lock`.
 - `git-hooks.nix`: development-shell installation of commit and push gates. `scripts/commit.nu` owns the index transaction, `scripts/checks.nu` selects checks from metadata, `scripts/pre-push.nu` verifies outgoing tip trees with the full gate of `scripts/gate.nu`.
 

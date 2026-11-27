@@ -10,7 +10,7 @@ def main [] {
     ]
     directoryChecks: [{name: external, directory: checks/external} {name: mechanism, directory: tests/mechanism}]
     hostChecks: [{name: host-a-darwin, directory: abstractions/hosts/a} {name: host-a-hjem, directory: abstractions/hosts/a}]
-    checkNames: [module-a module-b module-child external mechanism host-a-darwin host-a-hjem formatting authoring-docs]
+    checkNames: [module-a module-b module-child external mechanism host-a-darwin host-a-hjem formatting]
   }
   let all = [external host-a-darwin host-a-hjem mechanism module-a module-b module-child]
   for case in [

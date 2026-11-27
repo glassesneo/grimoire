@@ -4,7 +4,6 @@
   pkgs,
   moduleSystems,
   host ? null,
-  interfaceHost ? host,
   sources ? {},
   library ? [],
 }: let
@@ -13,8 +12,6 @@
   escape = lib.replaceStrings ["&" "<" ">" "|" "\r\n" "\n" "\r"] ["&amp;" "&lt;" "&gt;" "&#124;" "<br>" "<br>" "<br>"];
   code = text: "<code>${escape text}</code>";
   relative = file: lib.removePrefix rootPrefix (toString file);
-  url = file: "../../${lib.concatMapStringsSep "/" lib.escapeURL (lib.splitString "/" (relative file))}";
-  link = file: "[${code (relative file)}](${url file})";
 
   inRepository = file: lib.hasPrefix rootPrefix file;
   optionKinds = import ./sources.nix {
@@ -98,7 +95,7 @@
       ++ lib.optional (declaration != null && optionKinds.isAtomic declaration) "a higher source replaces it whole"
       ++ lib.optional (declaration != null && optionKinds.isAccumulating declaration) "collects every source's definitions";
   in "| ${code (strip option.name)} | ${code option.type} | ${renderedDefault} | ${escape (lib.concatStringsSep "; " (flags ++ lib.optional (description != "") description))} |${
-    lib.optionalString withSource " ${lib.concatMapStringsSep "<br>" link option.declarations} |"
+    lib.optionalString withSource " ${lib.concatMapStringsSep "<br>" (file: code (relative file)) option.declarations} |"
   }";
 
   table = {withSource ? false, ...} @ args: entries:
@@ -147,60 +144,6 @@
   ownOf = name: myconfigByOwner.${name} or [];
   declaredOf = name: lib.filterAttrs (_: entries: entries != []) (lib.genAttrs (builtins.attrNames systemEntries) (declaredBy name));
   tagsOf = name: lib.concatMapStringsSep ", " code configuration.config.modules.${name}.meta.tags;
-  sourceLinks = name: lib.concatMapStringsSep ", " (file: "[${code name}](${url file})") (sourcesOf name);
-
-  optionAt = options: loc: let
-    option = lib.attrByPath loc null options;
-  in
-    if lib.isOption option
-    then option
-    else null;
-  enableLoc = name: ["myconfig"] ++ lib.splitString "." name ++ ["enable"];
-  switchable = name: let
-    option = optionAt myconfigOptions (enableLoc name);
-  in
-    option != null && !(option.readOnly or false);
-  # Definitions in `ifEnabled` sections exist only while their module is
-  # enabled, and reading where a definition comes from evaluates the values
-  # it depends on, so definers are read from a host that enables every module
-  # and selects a rice.
-  enabledOptions =
-    (lib.evalModules {
-      modules =
-        [
-          (configuration.genModule ({moduleSystem = "myconfig";} // lib.optionalAttrs (interfaceHost != null) {host = interfaceHost;}))
-          {_module.args.pkgs = pkgs;}
-        ]
-        ++ map (name: {config = lib.setAttrByPath (enableLoc name) (lib.mkForce true);}) (lib.filter switchable moduleNames);
-    }).options;
-  definers = options: entry: let
-    option = optionAt options entry.loc;
-  in
-    if option == null
-    then []
-    else
-      lib.filter (label: label != null && lib.elemAt label 0 == "module")
-      (map (definition: labelOf (toString definition.file)) option.definitionsWithLocations);
-  writtenElsewhere = entry: let
-    owner = ownerOf (lib.tail entry.loc);
-    leaf = lib.last entry.loc;
-    seating = leaf == "enable" || (lib.hasPrefix "roles." owner && leaf == "holder");
-  in
-    !seating && lib.any (label: lib.elemAt label 1 != owner) (definers enabledOptions entry);
-  interfaceRoots = map (entry: entry.loc) (lib.filter writtenElsewhere myconfigEntries);
-  inInterface = entry: lib.any (root: lib.lists.hasPrefix root entry.loc) interfaceRoots;
-  # Options an imported upstream module declares are documented upstream.
-  writtenHere = options: entry: let
-    declaration = declarationOf options entry.loc;
-  in
-    if declaration != null && declaration ? declarationPositions
-    then lib.any (position: inRepository position.file) declaration.declarationPositions
-    else lib.any (file: inRepository file || labelOf file != null) entry.declarations;
-  interfaceOf = name: lib.filter (entry: inInterface entry && writtenHere myconfigOptions entry) (ownOf name);
-  interfaceDeclared = name:
-    lib.filterAttrs (_: entries: entries != [])
-    (lib.mapAttrs (system: lib.filter (writtenHere moduleSystems.${system})) (declaredOf name));
-  interfaceOwners = lib.filter (name: interfaceOf name != [] || interfaceDeclared name != {}) moduleNames;
 
   systemTables = declared:
     lib.concatLists (lib.mapAttrsToList (system: entries: [
@@ -244,21 +187,11 @@
 
   moduleIndex =
     lib.concatStringsSep "\n" ([
-        "| Module | Responsibility | Tags |"
-        "| --- | --- | --- |"
+        "| Module | Source | Responsibility | Tags |"
+        "| --- | --- | --- | --- |"
       ]
-      ++ map (name: "| ${sourceLinks name} | ${escape configuration.config.modules.${name}.meta.description} | ${tagsOf name} |") moduleNames)
+      ++ map (name: "| ${code name} | ${lib.concatMapStringsSep ", " (file: code (relative file)) (sourcesOf name)} | ${escape configuration.config.modules.${name}.meta.description} | ${tagsOf name} |") moduleNames)
     + "\n";
-
-  interfaceSection = name:
-    lib.concatStringsSep "\n" (
-      [
-        "### ${code name}"
-        ""
-      ]
-      ++ myconfigTable (interfaceOf name)
-      ++ systemTables (interfaceDeclared name)
-    );
 
   libraryIndex =
     lib.concatStringsSep "\n" ([
@@ -270,7 +203,7 @@
       in "| ${code entry.name} | ${
         if position == null
         then ""
-        else link position.file
+        else code (relative position.file)
       } |")
       library)
     + "\n";
@@ -302,10 +235,13 @@ in
   assert lib.assertMsg (unowned == []) "authoring: myconfig options outside any module: ${toString (map (option: option.name) unowned)}"; {
     moduleOptions = lib.genAttrs moduleNames moduleSection;
 
-    reference = ''
-      # Authoring
+    modules = ''
+      # Modules
 
-      Generated from module, host and option declarations. Do not edit; run `just docs`. `just options <module>` shows every option of a module.
+      ${moduleIndex}'';
+
+    reference = ''
+      # Authoring Reference
 
       ## Declarations
 
@@ -317,15 +253,7 @@ in
 
       Options that adapters add to their module systems.
 
-      ${lib.concatStringsSep "\n" (lib.filter (section: section != "") (map adapterSection (builtins.attrNames moduleSystems)))}
-      ## Modules
-
-      ${moduleIndex}
-      ## Interfaces
-
-      Options that other modules define, and options that modules add to other module systems, by the module that declares them.
-
-      ${lib.concatStringsSep "\n" (map interfaceSection interfaceOwners)}${lib.optionalString (library != []) ''
+      ${lib.concatStringsSep "\n" (lib.filter (section: section != "") (map adapterSection (builtins.attrNames moduleSystems)))}${lib.optionalString (library != []) ''
 
         ## Library
 

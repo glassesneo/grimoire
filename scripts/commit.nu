@@ -1,4 +1,3 @@
-use ./docs.nu
 use ./checks.nu [select-checks build-checks]
 
 const empty = "0000000000000000000000000000000000000000"
@@ -18,7 +17,6 @@ export def main [] {
         # never be reused.
         ^nix fmt --no-update-lock-file -- --no-cache
       }
-      docs --root $snapshot
 
       let scratch = $"($snapshot).index"
       cp $index $scratch
@@ -38,7 +36,7 @@ export def main [] {
       let pending = (^git diff --name-only -z | split row (char nul)) ++ (^git ls-files --others --exclude-standard -z | split row (char nul))
       let blocked = $fixes.path | where {|path| $path in $pending }
       if ($blocked | is-not-empty) {
-        error make {msg: $"Automatic fixes would overwrite unstaged or untracked work in:\n  ($blocked | str join "\n  ")\nRun `nix fmt` and `just docs`, stage what belongs to this commit, and commit again."}
+        error make {msg: $"Automatic fixes would overwrite unstaged or untracked work in:\n  ($blocked | str join "\n  ")\nRun `nix fmt`, stage what belongs to this commit, and commit again."}
       }
 
       if ($fixes | is-not-empty) {

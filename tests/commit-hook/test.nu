@@ -118,7 +118,7 @@ def main [hooks: string] {
       assert equal (git status --porcelain) $before_status
       assert equal (git diff) $before_diff
       assert equal (open --raw $pending) "keep this work\n"
-      assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\n"
+      assert equal (open --raw $env.NIX_CALLS) "fmt\n"
     }
   }
 
@@ -135,19 +135,17 @@ def main [hooks: string] {
       }
       let output = $result.stdout + $result.stderr
       assert equal ($result.exit_code != 0) $fail_check $output
-      assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\nfast-build\n"
+      assert equal (open --raw $env.NIX_CALLS) "fmt\neval\neval\nfast-build\n"
       assert ($output | str contains sample.nix)
       assert ($output | str contains hook-new.txt)
       assert (not ($output | lines | any {|line|
         ($line | str contains user-change.txt) and ($line | str contains '|')
       }))
       assert equal (git show :sample.nix) "formatted\n"
-      assert equal (git show :docs/generated/authoring.md) "generated reference\n"
       assert equal (git show :hook-new.txt) "created by hook\n"
       assert equal (git show :other.txt) "other\n"
       assert equal (git ls-files obsolete.txt ignored later.txt) ""
       assert equal (open --raw sample.nix) "formatted\n"
-      assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
       assert equal (open --raw hook-new.txt) "created by hook\n"
       assert (not ('obsolete.txt' | path exists))
       assert equal (open --raw other.txt) "unstaged edit\n"
@@ -158,7 +156,6 @@ def main [hooks: string] {
         assert (git diff --cached --name-only | is-not-empty)
       } else {
         assert equal (git status --porcelain) " M other.txt\n?? later.txt\n"
-        assert equal (git show HEAD:docs/generated/authoring.md) "generated reference\n"
       }
     }
   }
@@ -191,7 +188,7 @@ def main [hooks: string] {
   with-repo $hooks {
     let result = with-env {ZERO_CHECKS: '1'} { ^git commit -m zero | complete }
     assert equal $result.exit_code 0 ($result.stdout + $result.stderr)
-    assert equal (open --raw $env.NIX_CALLS) "fmt\nbuild\neval\neval\n"
+    assert equal (open --raw $env.NIX_CALLS) "fmt\neval\neval\n"
   }
 
   for fail_only in ['' second] {

@@ -25,12 +25,16 @@ mod bun 'just/bun.just'
 fmt:
   nix fmt
 
-# Regenerate docs/generated/authoring.md from declarations without staging it.
-docs:
-  nu --no-config-file scripts/docs.nu
+# List every module, its source file, responsibility, and tags.
+modules:
+  nix eval --raw --no-update-lock-file '.#lib.authoring.modules'
+
+# Show declaration options, adapter module-system options, and library functions.
+reference:
+  nix eval --raw --no-update-lock-file '.#lib.authoring.reference'
 
 # Show a module's options, including those it adds to other module systems.
-[arg('module', help='Module name, as listed under Modules in docs/generated/authoring.md')]
+[arg('module', help='Module name, as listed by `just modules`')]
 options module:
   nix eval --raw --no-update-lock-file '.#lib.moduleOptions."{{ module }}"'
 

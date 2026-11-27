@@ -56,7 +56,6 @@
       host = "\${myconfig.host.name}";
       userName = "\${myconfig.host.user.name}";
       homeDirectory = "\${myconfig.host.user.homeDirectory}";
-      interfaceHost = "interfaces";
       placeholder = configuration.extendModules {
         modules = [
           ({delib, ...}:
@@ -68,20 +67,10 @@
                 inherit homeDirectory;
               };
             })
-          ({delib, ...}:
-            delib.host {
-              name = interfaceHost;
-              system = docsSystem;
-              rice = "default";
-              user = {
-                name = userName;
-                inherit homeDirectory;
-              };
-            })
         ];
       };
     in {
-      inherit host interfaceHost;
+      inherit host;
       library = mylib.library {
         entries = {
           inherit mylib;
@@ -160,8 +149,7 @@
             enable = true;
             disabled-lints = ["repeated_keys"];
           };
-          # Bun rewrites package.json, and docs/generated is compared with `just
-          # docs` output.
+          # Bun rewrites package.json.
           oxfmt = {
             enable = true;
             includes = ["*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs"];
@@ -193,13 +181,11 @@
         }).packages;
       existingPackages = {
         hjem = inputs.hjem.packages.${system}.hjem;
-        authoring-docs = authoringDocs;
       };
       packageCollisions = builtins.attrNames (builtins.intersectAttrs existingPackages publishedBundles);
 
-      authoringDocs = pkgs.writeText "authoring.md" authoring.reference;
       checkOutputs = import ./checks {
-        inherit inputs denix pkgs system configuration compose authoringDocs;
+        inherit inputs denix pkgs system configuration compose authoring;
         formatting = treefmt.config.build.check self;
         outputs = {
           packages = self.packages.${system};
@@ -252,6 +238,9 @@
     formatter = lib.mapAttrs (_: outputs: outputs.formatter) perSystem;
     checks = lib.mapAttrs (_: outputs: outputs.checks) perSystem;
     lib.checks = lib.mapAttrs (_: outputs: outputs.checkOutputs.metadata) perSystem;
+    lib.authoring = {
+      inherit (authoring) modules reference;
+    };
     lib.moduleOptions = authoring.moduleOptions;
     lib.compose = compose;
 

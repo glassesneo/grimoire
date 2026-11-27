@@ -58,7 +58,6 @@ def --wrapped main [...args: string] {
       }
       eval => {
         assert equal (open --raw sample.nix) "formatted\n"
-        assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
         if '--raw' in $args { print 'test-system' } else {
           let selective = $env.SELECTIVE? | is-not-empty
           let roots = if $selective {
@@ -67,7 +66,7 @@ def --wrapped main [...args: string] {
             }
           } else { [] }
           let names = if ($env.ZERO_CHECKS? | is-not-empty) { [] } else if $selective { ['selected.case' unselected] } else if ($env.MANY_CHECKS? | is-not-empty) { ['selected.case' second third] } else { ['selected.case'] }
-          {moduleRoots: $roots, directoryChecks: [], hostChecks: [], checkNames: ($names ++ [formatting authoring-docs])} | to json | print
+          {moduleRoots: $roots, directoryChecks: [], hostChecks: [], checkNames: ($names ++ [formatting])} | to json | print
         }
       }
       fast-build => {
@@ -75,17 +74,11 @@ def --wrapped main [...args: string] {
           mkdir $env.CHECK_BUILDS
           touch ($env.CHECK_BUILDS | path join $name)
           assert equal (open --raw sample.nix) "formatted\n"
-          assert equal (open --raw docs/generated/authoring.md) "generated reference\n"
           assert equal (open --raw other.txt) $env.EXPECT_OTHER
           assert (not ('later.txt' | path exists))
           assert (not ('ignored' | path exists))
           ($env.FAIL_CHECK? | is-empty) and ($env.FAIL_ONLY? != $name)
         }
-      }
-      build => {
-        let reference = mktemp --tmpdir
-        "generated reference\n" | save --force $reference
-        print $reference
       }
       _ => { error make {msg: $"Unexpected Nix command: ($command)"} }
     }

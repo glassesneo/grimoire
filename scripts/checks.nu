@@ -26,7 +26,7 @@ export def select-checks [metadata: record, changes: list<record>] {
         if ($checks | is-not-empty) { $checks.name } else if (in-check-directory $change) or (unchecked $path) { [] } else { $all }
       }
     }
-  } | flatten | where {|name| $name in $all and $name not-in [formatting authoring-docs] } | uniq | sort
+  } | flatten | where {|name| $name in $all and $name != 'formatting' } | uniq | sort
 }
 
 # nix-fast-build records an attribute name that contains `.` inside the quotes
