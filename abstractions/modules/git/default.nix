@@ -60,11 +60,25 @@ delib.module ({myconfig, ...}: {
       tag.gpgsign = true;
       gpg.format = "ssh";
       gpg.ssh.allowedSignersFile = "${pkgs.writeText "allowed-signers" "${myconfig.identity.email} ${myconfig.ssh.keys.signing.publicKey}\n"}";
+      merge.conflictStyle = "zdiff3";
+      rerere.enabled = true;
       push.default = "nothing";
       init.defaultBranch = "main";
-      diff.tool = "difftastic";
+      diff = {
+        tool = "difftastic";
+        external = "${pkgs.difftastic}/bin/difft";
+      };
       difftool.difftastic.cmd = "${pkgs.difftastic}/bin/difft \"$LOCAL\" \"$REMOTE\"";
-      core.excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
+      core = {
+        excludesFile = "${pkgs.writeText "git-ignore" (lib.concatLines config.git.ignore)}";
+        fsmonitor = true;
+        untrackedCache = true;
+      };
+      fetch = {
+        parallel = 0;
+        writeCommitGraph = true;
+      };
+      gc.writeCommitGraph = true;
       filter.lfs = {
         clean = "git-lfs clean -- %f";
         smudge = "git-lfs smudge -- %f";

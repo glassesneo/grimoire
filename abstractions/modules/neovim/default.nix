@@ -73,9 +73,30 @@ in
         (pkgs.vimPlugins.snacks-nvim
           // {dependencies = lib.unique ((pkgs.vimPlugins.snacks-nvim.dependencies or []) ++ cfg.snacksDependencies);})
       ];
-      initLua = lib.optionalString (cfg.snacks != {}) ''
-        require("snacks").setup(${lib.generators.toLua {} cfg.snacks})
-      '';
+      initLua = lib.mkMerge [
+        (lib.mkBefore ''
+          vim.loader.enable()
+          for _, plugin in ipairs({
+            "gzip",
+            "tarPlugin",
+            "tohtml",
+            "tutor",
+            "zipPlugin",
+            "netrw",
+            "netrwPlugin",
+            "netrwSettings",
+            "netrwFileHandlers",
+          }) do
+            vim.g["loaded_" .. plugin] = 1
+          end
+          for _, provider in ipairs({ "node", "perl", "python3", "ruby" }) do
+            vim.g["loaded_" .. provider .. "_provider"] = 0
+          end
+        '')
+        (lib.optionalString (cfg.snacks != {}) ''
+          require("snacks").setup(${lib.generators.toLua {} cfg.snacks})
+        '')
+      ];
       neovim = neovim-nightly-overlay.packages.${pkgs.stdenv.system}.default;
       plugins.dev.grimoire = {
         pure = ./config;

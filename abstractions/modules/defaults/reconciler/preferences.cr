@@ -155,8 +155,11 @@ module HjemDefaults
     end
 
     def blocked?(domain : String, path : Array(String)) : Bool
-      read(domain, path)
-      false
+      return false if path.size == 1
+      top(domain, path) do |_, top|
+        Plist.at(top, path)
+        false
+      end
     rescue Blocked
       true
     end

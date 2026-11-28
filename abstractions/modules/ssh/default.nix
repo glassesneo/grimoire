@@ -110,6 +110,11 @@ in
         AddKeysToAgent = true;
         IdentitiesOnly = true;
         UseKeychain = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin true;
+        ControlMaster = "auto";
+        ControlPath = "~/.ssh/cm-%C";
+        ControlPersist = "10m";
+        ServerAliveInterval = 30;
+        ServerAliveCountMax = 3;
       };
 
       # ssh takes the first value it obtains for a parameter, so `Host *` comes

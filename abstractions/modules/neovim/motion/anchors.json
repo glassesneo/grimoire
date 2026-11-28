@@ -1,0 +1,21 @@
+{
+  "pins": {
+    "eyeliner-nvim": {
+      "type": "GitRelease",
+      "repository": {
+        "type": "GitHub",
+        "owner": "jinh0",
+        "repo": "eyeliner.nvim"
+      },
+      "pre_releases": false,
+      "version_upper_bound": null,
+      "release_prefix": null,
+      "submodules": false,
+      "version": "v0.2.0",
+      "revision": "7c539e91b6608661162617be2a4be3f454e423cb",
+      "url": "https://api.github.com/repos/jinh0/eyeliner.nvim/tarball/refs/tags/v0.2.0",
+      "hash": "sha256-hIXSu8eH4QufpUa1JOX/dMfxaFEVSnsV0wA4vOQ/XiU="
+    }
+  },
+  "version": 8
+}

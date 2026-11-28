@@ -98,7 +98,10 @@ delib.module ({
     ssh.matches = lib.listToAttrs (map (host:
       lib.nameValuePair "rex-${host}" {
         criteria = ''originalhost ${host} exec "/bin/ps -o command= -p $PPID | /usr/bin/grep -Eq '/rex/ssh/[0-9a-f]+[.]sock:'"'';
-        parameters.RemoteForward = "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket} ${socket}";
+        parameters = {
+          ControlMaster = false;
+          RemoteForward = "${myconfig.host.user.homeDirectory}/${myconfig.ssh.rexAgentSocket} ${socket}";
+        };
       })
     cfg.remoteHosts);
 

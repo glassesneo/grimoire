@@ -1,3 +1,5 @@
+typeset -U path fpath
+
 bindkey -e
 
 # SKK passes Ctrl-J and Ctrl-L through when already in that mode; the shell

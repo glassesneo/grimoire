@@ -2,7 +2,6 @@ local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 vim.env.AI_MOP_API_KEY = "synthetic-key"
 vim.env.AI_MOP_API_KEY_FILE = nil
-local config = require("minuet").config
 local policy = require("grimoire.ai_completion")
 local sent = 0
 vim.system = function (command)
@@ -20,7 +19,7 @@ local context = {
   opts = { is_incomplete_before = false, is_incomplete_after = false },
 }
 local function attempt(allowed)
-  assert(config.enable_predicates[1]() == allowed, "automatic request policy differs")
+  assert(require("minuet").config.enable_predicates[1]() == allowed, "automatic request policy differs")
   for _, provider in ipairs({ "openai_compatible", "claude" }) do
     vim.cmd("Minuet change_provider " .. provider)
     local before = sent
@@ -69,7 +68,7 @@ attempt(false)
 
 edit("main.lua", true)
 vim.env.AI_MOP_API_KEY = nil
-assert(not config.enable_predicates[1](), "missing credentials must disable automatic requests")
+assert(not require("minuet").config.enable_predicates[1](), "missing credentials must disable automatic requests")
 local file = root .. "/key.txt"
 vim.fn.writefile({ "  file-key  " }, file)
 vim.env.AI_MOP_API_KEY_FILE = file

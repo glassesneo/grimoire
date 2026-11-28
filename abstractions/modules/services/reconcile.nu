@@ -124,53 +124,60 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
     let removed = $known | columns | where {|name| $name not-in $names }
     let changed = $desired | where {|service| ($known | get --optional $service.name | get --optional file) != $service.file } | get name
     let activated = $desired | where {|service| $service.automatic and ($known | get --optional $service.name | get --optional automatic) != true } | get name
-    let before = $names | where {|name| started $manifest $name }
+    let has_restart_on_switch = $desired | any {|service| $service.restartOnSwitch }
+    if ($removed | is-not-empty) or ($changed | is-not-empty) or ($activated | is-not-empty) or $has_restart_on_switch {
+      let before = $names | where {|name| started $manifest $name }
 
-    for name in $changed {
-      if not (ctl-ok $manifest reload $name) {
+      for name in $changed {
+        if not (ctl-ok $manifest reload $name) {
+          ctl $manifest stop --force --ignore-unstarted $name | ignore
+          if not (ctl-ok $manifest reload $name) { $failed = ($failed | append $name) }
+        }
+      }
+      for name in $removed {
         ctl $manifest stop --force --ignore-unstarted $name | ignore
-        if not (ctl-ok $manifest reload $name) { $failed = ($failed | append $name) }
       }
-    }
-    for name in $removed {
-      ctl $manifest stop --force --ignore-unstarted $name | ignore
-    }
-    $failed = ($failed ++ (unload $manifest $removed))
+      $failed = ($failed ++ (unload $manifest $removed))
 
-    let running = $desired | where {|service| started $manifest $service.name } | get name
-    mut restarted = []
-    mut restarts = []
-    mut starts = []
-    for service in $desired {
-      let rerun = $service.name in $changed or $service.restartOnSwitch
-      if $service.name in $failed {
-        if $service.name in $before and $service.name not-in $running {
-          request-start $manifest $service | ignore
-        }
-      } else if $service.name in $running {
-        if $rerun and $service.type != "internal" and $service.name not-in $restarted {
-          if (ctl-ok $manifest restart --no-wait --force $service.name) {
-            $restarted = ($restarted ++ $service.dependents)
-            $restarts = ($restarts | append $service.name)
-          } else {
-            $failed = ($failed | append $service.name)
-          }
-        }
-      } else if $service.name in $before or ($service.automatic and ($rerun or $service.name in $activated)) {
-        $starts = ($starts | append $service)
+      let running = if ($changed | is-empty) and ($removed | is-empty) {
+        $before
+      } else {
+        $desired | where {|service| started $manifest $service.name } | get name
       }
-    }
-    for service in ($starts | reverse) {
-      if not (request-start $manifest $service) { $failed = ($failed | append $service.name) }
-    }
-    let refused = $failed
-    let started = $starts | get --optional name | default [] | where {|name| $name not-in $refused }
-    let requests = [
-      (if ($restarts | is-not-empty) { $"restart requested for ($restarts | str join ', ')" })
-      (if ($started | is-not-empty) { $"start requested for ($started | str join ', ')" })
-    ] | compact
-    if ($requests | is-not-empty) {
-      print $"Hjem services: ($requests | str join '; '). These requests are not awaited: `dinitctl status <name>` shows whether each came up."
+      mut restarted = []
+      mut restarts = []
+      mut starts = []
+      for service in $desired {
+        let rerun = $service.name in $changed or $service.restartOnSwitch
+        if $service.name in $failed {
+          if $service.name in $before and $service.name not-in $running {
+            request-start $manifest $service | ignore
+          }
+        } else if $service.name in $running {
+          if $rerun and $service.type != "internal" and $service.name not-in $restarted {
+            if (ctl-ok $manifest restart --no-wait --force $service.name) {
+              $restarted = ($restarted ++ $service.dependents)
+              $restarts = ($restarts | append $service.name)
+            } else {
+              $failed = ($failed | append $service.name)
+            }
+          }
+        } else if $service.name in $before or ($service.automatic and ($rerun or $service.name in $activated)) {
+          $starts = ($starts | append $service)
+        }
+      }
+      for service in ($starts | reverse) {
+        if not (request-start $manifest $service) { $failed = ($failed | append $service.name) }
+      }
+      let refused = $failed
+      let started = $starts | get --optional name | default [] | where {|name| $name not-in $refused }
+      let requests = [
+        (if ($restarts | is-not-empty) { $"restart requested for ($restarts | str join ', ')" })
+        (if ($started | is-not-empty) { $"start requested for ($started | str join ', ')" })
+      ] | compact
+      if ($requests | is-not-empty) {
+        print $"Hjem services: ($requests | str join '; '). These requests are not awaited: `dinitctl status <name>` shows whether each came up."
+      }
     }
   } else {
     print "Hjem services: dinit started and starts the automatic services itself; `dinitctl list` shows their state."
@@ -183,7 +190,10 @@ def main [closure: path, home: path, --launchctl: string = "/bin/launchctl", --u
   let services = $failures | where {|name| $name not-in $names } | reduce --fold $applied {|name, recorded|
     $recorded | insert $name ($known | get $name)
   }
-  save-atomic $state_file ({agent: $plist, services: $services} | to json)
+  let next_state = {agent: $plist, services: $services}
+  if not ($state_file | path exists) or $next_state != $state {
+    save-atomic $state_file ($next_state | to json)
+  }
 
   if ($failures | is-not-empty) {
     error make {msg: $"Hjem services: failed to apply ($failures | str join ', '). The other services were applied, and the next switch retries these. dinit logs to ~/Library/Logs/dinit.log."}

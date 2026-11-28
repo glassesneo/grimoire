@@ -60,8 +60,10 @@ delib.module ({
     nixpkgs.config.allowUnfreePackages = ["tart"];
     packages = [cfg.package];
 
-    ssh.matches.tart = {
-      criteria = ''exec "test -d ~/.tart/vms/'%n'"'';
+    ssh.matches.tart = let
+      excluded = builtins.attrNames (lib.filterAttrs (_: params: params ? HostName) config.ssh.hosts);
+    in {
+      criteria = ''${lib.optionalString (excluded != []) "!host ${lib.concatStringsSep "," excluded} "}exec "test -d ~/.tart/vms/'%n'"'';
       parameters.ProxyCommand = "${proxy} %n %p";
     };
   };

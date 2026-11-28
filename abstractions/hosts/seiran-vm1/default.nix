@@ -17,6 +17,8 @@ delib.host {
     nix = {
       minFree = 5;
       maxFree = 15;
+      gcRetention = "3d";
+      keepOutputs = false;
     };
     mcp.web.enable = true;
     pi.mcpServers = ["web"];

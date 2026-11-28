@@ -253,6 +253,8 @@
       url = "github:yunfachi/denix/rewrite";
       inputs = {
         nixpkgs.follows = "nixpkgs";
+        nixpkgs-lib.follows = "nixpkgs";
+        git-hooks.follows = "git-hooks";
       };
     };
     nix-darwin = {
@@ -271,7 +273,10 @@
       url = "github:unnamed-systems/nix-secrets/857a7594bc4cd65533bc9fcdd056dc843e10e441";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    llm-agents.url = "github:numtide/llm-agents.nix";
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
     # nix-community/bun2nix rejects the lockfile version 2 written by Bun 1.4
     # (nix-community/bun2nix#110); llm-agents carries a fork that accepts it.
     bun2nix.follows = "llm-agents/bun2nix";

@@ -10,6 +10,8 @@ delib.module ({
   options = with delib; {
     minFree = intOption 50 "GiB of free space below which the daemon collects garbage during builds and copies; it must stay below what the host's disk can keep free, or every addition to the store runs a collection.";
     maxFree = intOption 150 "GiB of free space at which such a collection stops.";
+    gcRetention = strOption "14d" "Age threshold passed to `nix-collect-garbage --delete-older-than`.";
+    keepOutputs = boolOption true "Whether the garbage collector keeps build-time outputs of derivations still in the store, avoiding rebuilds of development shells.";
   };
 
   darwin.always = {pkgs, ...}: {
@@ -23,6 +25,10 @@ delib.module ({
       trusted-users = ["root" "@admin" myconfig.host.user.name];
       min-free = cfg.minFree * 1024 * 1024 * 1024;
       max-free = cfg.maxFree * 1024 * 1024 * 1024;
+      connect-timeout = 5;
+      fallback = true;
+      use-xdg-base-directories = true;
+      keep-outputs = cfg.keepOutputs;
     };
 
     nix.gc = {
@@ -32,7 +38,7 @@ delib.module ({
         Hour = 0;
         Minute = 0;
       };
-      options = "--delete-older-than 3d";
+      options = "--delete-older-than ${cfg.gcRetention}";
     };
 
     nix.optimise = {

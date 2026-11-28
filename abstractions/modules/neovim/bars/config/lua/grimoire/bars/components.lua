@@ -30,13 +30,54 @@ function M.path()
   end, "Directory")
 end
 
+local project_cache = {}
+local readable_cache = {}
+local hl_cache = {}
+
+local cache_group = vim.api.nvim_create_augroup("grimoire.bars.cache", { clear = true })
+vim.api.nvim_create_autocmd("BufWipeout", {
+  group = cache_group,
+  callback = function (args)
+    project_cache[args.buf] = nil
+    readable_cache[args.buf] = nil
+  end,
+})
+vim.api.nvim_create_autocmd("DirChanged", {
+  group = cache_group,
+  callback = function ()
+    project_cache = {}
+  end,
+})
+vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "BufFilePost" }, {
+  group = cache_group,
+  callback = function (args)
+    readable_cache[args.buf] = nil
+  end,
+})
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = cache_group,
+  callback = function ()
+    hl_cache = {}
+  end,
+})
+
 function M.project()
   return text(function (buf)
-    if vim.bo[buf].buftype ~= "" or vim.api.nvim_buf_get_name(buf) == "" then
+    if vim.bo[buf].buftype ~= "" then
       return
     end
+    local name = vim.api.nvim_buf_get_name(buf)
+    if name == "" then
+      return
+    end
+    local cached = project_cache[buf]
+    if cached and cached.name == name then
+      return cached.value
+    end
     local root = vim.fs.root(buf, { ".git" })
-    return root and vim.fn.fnamemodify(root, ":t")
+    local value = root and vim.fn.fnamemodify(root, ":t") or nil
+    project_cache[buf] = { name = name, value = value }
+    return value
   end, "Directory")
 end
 
@@ -56,8 +97,18 @@ function M.flags()
       flags[#flags + 1] = "[RO]"
     end
     local name = vim.api.nvim_buf_get_name(buf)
-    if name ~= "" and vim.bo[buf].buftype == "" and not name:match("^%a[%w+.-]*://") and vim.fn.filereadable(name) == 0 then
-      flags[#flags + 1] = "[New]"
+    if name ~= "" and vim.bo[buf].buftype == "" and not name:match("^%a[%w+.-]*://") then
+      local cached = readable_cache[buf]
+      local readable
+      if cached and cached.name == name then
+        readable = cached.value
+      else
+        readable = vim.uv.fs_stat(name) ~= nil
+        readable_cache[buf] = { name = name, value = readable }
+      end
+      if not readable then
+        flags[#flags + 1] = "[New]"
+      end
     end
     return table.concat(flags, " ")
   end)
@@ -84,9 +135,15 @@ function M.mode(glyphs)
     provider = (glyphs or "█"):gsub("%%", "%%%%"),
     hl = function ()
       local group = mode_groups[vim.fn.mode(1):sub(1, 1)] or mode_groups.n
+      local cached = hl_cache[group]
+      if cached then
+        return cached
+      end
       local fg = vim.api.nvim_get_hl(0, { name = group, link = false }).fg
       local bg = vim.api.nvim_get_hl(0, { name = "StatusLine", link = false }).bg
-      return { fg = fg or "NONE", bg = bg or "NONE" }
+      local result = { fg = fg or "NONE", bg = bg or "NONE" }
+      hl_cache[group] = result
+      return result
     end,
   }
 end
@@ -107,17 +164,24 @@ function M.git_diff()
 end
 
 function M.diagnostics()
-  local component = {}
+  local component = {
+    init = function (self)
+      self.diagnostic_counts = vim.diagnostic.count(buffer(self))
+    end,
+  }
   for _, spec in ipairs({
     { vim.diagnostic.severity.ERROR, "E", "DiagnosticError" },
     { vim.diagnostic.severity.WARN, "W", "DiagnosticWarn" },
     { vim.diagnostic.severity.INFO, "I", "DiagnosticInfo" },
     { vim.diagnostic.severity.HINT, "H", "DiagnosticHint" },
   }) do
-    component[#component + 1] = text(function (buf)
-      local count = vim.diagnostic.count(buf)[spec[1]] or 0
-      return count > 0 and (spec[2] .. count .. " ") or ""
-    end, spec[3])
+    component[#component + 1] = {
+      provider = function (self)
+        local count = (self.diagnostic_counts or {})[spec[1]] or 0
+        return count > 0 and (spec[2] .. count .. " ") or ""
+      end,
+      hl = spec[3],
+    }
   end
   return component
 end

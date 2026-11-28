@@ -40,7 +40,7 @@ def push [stage: string, target: string, ...paths: string] {
 # replaces its persistent root.
 def select-flake [source: string, roots: string]: nothing -> record {
   if ($source | is-empty) {
-    return {ref: (flake-root), flags: []}
+    return {ref: (flake-root), flags: [], path: null}
   }
   if $source !~ '^/nix/store/[0-9a-z]{32}-source$' {
     error make {msg: "--flake must be a local candidate source store path"}
@@ -48,26 +48,43 @@ def select-flake [source: string, roots: string]: nothing -> record {
   step "Candidate source GC root" {
     ^nix-store --add-root ($roots | path join source) --realise $source | str trim | ignore
   }
-  {ref: $"path:($source)", flags: ["--no-update-lock-file"]}
+  {ref: $"path:($source)", flags: ["--no-update-lock-file"], path: $source}
+}
+
+def flake-source [flake: record]: nothing -> string {
+  if $flake.path != null { return $flake.path }
+  ^nix flake metadata --json ...$flake.flags $flake.ref | str trim | from json | get path
+}
+
+def target-user [target: any]: nothing -> string {
+  if $target == null { $env.USER } else { ^ssh $target whoami | str trim }
+}
+
+def activate-darwin [target: any, system: string] {
+  run-on "nix-darwin activation" $target $"sudo ($system)/sw/bin/nix-env -p /nix/var/nix/profiles/system --set ($system) && sudo ($system)/activate"
+}
+
+def activate-hjem [target: any, hjem: string, source: string, attr: string, apply: string] {
+  run-on "Hjem activation (a preflight failure leaves the home unchanged; a later one can leave partial changes)" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($apply)/bin/apply"
 }
 
 def apply-hjem [host: string, target: any, roots: string, flake: record] {
   let root = $flake.ref
-  let user = if $target == null { $env.USER } else { ^ssh $target whoami | str trim }
+  let user = target-user $target
   let attr = $'hjemConfigurations."($user)@($host)"'
 
   let paths = realize "Hjem build" ($roots | path join hjem) $flake.flags $'($root)#($attr).preflight' $'($root)#($attr).apply' $'($root)#hjem'
   let preflight = $paths.0
   let apply = $paths.1
   let hjem = $paths.2
-  let source = ^nix flake metadata --json ...$flake.flags $root | str trim | from json | get path
+  let source = flake-source $flake
 
   if $target != null {
     push "Hjem closure copy" $target $preflight $hjem $apply
     step "flake source copy" { ^nix flake archive --no-check-sigs --to $'ssh-ng://($target)' ...$flake.flags $root }
   }
 
-  run-on "Hjem activation (a preflight failure leaves the home unchanged; a later one can leave partial changes)" $target $"($hjem)/bin/hjem standalone switch --flake ($source) --flake-attr '($attr)' && ($apply)/bin/apply"
+  activate-hjem $target $hjem $source $attr $apply
 }
 
 def apply-darwin [host: string, target: any, roots: string, flake: record] {
@@ -77,7 +94,7 @@ def apply-darwin [host: string, target: any, roots: string, flake: record] {
     push "nix-darwin closure copy" $target $system
   }
 
-  run-on "nix-darwin activation" $target $"sudo ($system)/sw/bin/nix-env -p /nix/var/nix/profiles/system --set ($system) && sudo ($system)/activate"
+  activate-darwin $target $system
 }
 
 def with-roots [action: closure] {
@@ -103,9 +120,25 @@ export def all [host: string, --target: string = "", --flake: string = ""] {
   let target = resolve-target $host $target
   with-roots {|roots|
     let selected = select-flake $flake $roots
-    apply-darwin $host $target $roots $selected
+    let root = $selected.ref
+    let user = target-user $target
+    let attr = $'hjemConfigurations."($user)@($host)"'
+
+    let paths = realize "System and Hjem build" ($roots | path join all) $selected.flags $'($root)#darwinConfigurations."($host)".system' $'($root)#($attr).preflight' $'($root)#($attr).apply' $'($root)#hjem'
+    let system = $paths.0
+    let preflight = $paths.1
+    let apply = $paths.2
+    let hjem = $paths.3
+    let source = flake-source $selected
+
+    if $target != null {
+      push "System and Hjem closure copy" $target $system $preflight $hjem $apply
+      step "flake source copy" { ^nix flake archive --no-check-sigs --to $'ssh-ng://($target)' ...$selected.flags $root }
+    }
+
+    activate-darwin $target $system
     try {
-      apply-hjem $host $target $roots $selected
+      activate-hjem $target $hjem $source $attr $apply
     } catch {|error|
       error make {msg: $"($error.msg); nix-darwin is already active"}
     }

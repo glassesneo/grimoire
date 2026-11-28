@@ -171,16 +171,23 @@ module HjemDefaults
     end
     changed = wanted.reject { |entry, leaf| prefs.matches?(entry.domain, leaf.path, leaf.xml) }
 
+    journal_dirty = !File.exists?(path)
     wanted.each do |entry, leaf|
       if owned = journal.keys.find { |o| o.domain == entry.domain && o.path == leaf.path }
-        owned.actions = entry.actions
+        if owned.actions != entry.actions
+          owned.actions = entry.actions
+          journal_dirty = true
+        end
       else
         journal.keys << Owned.new(entry.domain, leaf.path, prefs.present(entry.domain, leaf.path),
           prefs.read(entry.domain, leaf.path), entry.actions)
+        journal_dirty = true
       end
     end
+    pending_before = journal.pending.size
     queue(journal, changed.flat_map { |entry, _| entry.actions })
-    save(path, journal)
+    journal_dirty = true if journal.pending.size != pending_before
+    save(path, journal) if journal_dirty
 
     changed.each { |entry, leaf| prefs.write(entry.domain, leaf.path, leaf.xml) }
     changed.map { |entry, _| entry.domain }.uniq.each { |domain| prefs.sync(domain) }

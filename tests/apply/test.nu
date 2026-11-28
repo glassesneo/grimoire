@@ -19,28 +19,33 @@ def main [script: string] {
   let applied = apply $script {}
   assert equal $applied.exit_code 0 $applied.stderr
   let calls = $applied.calls
-  let order = [darwinConfigurations "/activate" ".preflight" "standalone switch"] | each {|pattern| index-of $calls $pattern }
+  let builds = $calls | where {|call| $call | str starts-with "nix build " }
+  assert equal ($builds | length) 1 "all must build nix-darwin and Hjem in one nix build call"
+  let copies = $calls | where {|call| $call | str starts-with "nix copy " }
+  assert equal ($copies | length) 1 "all must copy nix-darwin and Hjem closures in one nix copy call"
+  let order = [darwinConfigurations "nix copy" "/activate" "standalone switch"] | each {|pattern| index-of $calls $pattern }
   assert equal $order ($order | sort)
-  let built = $calls | where {|call| $call | str contains ".preflight" } | first | split row ' ' | where {|arg| $arg | str contains '#' } | each {|attr| $"/nix/store/fake-($attr | hash md5)" }
+  let built = $builds | first | split row ' ' | where {|arg| $arg | str contains '#' } | each {|attr| $"/nix/store/fake-($attr | hash md5)" }
   let activation = $calls | where {|call| $call | str contains "standalone switch" } | first
-  assert str contains $activation $"($built.2)/bin/hjem standalone switch"
-  assert str contains $activation $"($built.1)/bin/apply"
+  assert str contains $activation $"($built.3)/bin/hjem standalone switch"
+  assert str contains $activation $"($built.2)/bin/apply"
 
   let source = "/nix/store/0123456789abcdefghijklmnopqrstuv-source"
   let candidate = apply $script {SOURCE: $source}
   assert equal $candidate.exit_code 0 $candidate.stderr
-  for pattern in [darwinConfigurations ".preflight" "flake metadata" "flake archive"] {
+  for pattern in [darwinConfigurations "flake archive"] {
     let i = index-of $candidate.calls $pattern
     assert str contains ($candidate.calls | get $i) $"path:($source)"
   }
+  assert ($candidate.calls | where {|call| $call | str contains "flake metadata" } | is-empty) "candidate source path must not re-run nix flake metadata"
   let activated = index-of $candidate.calls "standalone switch"
   assert str contains ($candidate.calls | get $activated) $"--flake ($source)"
 
   for with_path in ["" "1"] {
     let failed = apply $script {FAIL_ON: ".preflight", FAIL_WITH_PATH: $with_path}
     assert not equal $failed.exit_code 0
-    assert str contains $failed.stderr "Hjem build failed"
-    index-of $failed.calls "/activate" | ignore
+    assert str contains $failed.stderr "System and Hjem build failed"
+    assert ($failed.calls | where {|call| $call | str contains "/activate" } | is-empty) "build failure must not activate nix-darwin"
     assert ($failed.calls | last | str contains ".preflight")
   }
 }

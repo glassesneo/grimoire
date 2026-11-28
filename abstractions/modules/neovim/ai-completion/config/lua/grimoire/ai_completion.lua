@@ -40,7 +40,13 @@ local function can_request()
   return M.allowed() and M.api_key() ~= nil
 end
 
+local initialized = false
+
 function M.setup()
+  if initialized then
+    return
+  end
+  initialized = true
   local settings = vim.g.grimoire_ai_completion
   local transform = {
     function (request)
@@ -72,12 +78,14 @@ function M.setup()
     },
     duet = { recent_edits = { enabled = false } },
   })
+end
 
-  local action = require("minuet.virtualtext").action
+function M.register()
   local function map_cycle(lhs, direction, desc)
     vim.keymap.set("i", lhs, function ()
       if can_request() then
-        action[direction]()
+        M.setup()
+        require("minuet.virtualtext").action[direction]()
       end
     end, { desc = desc }
     )
@@ -86,12 +94,21 @@ function M.setup()
   map_cycle("<C-.>", "next", "Minuet: next candidate or request completion")
 
   table.insert(require("grimoire.inline_completion").sources, function ()
-    if action.is_visible() then
-      action.accept()
+    local vt = package.loaded["minuet.virtualtext"]
+    if vt and vt.action.is_visible() then
+      vt.action.accept()
       return true
     end
     return false
   end)
+
+  vim.api.nvim_create_autocmd({ "BufReadPre", "BufNewFile", "InsertEnter" }, {
+    group = vim.api.nvim_create_augroup("grimoire.ai_completion.load", { clear = true }),
+    once = true,
+    callback = function ()
+      M.setup()
+    end,
+  })
 end
 
 return M

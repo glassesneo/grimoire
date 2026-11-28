@@ -53,13 +53,13 @@ delib.module {
             (( $#stale )) && zf_rm -f $stale
           fi
           autoload -Uz compinit && compinit -C -d $dump
+          [[ ! -e $dump.zwc || $dump -nt $dump.zwc ]] && zcompile $dump
         }
       '';
       pure.text = ''
         fpath+=(${pkgs.pure-prompt}/share/zsh/site-functions)
-        autoload -Uz promptinit && promptinit
         zstyle :prompt:pure:git:stash show yes
-        prompt pure
+        autoload -Uz prompt_pure_setup && prompt_pure_setup
       '';
     };
 
@@ -71,6 +71,7 @@ delib.module {
         (mylib.fragments.render config.zsh.zshrc)
         ''
           ZSH_AUTOSUGGEST_STRATEGY=(history)
+          ZSH_AUTOSUGGEST_MANUAL_REBIND=1
           source ${autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh
         ''
         ''

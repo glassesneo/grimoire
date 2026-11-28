@@ -1,1 +1,1 @@
-require("grimoire.ai_completion").setup()
+require("grimoire.ai_completion").register()

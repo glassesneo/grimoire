@@ -38,6 +38,8 @@
       else defaults // attrs
     );
 
+  base = compose [];
+
   generate = name: case: let
     fixtureSystem = case.host.system or system;
     extraArgs = {
@@ -49,11 +51,12 @@
       bundles.system = fixtureSystem;
     };
   in
-    (compose (
-      [(fileOf name) (host case.host)]
-      ++ map fileOf (lib.remove name (loaded ([name] ++ case.uses)))
-      ++ lib.mapAttrsToList contributor case.modules
-    )).genSystem {
+    (base.extendModules {
+      modules =
+        [(fileOf name) (host case.host)]
+        ++ map fileOf (lib.remove name (loaded ([name] ++ case.uses)))
+        ++ lib.mapAttrsToList contributor case.modules;
+    }).genSystem {
       inherit (case) moduleSystem;
       host = "fixture";
       extraArgs = extraArgs.${case.moduleSystem} or {};
