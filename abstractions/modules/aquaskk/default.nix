@@ -114,7 +114,7 @@ delib.module ({
       candidate_window_font_size = 18;
       candidate_window_labels = "ASDFJKL";
       put_candidate_window_upward = 1;
-      use_individual_input_mode = 1;
+      use_individual_input_mode = 0;
       direct_clients = cfg.directClients;
     };
 
