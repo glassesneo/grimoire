@@ -12,23 +12,35 @@ delib.module ({
   inherit (mylib.anchors.flakes ./anchors.json) vicinae;
 in {
   name = "vicinae";
-  tests.fixture = ["defaults" "exclusive" "roles.launcher" "services" "source-files"];
+  tests.fixture = ["defaults" "exclusive" "roles.launcher" "services"];
   meta = {
     description = "Provide the Vicinae launcher as a login service with a stable code-signing identity.";
     tags = ["gui"];
     role = "launcher";
   };
 
-  options = with delib; {
-    enable = boolOption false;
-    package = packageOption myconfig.source-files.patched.vicinae "Package installed as the app; setting it bypasses `source-files.sources.vicinae`.";
-  };
-
-  myconfig.always = {pkgs, ...}: {
-    roles.launcher.holder = "vicinae";
+  options = {pkgs, ...}: let
     # Upstream's own nixpkgs keeps vicinae.cachix substitutes usable.
-    source-files.sources.vicinae.package = vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
-  };
+    upstream = vicinae.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    patched =
+      if cfg.patches == []
+      then upstream
+      else
+        upstream.overrideAttrs (old: {
+          patches = (old.patches or []) ++ cfg.patches;
+        });
+  in
+    with delib; {
+      enable = boolOption false;
+      patches = mylib.accumulatingOption (lib.mkOption {
+        type = lib.types.listOf lib.types.path;
+        default = [];
+        description = "Patches applied to Vicinae's source before building.";
+      });
+      package = packageOption patched "Package installed as the app; setting it bypasses `vicinae.patches`.";
+    };
+
+  myconfig.always.roles.launcher.holder = "vicinae";
 
   hjem.always = {pkgs, ...}: {
     options.vicinae.settings = lib.mkOption {
@@ -52,7 +64,7 @@ in {
       chmod -R u+w "$out"
       find "$out" -type f -exec env SOURCE=${cfg.package} OUT="$out" perl -0777 -pi -e 's/\Q$ENV{SOURCE}\E/$ENV{OUT}/g' {} +
     '';
-    # stabilizeApp re-signs its input, so source replacements come before it.
+    # stabilizeApp re-signs its input, so patches come before it.
     package = myconfig.app-identity.stabilizeApp bundled;
     app = "${package}/Applications/Vicinae.app";
   in {

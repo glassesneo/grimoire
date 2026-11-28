@@ -34,12 +34,16 @@ in
     name = "elio";
     meta.description = "Provide and publish elio, configure its settings and theme, and integrate it with Zsh.";
 
-    myconfig.always = {pkgs, ...}: {
-      source-files.sources.elio.package = pkgs.callPackage "${(mylib.anchors.sources ./anchors.json).elio}/nix/package.nix" {};
-    };
-
     options = {pkgs, ...}: let
       inherit (lib) types;
+      upstream = pkgs.callPackage "${(mylib.anchors.sources ./anchors.json).elio}/nix/package.nix" {};
+      patched =
+        if cfg.patches == []
+        then upstream
+        else
+          upstream.overrideAttrs (old: {
+            patches = (old.patches or []) ++ cfg.patches;
+          });
       table = types.attrsOf (pkgs.formats.toml {}).type;
       tables = types.attrsOf table;
       section = type:
@@ -50,7 +54,12 @@ in
     in
       with delib; {
         enable = boolOption true;
-        package = packageOption myconfig.source-files.patched.elio "Package installed and published; setting it bypasses `source-files.sources.elio`.";
+        patches = mylib.accumulatingOption (lib.mkOption {
+          type = types.listOf types.path;
+          default = [];
+          description = "Patches applied to elio's source before building.";
+        });
+        package = packageOption patched "Package installed and published; setting it bypasses `elio.patches`.";
         settings = lib.mkOption {
           type = tables;
           default = {};
@@ -133,7 +142,7 @@ in
         myconfig.colorscheme.combinations)
       ];
 
-    tests.fixture = ["exclusive" "source-files" "zsh.interactive"];
+    tests.fixture = ["exclusive" "zsh.interactive"];
 
     tests.cases = {pkgs, ...}: {
       bundles = let

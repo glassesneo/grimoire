@@ -1,0 +1,30 @@
+--- a/src/input_handling/fuzzy_finder.rs
++++ b/src/input_handling/fuzzy_finder.rs
+@@ -34,6 +34,12 @@
+             }
+             KeyCode::Up => self.move_search_selection(-1),
+             KeyCode::Down => self.move_search_selection(1),
++            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
++                self.move_search_selection(-1)
++            }
++            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
++                self.move_search_selection(1)
++            }
+             KeyCode::PageUp => self.page_search(-1),
+             KeyCode::PageDown => self.page_search(1),
+             KeyCode::Home => {
+--- a/src/input_handling/keyboard.rs
++++ b/src/input_handling/keyboard.rs
+@@ -402,6 +402,12 @@
+             KeyCode::Down | KeyCode::Char('j') => {
+                 self.scroll_help_by(1);
+             }
++            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
++                self.scroll_help_by(-1);
++            }
++            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
++                self.scroll_help_by(1);
++            }
+             KeyCode::PageUp => {
+                 self.scroll_help_by(-(self.help_page_step() as isize));
+             }

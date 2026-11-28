@@ -1,0 +1,89 @@
+--- a/src/server/src/ui/qml/launcher/LauncherWindow.qml
++++ b/src/server/src/ui/qml/launcher/LauncherWindow.qml
+@@ -148,9 +148,19 @@
+             HorizontalLoadingBar {
+                 Layout.fillWidth: true
+                 implicitHeight: Launcher.searchVisible ? 1 : 0
+-                visible: Launcher.searchVisible && !Launcher.compacted
++                opacity: Launcher.compacted ? 0 : 1
++                visible: Launcher.searchVisible && opacity > 0
++                enabled: !Launcher.compacted
+                 loading: Launcher.isLoading
+                 dividerVisible: root.appearance.searchDividerVisible
++
++                Behavior on opacity {
++                    enabled: root.visible && root.opacity > 0
++                    NumberAnimation {
++                        duration: 120
++                        easing.type: Easing.InOutQuad
++                    }
++                }
+             }
+ 
+             Item {
+@@ -174,7 +184,17 @@
+                         StackView {
+                             id: commandStack
+                             anchors.fill: parent
+-                            visible: !Launcher.compacted
++                            opacity: Launcher.compacted ? 0 : 1
++                            visible: opacity > 0
++                            enabled: !Launcher.compacted
++
++                            Behavior on opacity {
++                                enabled: root.visible && root.opacity > 0
++                                NumberAnimation {
++                                    duration: 120
++                                    easing.type: Easing.InOutQuad
++                                }
++                            }
+                         }
+                     }
+                 }
+@@ -218,7 +238,9 @@
+ 
+         Loader {
+             id: floatingStatusBar
+-            visible: !Launcher.compacted && !Launcher.hasOverlay && (root.pageFooter !== null || Launcher.statusBarVisible)
++            opacity: Launcher.compacted ? 0 : 1
++            visible: opacity > 0 && !Launcher.hasOverlay && (root.pageFooter !== null || Launcher.statusBarVisible)
++            enabled: !Launcher.compacted
+             anchors.left: parent.left
+             anchors.right: parent.right
+             anchors.bottom: parent.bottom
+@@ -241,6 +263,14 @@
+                 when: root.pageFooter !== null
+                 restoreMode: Binding.RestoreBindingOrValue
+             }
++
++            Behavior on opacity {
++                enabled: root.visible && root.opacity > 0
++                NumberAnimation {
++                    duration: 120
++                    easing.type: Easing.InOutQuad
++                }
++            }
+         }
+ 
+         SourceBlendRect {
+--- a/src/server/src/ui/qml/launcher/LauncherWindowMacOS.qml
++++ b/src/server/src/ui/qml/launcher/LauncherWindowMacOS.qml
+@@ -20,8 +20,16 @@
+     autoPlaceOnShow: false
+ 
+     height: _contentH
+-    minimumHeight: _contentH
+-    maximumHeight: _contentH
++    minimumHeight: Math.min(height, _contentH)
++    maximumHeight: Math.max(height, _contentH)
++
++    Behavior on height {
++        enabled: visible && opacity > 0
++        NumberAnimation {
++            duration: 200
++            easing.type: Easing.InOutQuad
++        }
++    }
+ 
+     onAboutToShow: Launcher.prepareShow()
+ 

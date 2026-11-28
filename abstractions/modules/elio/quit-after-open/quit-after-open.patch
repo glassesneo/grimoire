@@ -1,0 +1,22 @@
+--- a/src/terminal_runtime/tui_event_loop.rs
++++ b/src/terminal_runtime/tui_event_loop.rs
+@@ -749,6 +749,9 @@
+                         input_reader.set_paused(false);
+                         if let Err(error) = result {
+                             app.set_status_message(format!("Could not open terminal app: {error}"));
++                        } else {
++                            app.should_change_directory_on_quit = false;
++                            app.should_quit = true;
+                         }
+                         None
+                     }
+@@ -768,6 +771,9 @@
+                         input_reader.set_paused(false);
+                         if let Some(error) = last_error {
+                             app.set_status_message(format!("Could not open terminal app: {error}"));
++                        } else {
++                            app.should_change_directory_on_quit = false;
++                            app.should_quit = true;
+                         }
+                         None
+                     }

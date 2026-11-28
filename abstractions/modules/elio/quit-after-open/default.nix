@@ -1,17 +1,10 @@
-{delib, ...}: let
-  sourceFiles = {
-    "src/terminal_runtime/tui_event_loop.rs" = {
-      source = ./src/terminal_runtime/tui_event_loop.rs;
-      upstreamSha256 = "5a16d869a0e4e44143dd8fd374860b72b182b0e776c9254e146d1dc45cc34fd0";
-    };
-  };
-in
-  delib.module {
-    name = "elio.quit-after-open";
-    tests.fixture = ["elio"];
-    meta.description = "Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully.";
+{delib, ...}:
+delib.module {
+  name = "elio.quit-after-open";
+  tests.fixture = ["elio"];
+  meta.description = "Quit elio without changing the shell's directory once a program it opened in the terminal exits successfully.";
 
-    options.enable = delib.boolOption true;
+  options.enable = delib.boolOption true;
 
-    myconfig.ifEnabled.source-files.sources.elio.files = sourceFiles;
-  }
+  myconfig.ifEnabled.elio.patches = [./quit-after-open.patch];
+}
